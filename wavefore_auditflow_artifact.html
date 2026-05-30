@@ -1,0 +1,3049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wavefire</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Wavefire brand */
+    --wf-navy: #2554a0;
+    --wf-navy-hover: #1d4690;
+    --wf-blue: #3b82f6;
+    --wf-blue-light: #dbeafe;
+    --wf-teal: #0ea5e9;
+
+    /* Surfaces */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #94a3b8;
+    --border-light: rgba(0,0,0,0.09);
+    --border-medium: rgba(0,0,0,0.16);
+
+    /* Semantic (kept for pill/tag colours) */
+    --blue-50: #dbeafe;
+    --blue-100: #bfdbfe;
+    --blue-600: #2563eb;
+    --blue-800: #1e40af;
+    --green-50: #dcfce7;
+    --green-800: #166534;
+    --amber-50: #fef3c7;
+    --amber-100: #fde68a;
+    --amber-800: #92400e;
+    --red-50: #fee2e2;
+    --red-700: #b91c1c;
+    --gray-50: #f1f5f9;
+    --gray-600: #475569;
+    --purple-50: #ede9fe;
+    --purple-100: #ddd6fe;
+    --purple-800: #5b21b6;
+    --radius-md: 6px;
+    --radius-lg: 10px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── WAVEFIRE PRIMARY NAV ── */
+  .wf-topbar {
+    background: var(--wf-navy);
+    height: 52px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    flex-shrink: 0;
+    position: sticky; top: 0; z-index: 200;
+    gap: 24px;
+  }
+  .wf-brand { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+  .wf-brand-text {
+    font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+    color: #fff;
+  }
+  .wf-nav { display: flex; align-items: stretch; gap: 0; height: 52px; }
+  .wf-nav-item {
+    display: flex; align-items: center;
+    padding: 0 15px;
+    font-size: 13px; font-weight: 500;
+    color: rgba(255,255,255,0.72);
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: color 0.12s, border-color 0.12s, background 0.12s;
+    white-space: nowrap;
+  }
+  .wf-nav-item:hover { color: #fff; background: rgba(255,255,255,0.06); }
+  .wf-nav-item.active { color: #fff; border-bottom-color: #38bdf8; }
+  .wf-user { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .wf-notif {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.7); font-size: 16px; cursor: pointer;
+  }
+  .wf-notif:hover { color: #fff; background: rgba(255,255,255,0.1); }
+  .wf-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #e11d48; color: #fff;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+
+  /* ── WAVEFIRE AUDITS SUB-NAV ── */
+  .wf-subnav {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-light);
+    padding: 0 20px;
+    flex-shrink: 0;
+    position: sticky; top: 52px; z-index: 150;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .wf-subnav-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 46px; gap: 16px;
+  }
+  .wf-subnav-left { display: flex; align-items: center; gap: 12px; }
+  .wf-subnav-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--wf-navy); padding-right: 14px;
+    border-right: 1px solid var(--border-light);
+  }
+  .wf-auditcontrols { display: flex; align-items: center; gap: 6px; }
+  .wf-ctl-group { display: flex; flex-direction: column; gap: 1px; min-width: 130px; }
+  .wf-ctl-label {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--text-tertiary);
+  }
+  .wf-ctl-select {
+    font-size: 12px; font-weight: 500; color: var(--text-primary);
+    background: transparent; border: none; outline: none;
+    cursor: pointer; width: 100%;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0 center; padding-right: 14px;
+  }
+  .wf-ctl-select:focus { color: var(--wf-blue); }
+  .wf-ctl-divider { width: 1px; height: 28px; background: var(--border-light); flex-shrink: 0; margin: 0 4px; }
+
+  /* ── LAYOUT (no sidebar) ── */
+  .body { display: flex; flex: 1; }
+  .content { flex: 1; padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+
+  /* PAGES */
+  .page { display: none; flex-direction: column; gap: 16px; }
+  .page.active { display: flex; }
+
+  /* PAGE HEADER */
+  .ph { display: flex; align-items: flex-end; justify-content: space-between; }
+  .pt { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+  .ps { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+
+  /* BREADCRUMB */
+  .bc { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-tertiary); }
+  .bc span { color: var(--text-secondary); cursor: pointer; }
+  .bc span:hover { color: var(--wf-blue); text-decoration: underline; }
+  .bc .cur { color: var(--text-primary); font-weight: 500; cursor: default; text-decoration: none; }
+  .bc i { font-size: 11px; }
+
+  /* BUTTONS */
+  .row-actions { display: flex; gap: 8px; }
+  .btn-p {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--wf-navy); color: #fff; font-size: 13px; font-weight: 500;
+    padding: 7px 14px; border-radius: var(--radius-md); border: none; cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn-p:hover { background: var(--wf-navy-hover); }
+  .btn-p i { font-size: 15px; }
+  .btn-s {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--text-secondary); padding: 6px 11px;
+    border-radius: var(--radius-md); border: 0.5px solid var(--border-light);
+    background: transparent; cursor: pointer; transition: background 0.12s, color 0.12s;
+  }
+  .btn-s:hover { background: var(--bg-secondary); color: var(--text-primary); }
+  .btn-s i { font-size: 14px; }
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: var(--radius-md);
+    border: 0.5px solid var(--border-light); background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-secondary); font-size: 14px; transition: background 0.1s;
+  }
+  .icon-btn:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+  /* FILTERS */
+  .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .filters select, .filters input {
+    font-size: 12px; padding: 6px 10px;
+    border: 0.5px solid var(--border-light); border-radius: var(--radius-md);
+    background: var(--bg-primary); color: var(--text-primary); outline: none;
+  }
+  .filters input { min-width: 180px; }
+  .filters select:focus, .filters input:focus {
+    border-color: var(--wf-blue);
+    box-shadow: 0 0 0 2px rgba(24,95,165,0.12);
+  }
+
+  /* TABLE */
+  .tc { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; }
+  .tb-bar { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; border-bottom: 0.5px solid var(--border-light); }
+  .tb-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  thead th {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-tertiary); padding: 8px 16px; text-align: left;
+    border-bottom: 0.5px solid var(--border-light); background: var(--bg-secondary);
+  }
+  tbody tr { border-bottom: 0.5px solid var(--border-light); cursor: pointer; transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f0f7ff; }
+  tbody td { font-size: 13px; color: var(--text-primary); padding: 10px 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tm { color: var(--text-secondary); font-size: 12px; }
+
+  /* PILLS & TAGS */
+  .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .pill-active   { background: var(--green-50);  color: var(--green-800); }
+  .pill-planned  { background: var(--blue-50);   color: var(--blue-600); }
+  .pill-closed   { background: var(--gray-50);   color: var(--gray-600); }
+  .pill-locked   { background: var(--red-50);    color: var(--red-700); }
+  .pill-review   { background: var(--amber-50);  color: var(--amber-800); }
+  .pill-approved { background: var(--green-50);  color: var(--green-800); }
+  .pill-draft    { background: var(--gray-50);   color: var(--gray-600); }
+
+  .type-tag { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-secondary); border: 0.5px solid var(--border-light); }
+  .wp-type-planning { background: var(--blue-50);   color: var(--blue-800);   border-color: var(--blue-100); }
+  .wp-type-testwork { background: var(--green-50);  color: var(--green-800);  border-color: #C0DD97; }
+  .wp-type-report   { background: var(--amber-50);  color: var(--amber-800);  border-color: var(--amber-100); }
+  .wp-type-memo     { background: var(--purple-50); color: var(--purple-800); border-color: var(--purple-100); }
+
+  /* SECTION CARDS */
+  .sect-card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; }
+  .sect-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 0.5px solid var(--border-light); background: var(--bg-secondary); }
+  .sect-hdr-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .sect-hdr-title i { font-size: 14px; }
+  .sect-body { padding: 16px; }
+  .field-grid   { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .field-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .fld { display: flex; flex-direction: column; gap: 4px; }
+  .fl { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-tertiary); }
+  .fl .note { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-tertiary); }
+  .fv { font-size: 13px; color: var(--text-primary); line-height: 1.4; }
+  .fv-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  .ctrl-tag { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--radius-md); background: var(--blue-50); color: var(--blue-800); border: 0.5px solid var(--blue-100); }
+  .risk-tag { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: var(--radius-md); background: var(--amber-50); color: var(--amber-800); border: 0.5px solid var(--amber-100); }
+
+  /* FILES */
+  .file-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 0.5px solid var(--border-light); transition: background 0.1s; }
+  .file-row:last-of-type { border-bottom: none; }
+  .file-row:hover { background: var(--bg-secondary); }
+  .file-icon { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--bg-secondary); border: 0.5px solid var(--border-light); display: flex; align-items: center; justify-content: center; font-size: 17px; color: var(--text-secondary); flex-shrink: 0; }
+  .file-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .file-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+  .file-actions { margin-left: auto; display: flex; gap: 6px; }
+  .upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 22px; margin: 12px 16px 16px; border: 1.5px dashed var(--border-medium); border-radius: var(--radius-md); cursor: pointer; color: var(--text-tertiary); font-size: 13px; transition: background 0.12s, border-color 0.12s, color 0.12s; }
+  .upload-zone i { font-size: 22px; }
+  .upload-zone:hover { background: var(--bg-secondary); border-color: var(--wf-blue); color: var(--wf-blue); }
+
+  /* ── AUDIT INFO CARD FIELD SELECTS ── */
+  .aud-field-select {
+    font-size: 13px; color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 5px 9px; outline: none; cursor: pointer; width: 100%;
+  }
+  .aud-field-select:focus { border-color: var(--wf-blue); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+
+  /* ── ENTITY DIALOG LIST ITEMS ── */
+  .entity-list-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 18px; cursor: pointer;
+    transition: background 0.1s;
+  }
+  .entity-list-item:hover { background: var(--bg-secondary); }
+  .entity-list-item.checked { background: #f0fdf4; }
+  .entity-checkbox {
+    width: 16px; height: 16px; border: 1.5px solid var(--border-medium);
+    border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-primary); transition: all 0.12s;
+  }
+  .entity-list-item.checked .entity-checkbox {
+    background: #16a34a; border-color: #16a34a; color: #fff;
+  }
+  .entity-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .entity-sub  { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+  @media (max-width: 900px) {
+    .field-grid { grid-template-columns: repeat(2, 1fr); }
+    .field-grid-2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .content { padding: 14px 12px; }
+    .field-grid { grid-template-columns: 1fr; }
+  }
+
+
+  /* ── CONTROL PICKER DROPDOWN ── */
+  .ctrl-picker-item {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid var(--border-light);
+    transition: background 0.1s;
+  }
+  .ctrl-picker-item:last-child { border-bottom: none; }
+  .ctrl-picker-item:hover { background: var(--blue-50); }
+  .ctrl-picker-item.selected { background: var(--blue-50); }
+  .ctrl-picker-item-clear {
+    padding: 8px 12px; cursor: pointer; font-size: 12px;
+    color: var(--text-tertiary); border-bottom: 0.5px solid var(--border-light);
+    transition: background 0.1s;
+  }
+  .ctrl-picker-item-clear:hover { background: var(--bg-secondary); color: var(--text-primary); }
+  .ctrl-picker-id   { font-size: 10px; font-weight: 700; color: var(--wf-blue); letter-spacing: 0.3px; }
+  .ctrl-picker-name { font-size: 12px; font-weight: 500; color: var(--text-primary); line-height: 1.3; }
+
+  /* ── RISK TOOLTIP ── */
+  .risk-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+    padding: 12px 14px;
+    min-width: 260px;
+    max-width: 320px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .risk-tooltip.visible { opacity: 1; }
+  .risk-tooltip-id {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--amber-800); margin-bottom: 4px;
+  }
+  .risk-tooltip-title {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 6px; line-height: 1.3;
+  }
+  .risk-tooltip-desc {
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+  }
+  .risk-tag[data-risk-id] { cursor: help; }
+  .risk-tag[data-risk-id]:hover { background: #FAC77540; border-color: var(--amber-800); color: var(--amber-800); }
+
+  /* ── AUDIT INFO TOOLTIP ── */
+  .audit-info-tooltip {
+    position: fixed; z-index: 9999;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+    padding: 14px 16px;
+    min-width: 300px; max-width: 380px;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .audit-info-tooltip.visible { opacity: 1; }
+  .ait-name { font-size: 14px; font-weight: 700; color: var(--wf-navy); margin-bottom: 5px; line-height: 1.3; }
+  .ait-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
+  .ait-divider { height: 0.5px; background: var(--border-light); margin-bottom: 10px; }
+  .ait-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 10px; }
+  .ait-fld { display: flex; flex-direction: column; gap: 2px; }
+  .ait-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-tertiary); }
+  .ait-value { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+  .ait-entities { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+
+  /* ── CONTROL TOOLTIP ── */
+  .ctrl-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+    padding: 12px 14px;
+    min-width: 260px;
+    max-width: 320px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .ctrl-tooltip.visible { opacity: 1; }
+  .ctrl-tooltip-id {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--blue-600); margin-bottom: 4px;
+  }
+  .ctrl-tooltip-title {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 6px; line-height: 1.3;
+  }
+  .ctrl-tooltip-desc {
+    font-size: 12px; color: var(--text-secondary);
+    line-height: 1.5; margin-bottom: 10px;
+  }
+  .ctrl-tooltip-divider {
+    height: 0.5px; background: var(--border-light); margin-bottom: 8px;
+  }
+  .ctrl-tooltip-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+  .ctrl-tooltip-field:last-child { margin-bottom: 0; }
+  .ctrl-tooltip-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-tertiary);
+  }
+  .ctrl-tooltip-value { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+  .ctrl-tag[data-ctrl-id] { cursor: help; }
+  .ctrl-tag[data-ctrl-id]:hover { background: var(--blue-100); border-color: var(--blue-600); color: var(--blue-800); }
+
+  /* ── ENTITY TAG (green) ── */
+  .entity-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 9px; border-radius: var(--radius-md);
+    background: #dcfce7; color: #166534;
+    border: 0.5px solid #86efac;
+  }
+  .entity-tag-app {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 9px; border-radius: var(--radius-md);
+    background: #ffedd5; color: #9a3412;
+    border: 0.5px solid #fdba74;
+  }
+  .entity-tag-biomed {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 9px; border-radius: var(--radius-md);
+    background: #ede9fe; color: #5b21b6;
+    border: 0.5px solid #c4b5fd;
+  }
+  .entity-tag i, .entity-tag-app i, .entity-tag-biomed i { font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="ctrl-tooltip" class="ctrl-tooltip">
+  <div class="ctrl-tooltip-id" id="tt-id"></div>
+  <div class="ctrl-tooltip-title" id="tt-title"></div>
+  <div class="ctrl-tooltip-desc" id="tt-desc"></div>
+  <div class="ctrl-tooltip-divider"></div>
+  <div class="ctrl-tooltip-field">
+    <div class="ctrl-tooltip-label">Internal Control Owner</div>
+    <div class="ctrl-tooltip-value" id="tt-ctrl-owner"></div>
+  </div>
+  <div class="ctrl-tooltip-field">
+    <div class="ctrl-tooltip-label">Process Owner</div>
+    <div class="ctrl-tooltip-value" id="tt-proc-owner"></div>
+  </div>
+</div>
+
+<div id="risk-tooltip" class="risk-tooltip">
+  <div class="risk-tooltip-id" id="rtt-id"></div>
+  <div class="risk-tooltip-title" id="rtt-title"></div>
+  <div class="risk-tooltip-desc" id="rtt-desc"></div>
+</div>
+
+<div id="audit-info-tooltip" class="audit-info-tooltip">
+  <div class="ait-name" id="ait-name">Q2 2026 Financial Audit</div>
+  <div class="ait-desc" id="ait-desc"></div>
+  <div class="ait-divider"></div>
+  <div class="ait-grid">
+    <div class="ait-fld"><div class="ait-label">Audit owner</div><div class="ait-value" id="ait-owner"></div></div>
+    <div class="ait-fld"><div class="ait-label">Business owner</div><div class="ait-value" id="ait-biz-owner"></div></div>
+    <div class="ait-fld"><div class="ait-label">Audit type</div><div class="ait-value" id="ait-type"></div></div>
+    <div class="ait-fld"><div class="ait-label">Status</div><div class="ait-value" id="ait-status"></div></div>
+  </div>
+  <div class="ait-label" style="margin-bottom:5px">Assessment entities</div>
+  <div class="ait-entities" id="ait-entities"></div>
+</div>
+
+<div class="app">
+
+  <!-- WAVEFIRE PRIMARY NAV -->
+  <div class="wf-topbar">
+    <div class="wf-brand">
+      <svg width="20" height="24" viewBox="0 0 20 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <!-- Flame body -->
+        <path d="M10 27C5.5 27 2 23.6 2 19.2C2 16 3.8 13.4 5.2 11.8C5.2 13.6 6.1 14.8 7.2 15.4C6.8 13.2 7.6 10.2 9.4 8C10.6 6.4 12.2 5.2 13.4 3C13.8 5.8 14.6 7.8 16.2 9.8C17.6 11.6 18 14 18 16C18 17 17.8 17.8 17.4 18.6C17.4 16.6 16.2 15.4 14.8 14.8C15.4 17 14.6 19.8 12.8 21.6C13.2 20 13 18.2 12 17C11.6 19.2 10.8 21.4 10 23C9.2 21.4 9 19.8 9.4 18.4C8.2 19.6 7.6 21.2 7.8 23C5.4 21.4 4 18.4 4.8 15.4C3.2 17 2 19 2 19.2" fill="#f97316"/>
+        <path d="M10 27C5.5 27 2 23.6 2 19.2C2 16 3.8 13.4 5.2 11.8C5.2 13.6 6.1 14.8 7.2 15.4C6.8 13.2 7.6 10.2 9.4 8C10.6 6.4 12.2 5.2 13.4 3C13.8 5.8 14.6 7.8 16.2 9.8C17.6 11.6 18 14 18 16C18 17 17.8 17.8 17.4 18.6C17.4 16.6 16.2 15.4 14.8 14.8C15.4 17 14.6 19.8 12.8 21.6C13.2 20 13 18.2 12 17C11.6 19.2 10.8 21.4 10 23C9.2 21.4 9 19.8 9.4 18.4C8.2 19.6 7.6 21.2 7.8 23C5.4 21.4 4 18.4 4.8 15.4C3.2 17 2 19 2 19.2Z" fill="url(#flameGrad)"/>
+        <!-- Inner hot core -->
+        <path d="M10 24C7.8 24 6 22.4 6 20.4C6 19 6.8 17.8 7.6 17C7.6 18.2 8.2 19 8.8 19.4C8.6 18.2 9 16.6 10 15.6C10.6 18 11.4 19.6 12 20.8C11.4 19.6 11.2 18.4 11.6 17.4C12.4 18.4 12.8 19.8 12.8 21C13.4 20.2 14 19 14 18C14 19.6 13.4 21.2 12.4 22.4C11.6 23.4 10.8 23.8 10 24Z" fill="#fcd34d" opacity="0.9"/>
+        <defs>
+          <linearGradient id="flameGrad" x1="10" y1="3" x2="10" y2="27" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#fb923c"/>
+            <stop offset="100%" stop-color="#dc2626"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <span class="wf-brand-text">WAVEFIRE</span>
+    </div>
+    <nav class="wf-nav" aria-label="Primary navigation">
+      <a class="wf-nav-item" href="#">Dashboard</a>
+      <a class="wf-nav-item" href="#">My Entities</a>
+      <a class="wf-nav-item" href="#">My Questions</a>
+      <a class="wf-nav-item" href="#">My Risks</a>
+      <a class="wf-nav-item" href="#">My Action Plans</a>
+      <a class="wf-nav-item active" href="#" onclick="activateAuditsSection();return false;">Audits</a>
+    </nav>
+    <div class="wf-user">
+      <div class="wf-notif"><i class="ti ti-bell"></i></div>
+      <div class="wf-avatar">DW</div>
+    </div>
+  </div>
+
+  <!-- WAVEFIRE AUDITS SUB-NAV (shown only when Audits is active) -->
+  <div class="wf-subnav" id="wf-subnav">
+    <div class="wf-subnav-inner">
+      <div class="wf-subnav-left">
+        <span class="wf-subnav-label">AUDITS</span>
+      </div>
+      <div class="wf-auditcontrols">
+        <div class="wf-ctl-group">
+          <div class="wf-ctl-label">Audit name</div>
+          <select id="sel-audit" class="wf-ctl-select" aria-label="Select audit name" onchange="onNavAuditChange()">
+            <option>Q2 2026 Financial Audit</option>
+            <option>IT General Controls Review</option>
+            <option>SOX Compliance Audit</option>
+            <option>Operational Risk Assessment</option>
+            <option>Vendor Due Diligence</option>
+            <option>Payroll Audit</option>
+          </select>
+        </div>
+        <div class="wf-ctl-divider"></div>
+        <div class="wf-ctl-group">
+          <div class="wf-ctl-label">Audit period</div>
+          <div id="sel-period" style="font-size:12px;font-weight:500;color:var(--text-primary);padding:1px 0;min-width:100px">Apr – Jun 2026</div>
+        </div>
+        <div class="wf-ctl-divider"></div>
+        <div class="wf-ctl-group">
+          <div class="wf-ctl-label">Workpaper ref</div>
+          <select id="sel-wp-ref" class="wf-ctl-select" aria-label="Select workpaper reference" onchange="onNavWpRefChange()">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY (no sidebar) -->
+  <div class="body">
+    <main class="content">
+
+      <!-- ══════════════════════════
+           PAGE 1 — AUDIT LIST
+      ══════════════════════════ -->
+      <div class="page active" id="page-audits">
+        <div class="ph">
+          <div>
+            <div class="pt">All audits</div>
+            <div class="ps">12 audits across all periods and types</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+            <button class="btn-p"><i class="ti ti-plus"></i>New audit</button>
+          </div>
+        </div>
+        <div class="filters">
+          <input type="text" id="audit-search" placeholder="Search audits…" oninput="filterAudits()">
+          <select id="filter-type" onchange="filterAudits()">
+            <option value="">All types</option>
+            <option>SOX</option>
+            <option>Operations</option>
+            <option>IT / Systems</option>
+            <option>Financial</option>
+            <option>Compliance</option>
+            <option>Vendor</option>
+          </select>
+          <select id="filter-status" onchange="filterAudits()">
+            <option value="">All statuses</option>
+            <option>Planned</option>
+            <option>Active</option>
+            <option>Closed</option>
+            <option>Locked</option>
+          </select>
+          <select id="filter-period" onchange="filterAudits()">
+            <option value="">All periods</option>
+            <option>Apr – Jun 2026</option>
+            <option>Jan – Mar 2026</option>
+            <option>Oct – Dec 2025</option>
+            <option>FY 2025</option>
+          </select>
+          <!-- Searchable internal control picker -->
+          <div id="ctrl-picker" style="position:relative">
+            <button id="ctrl-picker-btn" onclick="toggleCtrlPicker(event)"
+              style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);padding:6px 11px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:var(--bg-primary);cursor:pointer;min-width:200px;justify-content:space-between;white-space:nowrap"
+              onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              <span id="ctrl-picker-label" style="overflow:hidden;text-overflow:ellipsis;max-width:170px">All internal controls</span>
+              <i class="ti ti-chevron-down" style="font-size:12px;flex-shrink:0"></i>
+            </button>
+            <div id="ctrl-picker-panel"
+              style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:var(--bg-primary);border:0.5px solid var(--border-medium);border-radius:var(--radius-lg);box-shadow:0 8px 24px rgba(0,0,0,0.12);width:300px;overflow:hidden">
+              <!-- Search input -->
+              <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                <div style="position:relative">
+                  <i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text-tertiary);pointer-events:none"></i>
+                  <input id="ctrl-picker-search" type="text" placeholder="Search controls…"
+                    oninput="filterCtrlPickerList()"
+                    style="width:100%;padding:6px 8px 6px 28px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary);color:var(--text-primary)"
+                    onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+                </div>
+              </div>
+              <!-- List -->
+              <div id="ctrl-picker-list" style="max-height:240px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <!-- Hidden value holder for filterAudits() to read -->
+          <input type="hidden" id="filter-control" value="">
+          <button class="btn-s" id="clear-filters-btn" onclick="clearAuditFilters()" style="display:none;color:var(--red-700);border-color:var(--red-50)">
+            <i class="ti ti-x"></i>Clear filters
+          </button>
+        </div>
+        <div class="tc">
+          <div class="tb-bar">
+            <div class="tb-title" id="audit-count-label">Showing 6 audits</div>
+            <button class="btn-s" style="font-size:11px"><i class="ti ti-adjustments-horizontal"></i>Columns</button>
+          </div>
+          <table>
+            <colgroup>
+              <col style="width:22%"><col style="width:7%"><col style="width:14%"><col style="width:12%">
+              <col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:10%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Audit name</th><th>Year</th><th>Audit period</th><th>Audit owner</th>
+                <th>Audit type</th><th>Workpapers</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════
+           PAGE 2 — WORKPAPER LIST
+      ══════════════════════════ -->
+      <div class="page" id="page-workpapers">
+        <div class="bc">
+          <span onclick="showPage('audits')">Audits</span>
+          <i class="ti ti-chevron-right"></i>
+          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
+        </div>
+        <div class="ph">
+          <div>
+            <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
+            <div class="ps" id="wp-page-sub">Financial · Apr – Jun 2026 · Owner: J. Davis</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+            <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
+          </div>
+        </div>
+
+        <!-- Audit Information Section Card -->
+        <div class="sect-card" id="audit-info-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-info-circle"></i>Audit information</div>
+            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-edit"></i>Edit</button>
+          </div>
+          <div class="sect-body">
+            <div class="field-grid">
+              <!-- Audit Owner -->
+              <div class="fld">
+                <div class="fl">Audit owner</div>
+                <select id="aud-owner" class="aud-field-select">
+                  <option value="jdavis">J. Davis (jdavis)</option>
+                  <option value="mchen">M. Chen (mchen)</option>
+                  <option value="rpatel">R. Patel (rpatel)</option>
+                  <option value="ltorres">L. Torres (ltorres)</option>
+                  <option value="skim">S. Kim (skim)</option>
+                  <option value="lmgr">L. Manager (lmgr)</option>
+                  <option value="awong">A. Wong (awong)</option>
+                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
+                </select>
+              </div>
+              <!-- Business Owner -->
+              <div class="fld">
+                <div class="fl">Business owner</div>
+                <select id="aud-biz-owner" class="aud-field-select">
+                  <option>R. Thompson (Finance)</option>
+                  <option>K. Williams (Operations)</option>
+                  <option>D. Martinez (IT)</option>
+                  <option>P. Johnson (Compliance)</option>
+                  <option>C. Lee (Sales)</option>
+                  <option>M. Brown (HR)</option>
+                </select>
+              </div>
+              <!-- Audit Type -->
+              <div class="fld">
+                <div class="fl">Audit type</div>
+                <select id="aud-type" class="aud-field-select">
+                  <option>Financial</option>
+                  <option>SOX</option>
+                  <option>Operations</option>
+                  <option>IT / Systems</option>
+                  <option>Compliance</option>
+                  <option>Vendor</option>
+                  <option>Payroll</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <!-- Audit Status -->
+              <div class="fld">
+                <div class="fl">Audit status</div>
+                <select id="aud-status" class="aud-field-select">
+                  <option value="planned">Planned</option>
+                  <option value="active">Active</option>
+                  <option value="review">In review</option>
+                  <option value="closed">Closed</option>
+                  <option value="locked">Locked</option>
+                </select>
+              </div>
+            </div>
+            <!-- Assessment Entities -->
+            <div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border-light)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="fl">Assessment entities</div>
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openEntityDialog()">
+                  <i class="ti ti-plus"></i>Add / edit entities
+                </button>
+              </div>
+              <div id="aud-entities" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px">
+                <!-- populated by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="filters" style="flex-wrap:wrap;gap:6px">
+          <!-- 1. Search (ref / name) -->
+          <input type="text" id="wp-search" placeholder="Search ref or name…" oninput="filterWorkpapers()" style="min-width:160px">
+          <!-- 2. Type -->
+          <select id="wp-filter-type" onchange="filterWorkpapers()">
+            <option value="">All types</option>
+            <option>Planning</option>
+            <option>Testwork</option>
+            <option>Report</option>
+            <option>Memo</option>
+          </select>
+          <!-- 3. Preparer -->
+          <select id="wp-filter-preparer" onchange="filterWorkpapers()">
+            <option value="">All preparers</option>
+          </select>
+          <!-- 4. Reviewer -->
+          <select id="wp-filter-reviewer" onchange="filterWorkpapers()">
+            <option value="">All reviewers</option>
+          </select>
+          <!-- 5. Review Month -->
+          <select id="wp-filter-review-month" onchange="filterWorkpapers()" style="min-width:140px">
+            <option value="">All review months</option>
+          </select>
+          <!-- 6. Results -->
+          <select id="wp-filter-results" onchange="filterWorkpapers()" style="min-width:160px">
+            <option value="">All results</option>
+            <option value="pass">Pass</option>
+            <option value="passex">Pass w/ Exceptions</option>
+            <option value="fail">Fail</option>
+            <option value="met">Objectives Met</option>
+            <option value="notmet">Objectives Not Met</option>
+          </select>
+          <!-- 7. Status -->
+          <select id="wp-filter-status" onchange="filterWorkpapers()">
+            <option value="">All statuses</option>
+            <option>Draft</option>
+            <option>In review</option>
+            <option>Approved</option>
+          </select>
+          <!-- Clear -->
+          <button class="btn-s" id="wp-clear-filters-btn" onclick="clearWpFilters()" style="display:none;color:var(--red-700);border-color:var(--red-50)">
+            <i class="ti ti-x"></i>Clear filters
+          </button>
+        </div>
+        <div class="tc">
+          <div class="tb-bar">
+            <div class="tb-title" id="wp-table-title">Workpapers — Q2 2026 Financial Audit</div>
+          </div>
+          <table>
+            <colgroup>
+              <col style="width:12%"><col style="width:22%"><col style="width:11%">
+              <col style="width:11%"><col style="width:11%"><col style="width:12%"><col style="width:11%"><col style="width:10%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Reference</th><th>Workpaper name</th><th>Type</th>
+                <th>Preparer</th><th>Reviewer</th><th>Review date</th><th>Results</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="wp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════
+           PAGE 3 — WORKPAPER DETAIL
+      ══════════════════════════ -->
+      <div class="page" id="page-wpdetail">
+        <div class="bc">
+          <span onclick="showPage('audits')">Audits</span>
+          <i class="ti ti-chevron-right"></i>
+          <span onclick="showPage('workpapers')" id="bc-audit-wp">Q2 2026 Financial Audit</span>
+          <i class="ti ti-chevron-right"></i>
+          <span class="cur" id="bc-wp-ref">WP-2026-Q2-001</span>
+        </div>
+
+        <!-- Audit Information — compact header strip -->
+        <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:10px;position:relative">
+          <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
+          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);flex-shrink:0">Audit</span>
+          <span id="wpd-audit-name"
+            style="font-size:13px;font-weight:600;color:var(--wf-navy);cursor:help;border-bottom:1px dashed var(--border-medium);padding-bottom:1px"
+            onmouseenter="showAuditInfoTooltip(event)"
+            onmouseleave="hideAuditInfoTooltip()"
+            onmousemove="moveAuditInfoTooltip(event)">Q2 2026 Financial Audit</span>
+          <span style="color:var(--border-medium);flex-shrink:0">·</span>
+          <span style="font-size:12px;color:var(--text-secondary)" id="wpd-audit-desc-short">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
+        </div>
+
+        <!-- Hidden audit detail fields (used by hover tooltip) -->
+        <span id="wpd-audit-owner"    style="display:none">J. Davis</span>
+        <span id="wpd-audit-type"     style="display:none">Financial</span>
+        <span id="wpd-audit-status"   style="display:none">active</span>
+        <span id="wpd-audit-desc"     style="display:none">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
+        <div  id="wpd-business-owner" style="display:none">R. Thompson (Finance)</div>
+        <div  id="wpd-entities"       style="display:none">St Charles ASC</div>
+
+        <!-- Workpaper title / actions -->
+        <div class="ph">
+          <div>
+            <div class="pt" id="wpd-title">Revenue Recognition Testing</div>
+            <div class="ps" id="wpd-sub">WP-2026-Q2-001 · Testwork · Q2 2026 Financial Audit</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-s"><i class="ti ti-clock"></i>History</button>
+            <button class="btn-s"><i class="ti ti-send"></i>Submit for review</button>
+            <button class="btn-p"><i class="ti ti-edit"></i>Edit</button>
+          </div>
+        </div>
+
+        <!-- Workpaper Information -->
+        <div class="sect-card">
+          <div class="sect-hdr" style="flex-wrap:wrap;gap:8px">
+            <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
+            <!-- Results + Preparer + Reviewer in upper right -->
+            <div style="display:flex;align-items:flex-start;gap:14px;margin-left:auto">
+              <!-- Results column -->
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
+                <select id="wpd-results" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="updateResultsStyle()">
+                  <option value="">— Select —</option>
+                  <option value="pass">Pass</option>
+                  <option value="passex">Pass w/ Exceptions</option>
+                  <option value="fail">Fail</option>
+                  <option value="met">Objectives Met</option>
+                  <option value="notmet">Objectives Not Met</option>
+                </select>
+              </div>
+              <div style="width:0.5px;height:40px;background:var(--border-light);align-self:center"></div>
+              <!-- Preparer column -->
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
+                <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="jdavis">J. Davis (jdavis)</option>
+                  <option value="mchen">M. Chen (mchen)</option>
+                  <option value="rpatel">R. Patel (rpatel)</option>
+                  <option value="ltorres">L. Torres (ltorres)</option>
+                  <option value="skim">S. Kim (skim)</option>
+                  <option value="lmgr">L. Manager (lmgr)</option>
+                  <option value="awong">A. Wong (awong)</option>
+                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
+                </select>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
+                <input type="date" id="wpd-date-started" value="2026-04-01"
+                  style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              </div>
+              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
+              <!-- Reviewer column -->
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
+                <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="mchen">M. Chen (mchen)</option>
+                  <option value="jdavis">J. Davis (jdavis)</option>
+                  <option value="rpatel">R. Patel (rpatel)</option>
+                  <option value="ltorres">L. Torres (ltorres)</option>
+                  <option value="skim">S. Kim (skim)</option>
+                  <option value="lmgr">L. Manager (lmgr)</option>
+                  <option value="awong">A. Wong (awong)</option>
+                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
+                </select>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Review date</div>
+                <input type="date" id="wpd-review-date" value="2026-06-15"
+                  style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              </div>
+              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
+              <button class="btn-s" style="font-size:11px;padding:3px 8px;align-self:center"><i class="ti ti-edit"></i>Edit</button>
+            </div>
+          </div>
+          <div class="sect-body">
+            <!-- Population, Sample Method & Sample Size -->
+            <div class="field-grid">
+              <div class="fld"><div class="fl">Population definition</div><div class="fv" id="wpd-population">All revenue transactions ≥ $50,000 recorded in the general ledger from Apr 1 – Jun 30, 2026. Total population: 1,248 items.</div></div>
+              <div class="fld"><div class="fl">Sample method</div><div class="fv"><span class="type-tag" id="wpd-sample-method">Statistical — random</span></div></div>
+              <div class="fld"><div class="fl">Sample size</div><div class="fv" style="font-size:20px;font-weight:600" id="wpd-sample-size">60 <span style="font-size:13px;color:var(--text-secondary);font-weight:400">items</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Risks & Controls -->
+        <div class="sect-card" id="sect-risks-controls">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-lock"></i>Risks &amp; Controls</div>
+            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-edit"></i>Edit</button>
+          </div>
+          <div class="sect-body" style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Risk-to-Control relationship table -->
+            <div>
+              <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px">
+                Risks &amp; linked controls <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary)">(from Risks &amp; Controls module)</span>
+              </div>
+              <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden">
+                <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+                  <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+                  <thead>
+                    <tr style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                      <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Risk</th>
+                      <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Linked internal controls</th>
+                    </tr>
+                  </thead>
+                  <tbody id="risks-tbody">
+                    <tr style="border-bottom:0.5px solid var(--border-light)">
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <span class="risk-tag" data-risk-id="RSK-REV-01" onmouseenter="showRiskTooltip(event,'RSK-REV-01')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)"><span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">RSK-REV-01</span>Risk of premature revenue recognition</span>
+                      </td>
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <div style="display:flex;flex-wrap:wrap;gap:4px">
+                          <span class="ctrl-tag" data-ctrl-id="REV-CTL-01" onmouseenter="showCtrlTooltip(event,'REV-CTL-01')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">REV-CTL-01: Revenue recognition policy</span>
+                          <span class="ctrl-tag" data-ctrl-id="FIN-CTL-11" onmouseenter="showCtrlTooltip(event,'FIN-CTL-11')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">FIN-CTL-11: Management review</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr style="border-bottom:0.5px solid var(--border-light)">
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <span class="risk-tag" data-risk-id="RSK-REV-02" onmouseenter="showRiskTooltip(event,'RSK-REV-02')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)"><span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">RSK-REV-02</span>Risk of unauthorized journal entries</span>
+                      </td>
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <div style="display:flex;flex-wrap:wrap;gap:4px">
+                          <span class="ctrl-tag" data-ctrl-id="REV-CTL-04" onmouseenter="showCtrlTooltip(event,'REV-CTL-04')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">REV-CTL-04: Journal entry approval</span>
+                          <span class="ctrl-tag" data-ctrl-id="FIN-CTL-11" onmouseenter="showCtrlTooltip(event,'FIN-CTL-11')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">FIN-CTL-11: Management review</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <span class="risk-tag" data-risk-id="RSK-FIN-01" onmouseenter="showRiskTooltip(event,'RSK-FIN-01')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)"><span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">RSK-FIN-01</span>Risk of management override</span>
+                      </td>
+                      <td style="padding:9px 12px;vertical-align:top">
+                        <div style="display:flex;flex-wrap:wrap;gap:4px">
+                          <span class="ctrl-tag" data-ctrl-id="REV-CTL-01" onmouseenter="showCtrlTooltip(event,'REV-CTL-01')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">REV-CTL-01: Revenue recognition policy</span>
+                          <span class="ctrl-tag" data-ctrl-id="REV-CTL-04" onmouseenter="showCtrlTooltip(event,'REV-CTL-04')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">REV-CTL-04: Journal entry approval</span>
+                          <span class="ctrl-tag" data-ctrl-id="FIN-CTL-11" onmouseenter="showCtrlTooltip(event,'FIN-CTL-11')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">FIN-CTL-11: Management review</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Process / Control Narrative -->
+        <div class="sect-card" id="sect-narrative">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative</div>
+            <button class="btn-s" style="font-size:11px;padding:3px 8px" id="narrative-edit-btn" onclick="toggleNarrative()"><i class="ti ti-edit"></i>Edit</button>
+          </div>
+          <div class="sect-body">
+            <div id="narrative-view" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;min-height:48px">Management follows ASC 606 for revenue recognition. All contracts are reviewed at inception by the Controller to determine performance obligations. Revenue is deferred until delivery milestones are met and confirmed by the operations team. Journal entries above $25,000 require dual approval from both the Controller and CFO. The Finance Director performs a monthly management review of all revenue accounts, comparing actuals to forecast and investigating variances greater than 5%.</div>
+            <div id="narrative-edit" style="display:none;flex-direction:column;gap:8px">
+              <textarea id="narrative-textarea"
+                maxlength="2000"
+                style="width:100%;min-height:140px;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-medium);border-radius:var(--radius-md);padding:10px 12px;resize:vertical;outline:none;line-height:1.6;transition:border-color 0.12s"
+                oninput="updateCharCount()"
+                onfocus="this.style.borderColor='var(--blue-600)'"
+                onblur="this.style.borderColor='var(--border-medium)'"
+                placeholder="Describe the process and key controls being tested. Include relevant procedures, approvals, and control activities (max 2,000 characters)…"
+              >Management follows ASC 606 for revenue recognition. All contracts are reviewed at inception by the Controller to determine performance obligations. Revenue is deferred until delivery milestones are met and confirmed by the operations team. Journal entries above $25,000 require dual approval from both the Controller and CFO. The Finance Director performs a monthly management review of all revenue accounts, comparing actuals to forecast and investigating variances greater than 5%.</textarea>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span id="char-count" style="font-size:11px;color:var(--text-tertiary)">447 / 2,000 characters</span>
+                <div style="display:flex;gap:7px">
+                  <button class="btn-s" style="font-size:12px" onclick="cancelNarrative()">Cancel</button>
+                  <button class="btn-p" style="font-size:12px" onclick="saveNarrative()"><i class="ti ti-check"></i>Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Attached Files -->
+        <div class="sect-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title">
+              <i class="ti ti-paperclip"></i>Attached files
+              <span style="font-weight:400;color:var(--text-tertiary);margin-left:4px" id="file-count">4 files</span>
+            </div>
+            <button class="btn-p" style="font-size:11px;padding:4px 10px"><i class="ti ti-upload"></i>Upload</button>
+          </div>
+          <div id="file-list">
+            <div class="file-row">
+              <div class="file-icon"><i class="ti ti-file-spreadsheet"></i></div>
+              <div><div class="file-name">Revenue_Sample_Selection_Q2.xlsx</div><div class="file-meta">Excel · 142 KB · Uploaded by jdavis on May 12, 2026</div></div>
+              <div class="file-actions"><button class="icon-btn" title="Download"><i class="ti ti-download"></i></button><button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button></div>
+            </div>
+            <div class="file-row">
+              <div class="file-icon"><i class="ti ti-file-text"></i></div>
+              <div><div class="file-name">Population_Export_GL_Q2.csv</div><div class="file-meta">CSV · 2.1 MB · Uploaded by jdavis on May 10, 2026</div></div>
+              <div class="file-actions"><button class="icon-btn" title="Download"><i class="ti ti-download"></i></button><button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button></div>
+            </div>
+            <div class="file-row">
+              <div class="file-icon"><i class="ti ti-file-type-pdf"></i></div>
+              <div><div class="file-name">Revenue_Recognition_Policy_2026.pdf</div><div class="file-meta">PDF · 890 KB · Uploaded by mchen on May 8, 2026</div></div>
+              <div class="file-actions"><button class="icon-btn" title="Download"><i class="ti ti-download"></i></button><button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button></div>
+            </div>
+            <div class="file-row">
+              <div class="file-icon"><i class="ti ti-file-description"></i></div>
+              <div><div class="file-name">Testwork_Workpaper_Draft_v2.docx</div><div class="file-meta">Word · 318 KB · Uploaded by jdavis on May 18, 2026</div></div>
+              <div class="file-actions"><button class="icon-btn" title="Download"><i class="ti ti-download"></i></button><button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button></div>
+            </div>
+          </div>
+          <div class="upload-zone">
+            <i class="ti ti-cloud-upload"></i>
+            <span>Drag files here or click to browse</span>
+          </div>
+        </div>
+
+      </div><!-- /page-wpdetail -->
+
+      <!-- ══════════════════════════
+           PAGE 4 — NEW WORKPAPER
+      ══════════════════════════ -->
+      <div class="page" id="page-newwp">
+        <!-- Breadcrumb -->
+        <div class="bc">
+          <span onclick="showPage('audits')">Audits</span>
+          <i class="ti ti-chevron-right"></i>
+          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
+          <i class="ti ti-chevron-right"></i>
+          <span class="cur">New workpaper</span>
+        </div>
+
+        <!-- Audit info strip (same compact header as workpaper detail) -->
+        <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:10px">
+          <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
+          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);flex-shrink:0">Audit</span>
+          <span id="nwp-audit-name" style="font-size:13px;font-weight:600;color:var(--wf-navy)"
+            onmouseenter="showAuditInfoTooltip(event)" onmouseleave="hideAuditInfoTooltip()" onmousemove="moveAuditInfoTooltip(event)"
+            style="cursor:help;border-bottom:1px dashed var(--border-medium)">Q2 2026 Financial Audit</span>
+          <span style="color:var(--border-medium);flex-shrink:0">·</span>
+          <span style="font-size:12px;color:var(--text-secondary)" id="nwp-audit-desc">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
+        </div>
+
+        <!-- Page header -->
+        <div class="ph">
+          <div>
+            <div class="pt">New workpaper</div>
+            <div class="ps" id="nwp-audit-sub">Q2 2026 Financial Audit</div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-s" onclick="showPage('workpapers')"><i class="ti ti-x"></i>Cancel</button>
+            <button class="btn-p" onclick="submitNewWorkpaper()"><i class="ti ti-check"></i>Create workpaper</button>
+          </div>
+        </div>
+
+        <!-- Workpaper Reference Builder -->
+        <div class="sect-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-hash"></i>Workpaper reference</div>
+          </div>
+          <div class="sect-body">
+            <div style="display:flex;align-items:flex-end;gap:0;margin-bottom:10px">
+              <!-- Segment 1: WP (fixed) -->
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div class="fl">Segment 1</div>
+                <div style="background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md) 0 0 var(--radius-md);padding:7px 12px;font-size:13px;font-weight:600;color:var(--text-tertiary);min-width:52px;text-align:center">WP</div>
+              </div>
+              <div style="padding-bottom:8px;color:var(--border-medium);font-size:18px;line-height:1;padding-left:1px;padding-right:1px">–</div>
+              <!-- Segment 2: Year (auto from audit) -->
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div class="fl">Segment 2 — year</div>
+                <div id="nwp-seg-year" style="background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:0;padding:7px 12px;font-size:13px;font-weight:600;color:var(--text-tertiary);min-width:60px;text-align:center">2026</div>
+              </div>
+              <div style="padding-bottom:8px;color:var(--border-medium);font-size:18px;line-height:1;padding-left:1px;padding-right:1px">–</div>
+              <!-- Segment 3: User-entered 4-char -->
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div class="fl">Segment 3 <span style="font-weight:400;text-transform:none;letter-spacing:0">(4 chars)</span></div>
+                <input id="nwp-seg3" type="text" maxlength="4" placeholder="e.g. Q2" oninput="updateRefPreview()" onkeyup="this.value=this.value.toUpperCase()"
+                  style="width:72px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:0;font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-primary);outline:none;text-align:center;text-transform:uppercase"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              </div>
+              <div style="padding-bottom:8px;color:var(--border-medium);font-size:18px;line-height:1;padding-left:1px;padding-right:1px">–</div>
+              <!-- Segment 4: 4-digit number -->
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div class="fl">Segment 4 <span style="font-weight:400;text-transform:none;letter-spacing:0">(4 digits)</span></div>
+                <input id="nwp-seg4" type="number" min="1" max="9999" oninput="updateRefPreview()"
+                  style="width:84px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:0 var(--radius-md) var(--radius-md) 0;font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-primary);outline:none;text-align:center"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              </div>
+            </div>
+            <!-- Preview -->
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-secondary);border-radius:var(--radius-md)">
+              <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-tertiary)">Preview:</span>
+              <span id="nwp-ref-preview" style="font-size:14px;font-weight:700;color:var(--wf-navy)">WP-2026-——-——</span>
+              <span id="nwp-ref-error" style="font-size:11px;color:var(--red-700);display:none"><i class="ti ti-alert-triangle"></i> Reference already exists in this audit</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workpaper Information (blank) -->
+        <div class="sect-card">
+          <div class="sect-hdr" style="flex-wrap:wrap;gap:8px">
+            <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
+            <!-- Preparer + Reviewer -->
+            <div style="display:flex;align-items:flex-start;gap:14px;margin-left:auto">
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
+                <select id="nwp-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="jdavis">J. Davis (jdavis)</option>
+                  <option value="mchen">M. Chen (mchen)</option>
+                  <option value="rpatel">R. Patel (rpatel)</option>
+                  <option value="ltorres">L. Torres (ltorres)</option>
+                  <option value="skim">S. Kim (skim)</option>
+                  <option value="lmgr">L. Manager (lmgr)</option>
+                  <option value="awong">A. Wong (awong)</option>
+                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
+                </select>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
+                <input type="date" id="nwp-date-started" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              </div>
+              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
+                <select id="nwp-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="mchen">M. Chen (mchen)</option>
+                  <option value="jdavis">J. Davis (jdavis)</option>
+                  <option value="rpatel">R. Patel (rpatel)</option>
+                  <option value="ltorres">L. Torres (ltorres)</option>
+                  <option value="skim">S. Kim (skim)</option>
+                  <option value="lmgr">L. Manager (lmgr)</option>
+                  <option value="awong">A. Wong (awong)</option>
+                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
+                </select>
+                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Review date</div>
+                <input type="date" id="nwp-review-date" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              </div>
+              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
+            </div>
+          </div>
+          <div class="sect-body">
+            <div class="field-grid">
+              <div class="fld">
+                <div class="fl">Workpaper name</div>
+                <input id="nwp-name" type="text" placeholder="Enter workpaper name…"
+                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 10px;outline:none;width:100%"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              </div>
+              <div class="fld">
+                <div class="fl">Workpaper type</div>
+                <select id="nwp-type" class="aud-field-select">
+                  <option value="">— Select type —</option>
+                  <option>Planning</option>
+                  <option>Testwork</option>
+                  <option>Report</option>
+                  <option>Memo</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">Status</div>
+                <select id="nwp-status" class="aud-field-select">
+                  <option value="draft">Draft</option>
+                  <option value="review">In review</option>
+                  <option value="approved">Approved</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-grid" style="margin-top:12px">
+              <div class="fld">
+                <div class="fl">Population definition</div>
+                <textarea id="nwp-population" placeholder="Describe the population…" rows="2"
+                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 10px;outline:none;width:100%;resize:vertical;font-family:inherit"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
+              </div>
+              <div class="fld">
+                <div class="fl">Sample method</div>
+                <select id="nwp-sample-method" class="aud-field-select">
+                  <option value="">— Select method —</option>
+                  <option>Statistical — random</option>
+                  <option>Judgmental — top items by balance</option>
+                  <option>Judgmental — high-risk items only</option>
+                  <option>Risk-based — highest spend and criticality</option>
+                  <option>Walkthrough — one per control</option>
+                  <option>N/A — planning document</option>
+                  <option>N/A — audit report</option>
+                  <option>N/A — representation letter</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">Sample size</div>
+                <input id="nwp-sample-size" type="number" min="0" placeholder="e.g. 25"
+                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 10px;outline:none;width:100%"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Risks & Controls (blank placeholder) -->
+        <div class="sect-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-lock"></i>Risks &amp; Controls</div>
+            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Add risks &amp; controls</button>
+          </div>
+          <div class="sect-body" style="color:var(--text-tertiary);font-size:13px;font-style:italic">
+            No risks or controls linked yet. Use the button above to link from the Risks &amp; Controls module.
+          </div>
+        </div>
+
+        <!-- Process / Control Narrative (blank) -->
+        <div class="sect-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative</div>
+          </div>
+          <div class="sect-body">
+            <textarea id="nwp-narrative" maxlength="2000" placeholder="Describe the process and key controls being tested…" rows="4"
+              style="width:100%;font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px 12px;resize:vertical;outline:none;line-height:1.6;font-family:inherit"
+              onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
+            <div style="text-align:right;font-size:11px;color:var(--text-tertiary);margin-top:4px" id="nwp-char-count">0 / 2,000</div>
+          </div>
+        </div>
+
+        <!-- Attached Files (blank) -->
+        <div class="sect-card">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-paperclip"></i>Attached files</div>
+            <button class="btn-p" style="font-size:11px;padding:4px 10px"><i class="ti ti-upload"></i>Upload</button>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;color:var(--text-tertiary);font-size:13px">
+            <i class="ti ti-cloud-upload" style="font-size:24px"></i>
+            <span>No files attached yet. Drag files here or click Upload.</span>
+          </div>
+        </div>
+
+        <!-- Bottom action bar -->
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:8px">
+          <button class="btn-s" onclick="showPage('workpapers')"><i class="ti ti-x"></i>Cancel</button>
+          <button class="btn-p" onclick="submitNewWorkpaper()"><i class="ti ti-check"></i>Create workpaper</button>
+        </div>
+
+      </div><!-- /page-newwp -->
+
+    </main>
+  </div><!-- /body -->
+  <!-- Entity Selection Dialog -->
+  <div id="entity-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <!-- Dialog header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Select assessment entities</div>
+        <button onclick="closeEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
+      </div>
+      <!-- Search -->
+      <div style="padding:12px 18px;border-bottom:0.5px solid var(--border-light)">
+        <div style="position:relative">
+          <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:14px;pointer-events:none"></i>
+          <input id="entity-search-input" type="text" placeholder="Search entities…"
+            oninput="filterEntityList()"
+            style="width:100%;padding:7px 10px 7px 32px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:13px;outline:none;background:var(--bg-secondary);color:var(--text-primary)">
+        </div>
+      </div>
+      <!-- Entity list -->
+      <div id="entity-list-container" style="flex:1;overflow-y:auto;padding:8px 0"></div>
+      <!-- Footer -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:0.5px solid var(--border-light)">
+        <span id="entity-selected-count" style="font-size:12px;color:var(--text-secondary)">0 selected</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
+          <button class="btn-p" onclick="applyEntitySelection()"><i class="ti ti-check"></i>Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Duplicate WP Reference Error Dialog -->
+  <div id="dup-ref-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10001;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:400px;max-width:92vw;padding:24px;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:36px;height:36px;border-radius:50%;background:var(--red-50);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-alert-triangle" style="font-size:18px;color:var(--red-700)"></i>
+        </div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Duplicate workpaper reference</div>
+      </div>
+      <p id="dup-ref-msg" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:18px">
+        This workpaper reference already exists in the selected audit. Duplicate references are not allowed.
+      </p>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn-p" onclick="document.getElementById('dup-ref-overlay').style.display='none';document.getElementById('nwp-seg4').focus()">
+          OK — change the reference
+        </button>
+      </div>
+    </div>
+  </div>
+</div><!-- /app -->
+
+<script>
+/* ══════════════════════════════════════
+   DATA — edit these arrays to update records
+══════════════════════════════════════ */
+const AUDITS = [
+  { name: "Q2 2026 Financial Audit",     period: "Apr – Jun 2026", owner: "J. Davis",  type: "Financial",    wpCount: 14, status: "active",  desc: "Review of revenue recognition policies and transaction-level testing for Q2 2026." },
+  { name: "IT General Controls Review",  period: "Apr – Jun 2026", owner: "M. Chen",   type: "IT / Systems", wpCount: 9,  status: "review",  desc: "Assessment of IT general controls including access management and change management." },
+  { name: "SOX Compliance Audit",        period: "Jan – Mar 2026", owner: "R. Patel",  type: "SOX",          wpCount: 22, status: "active",  desc: "Sarbanes-Oxley Section 302 and 404 compliance testing for Q1 2026." },
+  { name: "Operational Risk Assessment", period: "Oct – Dec 2025", owner: "L. Torres", type: "Operations",   wpCount: 11, status: "closed",  desc: "Evaluation of operational controls across key business processes." },
+  { name: "Vendor Due Diligence",        period: "FY 2025",        owner: "J. Davis",  type: "Compliance",   wpCount: 6,  status: "planned", desc: "Third-party vendor risk assessment and compliance review." },
+  { name: "Payroll Audit",               period: "Jan – Mar 2026", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of payroll processes, approvals, and disbursements." },
+];
+
+const WORKPAPERS = [
+
+  // ── Q2 2026 Financial Audit ──────────────────────────────────────────
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-001",
+    results: "passex",
+    name: "Revenue Recognition Testing", type: "Testwork",
+    preparer: "jdavis", reviewer: "mchen", dateStarted: "2026-04-10",
+    reviewDate: "2026-06-15", status: "review",
+    sampleSize: 60, sampleMethod: "Statistical — random",
+    population: "All revenue transactions ≥ $50,000 in the GL from Apr 1 – Jun 30, 2026. Total population: 1,248 items.",
+    risks: [
+      { id: "RSK-REV-01", label: "Risk of premature revenue recognition",  controls: ["REV-CTL-01","FIN-CTL-11"] },
+      { id: "RSK-FIN-01", label: "Risk of management override",            controls: ["REV-CTL-01","REV-CTL-04","FIN-CTL-11"] }
+    ],
+    narrative: "Management follows ASC 606 for revenue recognition. All contracts are reviewed at inception by the Controller to determine performance obligations. Revenue is deferred until delivery milestones are confirmed by operations and approved by finance management. Journal entries above $25,000 require dual approval from both the Controller and CFO.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Revenue_Sample_Selection_Q2.xlsx",    meta: "Excel · 142 KB · jdavis · May 12, 2026" },
+      { icon: "ti-file-text",        name: "Population_Export_GL_Q2.csv",         meta: "CSV · 2.1 MB · jdavis · May 10, 2026"   },
+      { icon: "ti-file-type-pdf",    name: "Revenue_Recognition_Policy_2026.pdf", meta: "PDF · 890 KB · mchen · May 8, 2026"    }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-002",
+    results: "met",
+    name: "Audit Planning Memorandum", type: "Planning",
+    preparer: "jdavis", reviewer: "mchen", dateStarted: "2026-04-01",
+    reviewDate: "2026-04-30", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — planning document",
+    population: "N/A — this workpaper covers audit scoping and risk assessment, not substantive testing.",
+    risks: [
+      { id: "RSK-REV-01", label: "Risk of premature revenue recognition",  controls: ["REV-CTL-01"] },
+      { id: "RSK-REV-02", label: "Risk of unauthorized journal entries",    controls: ["REV-CTL-04"] }
+    ],
+    narrative: "This planning memorandum documents the audit approach for the Q2 2026 Financial Audit. Scope was determined based on materiality thresholds set at $50,000 and risk areas identified in the prior year audit. Key focus areas include revenue recognition, accounts receivable, and period-end journal entries. Preliminary analytical procedures were performed comparing Q2 2026 actuals to Q2 2025 and Q1 2026 results.",
+    files: [
+      { icon: "ti-file-type-pdf", name: "Q2_2026_Audit_Planning_Memo_v1.pdf", meta: "PDF · 445 KB · jdavis · Apr 1, 2026"  },
+      { icon: "ti-file-description", name: "Materiality_Worksheet_Q2.docx",   meta: "Word · 98 KB · jdavis · Apr 2, 2026"  }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-003",
+    results: "",
+    name: "Accounts Receivable Confirmations", type: "Testwork",
+    preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-05-01",
+    reviewDate: "2026-06-20", status: "draft",
+    sampleSize: 45, sampleMethod: "Judgmental — top items by balance",
+    population: "All open AR balances greater than $10,000 as of Jun 30, 2026. Total population: 312 accounts with aggregate balance of $14.2M.",
+    risks: [
+      { id: "RSK-REV-01", label: "Risk of premature revenue recognition", controls: ["REV-CTL-01","FIN-CTL-11"] }
+    ],
+    narrative: "Positive confirmation requests were sent to 45 customers representing 78% of the total AR balance. Confirmations were mailed on May 15, 2026, with a response deadline of Jun 1, 2026. Non-responses were followed up with second requests. Exceptions noted are documented in the exceptions schedule attached.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "AR_Confirmation_Population.xlsx",    meta: "Excel · 287 KB · rpatel · May 1, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "AR_Confirmation_Responses_Log.xlsx", meta: "Excel · 193 KB · rpatel · Jun 5, 2026"  },
+      { icon: "ti-file-type-pdf",    name: "AR_Exception_Schedule.pdf",          meta: "PDF · 112 KB · rpatel · Jun 10, 2026"  }
+    ],
+    entities: ["Southwest Medical Center", "South Bay Ortho"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-004",
+    results: "",
+    name: "Management Representation Letter", type: "Report",
+    preparer: "mchen", reviewer: "jdavis", dateStarted: "2026-06-20",
+    reviewDate: "2026-06-28", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — representation letter",
+    population: "N/A — this workpaper contains management representations covering the Q2 2026 audit period.",
+    risks: [
+      { id: "RSK-FIN-01", label: "Risk of management override", controls: ["REV-CTL-01","REV-CTL-04","FIN-CTL-11"] }
+    ],
+    narrative: "Management has provided written representations confirming that: (1) the financial statements are fairly presented in accordance with US GAAP; (2) all known instances of fraud or suspected fraud have been disclosed; (3) there are no uncorrected misstatements material to the financial statements; and (4) all significant estimates have been made on a reasonable basis.",
+    files: [
+      { icon: "ti-file-type-pdf", name: "Mgmt_Rep_Letter_Q2_2026_Draft.pdf", meta: "PDF · 78 KB · mchen · Jun 20, 2026" }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-005",
+    results: "met",
+    name: "Risk Assessment & Scoping Memo", type: "Planning",
+    preparer: "jdavis", reviewer: "lmgr", dateStarted: "2026-04-02",
+    reviewDate: "2026-04-15", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — risk assessment",
+    population: "N/A — this workpaper documents the risk assessment performed to determine audit scope.",
+    risks: [
+      { id: "RSK-REV-01", label: "Risk of premature revenue recognition",  controls: ["REV-CTL-01"] },
+      { id: "RSK-REV-02", label: "Risk of unauthorized journal entries",    controls: ["REV-CTL-04"] },
+      { id: "RSK-FIN-01", label: "Risk of management override",            controls: ["FIN-CTL-11"] }
+    ],
+    narrative: "Risk assessment was performed using the prior year audit findings, management interviews, and industry benchmarking. Significant risks identified include revenue recognition cut-off, completeness of accruals, and management override of controls. Each risk was rated for inherent likelihood and impact. Testing scope and sample sizes were calibrated accordingly.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Risk_Assessment_Matrix_Q2.pdf",    meta: "PDF · 334 KB · jdavis · Apr 2, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "Inherent_Risk_Scoring.xlsx",       meta: "Excel · 156 KB · jdavis · Apr 3, 2026" }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-006",
+    results: "passex",
+    name: "Internal Control Walkthrough", type: "Testwork",
+    preparer: "rpatel", reviewer: "mchen", dateStarted: "2026-04-20",
+    reviewDate: "2026-05-30", status: "review",
+    sampleSize: 3, sampleMethod: "Walkthrough — one per control",
+    population: "Three key revenue and financial reporting controls selected for walkthrough testing: REV-CTL-01, REV-CTL-04, and FIN-CTL-11.",
+    risks: [
+      { id: "RSK-REV-01", label: "Risk of premature revenue recognition",  controls: ["REV-CTL-01","FIN-CTL-11"] },
+      { id: "RSK-REV-02", label: "Risk of unauthorized journal entries",    controls: ["REV-CTL-04","FIN-CTL-11"] }
+    ],
+    narrative: "Walkthroughs were performed for each of the three key controls by selecting one transaction and tracing it from initiation through final approval and recording. Control owners were interviewed to confirm understanding of procedures. Design effectiveness was confirmed for all three controls; no design gaps were identified. Operating effectiveness testing is addressed in separate testwork workpapers.",
+    files: [
+      { icon: "ti-file-description",  name: "Walkthrough_REV-CTL-01.docx", meta: "Word · 88 KB · rpatel · Apr 22, 2026"  },
+      { icon: "ti-file-description",  name: "Walkthrough_REV-CTL-04.docx", meta: "Word · 76 KB · rpatel · Apr 25, 2026"  },
+      { icon: "ti-file-description",  name: "Walkthrough_FIN-CTL-11.docx", meta: "Word · 91 KB · rpatel · Apr 28, 2026"  }
+    ],
+    entities: ["St Vincent's Hospital", "Southwest Medical Center"]
+  },
+  {
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-Q2-007",
+    results: "",
+    name: "Audit Report — Draft", type: "Report",
+    preparer: "mchen", reviewer: "jdavis", dateStarted: "2026-06-25",
+    reviewDate: "2026-07-05", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — audit report",
+    population: "N/A — this workpaper is the draft audit report summarizing all findings and conclusions.",
+    risks: [
+      { id: "RSK-FIN-01", label: "Risk of management override", controls: ["FIN-CTL-11"] }
+    ],
+    narrative: "The draft audit report summarizes the results of the Q2 2026 Financial Audit. Two findings were identified: (1) one instance of revenue recognized one day before the delivery confirmation was received, rated as a low-risk observation; (2) three journal entries lacked required dual approval, rated as a moderate control deficiency. Management has agreed to remediate both findings by September 30, 2026.",
+    files: [
+      { icon: "ti-file-type-pdf",   name: "Q2_2026_Audit_Report_DRAFT.pdf", meta: "PDF · 612 KB · mchen · Jun 25, 2026" },
+      { icon: "ti-file-description", name: "Findings_Summary_Table.docx",   meta: "Word · 144 KB · mchen · Jun 26, 2026" }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+
+  // ── IT General Controls Review ────────────────────────────────────────
+  {
+    auditName: "IT General Controls Review", ref: "WP-2026-IT-001",
+    results: "met",
+    name: "IT Planning Memo", type: "Planning",
+    preparer: "mchen", reviewer: "lmgr", dateStarted: "2026-04-05",
+    reviewDate: "2026-04-20", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — planning document",
+    population: "N/A — covers scoping of IT general controls across four key systems: ERP, HR platform, network infrastructure, and change management tool.",
+    risks: [
+      { id: "RSK-IT-01", label: "Risk of unauthorized system access",     controls: ["IT-CTL-01"] },
+      { id: "RSK-IT-02", label: "Risk of unapproved system changes",      controls: ["IT-CTL-03"] }
+    ],
+    narrative: "This memo documents the scope and approach for the IT General Controls Review. Audit scope covers logical access, change management, and backup/recovery. In-scope systems include the Oracle ERP, Workday HR, Cisco network infrastructure, and ServiceNow ITSM. Risk assessment was based on the prior year IT audit and current threat landscape analysis.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "IT_Audit_Planning_Memo.pdf",      meta: "PDF · 321 KB · mchen · Apr 5, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "In_Scope_Systems_Inventory.xlsx", meta: "Excel · 88 KB · mchen · Apr 6, 2026" }
+    ],
+    entities: ["St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+  {
+    auditName: "IT General Controls Review", ref: "WP-2026-IT-002",
+    results: "passex",
+    name: "Access Management Testing", type: "Testwork",
+    preparer: "awong", reviewer: "mchen", dateStarted: "2026-04-22",
+    reviewDate: "2026-05-25", status: "review",
+    sampleSize: 25, sampleMethod: "Statistical — random from active user list",
+    population: "All active user accounts with privileged access across ERP and HR systems as of Apr 1, 2026. Total population: 847 accounts.",
+    risks: [
+      { id: "RSK-IT-01", label: "Risk of unauthorized system access", controls: ["IT-CTL-01","IT-CTL-02"] }
+    ],
+    narrative: "Testing covered user provisioning, modification, and de-provisioning processes. Sample of 25 accounts was selected from active privileged users. For each sample item, access approval documentation, provisioning request tickets, and periodic access review sign-offs were inspected. Two exceptions noted: one terminated employee account remained active for 12 days post-termination; one user had excessive ERP module access beyond job requirements.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Access_Mgmt_Population_ERP_HR.xlsx", meta: "Excel · 410 KB · awong · Apr 22, 2026" },
+      { icon: "ti-file-spreadsheet", name: "Access_Testing_Workbook.xlsx",        meta: "Excel · 234 KB · awong · May 10, 2026" },
+      { icon: "ti-file-type-pdf",    name: "Exception_Detail_IT-002.pdf",         meta: "PDF · 67 KB · awong · May 20, 2026"   }
+    ],
+    entities: ["Southwest Medical Center", "South Bay Ortho"]
+  },
+  {
+    auditName: "IT General Controls Review", ref: "WP-2026-IT-003",
+    results: "",
+    name: "Change Management Walkthrough", type: "Testwork",
+    preparer: "bnguyen", reviewer: "mchen", dateStarted: "2026-05-01",
+    reviewDate: "2026-06-01", status: "draft",
+    sampleSize: 20, sampleMethod: "Judgmental — high-risk changes only",
+    population: "All production system changes classified as high or critical risk deployed between Jan 1 – Mar 31, 2026. Total population: 142 change records.",
+    risks: [
+      { id: "RSK-IT-02", label: "Risk of unapproved system changes", controls: ["IT-CTL-03"] }
+    ],
+    narrative: "Change management procedures require all production deployments to have an approved change request, impact assessment, rollback plan, and post-implementation review. Testing covered the full change lifecycle for 20 high-risk changes. Exceptions identified: three changes lacked complete post-implementation review documentation; one emergency change was deployed without required CAB approval.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Change_Mgmt_Population_Q1.xlsx",   meta: "Excel · 198 KB · bnguyen · May 1, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "Change_Testing_Results.xlsx",       meta: "Excel · 156 KB · bnguyen · May 20, 2026" }
+    ],
+    entities: ["St Vincent's Hospital", "Main St Clinic"]
+  },
+  {
+    auditName: "IT General Controls Review", ref: "WP-2026-IT-004",
+    results: "",
+    name: "IT Audit Report", type: "Report",
+    preparer: "mchen", reviewer: "lmgr", dateStarted: "2026-06-15",
+    reviewDate: "2026-06-30", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — audit report",
+    population: "N/A — report summarizing all IT general controls testing results.",
+    risks: [
+      { id: "RSK-IT-01", label: "Risk of unauthorized system access",  controls: ["IT-CTL-01"] },
+      { id: "RSK-IT-02", label: "Risk of unapproved system changes",   controls: ["IT-CTL-03"] }
+    ],
+    narrative: "The IT audit report documents three findings: (1) Terminated user access not revoked timely — moderate; (2) Excessive privileged access not identified in periodic review — moderate; (3) Incomplete post-implementation reviews for high-risk changes — low. Management has agreed to implement automated de-provisioning and strengthen the access review process by Q3 2026.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "IT_Audit_Report_DRAFT.pdf",     meta: "PDF · 540 KB · mchen · Jun 15, 2026" },
+      { icon: "ti-file-description", name: "IT_Findings_Action_Plan.docx",  meta: "Word · 178 KB · mchen · Jun 16, 2026" }
+    ],
+    entities: ["St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+
+  // ── SOX Compliance Audit ─────────────────────────────────────────────
+  {
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SOX-001",
+    results: "met",
+    name: "SOX Scoping & Planning", type: "Planning",
+    preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-01-05",
+    reviewDate: "2026-01-15", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — scoping document",
+    population: "N/A — scoping covers all significant accounts and disclosures for Section 302/404 purposes.",
+    risks: [
+      { id: "RSK-SOX-01", label: "Risk of material weakness in ICFR", controls: ["SOX-CTL-01","SOX-CTL-02"] }
+    ],
+    narrative: "SOX scoping was performed using the top-down, risk-based approach per PCAOB AS 2201. Significant accounts identified include revenue, AR, inventory, payroll, and goodwill. Six entity-level controls and fourteen process-level controls were identified as in-scope. Prior year deficiencies have been remediated; no carry-forward significant deficiencies.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "SOX_Scoping_Memo_2026.pdf",      meta: "PDF · 489 KB · rpatel · Jan 5, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "Significant_Accounts_Matrix.xlsx", meta: "Excel · 222 KB · rpatel · Jan 6, 2026" }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+  {
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SOX-002",
+    results: "pass",
+    name: "Section 302 Certification Testing", type: "Testwork",
+    preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-01-20",
+    reviewDate: "2026-02-10", status: "approved",
+    sampleSize: 30, sampleMethod: "Judgmental — disclosure controls focus",
+    population: "All quarterly disclosure controls and procedures reviews and sub-certifications completed by financial reporting personnel for Q4 2025 and Q1 2026.",
+    risks: [
+      { id: "RSK-SOX-01", label: "Risk of material weakness in ICFR", controls: ["SOX-CTL-01"] }
+    ],
+    narrative: "Testing confirmed that CEO and CFO Section 302 certifications were supported by complete sub-certification chains from all business unit controllers. Disclosure committee meeting minutes document review of all significant financial reporting items. No exceptions noted. Supporting documentation was well-organized and complete.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Sec302_Testing_Workpaper.pdf",      meta: "PDF · 276 KB · rpatel · Feb 5, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "Sub_Certification_Tracker.xlsx",    meta: "Excel · 143 KB · rpatel · Jan 25, 2026" }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital"]
+  },
+  {
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SOX-003",
+    results: "passex",
+    name: "Section 404 ICFR Testing", type: "Testwork",
+    preparer: "awong", reviewer: "rpatel", dateStarted: "2026-02-01",
+    reviewDate: "2026-02-28", status: "review",
+    sampleSize: 40, sampleMethod: "Statistical — risk-stratified",
+    population: "All in-scope ICFR controls tested for operating effectiveness across the six significant financial statement areas identified in scoping.",
+    risks: [
+      { id: "RSK-SOX-01", label: "Risk of material weakness in ICFR", controls: ["SOX-CTL-01","SOX-CTL-02"] }
+    ],
+    narrative: "ICFR operating effectiveness testing was performed for all 14 in-scope process-level controls. Sample sizes were determined per AS 2315 based on control frequency and risk rating. One control exception identified: the monthly account reconciliation control for the goodwill account was completed 5 days late in one of the 12 months tested. Assessed as a control deficiency, not a significant deficiency.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "ICFR_Testing_Master_Workbook.xlsx", meta: "Excel · 1.2 MB · awong · Feb 1, 2026"   },
+      { icon: "ti-file-type-pdf",    name: "Control_Exception_Memo_404.pdf",    meta: "PDF · 134 KB · awong · Feb 22, 2026"   }
+    ],
+    entities: ["Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+  {
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SOX-004",
+    results: "",
+    name: "Deficiency Assessment Memo", type: "Memo",
+    preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-03-01",
+    reviewDate: "2026-03-10", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — deficiency assessment",
+    population: "N/A — assessment covers all control exceptions identified during Section 404 testing.",
+    risks: [
+      { id: "RSK-SOX-01", label: "Risk of material weakness in ICFR", controls: ["SOX-CTL-02"] }
+    ],
+    narrative: "One control exception was identified during ICFR testing: the goodwill reconciliation control was not performed timely in one of twelve months. The exception was evaluated under AS 2201 aggregation guidance. Compensating controls exist (CFO review) and the financial statement impact was immaterial. Conclusion: control deficiency — does not rise to the level of a significant deficiency or material weakness.",
+    files: [
+      { icon: "ti-file-description", name: "Deficiency_Assessment_Memo.docx",  meta: "Word · 92 KB · rpatel · Mar 1, 2026" }
+    ],
+    entities: ["St Charles ASC"]
+  },
+  {
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SOX-005",
+    results: "",
+    name: "SOX Audit Report", type: "Report",
+    preparer: "rpatel", reviewer: "lmgr", dateStarted: "2026-03-15",
+    reviewDate: "2026-03-25", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — audit report",
+    population: "N/A — report covers all SOX 302 and 404 testing conclusions.",
+    risks: [
+      { id: "RSK-SOX-01", label: "Risk of material weakness in ICFR", controls: ["SOX-CTL-01","SOX-CTL-02"] }
+    ],
+    narrative: "The SOX compliance audit report concludes that ICFR was effective as of March 31, 2026. One control deficiency was identified and assessed as not material. Section 302 certifications were properly supported. Management has agreed to strengthen the goodwill reconciliation control through a calendar reminder system and a secondary reviewer requirement effective Q2 2026.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "SOX_Audit_Report_DRAFT_2026.pdf", meta: "PDF · 723 KB · rpatel · Mar 15, 2026" },
+      { icon: "ti-file-description", name: "SOX_Management_Response.docx",    meta: "Word · 88 KB · lmgr · Mar 18, 2026"   }
+    ],
+    entities: ["St Charles ASC", "St Vincent's Hospital", "Southwest Medical Center", "South Bay Ortho", "Main St Clinic"]
+  },
+
+  // ── Operational Risk Assessment ───────────────────────────────────────
+  {
+    auditName: "Operational Risk Assessment", ref: "WP-2025-OPS-001",
+    results: "met",
+    name: "Operations Planning Memo", type: "Planning",
+    preparer: "ltorres", reviewer: "lmgr", dateStarted: "2025-10-01",
+    reviewDate: "2025-10-10", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — planning document",
+    population: "N/A — scope covers procurement, inventory management, and vendor payment processes.",
+    risks: [
+      { id: "RSK-OPS-01", label: "Risk of procurement fraud or error", controls: ["OPS-CTL-01"] }
+    ],
+    narrative: "Planning memo documents the scope for the Q4 2025 Operational Risk Assessment. Focus areas were selected based on business process risk rankings from the Enterprise Risk Management framework. Top risks identified: procurement authorization controls, three-way match exceptions in AP, and segregation of duties in the warehouse receiving function.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "OPS_Planning_Memo_Q4_2025.pdf",   meta: "PDF · 298 KB · ltorres · Oct 1, 2025"  },
+      { icon: "ti-file-spreadsheet", name: "Process_Risk_Rankings.xlsx",      meta: "Excel · 167 KB · ltorres · Oct 2, 2025" }
+    ],
+    entities: ["Southwest Medical Center"]
+  },
+  {
+    auditName: "Operational Risk Assessment", ref: "WP-2025-OPS-002",
+    results: "passex",
+    name: "Process Walkthrough — Procurement", type: "Testwork",
+    preparer: "ltorres", reviewer: "jdavis", dateStarted: "2025-10-15",
+    reviewDate: "2025-11-05", status: "approved",
+    sampleSize: 35, sampleMethod: "Judgmental — above $25,000 threshold",
+    population: "All purchase orders above $25,000 raised between Jul 1 – Sep 30, 2025. Total population: 418 POs with aggregate value of $8.7M.",
+    risks: [
+      { id: "RSK-OPS-01", label: "Risk of procurement fraud or error", controls: ["OPS-CTL-01","OPS-CTL-02"] }
+    ],
+    narrative: "Testing covered the end-to-end procurement cycle: purchase requisition, PO approval, goods receipt, and three-way match in AP. All 35 sample items had approved purchase requisitions. Two exceptions: (1) one PO was approved by the same individual who raised the requisition — SOD violation; (2) one item had a three-way match discrepancy of $2,400 that was waived without documented business justification.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Procurement_PO_Population.xlsx",    meta: "Excel · 344 KB · ltorres · Oct 15, 2025" },
+      { icon: "ti-file-spreadsheet", name: "Procurement_Testing_Workbook.xlsx", meta: "Excel · 211 KB · ltorres · Oct 30, 2025" },
+      { icon: "ti-file-type-pdf",    name: "Procurement_Exception_Log.pdf",     meta: "PDF · 89 KB · ltorres · Nov 1, 2025"    }
+    ],
+    entities: ["Southwest Medical Center", "South Bay Ortho"]
+  },
+  {
+    auditName: "Operational Risk Assessment", ref: "WP-2025-OPS-003",
+    results: "met",
+    name: "Operational Risk Report", type: "Report",
+    preparer: "ltorres", reviewer: "lmgr", dateStarted: "2025-11-20",
+    reviewDate: "2025-12-01", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — audit report",
+    population: "N/A — report summarizing all operational risk findings.",
+    risks: [
+      { id: "RSK-OPS-01", label: "Risk of procurement fraud or error", controls: ["OPS-CTL-01","OPS-CTL-02"] }
+    ],
+    narrative: "The Operational Risk Report documents two findings from procurement testing and one from inventory. Findings rated: SOD violation in PO approval — moderate; three-way match waiver without justification — low; inventory cycle count discrepancy — low. Management agreed to implement system-enforced SOD rules by Q1 2026 and update the three-way match exception policy.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Operational_Risk_Report_Q4_2025.pdf", meta: "PDF · 678 KB · ltorres · Nov 20, 2025" },
+      { icon: "ti-file-description", name: "Management_Action_Plan_OPS.docx",     meta: "Word · 124 KB · lmgr · Nov 25, 2025"  }
+    ],
+    entities: ["Southwest Medical Center", "South Bay Ortho"]
+  },
+
+  // ── Vendor Due Diligence ──────────────────────────────────────────────
+  {
+    auditName: "Vendor Due Diligence", ref: "WP-2025-VDD-001",
+    results: "met",
+    name: "Vendor Scoping Memo", type: "Planning",
+    preparer: "jdavis", reviewer: "mchen", dateStarted: "2025-10-25",
+    reviewDate: "2025-11-01", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — scoping document",
+    population: "N/A — scope covers all tier-1 and tier-2 vendors with annual spend exceeding $500,000.",
+    risks: [
+      { id: "RSK-VDD-01", label: "Risk of vendor non-compliance or fraud", controls: ["VDD-CTL-01"] }
+    ],
+    narrative: "Vendor due diligence scope was established based on annual spend thresholds and criticality ratings from the Procurement team. Tier-1 vendors (spend >$2M) received full diligence; Tier-2 vendors ($500K–$2M) received abbreviated review. Key focus areas: financial health, sanctions screening, conflict of interest declarations, and contractual compliance.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Vendor_DD_Scoping_Memo.pdf",    meta: "PDF · 245 KB · jdavis · Oct 25, 2025" },
+      { icon: "ti-file-spreadsheet", name: "Vendor_Tier_Classification.xlsx", meta: "Excel · 312 KB · jdavis · Oct 26, 2025" }
+    ],
+    entities: ["St Charles ASC", "Main St Clinic"]
+  },
+  {
+    auditName: "Vendor Due Diligence", ref: "WP-2025-VDD-002",
+    results: "",
+    name: "Vendor Risk Assessment", type: "Testwork",
+    preparer: "bnguyen", reviewer: "jdavis", dateStarted: "2025-11-10",
+    reviewDate: "2025-12-15", status: "draft",
+    sampleSize: 18, sampleMethod: "Risk-based — highest spend and criticality",
+    population: "All vendors with FY2025 spend exceeding $500,000. Total population: 62 vendors with aggregate spend of $47.3M.",
+    risks: [
+      { id: "RSK-VDD-01", label: "Risk of vendor non-compliance or fraud", controls: ["VDD-CTL-01","VDD-CTL-02"] }
+    ],
+    narrative: "Due diligence testing covered 18 vendors. Procedures included: sanctions and watch-list screening (OFAC, SDN), financial health review using Dun & Bradstreet scores, conflict of interest declaration review, and contract compliance spot-check. Three findings: two vendors had outdated conflict of interest declarations; one vendor's D&B financial health score deteriorated below threshold with no documented reassessment.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Vendor_Population_FY2025.xlsx",   meta: "Excel · 487 KB · bnguyen · Nov 10, 2025" },
+      { icon: "ti-file-spreadsheet", name: "Vendor_DD_Testing_Results.xlsx",  meta: "Excel · 356 KB · bnguyen · Dec 5, 2025"  },
+      { icon: "ti-file-type-pdf",    name: "Vendor_Exceptions_Summary.pdf",   meta: "PDF · 104 KB · bnguyen · Dec 10, 2025"  }
+    ],
+    entities: ["St Charles ASC", "South Bay Ortho", "Main St Clinic"]
+  },
+
+  // ── Payroll Audit ─────────────────────────────────────────────────────
+  {
+    auditName: "Payroll Audit", ref: "WP-2026-PAY-001",
+    results: "met",
+    name: "Payroll Planning Memo", type: "Planning",
+    preparer: "skim", reviewer: "lmgr", dateStarted: "2026-01-10",
+    reviewDate: "2026-01-20", status: "approved",
+    sampleSize: null, sampleMethod: "N/A — planning document",
+    population: "N/A — scope covers all payroll cycles for Q1 2026 (January–March), including regular payroll, bonuses, and commission payments.",
+    risks: [
+      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01","PAY-CTL-02"] }
+    ],
+    narrative: "Payroll audit scope covers the completeness and accuracy of payroll disbursements, new hire and termination processing, and the authorization of pay rate changes. The audit period covers Q1 2026 with a total payroll spend of approximately $4.2M across 312 employees. Key risks identified: ghost employees, unauthorized pay rate changes, and untimely termination processing.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Payroll_Audit_Planning_Memo.pdf",   meta: "PDF · 267 KB · skim · Jan 10, 2026"  },
+      { icon: "ti-file-spreadsheet", name: "Payroll_Risk_Assessment.xlsx",      meta: "Excel · 134 KB · skim · Jan 12, 2026" }
+    ],
+    entities: ["St Vincent's Hospital"]
+  },
+  {
+    auditName: "Payroll Audit", ref: "WP-2026-PAY-002",
+    results: "passex",
+    name: "Payroll Disbursement Testing", type: "Testwork",
+    preparer: "skim", reviewer: "jdavis", dateStarted: "2026-01-25",
+    reviewDate: "2026-02-15", status: "review",
+    sampleSize: 50, sampleMethod: "Statistical — random from payroll register",
+    population: "All payroll disbursements processed in Q1 2026 (Jan–Mar). Total population: 936 payroll records across 312 employees for 3 monthly cycles.",
+    risks: [
+      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01","PAY-CTL-02"] }
+    ],
+    narrative: "Testing covered pay rate authorization, timesheet approval, new hire onboarding documentation, and termination processing. Sample of 50 payroll records tested. One exception: a pay rate increase for one employee was processed without a signed HR authorization form — the rate change matched an approved verbal instruction but lacked written documentation. Assessed as a low-risk observation.",
+    files: [
+      { icon: "ti-file-spreadsheet", name: "Payroll_Register_Q1_2026.xlsx",      meta: "Excel · 523 KB · skim · Jan 25, 2026" },
+      { icon: "ti-file-spreadsheet", name: "Payroll_Testing_Workbook_Q1.xlsx",   meta: "Excel · 289 KB · skim · Feb 8, 2026"  },
+      { icon: "ti-file-type-pdf",    name: "Pay_Rate_Exception_Detail.pdf",      meta: "PDF · 55 KB · skim · Feb 10, 2026"    }
+    ],
+    entities: ["St Vincent's Hospital", "South Bay Ortho"]
+  },
+  {
+    auditName: "Payroll Audit", ref: "WP-2026-PAY-003",
+    results: "",
+    name: "Payroll Audit Report", type: "Report",
+    preparer: "skim", reviewer: "lmgr", dateStarted: "2026-02-20",
+    reviewDate: "2026-03-05", status: "draft",
+    sampleSize: null, sampleMethod: "N/A — audit report",
+    population: "N/A — report summarizing all payroll audit findings for Q1 2026.",
+    risks: [
+      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01"] }
+    ],
+    narrative: "The Payroll Audit Report documents one finding: a pay rate change was processed without a signed written authorization, relying on verbal instruction only. The finding is rated as a low-risk observation. Management has agreed to update the HR pay change process to require a digital authorization form in Workday before any rate change can be processed, effective April 1, 2026.",
+    files: [
+      { icon: "ti-file-type-pdf",    name: "Payroll_Audit_Report_Q1_2026.pdf",  meta: "PDF · 445 KB · skim · Feb 20, 2026"  },
+      { icon: "ti-file-description", name: "Payroll_Management_Response.docx",  meta: "Word · 76 KB · lmgr · Feb 24, 2026"  }
+    ],
+    entities: ["St Vincent's Hospital", "South Bay Ortho", "Main St Clinic"]
+  }
+];
+
+/* ══════════════════════════════════════
+   HELPERS
+══════════════════════════════════════ */
+let currentAudit = AUDITS[0];
+
+const statusClass = { active:"pill-active", planned:"pill-planned", closed:"pill-closed", locked:"pill-locked", review:"pill-review", approved:"pill-approved", draft:"pill-draft" };
+const statusLabel = { active:"Active", planned:"Planned", closed:"Closed", locked:"Locked", review:"In review", approved:"Approved", draft:"Draft" };
+const wpTypeClass = { Planning:"wp-type-planning", Testwork:"wp-type-testwork", Report:"wp-type-report", Memo:"wp-type-memo" };
+
+function resultPill(r) {
+  if (!r) return '<span style="font-size:11px;color:var(--text-tertiary)">—</span>';
+  const map = {
+    pass:   { label: 'Pass',               bg: '#dcfce7', color: '#166534', border: '#86efac' },
+    passex: { label: 'Pass w/ Exceptions', bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
+    fail:   { label: 'Fail',               bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
+    met:    { label: 'Objectives Met',     bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
+    notmet: { label: 'Objectives Not Met', bg: '#ede9fe', color: '#5b21b6', border: '#c4b5fd' },
+  };
+  const c = map[r];
+  if (!c) return '<span style="font-size:11px;color:var(--text-tertiary)">—</span>';
+  return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:600;padding:3px 8px;border-radius:99px;background:${c.bg};color:${c.color};border:0.5px solid ${c.border};white-space:nowrap">${c.label}</span>`;
+}
+
+function statusPill(s) {
+  return `<span class="pill ${statusClass[s]||'pill-draft'}"><span class="dot"></span>${statusLabel[s]||s}</span>`;
+}
+function typePill(t) {
+  return `<span class="type-tag ${wpTypeClass[t]||''}">${t}</span>`;
+}
+
+/* ══════════════════════════════════════
+   RENDER — AUDIT TABLE
+══════════════════════════════════════ */
+function renderAudits(list) {
+  const rows = list || AUDITS;
+  document.getElementById('audit-count-label').textContent = `Showing ${rows.length} audit${rows.length !== 1 ? 's' : ''}`;
+  document.getElementById('audit-tbody').innerHTML = rows.map(a => {
+    const year = (a.period.match(/\b(20\d{2})\b/) || [])[1] || '—';
+    return `
+    <tr onclick="openAudit(${AUDITS.indexOf(a)})">
+      <td style="font-weight:500">${a.name}</td>
+      <td class="tm" style="font-weight:500">${year}</td>
+      <td class="tm">${a.period}</td>
+      <td class="tm">${a.owner}</td>
+      <td>${typePill(a.type)}</td>
+      <td class="tm">${a.wpCount} workpapers</td>
+      <td>${statusPill(a.status)}</td>
+      <td><button class="icon-btn" onclick="event.stopPropagation();openAudit(${AUDITS.indexOf(a)})" title="Open"><i class="ti ti-arrow-right"></i></button></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterAudits() {
+  const search  = document.getElementById('audit-search').value.toLowerCase();
+  const type    = document.getElementById('filter-type').value;
+  const status  = document.getElementById('filter-status').value.toLowerCase();
+  const period  = document.getElementById('filter-period').value;
+  const control = document.getElementById('filter-control').value; // control ID e.g. "REV-CTL-01"
+
+  // Build a set of audit names that contain the selected control (across all their workpapers)
+  let auditNamesWithControl = null;
+  if (control) {
+    auditNamesWithControl = new Set();
+    WORKPAPERS.forEach(w => {
+      const ctrlIds = (w.risks || []).flatMap(r => r.controls || []);
+      if (ctrlIds.includes(control)) auditNamesWithControl.add(w.auditName);
+    });
+  }
+
+  const filtered = AUDITS.filter(a =>
+    (!search  || a.name.toLowerCase().includes(search)) &&
+    (!type    || a.type === type) &&
+    (!status  || a.status === status) &&
+    (!period  || a.period === period) &&
+    (!auditNamesWithControl || auditNamesWithControl.has(a.name))
+  );
+
+  renderAudits(filtered);
+
+  // Show/hide the Clear button whenever any filter is active
+  const anyActive = search || type || status || period || control;
+  document.getElementById('clear-filters-btn').style.display = anyActive ? 'inline-flex' : 'none';
+}
+
+function clearAuditFilters() {
+  document.getElementById('audit-search').value   = '';
+  document.getElementById('filter-type').value    = '';
+  document.getElementById('filter-status').value  = '';
+  document.getElementById('filter-period').value  = '';
+  document.getElementById('filter-control').value = '';
+  document.getElementById('ctrl-picker-label').textContent = 'All internal controls';
+  document.getElementById('clear-filters-btn').style.display = 'none';
+  renderAudits();
+}
+
+/* ══════════════════════════════════════
+   SEARCHABLE CONTROL PICKER
+══════════════════════════════════════ */
+let ctrlPickerAllItems = []; // [{id, title}] built once from CONTROLS + WORKPAPERS
+
+function populateControlFilter() {
+  // Build sorted list of all control IDs actually used across workpapers
+  const usedIds = new Set();
+  WORKPAPERS.forEach(w => (w.risks || []).forEach(r => (r.controls || []).forEach(id => usedIds.add(id))));
+  ctrlPickerAllItems = [...usedIds].sort().map(id => {
+    const ctrl = CONTROLS[id];
+    return { id, title: ctrl ? ctrl.title : id };
+  });
+  renderCtrlPickerList('');
+}
+
+function renderCtrlPickerList(query) {
+  const list = document.getElementById('ctrl-picker-list');
+  if (!list) return;
+  const q = query.toLowerCase();
+  const currentVal = document.getElementById('filter-control').value;
+  const filtered = ctrlPickerAllItems.filter(c =>
+    !q || c.id.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)
+  );
+  const clearRow = `<div class="ctrl-picker-item-clear" onclick="selectCtrlFilter('', 'All internal controls')">
+    <i class="ti ti-x" style="font-size:11px;margin-right:4px"></i>All internal controls (clear)
+  </div>`;
+  const rows = filtered.map(c => `
+    <div class="ctrl-picker-item${currentVal === c.id ? ' selected' : ''}" onclick="selectCtrlFilter('${c.id}', '${c.id}: ${c.title.replace(/'/g,"\\'")}')">
+      <div class="ctrl-picker-id">${c.id}</div>
+      <div class="ctrl-picker-name">${c.title}</div>
+    </div>`).join('');
+  list.innerHTML = filtered.length === 0
+    ? `<div style="padding:14px 12px;font-size:12px;color:var(--text-tertiary);text-align:center">No controls match "${query}"</div>`
+    : clearRow + rows;
+}
+
+function filterCtrlPickerList() {
+  const q = document.getElementById('ctrl-picker-search').value;
+  renderCtrlPickerList(q);
+}
+
+function selectCtrlFilter(id, label) {
+  document.getElementById('filter-control').value = id;
+  document.getElementById('ctrl-picker-label').textContent = label;
+  // Truncate label if too long
+  const btn = document.getElementById('ctrl-picker-btn');
+  if (btn) btn.title = label;
+  closeCtrlPicker();
+  filterAudits();
+  // Re-render list to update selected state
+  renderCtrlPickerList(document.getElementById('ctrl-picker-search')?.value || '');
+}
+
+function toggleCtrlPicker(e) {
+  e.stopPropagation();
+  const panel = document.getElementById('ctrl-picker-panel');
+  const isOpen = panel.style.display !== 'none';
+  closeCtrlPicker();
+  if (!isOpen) {
+    panel.style.display = 'block';
+    const searchEl = document.getElementById('ctrl-picker-search');
+    if (searchEl) { searchEl.value = ''; searchEl.focus(); }
+    renderCtrlPickerList('');
+  }
+}
+
+function closeCtrlPicker() {
+  const panel = document.getElementById('ctrl-picker-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+// Close picker when clicking outside
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('ctrl-picker')?.contains(e.target)) closeCtrlPicker();
+});
+
+/* ══════════════════════════════════════
+   AUDIT FILTERS
+══════════════════════════════════════ */
+
+/* ══════════════════════════════════════
+   WORKPAPER FILTERS
+══════════════════════════════════════ */
+
+// Parse a review date string (e.g. "Jun 15, 2026" or "2026-06-15") → "YYYY-MM" key
+function reviewDateToYearMonth(dateStr) {
+  if (!dateStr) return '';
+  // ISO date
+  if (/^\d{4}-\d{2}/.test(dateStr)) return dateStr.slice(0, 7);
+  // "Mon DD, YYYY" e.g. "Jun 15, 2026"
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d)) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+    }
+  } catch(e) {}
+  return '';
+}
+
+// Format "YYYY-MM" → "MMM YYYY" e.g. "2026-06" → "Jun 2026"
+function formatYearMonth(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(m,10)-1]} ${y}`;
+}
+
+function populateWpFilters() {
+  const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+
+  // Preparers — unique, sorted alphabetically
+  const preparers = [...new Set(auditWPs.map(w => w.preparer))].sort();
+  const prepSel = document.getElementById('wp-filter-preparer');
+  if (prepSel) {
+    prepSel.innerHTML = '<option value="">All preparers</option>' +
+      preparers.map(p => `<option value="${p}">${p}</option>`).join('');
+  }
+
+  // Reviewers — unique, sorted
+  const reviewers = [...new Set(auditWPs.map(w => w.reviewer))].sort();
+  const revSel = document.getElementById('wp-filter-reviewer');
+  if (revSel) {
+    revSel.innerHTML = '<option value="">All reviewers</option>' +
+      reviewers.map(r => `<option value="${r}">${r}</option>`).join('');
+  }
+
+  // Review months — unique year-month keys, sorted chronologically
+  const monthKeys = [...new Set(
+    auditWPs.map(w => reviewDateToYearMonth(w.reviewDate)).filter(Boolean)
+  )].sort();
+  const monthSel = document.getElementById('wp-filter-review-month');
+  if (monthSel) {
+    monthSel.innerHTML = '<option value="">All review months</option>' +
+      monthKeys.map(k => `<option value="${k}">${formatYearMonth(k)}</option>`).join('');
+  }
+}
+
+function filterWorkpapers() {
+  const search    = (document.getElementById('wp-search')?.value || '').toLowerCase();
+  const type      = document.getElementById('wp-filter-type')?.value || '';
+  const preparer  = document.getElementById('wp-filter-preparer')?.value || '';
+  const reviewer  = document.getElementById('wp-filter-reviewer')?.value || '';
+  const revMonth  = document.getElementById('wp-filter-review-month')?.value || ''; // "YYYY-MM"
+  const results   = document.getElementById('wp-filter-results')?.value || '';
+  const status    = document.getElementById('wp-filter-status')?.value || '';
+
+  const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+  const filtered = auditWPs.filter(w =>
+    (!search   || w.ref.toLowerCase().includes(search) || w.name.toLowerCase().includes(search)) &&
+    (!type     || w.type === type) &&
+    (!preparer || w.preparer === preparer) &&
+    (!reviewer || w.reviewer === reviewer) &&
+    (!revMonth || reviewDateToYearMonth(w.reviewDate) === revMonth) &&
+    (!results  || (w.results || '') === results) &&
+    (!status   || w.status === status)
+  );
+
+  renderWorkpapers(filtered);
+
+  const anyActive = search || type || preparer || reviewer || revMonth || results || status;
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+  if (clearBtn) clearBtn.style.display = anyActive ? 'inline-flex' : 'none';
+}
+
+function clearWpFilters() {
+  ['wp-search','wp-filter-type','wp-filter-preparer','wp-filter-reviewer',
+   'wp-filter-review-month','wp-filter-results','wp-filter-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderWorkpapers();
+}
+
+/* ══════════════════════════════════════
+   RENDER — WORKPAPER TABLE
+══════════════════════════════════════ */
+function renderWorkpapers(list) {
+  const typeOrder = { Planning: 1, Testwork: 2, Report: 3 };
+  // Use provided list or default to all workpapers for current audit
+  const base = list || WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+  const sorted = [...base].sort((a, b) =>
+    (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99)
+  );
+  document.getElementById('wp-tbody').innerHTML = sorted.map((w) => {
+    const i = WORKPAPERS.indexOf(w);
+    return `
+    <tr onclick="openWP(${i})">
+      <td style="font-weight:500;color:var(--blue-600)">${w.ref}</td>
+      <td style="font-weight:500">${w.name}</td>
+      <td>${typePill(w.type)}</td>
+      <td class="tm">${w.preparer}</td>
+      <td class="tm">${w.reviewer}</td>
+      <td class="tm">${w.reviewDate}</td>
+      <td>${resultPill(w.results)}</td>
+      <td>${statusPill(w.status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════ */
+function openAudit(i) {
+  saveCurrentPage(); // persist any edits from the current page before switching
+  currentAudit = AUDITS[i];
+  currentWPIndex = -1; // no workpaper open
+  // Reset workpaper filters when switching audits
+  ['wp-search','wp-filter-type','wp-filter-status','wp-filter-results'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  document.getElementById('bc-audit-name').textContent  = currentAudit.name;
+  document.getElementById('wp-page-title').textContent  = currentAudit.name;
+  document.getElementById('wp-page-sub').textContent    = `${currentAudit.type} · ${currentAudit.period} · Owner: ${currentAudit.owner}`;
+  document.getElementById('wp-table-title').textContent = `Workpapers — ${currentAudit.name}`;
+  renderWorkpapers(); // re-render filtered to this audit before showing the page
+  populateWpFilters();
+  populateAuditInfoCard(currentAudit);
+  showPage('workpapers');
+}
+
+function openWP(i) {
+  saveCurrentPage(); // persist any edits from the current page before switching
+  const w = WORKPAPERS[i];
+  currentWPIndex = i; // track for saving on navigate away
+
+  // Always derive the audit from the workpaper's own auditName — enforces 1-to-1 tie
+  const audit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
+  currentAudit = audit;
+
+  // Keep nav box in sync
+  const selAudit  = document.getElementById('sel-audit');
+  const selPeriod = document.getElementById('sel-period');
+  const selWpRef  = document.getElementById('sel-wp-ref');
+  if (selAudit)  selAudit.value = audit.name;
+  if (selPeriod) selPeriod.textContent = audit.period;
+  if (selWpRef) {
+    const matching = WORKPAPERS.filter(wp => wp.auditName === audit.name);
+    selWpRef.innerHTML = '<option value="">— Select —</option>' +
+      matching.map(wp => `<option value="${wp.ref}"${wp.ref === w.ref ? ' selected' : ''}>${wp.ref}</option>`).join('');
+  }
+
+  // ── Breadcrumb & header ──
+  document.getElementById('bc-audit-wp').textContent     = audit.name;
+  document.getElementById('bc-wp-ref').textContent       = w.ref;
+  document.getElementById('wpd-title').textContent       = w.name;
+  document.getElementById('wpd-sub').textContent         = `${w.ref} · ${w.type} · ${audit.name}`;
+
+  // ── Audit information strip (compact) ──
+  document.getElementById('wpd-audit-name').textContent      = audit.name;
+  document.getElementById('wpd-audit-desc-short').textContent = audit.desc;
+  document.getElementById('wpd-audit-desc').textContent      = audit.desc;
+  document.getElementById('wpd-audit-owner').textContent     = audit.owner;
+  document.getElementById('wpd-audit-type').textContent      = audit.type;
+  document.getElementById('wpd-audit-status').textContent    = audit.status;
+  const prepSel = document.getElementById('wpd-preparer');
+  const revSel  = document.getElementById('wpd-reviewer');
+  if (prepSel) prepSel.value = w.preparer;
+  if (revSel)  revSel.value  = w.reviewer;
+
+  // Results dropdown
+  const resSel = document.getElementById('wpd-results');
+  if (resSel) {
+    resSel.value = w.results || '';
+    updateResultsStyle();
+  }
+  const dsEl = document.getElementById('wpd-date-started');
+  if (dsEl) dsEl.value = w.dateStarted || '';
+  const rdEl = document.getElementById('wpd-review-date');
+  if (rdEl) rdEl.value = w.reviewDate ? w.reviewDate.replace(/[A-Za-z,\s]/g,'').trim() : '';
+  // parse "Jun 15, 2026" → "2026-06-15"
+  if (rdEl && w.reviewDate && w.reviewDate.includes(' ')) {
+    try { rdEl.value = new Date(w.reviewDate).toISOString().split('T')[0]; } catch(e){}
+  }
+  // status stored as plain text in hidden span for tooltip
+
+  // ── Risks & Controls section ──
+  const risksTable = document.getElementById('risks-tbody');
+  if (risksTable && w.risks) {
+    risksTable.innerHTML = w.risks.map((r, ri) => {
+      const isLast = ri === w.risks.length - 1;
+      const ctrlHtml = (r.controls || []).map(cid => {
+        const cd = CONTROLS[cid];
+        const label = cd ? `${cid}: ${cd.title}` : cid;
+        return `<span class="ctrl-tag" data-ctrl-id="${cid}" onmouseenter="showCtrlTooltip(event,'${cid}')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">${label}</span>`;
+      }).join('');
+      const rd = RISKS[r.id];
+      const rLabel = rd ? rd.title : r.label;
+      return `<tr${isLast ? '' : ' style="border-bottom:0.5px solid var(--border-light)"'}>
+        <td style="padding:9px 12px;vertical-align:top">
+          <span class="risk-tag" data-risk-id="${r.id}" onmouseenter="showRiskTooltip(event,'${r.id}')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)">
+            <span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">${r.id}</span>${rLabel}
+          </span>
+        </td>
+        <td style="padding:9px 12px;vertical-align:top">
+          <div style="display:flex;flex-wrap:wrap;gap:4px">${ctrlHtml}</div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Scope fields ──
+  const popEl = document.getElementById('wpd-population');
+  if (popEl) popEl.textContent = w.population || '—';
+  const smEl = document.getElementById('wpd-sample-method');
+  if (smEl) smEl.textContent = w.sampleMethod || '—';
+  const ssEl = document.getElementById('wpd-sample-size');
+  if (ssEl) ssEl.innerHTML = w.sampleSize != null
+    ? `${w.sampleSize} <span style="font-size:13px;color:var(--text-secondary);font-weight:400">items</span>`
+    : `<span style="font-size:13px;font-weight:400;color:var(--text-secondary)">N/A</span>`;
+
+  // ── Narrative ──
+  const narEl = document.getElementById('narrative-view');
+  if (narEl) narEl.textContent = w.narrative || '—';
+  // Reset edit mode if open
+  const narEdit = document.getElementById('narrative-edit');
+  const narBtn  = document.getElementById('narrative-edit-btn');
+  if (narEdit) narEdit.style.display = 'none';
+  if (narEl)   narEl.style.display   = '';
+  if (narBtn)  narBtn.style.display  = '';
+
+  // ── Assessment Entities (stored as comma-separated text for tooltip) ──
+  const entitiesEl = document.getElementById('wpd-entities');
+  if (entitiesEl && w.entities) {
+    entitiesEl.textContent = w.entities.join(', ');
+  }
+  // Also store business owner text for tooltip
+  const bizOwnerEl = document.getElementById('wpd-business-owner');
+  if (bizOwnerEl) bizOwnerEl.textContent = audit.businessOwner || 'R. Thompson (Finance)';
+
+  // ── Attached files ──
+  const fileList = document.getElementById('file-list');
+  if (fileList && w.files) {
+    document.getElementById('file-count').textContent = `${w.files.length} file${w.files.length !== 1 ? 's' : ''}`;
+    fileList.innerHTML = w.files.map(f => `
+      <div class="file-row">
+        <div class="file-icon"><i class="ti ${f.icon}"></i></div>
+        <div>
+          <div class="file-name">${f.name}</div>
+          <div class="file-meta">${f.meta}</div>
+        </div>
+        <div class="file-actions">
+          <button class="icon-btn" title="Download"><i class="ti ti-download"></i></button>
+          <button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Show/hide sections based on workpaper type ──
+  // Planning and Report types don't show Risks & Controls or Process/Control Narrative
+  const hideRCNarrative = (w.type === 'Planning' || w.type === 'Report');
+  const rcSect  = document.getElementById('sect-risks-controls');
+  const narSect = document.getElementById('sect-narrative');
+  if (rcSect)  rcSect.style.display  = hideRCNarrative ? 'none' : '';
+  if (narSect) narSect.style.display = hideRCNarrative ? 'none' : '';
+
+  showPage('wpdetail');
+}
+
+function showPage(name) {
+  saveCurrentPage(); // persist all editable fields before navigating away
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
+  const pg = document.getElementById(pageMap[name]);
+  if (pg) pg.classList.add('active');
+  document.querySelectorAll('.wf-nav-item').forEach(n => {
+    n.classList.toggle('active', n.textContent.trim() === 'Audits');
+  });
+  // Re-render workpaper table so any edits on the detail page are reflected immediately
+  if (name === 'workpapers') {
+    renderWorkpapers();
+    populateWpFilters();
+  }
+  window.scrollTo(0, 0);
+}
+
+// Track which workpaper is currently open
+let currentWPIndex = -1;
+
+/* ══════════════════════════════════════
+   SAVE CURRENT PAGE — persist all editable fields back to data
+══════════════════════════════════════ */
+function saveCurrentPage() {
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  const pageId = activePage.id;
+
+  // ── Workpaper detail page ────────────────────────────────────────────
+  if (pageId === 'page-wpdetail' && currentWPIndex >= 0) {
+    const w = WORKPAPERS[currentWPIndex];
+    if (!w) return;
+
+    // Workpaper information header fields
+    const prepSel = document.getElementById('wpd-preparer');
+    const revSel  = document.getElementById('wpd-reviewer');
+    const resSel  = document.getElementById('wpd-results');
+    const dsEl    = document.getElementById('wpd-date-started');
+    const rdEl    = document.getElementById('wpd-review-date');
+    if (prepSel) w.preparer    = prepSel.value;
+    if (revSel)  w.reviewer    = revSel.value;
+    if (resSel)  w.results     = resSel.value;
+    if (dsEl)    w.dateStarted = dsEl.value;
+    if (rdEl)    w.reviewDate  = rdEl.value;
+
+    // Scope fields (population is now a div with textContent)
+    const popEl = document.getElementById('wpd-population');
+    const smEl  = document.getElementById('wpd-sample-method');
+    if (popEl) w.population   = popEl.textContent;
+    if (smEl)  w.sampleMethod = smEl.textContent;
+    // Sample size — extract the number from the innerHTML
+    const ssEl = document.getElementById('wpd-sample-size');
+    if (ssEl) {
+      const num = parseInt(ssEl.textContent);
+      w.sampleSize = isNaN(num) ? null : num;
+    }
+
+    // Narrative — save whatever text is currently shown (view mode)
+    const narEl = document.getElementById('narrative-view');
+    const narTA = document.getElementById('narrative-textarea');
+    // If edit mode is open, save from textarea; otherwise from view
+    const narEdit = document.getElementById('narrative-edit');
+    if (narEdit && narEdit.style.display !== 'none' && narTA) {
+      w.narrative = narTA.value;
+    } else if (narEl) {
+      w.narrative = narEl.textContent;
+    }
+  }
+
+  // ── Workpaper list / audit info card ────────────────────────────────
+  if (pageId === 'page-workpapers' && currentAudit) {
+    const audit = AUDITS.find(a => a.name === currentAudit.name);
+    if (audit) {
+      const ownerSel  = document.getElementById('aud-owner');
+      const bizSel    = document.getElementById('aud-biz-owner');
+      const typeSel   = document.getElementById('aud-type');
+      const statusSel = document.getElementById('aud-status');
+      if (ownerSel)  audit.owner  = ownerSel.options[ownerSel.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || audit.owner;
+      if (typeSel)   audit.type   = typeSel.value;
+      if (statusSel) audit.status = statusSel.value;
+      if (bizSel)    audit.businessOwner = bizSel.value;
+    }
+  }
+}
+
+function activateAuditsSection() {
+  document.querySelectorAll('.wf-nav-item').forEach(n => n.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  // Re-populate the sub-nav dropdowns without navigating away
+  const auditName = document.getElementById('sel-audit').value;
+  const audit = AUDITS.find(a => a.name === auditName);
+  const selPeriod = document.getElementById('sel-period');
+  const selWpRef  = document.getElementById('sel-wp-ref');
+  if (audit && selPeriod) selPeriod.textContent = audit.period;
+  if (selWpRef) {
+    const matching = WORKPAPERS.filter(w => w.auditName === auditName);
+    selWpRef.innerHTML = '<option value="">— Select —</option>' +
+      matching.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
+  }
+  // Always land on the all-audits list
+  showPage('audits');
+}
+
+/* ══════════════════════════════════════
+   RISKS DATA — from Risks & Controls module
+══════════════════════════════════════ */
+const RISKS = {
+  // ── Financial / Revenue ──────────────────────────────────────────────
+  "RSK-REV-01": {
+    id: "RSK-REV-01", title: "Risk of Premature Revenue Recognition",
+    description: "Revenue may be recognized before all performance obligations under ASC 606 have been satisfied. This risk arises from management pressure to meet quarterly targets, ambiguous contract terms, or inadequate review of delivery milestones. If unmitigated, financial statements may materially overstate revenue and earnings in the current period while understating deferred revenue liabilities."
+  },
+  "RSK-REV-02": {
+    id: "RSK-REV-02", title: "Risk of Unauthorized Journal Entries",
+    description: "Manual journal entries may be posted without proper authorization, enabling errors or intentional manipulation of account balances. This risk is heightened during period-end close when volume is high and time pressure exists. Unauthorized entries could obscure the true financial position, misstate expense or revenue accounts, and circumvent segregation of duties controls."
+  },
+  "RSK-FIN-01": {
+    id: "RSK-FIN-01", title: "Risk of Management Override of Controls",
+    description: "Senior management may override established internal controls to achieve desired financial outcomes, particularly related to revenue, accruals, and reserves. This represents an inherent limitation of any internal control system and is a significant risk factor under ISA 240 / AS 2401. Override may occur through directing subordinates, adjusting estimates outside normal ranges, or suppressing unfavorable variance analysis results."
+  },
+  // ── IT General Controls ──────────────────────────────────────────────
+  "RSK-IT-01": {
+    id: "RSK-IT-01", title: "Risk of Unauthorized System Access",
+    description: "Users may gain access to systems, data, or functions beyond what their role requires, or access may not be revoked promptly upon termination or role change. This increases the risk of data theft, unauthorized transactions, and insider fraud. Excessive privileged access is particularly dangerous as it may circumvent other controls and leave no audit trail."
+  },
+  "RSK-IT-02": {
+    id: "RSK-IT-02", title: "Risk of Unapproved System Changes",
+    description: "Changes to production systems, applications, or configurations may be implemented without proper review, testing, and approval. Unapproved changes can introduce system instability, security vulnerabilities, or undetected errors in financial calculations. Emergency changes are especially susceptible to bypassing standard change controls."
+  },
+  // ── SOX Compliance ───────────────────────────────────────────────────
+  "RSK-SOX-01": {
+    id: "RSK-SOX-01", title: "Risk of Material Weakness in ICFR",
+    description: "Internal controls over financial reporting may contain design or operating effectiveness deficiencies that could result in a material misstatement of the financial statements not being prevented or detected on a timely basis. Under SOX Section 404, a material weakness requires disclosure in the annual report and could trigger regulatory scrutiny, investor concern, and reputational damage."
+  },
+  // ── Operational ──────────────────────────────────────────────────────
+  "RSK-OPS-01": {
+    id: "RSK-OPS-01", title: "Risk of Procurement Fraud or Error",
+    description: "Purchases may be made without proper authorization, to unapproved vendors, or at inflated prices. Segregation of duties failures in the procure-to-pay cycle — such as the same individual raising and approving purchase orders — create conditions for fraudulent disbursements or preferential vendor treatment. Three-way match failures may result in payment for goods not received."
+  },
+  // ── Vendor Due Diligence ─────────────────────────────────────────────
+  "RSK-VDD-01": {
+    id: "RSK-VDD-01", title: "Risk of Vendor Non-Compliance or Fraud",
+    description: "Third-party vendors may not meet contractual, regulatory, or ethical standards. Risks include undisclosed conflicts of interest, sanctions violations, financial instability leading to service disruption, and data security breaches. Failure to perform adequate due diligence exposes the organization to reputational, legal, and financial harm from vendor misconduct or insolvency."
+  },
+  // ── Payroll ──────────────────────────────────────────────────────────
+  "RSK-PAY-01": {
+    id: "RSK-PAY-01", title: "Risk of Unauthorized Payroll Disbursements",
+    description: "Payroll may be processed for ghost employees, at unauthorized pay rates, or with unapproved adjustments. Risks include untimely processing of terminations allowing continued payments, pay rate changes made without written authorization, and timesheet falsification. Payroll fraud is one of the most common forms of occupational fraud and can be material in organizations with large headcounts."
+  }
+};
+
+/* ══════════════════════════════════════
+   RISK TOOLTIP
+══════════════════════════════════════ */
+function showRiskTooltip(e, riskId) {
+  const risk = RISKS[riskId];
+  if (!risk) return;
+  document.getElementById('rtt-id').textContent    = risk.id;
+  document.getElementById('rtt-title').textContent = risk.title;
+  document.getElementById('rtt-desc').textContent  = risk.description;
+  positionRiskTooltip(e);
+  document.getElementById('risk-tooltip').classList.add('visible');
+}
+function hideRiskTooltip() {
+  document.getElementById('risk-tooltip').classList.remove('visible');
+}
+function moveRiskTooltip(e) {
+  positionRiskTooltip(e);
+}
+function positionRiskTooltip(e) {
+  const tt  = document.getElementById('risk-tooltip');
+  const pad = 14;
+  const tw  = tt.offsetWidth  || 300;
+  const th  = tt.offsetHeight || 140;
+  let left  = e.clientX + pad;
+  let top   = e.clientY + pad;
+  if (left + tw > window.innerWidth  - pad) left = e.clientX - tw - pad;
+  if (top  + th > window.innerHeight - pad) top  = e.clientY - th - pad;
+  tt.style.left = left + 'px';
+  tt.style.top  = top  + 'px';
+}
+
+/* ══════════════════════════════════════
+   CONTROLS DATA — from Risks & Controls module
+══════════════════════════════════════ */
+const CONTROLS = {
+  // ── Financial / Revenue ──────────────────────────────────────────────
+  "REV-CTL-01": {
+    id: "REV-CTL-01", title: "Revenue Recognition Policy",
+    description: "Ensures all revenue transactions are recognized in accordance with ASC 606. Contracts are reviewed at inception by the Controller to identify distinct performance obligations. Revenue is deferred until delivery milestones are confirmed by operations and approved by finance management.",
+    ctrlOwner: "J. Davis (Controller)", procOwner: "R. Thompson (VP Finance)"
+  },
+  "REV-CTL-04": {
+    id: "REV-CTL-04", title: "Journal Entry Approval",
+    description: "All manual journal entries above $25,000 require dual authorization from both the Controller and the CFO prior to posting. System-generated entries are subject to automated validation rules. A log of all entries and approvals is maintained for audit trail purposes.",
+    ctrlOwner: "M. Chen (Accounting Manager)", procOwner: "J. Davis (Controller)"
+  },
+  "FIN-CTL-11": {
+    id: "FIN-CTL-11", title: "Management Review of Revenue Accounts",
+    description: "The Finance Director performs a monthly analytical review of all revenue accounts, comparing actual results to forecast and prior period. Variances exceeding 5% or $100,000 are investigated and formally documented with explanations approved by the CFO.",
+    ctrlOwner: "L. Manager (Finance Director)", procOwner: "R. Thompson (VP Finance)"
+  },
+  // ── IT General Controls ──────────────────────────────────────────────
+  "IT-CTL-01": {
+    id: "IT-CTL-01", title: "User Access Provisioning & Deprovisioning",
+    description: "All user access requests must be submitted via a ticketing system with manager approval before provisioning. Upon termination or role change, IT Security must deprovision access within 24 hours of HR notification. Privileged access requires secondary approval from the IT Security Manager.",
+    ctrlOwner: "A. Wong (IT Security Manager)", procOwner: "M. Chen (IT Director)"
+  },
+  "IT-CTL-02": {
+    id: "IT-CTL-02", title: "Periodic User Access Review",
+    description: "System owners and business managers conduct a quarterly review of all active user accounts and access rights. Any accounts identified as no longer required or appropriate must be removed within five business days. Review completion is documented in the access governance platform.",
+    ctrlOwner: "A. Wong (IT Security Manager)", procOwner: "B. Nguyen (Systems Manager)"
+  },
+  "IT-CTL-03": {
+    id: "IT-CTL-03", title: "Change Management — Production Approval",
+    description: "All changes to production environments must follow the standard change lifecycle: submit change request, perform impact assessment, obtain CAB approval, complete testing in non-production, and execute a post-implementation review within 5 business days. Emergency changes require retrospective CAB approval within 48 hours.",
+    ctrlOwner: "B. Nguyen (Change Manager)", procOwner: "M. Chen (IT Director)"
+  },
+  // ── SOX ──────────────────────────────────────────────────────────────
+  "SOX-CTL-01": {
+    id: "SOX-CTL-01", title: "CEO/CFO Section 302 Sub-Certification",
+    description: "Prior to signing the quarterly 302 certification, the CEO and CFO obtain sub-certifications from all business unit controllers confirming the accuracy of financial data submitted. The Disclosure Committee reviews all significant financial reporting items and documents conclusions in meeting minutes.",
+    ctrlOwner: "R. Patel (Chief Accounting Officer)", procOwner: "L. Manager (CFO)"
+  },
+  "SOX-CTL-02": {
+    id: "SOX-CTL-02", title: "ICFR Operating Effectiveness Testing",
+    description: "Management tests the operating effectiveness of all in-scope ICFR controls on an annual basis per AS 2201. Sample sizes are determined based on control frequency and risk rating. Control exceptions are evaluated for severity — deficiency, significant deficiency, or material weakness — and reported to the Audit Committee.",
+    ctrlOwner: "R. Patel (Chief Accounting Officer)", procOwner: "J. Davis (Controller)"
+  },
+  // ── Operational ──────────────────────────────────────────────────────
+  "OPS-CTL-01": {
+    id: "OPS-CTL-01", title: "Purchase Order Authorization",
+    description: "All purchase orders above $5,000 must be raised by a requestor and approved by a separate authorized approver. POs above $50,000 require Director-level approval. The system enforces segregation of duties by preventing the requestor from being the same person as the approver. Unapproved POs cannot be transmitted to vendors.",
+    ctrlOwner: "L. Torres (Procurement Manager)", procOwner: "K. Williams (VP Operations)"
+  },
+  "OPS-CTL-02": {
+    id: "OPS-CTL-02", title: "Three-Way Match — AP Invoice Processing",
+    description: "Before processing payment, the AP system performs an automated three-way match between the purchase order, goods receipt, and vendor invoice. Variances exceeding 5% or $500 require documented business justification and supervisor approval. Unmatched invoices are queued for manual review.",
+    ctrlOwner: "L. Torres (Procurement Manager)", procOwner: "M. Chen (VP Finance)"
+  },
+  // ── Vendor Due Diligence ─────────────────────────────────────────────
+  "VDD-CTL-01": {
+    id: "VDD-CTL-01", title: "Vendor Onboarding Due Diligence",
+    description: "All new vendors with expected annual spend above $100,000 must complete the vendor onboarding process: submit company information, pass OFAC/SDN sanctions screening, provide a financial health declaration, and have a designated business owner sign a conflict of interest declaration. Vendors are re-screened annually.",
+    ctrlOwner: "J. Davis (Vendor Risk Manager)", procOwner: "K. Williams (VP Operations)"
+  },
+  "VDD-CTL-02": {
+    id: "VDD-CTL-02", title: "Annual Vendor Performance & Risk Review",
+    description: "Tier-1 and Tier-2 vendors undergo an annual risk review covering financial health (D&B score), regulatory compliance, information security posture, and contract adherence. Vendors falling below threshold scores are escalated to the Vendor Risk Committee for remediation or off-boarding decisions.",
+    ctrlOwner: "B. Nguyen (Vendor Analyst)", procOwner: "J. Davis (Vendor Risk Manager)"
+  },
+  // ── Payroll ──────────────────────────────────────────────────────────
+  "PAY-CTL-01": {
+    id: "PAY-CTL-01", title: "Pay Rate Change Authorization",
+    description: "All changes to employee pay rates must be initiated in the HR system with a digitally signed authorization form approved by both the employee's manager and the HR Business Partner. The payroll system is configured to reject rate changes that lack a linked authorization record. Changes are reviewed by Payroll prior to the next pay cycle.",
+    ctrlOwner: "S. Kim (Payroll Manager)", procOwner: "M. Brown (HR Director)"
+  },
+  "PAY-CTL-02": {
+    id: "PAY-CTL-02", title: "Termination Payroll Cutoff",
+    description: "Upon employee termination, HR must enter the termination date in Workday within 24 hours of the employee's last day. The payroll system automatically flags any terminated employees appearing on the next payroll run. Payroll reviews flagged records and removes them before processing. A monthly reconciliation of active headcount to payroll register is performed.",
+    ctrlOwner: "S. Kim (Payroll Manager)", procOwner: "M. Brown (HR Director)"
+  }
+};
+
+/* ══════════════════════════════════════
+   CONTROL TOOLTIP
+══════════════════════════════════════ */
+function showCtrlTooltip(e, ctrlId) {
+  const ctrl = CONTROLS[ctrlId];
+  if (!ctrl) return;
+  document.getElementById('tt-id').textContent         = ctrl.id;
+  document.getElementById('tt-title').textContent      = ctrl.title;
+  document.getElementById('tt-desc').textContent       = ctrl.description;
+  document.getElementById('tt-ctrl-owner').textContent = ctrl.ctrlOwner;
+  document.getElementById('tt-proc-owner').textContent = ctrl.procOwner;
+  positionTooltip(e);
+  document.getElementById('ctrl-tooltip').classList.add('visible');
+}
+function hideCtrlTooltip() {
+  document.getElementById('ctrl-tooltip').classList.remove('visible');
+}
+function moveCtrlTooltip(e) {
+  positionTooltip(e);
+}
+function positionTooltip(e) {
+  const tt   = document.getElementById('ctrl-tooltip');
+  const pad  = 14;
+  const tw   = tt.offsetWidth  || 300;
+  const th   = tt.offsetHeight || 160;
+  let   left = e.clientX + pad;
+  let   top  = e.clientY + pad;
+  if (left + tw > window.innerWidth  - pad) left = e.clientX - tw - pad;
+  if (top  + th > window.innerHeight - pad) top  = e.clientY - th - pad;
+  tt.style.left = left + 'px';
+  tt.style.top  = top  + 'px';
+}
+
+/* ══════════════════════════════════════
+   AUDIT INFO TOOLTIP (hover on audit name in workpaper header)
+══════════════════════════════════════ */
+function showAuditInfoTooltip(e) {
+  const audit = currentAudit;
+  document.getElementById('ait-name').textContent     = document.getElementById('wpd-audit-name').textContent;
+  document.getElementById('ait-desc').textContent     = document.getElementById('wpd-audit-desc').textContent;
+  document.getElementById('ait-owner').textContent    = document.getElementById('wpd-audit-owner').textContent;
+  document.getElementById('ait-biz-owner').textContent = document.getElementById('wpd-business-owner').textContent.trim();
+  document.getElementById('ait-type').textContent     = document.getElementById('wpd-audit-type').textContent;
+  document.getElementById('ait-status').textContent   = statusLabel[audit ? audit.status : 'active'] || 'Active';
+  // Entities
+  const entRaw = document.getElementById('wpd-entities').textContent.trim();
+  const entArr = entRaw ? entRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  document.getElementById('ait-entities').innerHTML = entArr.length
+    ? entArr.map(name => {
+        const entity = ALL_ENTITIES.find(e => e.name === name);
+        const { cls, icon } = entityStyle(entity ? entity.category : 'facility');
+        return `<span class="${cls}" style="font-size:10px;padding:2px 7px"><i class="ti ${icon}"></i>${name}</span>`;
+      }).join('')
+    : '<span style="font-size:12px;color:var(--text-tertiary)">—</span>';
+  positionAuditTooltip(e);
+  document.getElementById('audit-info-tooltip').classList.add('visible');
+}
+function hideAuditInfoTooltip() {
+  document.getElementById('audit-info-tooltip').classList.remove('visible');
+}
+function moveAuditInfoTooltip(e) { positionAuditTooltip(e); }
+function positionAuditTooltip(e) {
+  const tt = document.getElementById('audit-info-tooltip');
+  const pad = 14, tw = tt.offsetWidth || 360, th = tt.offsetHeight || 200;
+  let left = e.clientX + pad, top = e.clientY + pad;
+  if (left + tw > window.innerWidth  - pad) left = e.clientX - tw - pad;
+  if (top  + th > window.innerHeight - pad) top  = e.clientY - th - pad;
+  tt.style.left = left + 'px'; tt.style.top = top + 'px';
+}
+
+/* ══════════════════════════════════════
+   NEW WORKPAPER — open, ref builder, submit
+══════════════════════════════════════ */
+function openNewWorkpaper() {
+  const audit = currentAudit;
+
+  // Populate audit info strip on the new-wp page
+  document.getElementById('nwp-bc-audit').textContent   = audit.name;
+  document.getElementById('nwp-audit-name').textContent = audit.name;
+  document.getElementById('nwp-audit-desc').textContent = audit.desc;
+  document.getElementById('nwp-audit-sub').textContent  = audit.name;
+
+  // Segment 2 — year derived from audit period
+  const year = (audit.period.match(/\b(20\d{2})\b/) || [])[1] || new Date().getFullYear();
+  document.getElementById('nwp-seg-year').textContent = year;
+
+  // Segment 3 — clear
+  document.getElementById('nwp-seg3').value = '';
+
+  // Segment 4 — default to highest existing sequence + 10
+  const auditWPs = WORKPAPERS.filter(w => w.auditName === audit.name);
+  let maxSeq = 0;
+  auditWPs.forEach(w => {
+    const parts = w.ref.split('-');
+    const seq = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+  });
+  const defaultSeq = maxSeq + 10;
+  document.getElementById('nwp-seg4').value = String(defaultSeq).padStart(4, '0');
+
+  // Clear all blank fields
+  document.getElementById('nwp-name').value           = '';
+  document.getElementById('nwp-type').value           = '';
+  document.getElementById('nwp-status').value         = 'draft';
+  document.getElementById('nwp-population').value     = '';
+  document.getElementById('nwp-sample-method').value  = '';
+  document.getElementById('nwp-sample-size').value    = '';
+  document.getElementById('nwp-narrative').value      = '';
+  document.getElementById('nwp-char-count').textContent = '0 / 2,000';
+
+  // Set today's date for date started
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('nwp-date-started').value = today;
+  document.getElementById('nwp-review-date').value  = '';
+
+  // Hide inline ref error
+  document.getElementById('nwp-ref-error').style.display = 'none';
+
+  updateRefPreview();
+  showPage('newwp');
+}
+
+function getBuiltRef() {
+  const year = document.getElementById('nwp-seg-year').textContent.trim();
+  const seg3 = document.getElementById('nwp-seg3').value.trim().toUpperCase();
+  const seg4raw = document.getElementById('nwp-seg4').value;
+  const seg4 = seg4raw ? String(parseInt(seg4raw, 10)).padStart(4, '0') : '——';
+  const s3 = seg3 || '——';
+  return `WP-${year}-${s3}-${seg4}`;
+}
+
+function isRefDuplicate(ref) {
+  return WORKPAPERS.some(w => w.auditName === currentAudit.name && w.ref === ref);
+}
+
+function updateRefPreview() {
+  const ref = getBuiltRef();
+  document.getElementById('nwp-ref-preview').textContent = ref;
+  // Show inline error only if ref looks complete and is a duplicate
+  const seg3 = document.getElementById('nwp-seg3').value.trim();
+  const seg4 = document.getElementById('nwp-seg4').value;
+  const complete = seg3.length > 0 && seg4 && parseInt(seg4, 10) > 0;
+  const errEl = document.getElementById('nwp-ref-error');
+  if (complete && isRefDuplicate(ref)) {
+    errEl.style.display = 'inline-flex';
+    document.getElementById('nwp-ref-preview').style.color = 'var(--red-700)';
+  } else {
+    errEl.style.display = 'none';
+    document.getElementById('nwp-ref-preview').style.color = 'var(--wf-navy)';
+  }
+
+  // Update narrative char count while we're here
+  const narEl = document.getElementById('nwp-narrative');
+  const ccEl  = document.getElementById('nwp-char-count');
+  if (narEl && ccEl) ccEl.textContent = `${narEl.value.length} / 2,000`;
+}
+
+function submitNewWorkpaper() {
+  const ref   = getBuiltRef();
+  const name  = document.getElementById('nwp-name').value.trim();
+  const type  = document.getElementById('nwp-type').value;
+  const seg3  = document.getElementById('nwp-seg3').value.trim();
+  const seg4v = document.getElementById('nwp-seg4').value;
+
+  // Validate ref segments
+  if (!seg3 || seg3.length < 2) {
+    showDupDialog('Please enter at least 2 characters for segment 3 of the workpaper reference (e.g. "Q2", "SOX", "IT").');
+    document.getElementById('nwp-seg3').focus();
+    return;
+  }
+  if (!seg4v || parseInt(seg4v, 10) < 1) {
+    showDupDialog('Please enter a valid sequence number (segment 4) for the workpaper reference.');
+    document.getElementById('nwp-seg4').focus();
+    return;
+  }
+
+  // Hard duplicate check
+  if (isRefDuplicate(ref)) {
+    showDupDialog(`The workpaper reference <strong>${ref}</strong> already exists in <strong>${currentAudit.name}</strong>. Duplicate references are not allowed. Please choose a different sequence number.`);
+    return;
+  }
+
+  // Validate name
+  if (!name) {
+    showDupDialog('Please enter a workpaper name before creating.');
+    document.getElementById('nwp-name').focus();
+    return;
+  }
+
+  // Build the new workpaper object and push to WORKPAPERS
+  const newWP = {
+    auditName:    currentAudit.name,
+    ref:          ref,
+    name:         name,
+    type:         type || 'Testwork',
+    preparer:     document.getElementById('nwp-preparer').value,
+    reviewer:     document.getElementById('nwp-reviewer').value,
+    dateStarted:  document.getElementById('nwp-date-started').value,
+    reviewDate:   document.getElementById('nwp-review-date').value,
+    status:       document.getElementById('nwp-status').value,
+    sampleSize:   parseInt(document.getElementById('nwp-sample-size').value) || null,
+    sampleMethod: document.getElementById('nwp-sample-method').value || 'N/A',
+    population:   document.getElementById('nwp-population').value || '—',
+    narrative:    document.getElementById('nwp-narrative').value || '—',
+    risks:        [],
+    entities:     Array.from(currentAuditEntities).map(id => ALL_ENTITIES.find(e => e.id === id)?.name).filter(Boolean),
+    files:        [],
+  };
+
+  WORKPAPERS.push(newWP);
+
+  // Update the WP ref nav dropdown
+  const selWpRef = document.getElementById('sel-wp-ref');
+  if (selWpRef) {
+    const opt = document.createElement('option');
+    opt.value = ref; opt.textContent = ref;
+    selWpRef.appendChild(opt);
+  }
+
+  // Navigate to the new workpaper detail
+  const newIdx = WORKPAPERS.length - 1;
+  openWP(newIdx);
+}
+
+function showDupDialog(msg) {
+  document.getElementById('dup-ref-msg').innerHTML = msg;
+  document.getElementById('dup-ref-overlay').style.display = 'flex';
+}
+
+/* ══════════════════════════════════════
+   ASSESSMENT ENTITY DATA & DIALOG
+══════════════════════════════════════ */
+const ALL_ENTITIES = [
+  // ── Assessment entities (facilities) ────────────────────────────────
+  { id: "stcharles",  category: "facility", name: "St Charles ASC",          sub: "Ambulatory Surgery Center · St Charles, MO" },
+  { id: "stvincents", category: "facility", name: "St Vincent's Hospital",    sub: "Acute Care Hospital · Los Angeles, CA" },
+  { id: "southwest",  category: "facility", name: "Southwest Medical Center", sub: "Regional Medical Center · Phoenix, AZ" },
+  { id: "southbay",   category: "facility", name: "South Bay Ortho",          sub: "Orthopaedic Clinic · Torrance, CA" },
+  { id: "mainst",     category: "facility", name: "Main St Clinic",           sub: "Primary Care · Springfield, IL" },
+  // ── Applications ────────────────────────────────────────────────────
+  { id: "epic",       category: "app", name: "EPIC",        sub: "Electronic Health Record · Clinical Systems" },
+  { id: "workday",    category: "app", name: "Workday",     sub: "HR & Finance Platform · Enterprise Systems" },
+  { id: "msexchange", category: "app", name: "MS Exchange", sub: "Email & Collaboration · IT Infrastructure" },
+  { id: "intelerad",  category: "app", name: "Intelerad",   sub: "Medical Imaging Platform · Radiology Systems" },
+  // ── Biomed (Information Security controls only) ──────────────────────
+  { id: "philips",    category: "biomed", name: "Philips",    sub: "Medical Devices & Imaging · Biomedical Engineering" },
+  { id: "baxter",     category: "biomed", name: "Baxter",     sub: "Infusion & Patient Care Systems · Biomedical Engineering" },
+];
+
+// Track current audit's selected entities (by id)
+let currentAuditEntities = new Set(["stcharles", "stvincents", "southwest"]);
+// Temporary selection inside dialog
+let dialogTempEntities = new Set();
+
+/* Returns the CSS class and icon for an entity based on its category */
+// Information-security control IDs — biomed entities only shown when these are on the workpaper
+const INFOSEC_CONTROLS = new Set(['IT-CTL-01', 'IT-CTL-02', 'IT-CTL-03']);
+
+function entityStyle(cat) {
+  if (cat === 'app')    return { cls: 'entity-tag-app',    icon: 'ti-device-desktop' };
+  if (cat === 'biomed') return { cls: 'entity-tag-biomed', icon: 'ti-heart-rate-monitor' };
+  return { cls: 'entity-tag', icon: 'ti-building-hospital' };
+}
+
+// Returns true if the currently open workpaper has at least one infosec control
+function currentWPHasInfosecControl() {
+  if (currentWPIndex < 0 || !WORKPAPERS[currentWPIndex]) return false;
+  const wp = WORKPAPERS[currentWPIndex];
+  const ctrlIds = (wp.risks || []).flatMap(r => r.controls || []);
+  return ctrlIds.some(id => INFOSEC_CONTROLS.has(id));
+}
+
+function openEntityDialog() {
+  dialogTempEntities = new Set(currentAuditEntities);
+  document.getElementById('entity-search-input').value = '';
+  renderEntityList('');
+  updateEntityCount();
+  const overlay = document.getElementById('entity-dialog-overlay');
+  overlay.style.display = 'flex';
+  setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
+}
+
+function closeEntityDialog() {
+  document.getElementById('entity-dialog-overlay').style.display = 'none';
+}
+
+function filterEntityList() {
+  const q = document.getElementById('entity-search-input').value.toLowerCase();
+  renderEntityList(q);
+}
+
+function renderEntityList(query) {
+  const container = document.getElementById('entity-list-container');
+  const q = query.toLowerCase();
+  const filtered = ALL_ENTITIES.filter(e =>
+    e.name.toLowerCase().includes(q) || e.sub.toLowerCase().includes(q)
+  );
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="padding:20px 18px;text-align:center;color:var(--text-tertiary);font-size:13px">No entities match "${query}"</div>`;
+    return;
+  }
+  // Biomed only shown when workpaper has infosec controls
+  const showBiomed = currentWPHasInfosecControl();
+  // Group by category
+  const groups = [
+    { key: 'facility', label: 'Facilities',                              items: filtered.filter(e => e.category === 'facility') },
+    { key: 'app',      label: 'Applications',                            items: filtered.filter(e => e.category === 'app') },
+    { key: 'biomed',   label: 'Biomedical Equipment',                    items: showBiomed ? filtered.filter(e => e.category === 'biomed') : [] },
+  ].filter(g => g.items.length > 0);
+
+  container.innerHTML = groups.map(g => {
+    const groupHeader = `<div style="padding:6px 18px 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);background:var(--bg-secondary)">${g.label}</div>`;
+    const rows = g.items.map(e => {
+      const checked = dialogTempEntities.has(e.id);
+      const { icon } = entityStyle(e.category);
+      const dotColor  = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
+      const checkedBg = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
+      return `<div class="entity-list-item${checked ? ' checked' : ''}" onclick="toggleEntityItem('${e.id}')" id="eli-${e.id}" data-cat="${e.category}">
+        <div class="entity-checkbox" style="${checked ? 'background:' + checkedBg + ';border-color:' + checkedBg : ''}">${checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : ''}</div>
+        <i class="ti ${icon}" style="font-size:15px;color:${dotColor};flex-shrink:0"></i>
+        <div>
+          <div class="entity-name">${e.name}</div>
+          <div class="entity-sub">${e.sub}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return groupHeader + rows;
+  }).join('');
+}
+
+function toggleEntityItem(id) {
+  if (dialogTempEntities.has(id)) {
+    dialogTempEntities.delete(id);
+  } else {
+    dialogTempEntities.add(id);
+  }
+  const item = document.getElementById('eli-' + id);
+  if (item) {
+    const checked = dialogTempEntities.has(id);
+    const cat = item.dataset.cat || 'facility';
+    const checkedBg = cat === 'app' ? '#f97316' : cat === 'biomed' ? '#7c3aed' : '#16a34a';
+    item.className = 'entity-list-item' + (checked ? ' checked' : '');
+    const cb = item.querySelector('.entity-checkbox');
+    cb.style.background  = checked ? checkedBg : '';
+    cb.style.borderColor = checked ? checkedBg : '';
+    cb.innerHTML = checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : '';
+  }
+  updateEntityCount();
+}
+
+function updateEntityCount() {
+  const count = dialogTempEntities.size;
+  document.getElementById('entity-selected-count').textContent =
+    count === 0 ? 'None selected' : `${count} entity selected`;
+}
+
+function applyEntitySelection() {
+  currentAuditEntities = new Set(dialogTempEntities);
+  renderAuditEntityTags();
+  closeEntityDialog();
+}
+
+function renderAuditEntityTags() {
+  const container = document.getElementById('aud-entities');
+  if (!container) return;
+  const selected = ALL_ENTITIES.filter(e => currentAuditEntities.has(e.id));
+  if (selected.length === 0) {
+    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities selected — click "Add / edit entities" to add</span>`;
+  } else {
+    container.innerHTML = selected.map(e => {
+      const { cls, icon } = entityStyle(e.category);
+      return `<span class="${cls}" style="display:inline-flex;align-items:center;gap:5px">
+        <i class="ti ${icon}"></i>${e.name}
+        <span onclick="removeAuditEntity('${e.id}')" style="margin-left:3px;cursor:pointer;opacity:0.6;font-size:11px;line-height:1" title="Remove">×</span>
+      </span>`;
+    }).join('');
+  }
+}
+
+function removeAuditEntity(id) {
+  currentAuditEntities.delete(id);
+  renderAuditEntityTags();
+}
+
+/* ══════════════════════════════════════
+   POPULATE AUDIT INFO CARD when audit opens
+══════════════════════════════════════ */
+function populateAuditInfoCard(audit) {
+  if (!audit) return;
+  // Sync owner dropdown
+  const ownerSel = document.getElementById('aud-owner');
+  if (ownerSel) {
+    // Find matching option by owner name
+    const ownerVal = {
+      "J. Davis": "jdavis", "M. Chen": "mchen", "R. Patel": "rpatel",
+      "L. Torres": "ltorres", "S. Kim": "skim", "L. Manager": "lmgr"
+    }[audit.owner] || "jdavis";
+    ownerSel.value = ownerVal;
+  }
+  // Sync type
+  const typeSel = document.getElementById('aud-type');
+  if (typeSel) typeSel.value = audit.type;
+  // Sync status
+  const statusSel = document.getElementById('aud-status');
+  if (statusSel) statusSel.value = audit.status;
+  // Entities — seed with audit-level defaults if available
+  const entityDefaults = {
+    "Q2 2026 Financial Audit":     ["stcharles","stvincents","southwest","workday"],
+    "IT General Controls Review":  ["stvincents","southwest","southbay","mainst","msexchange","philips","baxter"],
+    "SOX Compliance Audit":        ["stcharles","stvincents","southwest","southbay","mainst","epic"],
+    "Operational Risk Assessment": ["southwest","southbay","intelerad"],
+    "Vendor Due Diligence":        ["stcharles","mainst","workday"],
+    "Payroll Audit":               ["stvincents","southbay","mainst","workday"],
+  };
+  currentAuditEntities = new Set(entityDefaults[audit.name] || []);
+  renderAuditEntityTags();
+}
+
+/* ══════════════════════════════════════
+   NAV BOX — cascade audit → period → wp ref
+══════════════════════════════════════ */
+function onNavAuditChange() {
+  const auditName  = document.getElementById('sel-audit').value;
+  const selPeriod  = document.getElementById('sel-period');
+  const selWpRef   = document.getElementById('sel-wp-ref');
+
+  // Update period to match selected audit
+  const audit = AUDITS.find(a => a.name === auditName);
+  if (audit) {
+    selPeriod.textContent = audit.period;
+    currentAudit = audit;
+  }
+
+  // Blank out wp ref then populate only matching workpapers
+  const matching = WORKPAPERS.filter(w => w.auditName === auditName);
+  selWpRef.innerHTML = '<option value="">— Select —</option>' +
+    matching.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
+
+  // Navigate to the selected audit's workpaper list
+  if (audit) openAudit(AUDITS.indexOf(audit));
+}
+
+function onNavWpRefChange() {
+  const ref        = document.getElementById('sel-wp-ref').value;
+  const auditName  = document.getElementById('sel-audit').value;
+  if (!ref) return; // nothing selected
+
+  const wpIndex = WORKPAPERS.findIndex(w => w.ref === ref && w.auditName === auditName);
+  if (wpIndex === -1) return;
+
+  // Set currentAudit to match
+  const audit = AUDITS.find(a => a.name === auditName);
+  if (audit) currentAudit = audit;
+
+  openWP(wpIndex);
+}
+
+/* ══════════════════════════════════════
+   RESULTS DROPDOWN STYLING
+══════════════════════════════════════ */
+function updateResultsStyle() {
+  const sel = document.getElementById('wpd-results');
+  if (!sel) return;
+  const colors = {
+    pass:   { bg:'#dcfce7', color:'#166534', border:'#86efac' },
+    passex: { bg:'#fef3c7', color:'#92400e', border:'#fde68a' },
+    fail:   { bg:'#fee2e2', color:'#991b1b', border:'#fca5a5' },
+    met:    { bg:'#dbeafe', color:'#1e40af', border:'#93c5fd' },
+    notmet: { bg:'#ede9fe', color:'#5b21b6', border:'#c4b5fd' },
+    '':     { bg:'var(--bg-secondary)', color:'var(--text-primary)', border:'var(--border-light)' },
+  };
+  const c = colors[sel.value] || colors[''];
+  sel.style.background   = c.bg;
+  sel.style.color        = c.color;
+  sel.style.borderColor  = c.border;
+  sel.style.fontWeight   = sel.value ? '600' : '500';
+}
+
+/* ══════════════════════════════════════
+   NARRATIVE — edit / save / cancel
+══════════════════════════════════════ */
+let narrativeSaved = document.getElementById ? '' : '';
+
+function toggleNarrative() {
+  const view = document.getElementById('narrative-view');
+  const edit = document.getElementById('narrative-edit');
+  const btn  = document.getElementById('narrative-edit-btn');
+  const ta   = document.getElementById('narrative-textarea');
+  ta.value = view.textContent.trim();
+  updateCharCount();
+  view.style.display = 'none';
+  edit.style.display = 'flex';
+  btn.style.display  = 'none';
+  ta.focus();
+}
+
+function saveNarrative() {
+  const view = document.getElementById('narrative-view');
+  const edit = document.getElementById('narrative-edit');
+  const btn  = document.getElementById('narrative-edit-btn');
+  const ta   = document.getElementById('narrative-textarea');
+  view.textContent   = ta.value.trim() || '—';
+  view.style.display = '';
+  edit.style.display = 'none';
+  btn.style.display  = '';
+}
+
+function cancelNarrative() {
+  const view = document.getElementById('narrative-view');
+  const edit = document.getElementById('narrative-edit');
+  const btn  = document.getElementById('narrative-edit-btn');
+  view.style.display = '';
+  edit.style.display = 'none';
+  btn.style.display  = '';
+}
+
+function updateCharCount() {
+  const ta    = document.getElementById('narrative-textarea');
+  const label = document.getElementById('char-count');
+  if (!ta || !label) return;
+  const used = ta.value.length;
+  const remaining = 2000 - used;
+  label.textContent = `${used.toLocaleString()} / 2,000 characters`;
+  label.style.color = remaining < 100 ? 'var(--red-700)' : remaining < 300 ? 'var(--amber-800)' : 'var(--text-tertiary)';
+}
+
+/* ══════════════════════════════════════
+   INIT
+══════════════════════════════════════ */
+renderAudits();
+renderWorkpapers();
+onNavAuditChange();
+populateWpFilters();
+populateControlFilter();
+populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default audit on load
+// Set Audits nav item active on initial load
+document.querySelectorAll('.wf-nav-item').forEach(n => {
+  if (n.textContent.trim() === 'Audits') n.classList.add('active');
+});
+</script>
+</body>
+</html>
