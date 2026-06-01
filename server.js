@@ -7,7 +7,8 @@
  * WHAT THIS FILE DOES:
  *   - Serves the frontend HTML file at the root URL  (GET /)
  *   - Proxies Claude API calls                       (POST /api/claude)
- *   - Proxies Claude analysis of PDF files           (POST /api/analyze)
+ *   - Health check                                   (GET /health)
+ *   - API key test                                   (GET /api/test)
  *
  * HOW TO RUN LOCALLY:
  *   1. npm install
@@ -32,16 +33,49 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // PDFs can be large when base64-encoded
 
 // ── Serve the frontend HTML ─────────────────────────────────────────────────
-// Place auditflow_artifact.html in the same folder as this file,
-// rename it to index.html, and it will be served at http://localhost:3000
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
+// ── API key + Claude connectivity test ──────────────────────────────────────
+// Visit /api/test in your browser to diagnose issues without needing a PDF
+app.get('/api/test', async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ ok: false, error: 'ANTHROPIC_API_KEY is not set on the server.' });
+  }
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:  'POST',
+      headers: {
+        'Content-Type':      'application/json',
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 20,
+        messages:   [{ role: 'user', content: 'Reply with just the word OK.' }],
+      }),
+    });
+    const data = await response.json();
+    if (data.error) {
+      return res.status(response.status).json({
+        ok:     false,
+        status: response.status,
+        error:  data.error.message,
+        type:   data.error.type
+      });
+    }
+    const reply = data.content?.[0]?.text || '(no text)';
+    res.json({ ok: true, claude_replied: reply, model: data.model });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
 // ── Claude API proxy ────────────────────────────────────────────────────────
-// The frontend calls POST /api/claude instead of calling Anthropic directly.
-// This keeps the API key safe on the server side.
 app.post('/api/claude', async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -60,8 +94,6 @@ app.post('/api/claude', async (req, res) => {
     });
 
     const data = await response.json();
-
-    // Pass through the status code and body unchanged
     res.status(response.status).json(data);
   } catch (err) {
     console.error('Claude API error:', err.message);
