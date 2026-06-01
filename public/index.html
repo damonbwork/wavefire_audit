@@ -273,6 +273,27 @@
   .upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 22px; margin: 12px 16px 16px; border: 1.5px dashed var(--border-medium); border-radius: var(--radius-md); cursor: pointer; color: var(--text-tertiary); font-size: 13px; transition: background 0.12s, border-color 0.12s, color 0.12s; }
   .upload-zone i { font-size: 22px; }
   .upload-zone:hover { background: var(--bg-secondary); border-color: var(--wf-blue); color: var(--wf-blue); }
+
+  /* ── RC DIALOG GRID ── */
+  .rc-grid-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .rc-grid-table thead th {
+    font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+    color:var(--text-tertiary); padding:7px 10px; text-align:left;
+    background:var(--bg-secondary); border-bottom:0.5px solid var(--border-light);
+    position:sticky; top:0; z-index:2;
+  }
+  .rc-grid-table thead th.num-col { text-align:right; }
+  .rc-grid-table tbody tr { border-bottom:0.5px solid var(--border-light); cursor:pointer; transition:background 0.1s; }
+  .rc-grid-table tbody tr:hover { background:var(--blue-50); }
+  .rc-grid-table tbody tr.selected { background:#f0fdf4; }
+  .rc-grid-table tbody tr.section-header { background:var(--bg-secondary); cursor:default; }
+  .rc-grid-table tbody tr.section-header:hover { background:var(--bg-secondary); }
+  .rc-grid-table td { padding:7px 10px; vertical-align:middle; color:var(--text-primary); }
+  .rc-grid-table td.num-col { text-align:right; font-variant-numeric:tabular-nums; color:var(--text-secondary); }
+  .rc-grid-table td.code-col { font-weight:700; color:var(--wf-blue); white-space:nowrap; }
+  .rc-grid-table td.fn-col { color:#7c3aed; font-style:italic; cursor:help; }
+  .rc-section-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-tertiary); padding:6px 10px; }
+  .rc-checkbox { width:15px; height:15px; accent-color:#2563eb; cursor:pointer; }
   .upload-zone.drag-over { background: var(--blue-50); border-color: var(--wf-blue); color: var(--wf-blue); border-style: solid; }
 
   /* ── TEST ATTRIBUTE ROWS ── */
@@ -527,20 +548,7 @@
   <!-- WAVEFIRE PRIMARY NAV -->
   <div class="wf-topbar">
     <div class="wf-brand">
-      <svg width="20" height="24" viewBox="0 0 20 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <!-- Flame body -->
-        <path d="M10 27C5.5 27 2 23.6 2 19.2C2 16 3.8 13.4 5.2 11.8C5.2 13.6 6.1 14.8 7.2 15.4C6.8 13.2 7.6 10.2 9.4 8C10.6 6.4 12.2 5.2 13.4 3C13.8 5.8 14.6 7.8 16.2 9.8C17.6 11.6 18 14 18 16C18 17 17.8 17.8 17.4 18.6C17.4 16.6 16.2 15.4 14.8 14.8C15.4 17 14.6 19.8 12.8 21.6C13.2 20 13 18.2 12 17C11.6 19.2 10.8 21.4 10 23C9.2 21.4 9 19.8 9.4 18.4C8.2 19.6 7.6 21.2 7.8 23C5.4 21.4 4 18.4 4.8 15.4C3.2 17 2 19 2 19.2" fill="#f97316"/>
-        <path d="M10 27C5.5 27 2 23.6 2 19.2C2 16 3.8 13.4 5.2 11.8C5.2 13.6 6.1 14.8 7.2 15.4C6.8 13.2 7.6 10.2 9.4 8C10.6 6.4 12.2 5.2 13.4 3C13.8 5.8 14.6 7.8 16.2 9.8C17.6 11.6 18 14 18 16C18 17 17.8 17.8 17.4 18.6C17.4 16.6 16.2 15.4 14.8 14.8C15.4 17 14.6 19.8 12.8 21.6C13.2 20 13 18.2 12 17C11.6 19.2 10.8 21.4 10 23C9.2 21.4 9 19.8 9.4 18.4C8.2 19.6 7.6 21.2 7.8 23C5.4 21.4 4 18.4 4.8 15.4C3.2 17 2 19 2 19.2Z" fill="url(#flameGrad)"/>
-        <!-- Inner hot core -->
-        <path d="M10 24C7.8 24 6 22.4 6 20.4C6 19 6.8 17.8 7.6 17C7.6 18.2 8.2 19 8.8 19.4C8.6 18.2 9 16.6 10 15.6C10.6 18 11.4 19.6 12 20.8C11.4 19.6 11.2 18.4 11.6 17.4C12.4 18.4 12.8 19.8 12.8 21C13.4 20.2 14 19 14 18C14 19.6 13.4 21.2 12.4 22.4C11.6 23.4 10.8 23.8 10 24Z" fill="#fcd34d" opacity="0.9"/>
-        <defs>
-          <linearGradient id="flameGrad" x1="10" y1="3" x2="10" y2="27" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#fb923c"/>
-            <stop offset="100%" stop-color="#dc2626"/>
-          </linearGradient>
-        </defs>
-      </svg>
-      <span class="wf-brand-text">WAVEFIRE</span>
+      <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAB7AfgDASIAAhEBAxEB/8QAHQABAAMAAwEBAQAAAAAAAAAAAAcICQQFBgMBAv/EAFQQAAEDAgMEBAYLDQYFBAMAAAEAAgMEBQYHEQgSITETIkFRFBgyUmFxCRUWQlZidZSV0tMXIzc4V3KBgpGTpbKzQ1R0sbTRJDM0c4MlU1WhksPh/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKZIiICIiD9AJIABJPAAKze1zkccIYOwzje0UgjjZbqS332JjdBHUMiaxs2nYHlu67426ebio/2ScAyY+zrtFNLCX2y1vFyr3aat3IiC1h/Ofut07i49i0jxxhy3YvwhdcMXVm/R3KlfTycNS3eHBw+M06OHpAQZAIuxxNZ6zD2I7lYbizcrLdVS0s47nxuLTp6NQuuQEREBERAREQEXKuVBU26ZkFWzop3RtkdGfKYHDUBw7CRodO4hcVAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQF+ta5zg1oLnE6AAcSV+Kz2wpk8cVYpGYN/pd6yWab/AIGORvVqqscQfS2Pgfzt0cdHBBZDZAypOWWWUclzp+jxDet2quIcOtCNPvcP6oJJ+M53oU1IiDNHbbtMVq2jsQmFoZHWsp6sNA986Fgcf0ua4/pUKqb9uO5xXHaPvzIXBzaKGmpiRy3hC1zh+guI/QoguNlulutlsudbRSw0d1ifNRTOHVmayR0biD6HMII58uwhB16IiAiIgKXMK4Qp8C5fRZpYzpI31NcSzClnqGg+Fyga+FysPOCPUODT5bt3Xqnrex2XskqC7W2bNTMsNosE2pjqmOKcaCuLOJcRzMQI009+eqO1RfnxmRX5oZg1WIJ2OprfGPB7ZR+9pqZp6jdBw1PlHTtJ7AEHiK2qqa2snrayeSoqaiR0s0sjt5z3uOrnEnmSSTqviiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIv0AkgAakoPZZMZfXXM3MG34UtesYmd0lXUburaaBum/IfUDoB2uLR2rU/B2HbThLC9vw3YqVtNbrfCIYIxz0HMk9ridST2kkqJtj3KRmWmXTK66U+7iS9sZUVxcOtTs01jg9G6Dq74xPPQKb0BdXiy+27DGGbliK7TCKht1M+pnd27rRroO8nkB2kgLtFTD2QPNpkpiyqsdSHBjmVF7ew8NRo6KD9HB7v1PSEFT8U3i44wxpcr5URulr7xXSVBjZq4l8jyQxv7QAPUtA8wMhqa/bMVowHDDH7f2G3Mlt83D/qw3elZr5sji4d3Fp96FWnYWy0fjHNJmKK+nLrNhtzaglw6stV/Ys9O6QXnu3W6+UtEkGNU8UsE8kE8b4pY3Fj2PGjmuB0II7CCv4VgtuzL9uEM4X32ih3LbiVjq1oA0DagECdv6SWv/APIq+oCsNsj5AVGZN0jxRieCWDCNJLwadWuuMjTxjaeYjB8pw/NHHUt6vZVyIrs1r8Lrd2TUmEaGUCqnGrXVbxx6CM/zOHkg95CtttOZm2zJXKqC04bipqS8VkJo7LSRNAbTMaAHTbvIBgI073FvMaoIE26c2qesrIspMJvjgs9pLG3PwcBsb5WablO0DhuR6DUct7QcNxVSX9zSyzzPmmkfJLI4ue97tXOcTqSSeZX8ICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAiIgIiICIiAp22JcuWY7zfhuNwg6W0Yea2uqA4atkm1+8xn1uBdp2iMjtUMXO0XG201FVVlK+Omr4empJucczddDuuHAkEFpHMEEHQq0WwdmzgjB8NfgzEWlqrrtWieG6TPHQSdQNbC8/2ehDiCeB3zqRw1C86ICCNQdQuJeblQ2e0Vl2udSymoqOB89RM89WONoLnOPqAKCONpjNmjymy9luTHRS3yu3oLTTO470unGRw8xgIJ7zujhvLNiw2rEeYOOoLbRCa5329VZ1c92rpJHkue957AOLnHsAJXoc/sy7jmpmNW4jqukioWnoLbSuPCCnaTuj848XOPeT2AK4mxBkz7isKjHGIKTdxDeYQaeORvWo6U8Q3Tse/g49w3RwO8gmLJfL61ZZZe2/Clr0kMLekq6jd0NTUOA35D6yNAOxoaOxeyRVM2ytoj2ijq8u8C13/AKs8GK63GF3/AEgPOGMj+0PvnDyeQ63kh4fb4zXw3iqvosB2KGGulstW6aruTXahku6WugjI4EcdXHvaAORUY7M2SV2zcxPvTdNRYZoZB7Y1wGhd29DHrwMhHbyaDqewHrtnnJ++Zu4uFBS9JSWalLX3O4luohYfeN7DI7joPWTwC0xwThex4NwxRYbw7Qx0Vuo49yKNvM97nH3zieJJ4klBwqmXCmWGXckwjgs+HbFRkhkY4MY3sHa5zifW5zu0lZg51Zh3XM7MGvxVdC6Nkrujo6be1FNTtJ3Ix+0kntcSe1Tbt2Zx+6jEhy7w/Vb1ltE2twljdwqatvDd9LY+I9LtfNaVV5ARFK+HdnTOPENior5ZsIsrLdXQNnpp2XWjAexw1B0MoI9RAI5HigihF3ONML37BmJKrDmJrc+3XSk3emgc9r93eaHAhzSWuBBB1BIXTICIpf2c8lbhm1DieeGR9PDarc40snJsta4ExREn3vVdvHs6vegiBF9KiGWnqJKeojfFNE8skY8aOa4HQgjsIK+aAiKS8D5D5sY1w3T4jw1hJ9ba6kuEM7q6mh391xaSGySNdpqCNdNOCCNEXpcxcCYpy9vkdkxdbWW64SQCcQCqhnIYSQCTE9wGu6eB0PavNICKVNnHJu6ZwYmraGGodb7ZQUzpKmu3N4Mkc0iFgHaS4akea13boo+xTYrphjEdww/eqZ1LcLfO6CoiPY5p7D2g8we0EFB1iL7UVPJV1kNJD0fSzSNjZ0kjY26uOg1c4hrRx5kgDtKmAbLmepGowN/FqL7ZBDKLn4is10w9fa2x3qjkorjQzOgqYJNNWPadCNRwI7iNQRxGoXAQEREBF6HAGC8T49xC2wYStMlzuLonS9E2RkYaxvNznPIa0cQOJHEgcyF7m+bOGc1js1ZeLthCOkoKKF09RPJdqLdjY0akn793DsQRKi7HDNkumJMQUNhstL4Vcq+ZsFND0jWb73chvOIaPWSApV8VzPb4Dfxai+2QQyimbxXM9vgN/FqL7ZPFcz2+A38WovtkEMopm8VzPb4Dfxai+2XyrNmTPCjpJquowTuQwRukkd7a0Z3WtGpOgm15BBDyIvU5b5fYvzFu9RacG2j20raanNRLH4TFDuxhwbvayOaDxcBoDrxQeWRTN4rme3wG/i1F9sniuZ7fAb+LUX2yCGUUzeK5nt8Bv4tRfbJ4rme3wG/i1F9sghlFJWO8ic1cD4bnxHinC3tfa6dzGSz+2FNLul7g1vVjkc46kgcAo1QEUp4V2es4MUYdosQWLCHhdsrohLTTe2VIzfby13Xyhw5doCj/ABVYbthfENbh++0nglzoZTFUw9I1+48dm8wlp59hKDrERS9a9mnOy52yluVDgrpaWrhZPBJ7aUbd9j2hzToZQRqCOB4oIhRTN4rme3wG/i1F9sniuZ7fAb+LUX2yCGUUuXHZrzvoITLPgKre0cxBV087v/xjkJP7FGV9s14sNxfbr5aq611rOLqergdDIP1XAFBwERdphPD93xViKiw9YaTwy510nR00HSMj33aE6bzyGjgDzIQdWimbxXM9vgN/FqL7ZPFcz2+A38WovtkEMopm8VzPb4Dfxai+2TxXM9vgN/FqL7ZBDKKXrns052W221VxrcFdFS0sL55n+2lG7dY0FzjoJSToAeA4og7bZdxDhe81E2UOY1Oypw3fpt63zvduvt1eRutfG/3m/wAG92obqNC7Xq9ofITFGU1xdVkPuuGZpNKa5xs8jU8GTAeQ/wBPJ3YddQIgY5zHB7HFrmnUEHQgrSLZVzMoM4sqZbLiZlPXXi3RCju9PUMD21cRGjJi08CHAEO+MDyBCCuGzNtPXXAppsMY3kqbthkaRw1HF9RQDs07XxjzeYHk8t0yjt3Zq26fKix2DCt1p62mxQ41MtTTSbzXUsRB3dRy3pC3924ELw20zsrVuHfCcV5bU89fZxrJU2oavnpBzLo+2SMd3Fw+MNSKque8saxznFrdd1pPAa89EE27GeWUWYubEU9zpxNY7E1tbWtc3Vsr9fvUR9DnAkg82scO1aUqrPsb8VrZlfiGWKeB10lvBFRGHjpGwthj6MlvMNLjLoeR49xXodrjP+ny2tcmF8MTxT4uq4uLho5tujcOEjhyMhHktP5x4aBwdTth7QrME0k+B8GVjXYmnZu1lXG7X2uYRyB/90g8PNHHnoqhZI5X4jzcxs2z2vfZTtcJblcZAXMpoyeLiffPPHdbrqT3AEji5WYDxTm3j5lmtXS1FVUyGevr5yXtgYXavmkdzJ1PrcTp2rTPKPLzD2WWDabDWHoNI2depqXgdLVSkdaR57z2DkBoByQczLfBWH8v8I0eGMN0Yp6KmGrnHjJNIfKkkd75x7T6gNAABFu2LnCMtMCG1WepDcT3pjoqTdPWpYuT5/QRyb8Y68d0qWce4qs+CcIXLFF9qOhoLfCZJCPKeeTWNHa5ziGgd5CytzXxzeMxsd3HFl6f9/q36RQh2rKeIcGRN9DR+06k8SUHlnOc5xc4lzidSSeJK/ERAV2fY8My/CrZX5Y3So1lpN6ttO8ecRP32IepxDwPjv7lSZd9l7im5YJxtacV2l2lXbalszW66CRvJzD6HNLmn0EoLmeyEZZ+2+GKPMi10+9WWgCmuQaOL6Vzuo8/mPdp6nk8mqiq13stwsGYmX0FfCxldZL9b+tG/wB/FI3RzHdxGpaR2EFZdZ04Erct8ybvhOs33spZt6lmcP8An07uMb/WWka6ciCOxB4+KN8srYomOfI8hrWtGpcTyAHetTtm3LxmWmUlpw/JG1tylb4Xc3Dm6pkALhr27oDWA9zAqXbDWXPu0zbjvtfB0low2G1km8NWvqCT0DP2gv8A/Hp2q/GNcZ4fwebOL9Wtpvbe4x26k199NJrpr3N4cTyGoQUQ278ufchmr7p6CDctWJQ6p6o6sdU3Tpm/ratf6S93cq7rUzaay7bmXlFdbHDEH3Snb4bbD2iojBIaPz2lzP1texZavY6N7mPaWuadHNI0IPcUHp8qMF3DMHMG0YStoc2SvnDZJQNRDEOMkh/NaCfSdB2rU2aTDuXGXjpCG0Nhw/buAHvIomcAO9x09ZJ7yq7+x85Z+0uEqvMW6U+7XXkGC377eMdK13WcO7feP2MaRzXUeyH5l+D2+gywtdR98qd2uu26eUYP3mI+twLyPis70FTMzcX3HHmPLvi26E+EXGoMgZrqIo+TIx6GtDWj1LqLDarhfb1RWa00r6qvrZ2QU8LBxe9x0A/aVwldfYByh8FpXZqX6l0mna6GyRyN4sj8mSf1u4sb6N48nAoLCZC5b2/K3LihwzSdHLV6dPcalo/6iocBvO/NGga34rR26qC9vrKL24srcz7DS619ujEd3jY3jNTjyZvSWcj8U9zF73a1zwdlNZbbQ2MU9RiS4TMlZDKN5sVMx4L3OHx9CwetxHFqk3L7FVizIy/ocRW0MqLbdKciWCUB24Tq2SF45ag6tI5H1FBkctCdhzN73bYKODL3Vb9/sMLWxve7V1VSDRrX+lzODHejcPEkqp+1LlRNlVmTPRUschsFx3qm0ynUgR69aInzmE6d5Bae1eIy2xhd8BY2tmK7JJu1dBMH7hOjZWHg+N3xXNJB9fegt/t+ZRe2dqbmjYabWtoWNivMbG8ZYBwZN6SzyT8Ug8AxUeWueBsS2DMbAFFf7cI6u1XalIkhlAdpqC2SJ45ag7zSPQexZwbT2VVRlTmTUW2FkjrHX71TaZncdYieMZPnMJ3T3jdPvkEVr9AJIABJPAAL8VldhfKL3Y4yOOL5S79isUwNOx46tTWDQtHpazg4+ksHEaoLI7HWUQy0y9bcbtTBmJb21s9bvDrU8fOOD0EA6u+MSOO6FDe39m94TVNyqsNVrDA5s17kjdwe/wAqOD1N4Pd6d0c2kKxW0lmjSZVZa1d6Do33eq1prVTu49JOR5RHa1g6x9QHNwWXdxrau5XCpuFfUSVNXUyumnmkdq6R7iS5xPaSSSg97sz/AIf8EfLEH8y0+xffqDC2FrniO6dL4DbaZ9TUdE3efuMGp0HDU6BZg7M34f8ABHyxD/mtJc57LccR5TYqsNogFRcLhap6emiL2sD5HMIaN5xAHHtJQRL44uUHm4i+YN+unji5QebiL5g366q54quePwRg+laX7RPFVzx+CMH0rS/aILR+OLlB5uIvmDfrrg4g2u8pa6wXCigGIOlqKWWJm9QtA3nMIGvX7yq1eKrnj8EYPpWl+0UZ5g4MxFgLEsuHMU0LaK5xRskfE2ZkoDXDVp3mEjl6UHnlaL2N78LmIPkF/wDqIVV1Wi9jf/C7f/kF/wDqIUFws38zMN5WYdpr9igVpo6mrbSR+CwiR3SFj3jUEjhox3H1KK/HFyg83EXzBv112u2ll9ivMjLO12XB9tZX11PeY6qSN1RHDpGIZmk6vcAeL28OfFVH8VXPH4IwfStL9ogtH44uUHm4i+YN+unji5QebiL5g366q54quePwRg+laX7RPFVzx+CMH0rS/aIJX2nNo7LvMTJ654Vw8Lx7YVM1O+PwikDGaMla46nePYD2Kna5Fyo6i3XGpt9Wzo6imlfDK3UHde0kEajgeIK46DUzZX/F5wV8mt/mcs/9qf8AGGxr8pu/latANlf8XnBXya3+Zyz/ANqf8YbGvym7+VqCM1rtlf8Ag0wt8jUn9FiyJWu2V/4NMLfI1J/RYgiS9bWmVFovNbaqsX/wiiqJKeXcoWlu+xxadDv8RqCuJ44uUHm4i+YN+uqxY92e85Ljjq/3CjwNWTU1Tc6maGQVEAD2OlcWni/XiCF0vi4Z2/AGu+cQfXQXJsO1jkzda2OllvFwthkO62StoXtjB9LmbwA9J0CkbMnAeEM0sIOtd+pKeupaiLfo6yLdMkBcNWywyDl2HhwI4HUFUCsGy1nXda2OCXCsdshc7R1RWV0LWMHeQ1znn9DStDsuMOnCOALDhd1Wat1qt8NI6cjTpCxgaSB2DUcB2DRBlFj3DdZg/Gt4wvcHB9Ta6ySme9o0Em6dA8ehw0I9BXtdk/8AGKwX/j//ANb1wdpS+UWI89sX3e3SNlpJLi6OKRh1a8RgR7wPaDuag+lc7ZO/GKwX/jz/AE3oNLsb4kt2D8J3LE136bwC3QmafoWbz90dw1Gp4qEPHFyg83EXzBv11KOfNguuKcnsT4esdOKm5V9C6GniMjWB7iRw3nEAfpKoX4quePwRg+laX7RBaPxxcoPNxF8wb9dPHFyg83EXzBv11VzxVc8fgjB9K0v2ieKrnj8EYPpWl+0QWNxnta5UXbB96tVIL/4RWW+eni36Fobvvjc0anf4DUhFSPHuEb/gbFFThrE1G2julK1jpYWzMkDQ9ge3rMJB4OB5og6Fe3yPzEuWWGYtvxTQb8kMbuirqYHQVFO4jfZ6+AIPY5rSvEIg2Iw3ebbiKwUN9s9Uyqt9fA2enlbycxw1HqPeOYOoVd9pnZfteNhVYowJHT2rEh1knpODKevdzPojkPncifK01LlHOwFm77XXN2Vt+qtKSse6azSPPCOY8Xw69gfxc34wI4lyu8gySsl4xvlVjl89BPX4dxBb3mKaN7N1w72PY4aPaeB0IIPA9xX0wZhnF+bOYbbZb+nud6uczpqqqncSGAnV80ruxo14n1AakgLRjPvJHCmbdoIuEQoL5BGW0d1hYOkj7mvH9ozX3p5anQjUr77PuUNiyjwiLbQ7lXdqkNfcriWaOnePejzY26nRvrJ4koOdkfldh/KnBsViszBNUyaSV9c9uklXLp5R7mjiGt5Ad5JJ94irztr5xfc/wX7lrFVbmJb5E5rXsdo6kpjwfL3hzuLW/rH3qCvu2/nH7uMX+4yw1W/h2yTESvjd1auqGoc/0tZxa3vO8eIIVb0RAREQEREFzvY78y95lflfdKji3errRvHs/toh/OB6ZCvYbfeWRxNgKDHVrpt+6YfBFSGN1dLRuPW9e4473oBeVRrBGJLlhDF1rxPaJOjrrbUsqIieTtDxafiuGrSO0ErWLAuJbVjfBNrxNay2WgulK2VrXaHd1Gjo3dmrTvNI7wUHh9lfLoZbZP2y2VUHR3euHh1z1HWEzwNGH8xoa31gntVOdt7Ml2NM3pLRbqkutOGt6jgLHcH1Go6aQfrAM17owe1XO2m8xG5aZRXS9wShl0qW+BWwa8fCJAdHD8xoc/8AV07Vls97pHue9xc5x1c4nUk95QajbL+Yrcy8orZeaiYPu1IPArmNePTxgdc/ntLX/rEdirLnhs+1ly2qrdarPTvhsWK5HXGWaNvVpWsINWO4HUhw7NZWheS2GcyPcXmyywV8+5aMSbtJJvHqx1IJ6F/6SSz9cHsWipYwyCQsaXtBaHacQDpqNf0D9gQdBf7nYcvMv6m5TsZRWWxUGrYmcA2ONujI2jvOgaB2khZS5gYouWNcaXbFV3fvVlyqXTPGuoYDwawfFa0Bo9ACtf7IhmXxt+V9rqPNrrvun9zEf5yP+2VTmhpamurYKKjgkqKmokbFDFG3edI9x0a0AcySQNEEj7NuV1VmtmVS2UtkZZ6XSputQ3huQA+QD2OeeqPWT70rUS3UdLbrfT2+hp46akpomwwQxt0bGxo0a0DsAAAUabMuVdNlTltTWuVkbr3W6VN2nbx3piOEYPa1g6o7zvH3yhjaB2s7thDMaswxgW22S5UtuHQ1lVWslfvVAJ32s3JG8G+SddesHdg4h6LNPZTdmJjq5YsveY1b4TWSdSJttaWQRjgyNv3zk0aD0nUniSvd7O2TVTk9BcqCnxjU3m11zmyikmoxEIZhwMjSHnm3QEacdG93GsHjr5nfB3B/zap+3Tx18zvg7g/5tU/boLa7RGWNFmrltWWCQRxXOH/iLXUuH/KqGg6AnzXDVrvQdeYCy3u1vrbTdKq13Kmkpa2kmdBUQyDR0b2khzSO8EFaSbKud7M38PVsd1go6HEluk1qaam3hHJC49SVgcSdPekanQgHhvAKG9v/ACh3XNzVsNLwO5BfI428jwbHUf5Md+oe8oPE7C+bvuNxmcD3yq3LDfZgKd73dWmrDoGn0NfwafTuHgAVbraPyvpM1ctauybsbLtT61NqqHcOjnA4NJ7GvHVPrB5gLLIEgggkEciFpJsc5ujMrL1ttu1Tv4lsjWwVm8etURco5/SSBo74w14bwQUFwPgHEWLMyKXAdHRyQXaWrdTTslYR4LuE9K547AwBxPq05rUnBOHLBlzgCjsNvMdJabRSkyTSkN1DQXSSvPLUnecT6SvlZsv8LWjMG8Y7oLayK+XiCOCqmHIhnMtHYXaN3u/caeeutbtv3N32utrcrbDVaVdYxs16kY7jHCeLINewv4Od8XdHEOKCum03mpUZrZk1F0ifI2yUOtNaYHcN2IHjIR2Oeese4bo96osREEi7M34f8EfK8P8AmtPcY4goMKYVueJLr03gNtp31M/RN3n7jRqdBqNSsw9mX8YDBHyvD/mtEdpBj5MhcbMja57nWaoAa0ak9UoI48cXKDzcRfMG/XTxxcoPNxF8wb9dZ8+1tx/uFV+5d/sntbcf7hVfuXf7INBvHFyg83EXzBv11UDajx3Y8x83azFGHfCva+amgib4TEGP3mMAPAE9qjj2tuP9wqv3Lv8AZDbrgASaGqAHEkxO/wBkHFVofY3/AML1/wDkB/8AqIVV5Wh9jf8Awv3/AOQH/wCogQXCzgzNw1lZh+lveKBWmkqqoUsfgsIkdvljn8QSOGjCos8cXKDzcRfMG/XXT+yQfggsHy+z/Tzqg6DRDxxcoPNxF8wb9dPHFyg83EXzBv11neiDs8WV0FzxVdrlTb3QVddNPHvDQ7r3lw1HfoV1iIg1M2V/xecFfJrf5nLP/an/ABhsa/Kbv5WrQDZX/F5wV8mt/mcs/wDan/GGxr8pu/lagjNa7ZX/AINMLfI1J/RYsiVrtlf+DTC3yNSf0WII0u+1Lk9arrWWysvVwZU0c74Jmi3SkB7HFrhqBx4gri+Npkr/APOXH6Mm/wBlQDM78JWKPlir/rPXnUGx9qr6K62yluduqY6qiq4Wz080Z1bIxwBa4HuIIVNNrvaGxxa77ectLRZnYbZHrFPcHS789VC4cHREACNrmnnxd2atIIXO9j/zc6WF+VV9qvvkYfPZJJHeU3i6SD9HF7fRvjsAUgbbmUXu9wL7qbLS7+IrDE54awdaqpfKfH6XN4vb+sBxcgztUo7J34xWC/8AHn+m9RcpS2Tfxi8F/wCPP9N6DSzHOJrbg3CVxxPeOn8At0PTT9Czefu6gcBqNeahHxxcoPNxF8wb9de82p2Pk2e8Zxxsc97reQGtGpPXasvfa24/3Cq/cu/2QaDeOLlB5uIvmDfrp44uUHm4i+YN+us+fa24/wBwqv3Lv9k9rbj/AHCq/cu/2QSBtMY1suYWcl3xXh/wn2uq46dsXhEe4/VkLGO1Gp7WntRR+6317WlzqGpDQNSTE7Qf/SIOKiIg+1FVVFFWQVlHPJBUwSNlhljduuY9p1a4HsIIBWoGzJmpT5rZa090lfG290WlNdoG8N2UDhIB2NeOsO47w96suVJuzZmjVZVZlUt6LpH2eq0prrTt478BPlgdrmHrD1Ee+KDUtF8LdWUtxt9PcKGojqaSpibNBNG7VsjHAFrge0EEFfc8BqUHm8zsaWfL/BFyxXfJd2loot5sYOj55DwZG34zjoPRzPAFZWZjYvvGPMaXLFV9m6SsrpS8tBO7Ezk2Nvc1rdAPV3qXts/OI5i439z9kqt/DFklcyEsd1auo5Pm9LRxa30an3ygBAREQEREBERAVxPY78y+hrK/LC6VHUn3q607x5PA+/RD1gB4HxXntVO12GG71c8O36ivtlq30dxoZmzU8zObHg8OfAjvB4EcCgnXbrzH92Oa7sN0E+/acNb1KN09WSqOnTO/QQGfqHvVel/c0sk8z5ppHSSyOLnvcdS4k6kk9pX8IP6ikfFI2WJ7mPYQ5rmnQtI5EFaX5VZ22q7bN5zIvk7ens9I6K7MBAc6qjAAaO4yksI/7gCzOXZ0t/vFLhutw5T180dqrqiKoqaYHqySRBwYT6t88O3hryGgfTGmIrli3FlzxLd5elrrlUvqJj2AuPBo7mgaADsACsBsOYfwLSYjmzAxvirDlufbnmK1UVfcoYpDMR1pyx7gdGg6NOnEkn3oVaEQaL7TW0DhrCuWtSzBOKLRdsQ3LWlpDb62OoNICOvM7cJ3d0eTrzcRzAKzpe5z3ue9xc5x1JJ1JPevxEBERB63KLHd2y3x/bcWWglz6V+7PBvaNqIXcHxu9BHLuIB7FpKzNHKDFuEQyuxrhY2+7Uek9HXXOCKTo5G9aORjngtdoSCDxBWVqIPX5xYWtmD8wblZrHfbffbS1/S0NbRVcc7Xwu4tDnMJAe3yXDhxGvIhf3kzj+6ZZ5hW7FdsLniB25V0+9oKmndpvxn1jiD2ODT2LxqINTcx848M4XyW+6VR1MVdS1tO11pi10NTM8HcjI5jQg7w5tDXdo0WYWI7zcsRX+uvt4qn1Vwr53T1ErubnuOp9Q7hyA4L9qr7eKqwUNgqbjUS2ugllmpaVz9Y4Xybu+Wjs13R/wDfedeuQEREHvtnWto7dnlg6uuNXT0dJBdYnzTzyCOONoPEucdAB6StLvum5b/lBwn9M0/11kmiDWz7puW/5QcJ/TNP9dPum5b/AJQcJ/TNP9dZJog1s+6blv8AlBwn9M0/111eL8yMu5sJ3iGHHuFZJH0M7WMbd6clxMbgABv8Ssp0QFY/2P6/WPD+at7q7/ebdaaeSxvjZLW1TIGOf08J3QXkAnQE6egquCILu+yA4uwniDKuyUlgxPZLtUR3xkj4qKvine1nQTDeIY4kDUga+kKkSIgIiICIiDSfZqzAwFbMiMIW+5Y3w1RVkFvayanqLrBHJG7ePBzXOBB9ao5tKV9Dc898X3C21tNW0c9xc+Gop5WyRyN0HFrmkgj1KO0QFqblxmNl7TZeYbpqnHeF4ZorTSskjku8DXMcIWgggv1BB7FlkiDvsxpoanMLEdRTyxzQy3aqfHJG4Oa9plcQQRwII7V0KIg5tjulfY7zR3i1VT6Wvop2T08zDxY9p1af2haaZS564ExjgG2Xy6YnsNkuUse5W0NXcIoXxTN4O0a9wJYTxae4jt1WXyIJl2tcIYUw9mPJd8D32y3Ox3ouqGw2+tim8Dm1++RkMcd1pJ3m8hoSB5K6PZgr6C15+YRuFzraaho4a0ulqKiVsccY6N41c5xAA9ajZEGtn3Tct/yg4T+maf66fdNy3/KDhP6Zp/rrJNEGtn3Tct/yg4T+maf66fdNy3/KDhP6Zp/rrJNEGpuY+Y2XtTl5iSmpsd4XmmltNUyOOO7wOc9xhcAAA/UknsRZZIgIiICIiC7GwDm74XRuyrv1VrPTtdPZJJHcXx+VJB628XN9G8OTQvU7cucfuOwp7hLBVbt+vUJ8Kkjd1qSkOoPqc/i0dw3jwO6VRDDFzr7LiO3Xa1VUlJXUlTHNBNGdHMe1wIP/APF3Gbt3uV8zQxLc7tWSVdXJcp2ulk57rXlrRw4ABrQABwAAQeVREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREH/9k=" alt="Wavefire" style="height:32px;width:auto;display:block">
     </div>
     <nav class="wf-nav" aria-label="Primary navigation">
       <a class="wf-nav-item" href="#">Dashboard</a>
@@ -976,7 +984,7 @@
                 <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">
                   Linked risks &amp; controls <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary)">(from Risks &amp; Controls module)</span>
                 </div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="alert('Risks &amp; Controls module — link coming soon')">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -1434,6 +1442,53 @@
       </div>
     </div>
   </div>
+  <!-- Linked Risks & Controls — FS Accounts & Footnotes Grid Dialog -->
+  <div id="rc-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:900px;max-width:97vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Financial Statement Accounts &amp; Footnotes</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Select accounts and footnotes to link to this workpaper</div>
+        </div>
+        <button onclick="closeRCDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px"><i class="ti ti-x"></i></button>
+      </div>
+      <!-- Search -->
+      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;gap:10px">
+        <div style="position:relative;flex:1">
+          <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
+          <input id="rc-search-input" type="text" placeholder="Search accounts or footnotes…" oninput="filterRCGrid()"
+            style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+        </div>
+        <span id="rc-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
+      </div>
+      <!-- Grid -->
+      <div style="flex:1;overflow-y:auto;padding:0">
+        <table class="rc-grid-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th style="width:80px">Code</th>
+              <th>Description</th>
+              <th class="num-col" style="width:130px">Current Year</th>
+              <th class="num-col" style="width:130px">Prior Year</th>
+              <th style="width:200px">Footnote</th>
+            </tr>
+          </thead>
+          <tbody id="rc-grid-body"></tbody>
+        </table>
+      </div>
+      <!-- Footer -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
+        <button class="btn-s" style="font-size:11px" onclick="rcSelectAll()"><i class="ti ti-checkbox"></i> Select all visible</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-s" onclick="closeRCDialog()">Cancel</button>
+          <button class="btn-p" onclick="applyRCSelection()"><i class="ti ti-check"></i>Apply selection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- FS Accounts & Footnotes Dialog -->
   <div id="fs-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:500px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
@@ -2447,9 +2502,12 @@ function openWP(i) {
   // ── Test Attributes ──
   renderTestAttributes(w.ref);
 
-  // ── Financial Statement Accounts & Footnotes ──
+  // ── Financial Statement Accounts & Footnotes (Scope section) ──
   currentFsSelection = new Set(wpFsAccounts[w.ref] || []);
   renderFsAccountTags();
+  // Also load RC dialog selection from workpaper data
+  rcDialogSelected = new Set(w.fsAccounts || []);
+  renderLinkedFSAccounts();
 
   // ── Show/hide sections based on workpaper type ──
   // Planning and Report types don't show Risks & Controls or Process/Control Narrative
@@ -2533,6 +2591,33 @@ function saveCurrentPage() {
     } else if (narEl) {
       w.narrative = narEl.textContent;
     }
+
+    // FS Accounts — linked financial statement accounts & footnotes (RC dialog)
+    w.fsAccounts = [...rcDialogSelected];
+
+    // FS Accounts from scope section (wpFsAccounts store)
+    if (wpFsAccounts[w.ref] !== undefined) {
+      w.scopeFsAccounts = [...(wpFsAccounts[w.ref] || [])];
+    }
+
+    // Test attributes — flush any unsaved edits from DOM into wpTestAttributes
+    if (currentAttrWPRef === w.ref) {
+      const attrRows = document.querySelectorAll('.attr-row');
+      const rows = [];
+      attrRows.forEach((row, i) => {
+        const num   = row.querySelector('.attr-num-input')?.value || '';
+        const title = row.querySelectorAll('.attr-input')[0]?.value || '';
+        const desc  = row.querySelectorAll('.attr-input')[1]?.value || '';
+        // Only save rows that have at least a title or description
+        if (num || title || desc) rows.push({ num, title, desc });
+      });
+      wpTestAttributes[w.ref] = rows;
+    }
+
+    // Sample files — persist in-memory uploaded files reference
+    // (inMemoryFiles is already keyed by ref, nothing extra needed —
+    //  but ensure the ref is current so refreshFileList works on return)
+    if (!inMemoryFiles[w.ref]) inMemoryFiles[w.ref] = { workpaper: [], sample: [] };
   }
 
   // ── Workpaper list / audit info card ────────────────────────────────
@@ -2862,12 +2947,14 @@ function getBuiltRef() {
 }
 
 function isRefDuplicate(ref) {
-  return WORKPAPERS.some(w => w.auditName === currentAudit.name && w.ref === ref);
+  // The full reference string must be unique across ALL workpapers, not just the current audit
+  return WORKPAPERS.some(w => w.ref === ref);
 }
 
 function updateRefPreview() {
   const ref = getBuiltRef();
   document.getElementById('nwp-ref-preview').textContent = ref;
+
   // Show inline error only if ref looks complete and is a duplicate
   const seg3 = document.getElementById('nwp-seg3').value.trim();
   const seg4 = document.getElementById('nwp-seg4').value;
@@ -2894,21 +2981,23 @@ function submitNewWorkpaper() {
   const seg3  = document.getElementById('nwp-seg3').value.trim();
   const seg4v = document.getElementById('nwp-seg4').value;
 
-  // Validate ref segments
-  if (!seg3 || seg3.length < 2) {
-    showDupDialog('Please enter at least 2 characters for segment 3 of the workpaper reference (e.g. "Q2", "SOX", "IT").');
+  // Validate seg3 — at least 1 character required
+  if (!seg3) {
+    showDupDialog('Please enter a value for segment 3 of the workpaper reference (e.g. "Q2", "SOX", "IT").');
     document.getElementById('nwp-seg3').focus();
     return;
   }
+
+  // Validate seg4 — must be a positive number
   if (!seg4v || parseInt(seg4v, 10) < 1) {
     showDupDialog('Please enter a valid sequence number (segment 4) for the workpaper reference.');
     document.getElementById('nwp-seg4').focus();
     return;
   }
 
-  // Hard duplicate check
+  // Hard duplicate check — full reference must be unique across ALL workpapers
   if (isRefDuplicate(ref)) {
-    showDupDialog(`The workpaper reference <strong>${ref}</strong> already exists in <strong>${currentAudit.name}</strong>. Duplicate references are not allowed. Please choose a different sequence number.`);
+    showDupDialog(`The workpaper reference <strong>${ref}</strong> already exists. Duplicate references are not allowed across any audit. Please choose a different segment 3 or sequence number.`);
     return;
   }
 
@@ -3826,11 +3915,26 @@ function saveAttrRow(idx) {
 
 function removeAttrRow(idx) {
   if (!currentAttrWPRef) return;
+
+  // First save any unsaved edits in other rows
   const rows = wpTestAttributes[currentAttrWPRef] || [];
-  if (idx < rows.length) rows.splice(idx, 1);
+  rows.forEach((_, i) => {
+    if (i === idx) return;
+    const row = document.getElementById('attr-row-' + i);
+    if (!row) return;
+    rows[i] = {
+      num:   row.querySelector('.attr-num-input')?.value || '',
+      title: row.querySelectorAll('.attr-input')[0]?.value || '',
+      desc:  row.querySelectorAll('.attr-input')[1]?.value || '',
+    };
+  });
+
+  // Remove the row from data
+  rows.splice(idx, 1);
   wpTestAttributes[currentAttrWPRef] = rows;
+
+  // Re-render with updated data
   renderTestAttributes(currentAttrWPRef);
-  saveCurrentPage(); // immediately persist all workpaper data after deletion
 }
 
 function addTestAttributeRow() {
@@ -3845,6 +3949,226 @@ function addTestAttributeRow() {
     const lastRow = allRows[allRows.length - 2]; // second-to-last (last is blank)
     if (lastRow) lastRow.querySelector('.attr-input')?.focus();
   }, 50);
+}
+
+/* ══════════════════════════════════════
+   HOSPITAL FINANCIAL STATEMENT ACCOUNTS & FOOTNOTES
+   (for Linked Risks & Controls dialog)
+══════════════════════════════════════ */
+const HOSPITAL_FS = [
+  // ── Balance Sheet ────────────────────────────────────────────────────
+  { section:"Balance Sheet", id:"bs-cash",      code:"BS-001", desc:"Cash and Cash Equivalents",                          cur:42_180_000,   py:38_650_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-stinv",     code:"BS-002", desc:"Short-term Investments",                             cur:18_400_000,   py:15_900_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-ar",         code:"BS-003", desc:"Patient Accounts Receivable, net",                  cur:87_320_000,   py:81_440_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-other-rec",  code:"BS-004", desc:"Other Receivables",                                 cur:6_210_000,    py:5_870_000,    fn:null },
+  { section:"Balance Sheet", id:"bs-inventory",  code:"BS-005", desc:"Inventories — Medical Supplies",                   cur:9_750_000,    py:8_920_000,    fn:null },
+  { section:"Balance Sheet", id:"bs-prepaid",    code:"BS-006", desc:"Prepaid Expenses and Other Current Assets",         cur:4_330_000,    py:3_980_000,    fn:null },
+  { section:"Balance Sheet", id:"bs-ppe",        code:"BS-007", desc:"Property, Plant & Equipment, net",                  cur:312_450_000,  py:298_700_000,  fn:null },
+  { section:"Balance Sheet", id:"bs-ruse",       code:"BS-008", desc:"Right-of-Use Assets — Operating Leases",           cur:22_180_000,   py:19_640_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-goodwill",   code:"BS-009", desc:"Goodwill",                                          cur:54_200_000,   py:54_200_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-intang",     code:"BS-010", desc:"Other Intangible Assets, net",                     cur:8_640_000,    py:10_120_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-ltinv",      code:"BS-011", desc:"Long-term Investments",                             cur:96_300_000,   py:88_750_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-ap",         code:"BS-012", desc:"Accounts Payable and Accrued Expenses",            cur:41_870_000,   py:38_220_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-accrcomp",   code:"BS-013", desc:"Accrued Compensation and Benefits",                cur:18_640_000,   py:17_380_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-deferrev",   code:"BS-014", desc:"Deferred Revenue — Current",                       cur:3_210_000,    py:2_980_000,    fn:null },
+  { section:"Balance Sheet", id:"bs-leaseliab",  code:"BS-015", desc:"Operating Lease Liabilities — Current",            cur:4_870_000,    py:4_320_000,    fn:null },
+  { section:"Balance Sheet", id:"bs-ltdebt",     code:"BS-016", desc:"Long-term Debt, net of current portion",           cur:148_600_000,  py:156_200_000,  fn:null },
+  { section:"Balance Sheet", id:"bs-ltlease",    code:"BS-017", desc:"Operating Lease Liabilities — Non-current",        cur:17_840_000,   py:15_640_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-malpract",   code:"BS-018", desc:"Malpractice and Self-insurance Reserves",          cur:12_400_000,   py:11_800_000,   fn:null },
+  { section:"Balance Sheet", id:"bs-netassets",  code:"BS-019", desc:"Net Assets Without Donor Restrictions",            cur:224_180_000,  py:198_440_000,  fn:null },
+  { section:"Balance Sheet", id:"bs-netassetsr", code:"BS-020", desc:"Net Assets With Donor Restrictions",               cur:31_640_000,   py:28_920_000,   fn:null },
+
+  // ── Income Statement ─────────────────────────────────────────────────
+  { section:"Income Statement", id:"is-npsr",    code:"IS-001", desc:"Net Patient Service Revenue",                       cur:487_320_000,  py:461_840_000,  fn:null },
+  { section:"Income Statement", id:"is-otherrev",code:"IS-002", desc:"Other Operating Revenue",                           cur:18_640_000,   py:16_980_000,   fn:null },
+  { section:"Income Statement", id:"is-contrev", code:"IS-003", desc:"Contributions and Grants",                          cur:4_210_000,    py:3_870_000,    fn:null },
+  { section:"Income Statement", id:"is-totrev",  code:"IS-004", desc:"Total Operating Revenue",                           cur:510_170_000,  py:482_690_000,  fn:null },
+  { section:"Income Statement", id:"is-salwage", code:"IS-005", desc:"Salaries, Wages and Benefits",                      cur:248_640_000,  py:234_180_000,  fn:null },
+  { section:"Income Statement", id:"is-supplies",code:"IS-006", desc:"Supplies and Other Clinical Expenses",              cur:98_430_000,   py:91_870_000,   fn:null },
+  { section:"Income Statement", id:"is-pharma",  code:"IS-007", desc:"Pharmacy and Drug Costs",                           cur:34_210_000,   py:31_640_000,   fn:null },
+  { section:"Income Statement", id:"is-purchased",code:"IS-008",desc:"Purchased Services",                                cur:24_870_000,   py:22_340_000,   fn:null },
+  { section:"Income Statement", id:"is-deprec",  code:"IS-009", desc:"Depreciation and Amortization",                    cur:28_640_000,   py:26_980_000,   fn:null },
+  { section:"Income Statement", id:"is-interest",code:"IS-010", desc:"Interest Expense",                                  cur:6_840_000,    py:7_210_000,    fn:null },
+  { section:"Income Statement", id:"is-insur",   code:"IS-011", desc:"Insurance — Malpractice and General",              cur:8_320_000,    py:7_980_000,    fn:null },
+  { section:"Income Statement", id:"is-opexoth", code:"IS-012", desc:"Other Operating Expenses",                          cur:18_640_000,   py:17_380_000,   fn:null },
+  { section:"Income Statement", id:"is-totexp",  code:"IS-013", desc:"Total Operating Expenses",                          cur:468_590_000,  py:439_580_000,  fn:null },
+  { section:"Income Statement", id:"is-opinc",   code:"IS-014", desc:"Operating Income (Loss)",                           cur:41_580_000,   py:43_110_000,   fn:null },
+  { section:"Income Statement", id:"is-investinc",code:"IS-015",desc:"Investment Income, net",                            cur:9_840_000,    py:6_320_000,    fn:null },
+  { section:"Income Statement", id:"is-netinc",  code:"IS-016", desc:"Excess of Revenue Over Expenses (Net Income)",     cur:51_420_000,   py:49_430_000,   fn:null },
+
+  // ── Cash Flow ────────────────────────────────────────────────────────
+  { section:"Cash Flow", id:"cf-ops",    code:"CF-001", desc:"Net Cash from Operating Activities",                        cur:62_840_000,   py:58_310_000,   fn:null },
+  { section:"Cash Flow", id:"cf-invest", code:"CF-002", desc:"Net Cash from Investing Activities",                        cur:-38_640_000,  py:-42_180_000,  fn:null },
+  { section:"Cash Flow", id:"cf-finance",code:"CF-003", desc:"Net Cash from Financing Activities",                        cur:-21_480_000,  py:-18_640_000,  fn:null },
+  { section:"Cash Flow", id:"cf-capex",  code:"CF-004", desc:"Capital Expenditures",                                      cur:-42_180_000,  py:-38_640_000,  fn:null },
+
+  // ── Footnotes ────────────────────────────────────────────────────────
+  { section:"Footnotes", id:"fn-org",     code:"FN-001", desc:"Organization and Basis of Presentation",   cur:null, py:null,
+    fn:"Describes the legal structure of the health system, its mission as a not-for-profit organization under IRC Section 501(c)(3), basis of consolidation, and any significant changes to the reporting entity during the period." },
+  { section:"Footnotes", id:"fn-revrecog",code:"FN-002", desc:"Revenue Recognition",                       cur:null, py:null,
+    fn:"Describes the health system's revenue recognition policies under ASC 606 and ASC 954, including the methodology for estimating net patient service revenue, implicit price concessions, third-party payor settlements, and charity care." },
+  { section:"Footnotes", id:"fn-charity", code:"FN-003", desc:"Charity Care and Community Benefit",        cur:null, py:null,
+    fn:"Discloses the estimated cost of services provided to patients who qualify for charity care based on the organization's financial assistance policy, and total community benefit expenditures including charity care, unreimbursed Medicaid, research, and education." },
+  { section:"Footnotes", id:"fn-invest",  code:"FN-004", desc:"Investments and Fair Value Measurements",   cur:null, py:null,
+    fn:"Details the composition of the investment portfolio by type (fixed income, equities, alternatives), fair value hierarchy levels (Level 1, 2, 3), unrealized gains/losses, and investment policy objectives including spending rate and asset allocation targets." },
+  { section:"Footnotes", id:"fn-ppe",     code:"FN-005", desc:"Property, Plant and Equipment",             cur:null, py:null,
+    fn:"Provides a schedule of PP&E by category (land, buildings, equipment, construction in progress) with accumulated depreciation, useful lives by asset class, capitalization threshold, and significant additions or disposals during the period." },
+  { section:"Footnotes", id:"fn-debt",    code:"FN-006", desc:"Long-term Debt",                            cur:null, py:null,
+    fn:"Schedules all outstanding debt obligations including tax-exempt revenue bonds, bank credit facilities, and other borrowings. Includes interest rates, maturity dates, required debt service coverage ratios, covenant compliance status, and scheduled principal payments for the next five years." },
+  { section:"Footnotes", id:"fn-pension", code:"FN-007", desc:"Employee Benefit Plans",                    cur:null, py:null,
+    fn:"Discloses defined benefit pension plan obligations, plan assets, net periodic benefit cost, actuarial assumptions (discount rate, expected return on assets, salary growth), and funded status. Also covers defined contribution plans and the employer match policy." },
+  { section:"Footnotes", id:"fn-lease",   code:"FN-008", desc:"Leases",                                   cur:null, py:null,
+    fn:"Under ASC 842, describes operating and finance lease obligations for clinical space, medical equipment, and IT infrastructure. Includes maturity schedule of lease payments, weighted average remaining lease term, and weighted average discount rate." },
+  { section:"Footnotes", id:"fn-commit",  code:"FN-009", desc:"Commitments and Contingencies",            cur:null, py:null,
+    fn:"Describes material commitments including construction contracts for capital projects, operating lease commitments, purchase obligations, and contingent liabilities including pending litigation, regulatory investigations, and self-insurance programs for professional and general liability." },
+  { section:"Footnotes", id:"fn-malpract",code:"FN-010", desc:"Malpractice and Self-insurance",           cur:null, py:null,
+    fn:"Describes the self-insurance program for professional liability (malpractice) and general liability risks. Includes the actuarially determined reserve methodology, coverage layers, stop-loss provisions, and any changes in actuarial assumptions from the prior year." },
+  { section:"Footnotes", id:"fn-relparty",code:"FN-011", desc:"Related Party Transactions",               cur:null, py:null,
+    fn:"Discloses material transactions with related parties including affiliated foundations, physician practice groups, joint ventures, and management service organizations. Includes the nature of the relationship, transaction amounts, and outstanding balances at period end." },
+  { section:"Footnotes", id:"fn-subseq",  code:"FN-012", desc:"Subsequent Events",                        cur:null, py:null,
+    fn:"Describes material events occurring after the balance sheet date through the report issuance date, including significant acquisitions, divestitures, refinancing transactions, regulatory settlements, and natural disasters or other events affecting the health system's operations or financial position." },
+  { section:"Footnotes", id:"fn-covid",   code:"FN-013", desc:"Government Assistance",                    cur:null, py:null,
+    fn:"Discloses government grants and assistance received and recognized during the period, including Provider Relief Funds, HRSA grants, and other federal and state programs. Describes conditions attached to recognition and any amounts subject to recoupment or audit." },
+  { section:"Footnotes", id:"fn-segment", code:"FN-014", desc:"Segment Reporting",                        cur:null, py:null,
+    fn:"If applicable, describes operating segments including acute care hospitals, physician practices, ambulatory surgery centers, and post-acute facilities. Presents segment revenue, operating income, assets, and capital expenditures with reconciliation to consolidated totals." },
+];
+
+let rcDialogSelected = new Set();
+let rcDialogTemp     = new Set();
+let rcVisibleIds     = [];
+
+function fmtUSD(n) {
+  if (n == null) return '';
+  const abs = Math.abs(n);
+  const s = abs >= 1_000_000
+    ? '$' + (abs / 1_000_000).toFixed(1) + 'M'
+    : '$' + abs.toLocaleString();
+  return n < 0 ? '(' + s + ')' : s;
+}
+
+function openRCDialog() {
+  // Seed with whatever is currently linked on this workpaper
+  rcDialogSelected = new Set(
+    (WORKPAPERS[currentWPIndex]?.fsAccounts || [])
+  );
+  rcDialogTemp = new Set(rcDialogSelected);
+  document.getElementById('rc-search-input').value = '';
+  renderRCGrid('');
+  updateRCCount();
+  document.getElementById('rc-dialog-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('rc-search-input').focus(), 50);
+}
+
+function closeRCDialog() {
+  document.getElementById('rc-dialog-overlay').style.display = 'none';
+}
+
+function filterRCGrid() {
+  renderRCGrid(document.getElementById('rc-search-input').value);
+}
+
+function renderRCGrid(query) {
+  const q = (query || '').toLowerCase();
+  const body = document.getElementById('rc-grid-body');
+  const sections = [...new Set(HOSPITAL_FS.map(r => r.section))];
+  rcVisibleIds = [];
+  let html = '';
+
+  sections.forEach(sec => {
+    const items = HOSPITAL_FS.filter(r =>
+      r.section === sec &&
+      (!q || r.code.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q) || (r.fn||'').toLowerCase().includes(q))
+    );
+    if (!items.length) return;
+
+    // Section header row
+    html += `<tr class="section-header">
+      <td colspan="6" class="rc-section-label">${sec}</td>
+    </tr>`;
+
+    items.forEach(row => {
+      rcVisibleIds.push(row.id);
+      const checked = rcDialogTemp.has(row.id);
+      const fnCell = row.fn
+        ? `<span style="color:#7c3aed;font-style:italic;cursor:help;text-decoration:underline dotted"
+             title="${row.fn.replace(/"/g,'&quot;')}">${row.desc.replace(/^Note:\s*/i,'')}</span>`
+        : '';
+      html += `<tr class="${checked ? 'selected' : ''}" onclick="toggleRCRow('${row.id}',event)" id="rcrow-${row.id}">
+        <td style="text-align:center"><input type="checkbox" class="rc-checkbox" ${checked ? 'checked' : ''}
+          onclick="event.stopPropagation();toggleRCRow('${row.id}',event)"></td>
+        <td class="code-col">${row.code}</td>
+        <td>${row.desc}</td>
+        <td class="num-col">${fmtUSD(row.cur)}</td>
+        <td class="num-col">${fmtUSD(row.py)}</td>
+        <td class="fn-col">${fnCell}</td>
+      </tr>`;
+    });
+  });
+
+  body.innerHTML = html || `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary)">No results match "${query}"</td></tr>`;
+}
+
+function toggleRCRow(id, e) {
+  if (rcDialogTemp.has(id)) {
+    rcDialogTemp.delete(id);
+  } else {
+    rcDialogTemp.add(id);
+  }
+  const row = document.getElementById('rcrow-' + id);
+  if (row) {
+    row.className = rcDialogTemp.has(id) ? 'selected' : '';
+    const cb = row.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = rcDialogTemp.has(id);
+  }
+  updateRCCount();
+}
+
+function rcSelectAll() {
+  rcVisibleIds.forEach(id => rcDialogTemp.add(id));
+  renderRCGrid(document.getElementById('rc-search-input').value);
+  updateRCCount();
+}
+
+function updateRCCount() {
+  const n = rcDialogTemp.size;
+  document.getElementById('rc-selected-count').textContent =
+    n === 0 ? 'None selected' : `${n} selected`;
+}
+
+function applyRCSelection() {
+  rcDialogSelected = new Set(rcDialogTemp);
+  // Store on workpaper
+  if (WORKPAPERS[currentWPIndex]) {
+    WORKPAPERS[currentWPIndex].fsAccounts = [...rcDialogSelected];
+  }
+  renderLinkedFSAccounts();
+  closeRCDialog();
+}
+
+function renderLinkedFSAccounts() {
+  // Update the "Linked Financial Statement Accounts & Footnotes" tag display
+  const container = document.getElementById('wpd-fs-accounts');
+  if (!container) return;
+  const selected = HOSPITAL_FS.filter(r => rcDialogSelected.has(r.id));
+  if (!selected.length) {
+    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes</span>`;
+    return;
+  }
+  container.innerHTML = selected.map(r =>
+    `<span class="fs-account-tag" title="${r.fn || r.desc}">
+      <i class="ti ti-file-analytics"></i>
+      <span style="font-size:10px;font-weight:700;opacity:0.75;margin-right:2px">${r.code}</span>${r.desc}
+      <span onclick="removeRCAccount('${r.id}')" style="margin-left:3px;cursor:pointer;opacity:0.5;font-size:11px;line-height:1" title="Remove">×</span>
+    </span>`
+  ).join('');
+}
+
+function removeRCAccount(id) {
+  rcDialogSelected.delete(id);
+  if (WORKPAPERS[currentWPIndex]) {
+    WORKPAPERS[currentWPIndex].fsAccounts = [...rcDialogSelected];
+  }
+  renderLinkedFSAccounts();
 }
 
 /* ══════════════════════════════════════
