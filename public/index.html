@@ -354,7 +354,7 @@
     border-top: 0.5px solid var(--border-light);
     background: #f8fafc;
     flex-direction: column;
-    margin-left: 220px;
+    margin-left: 55%;
     border-left: 2px solid var(--blue-100);
     border-radius: 0 0 var(--radius-md) var(--radius-md);
   }
@@ -512,6 +512,18 @@
   }
   .risk-tag[data-risk-id] { cursor: help; }
   .risk-tag[data-risk-id]:hover { background: #FAC77540; border-color: var(--amber-800); color: var(--amber-800); }
+
+  /* ── HISTORY TABLE ── */
+  #history-tbody tr { border-bottom: 0.5px solid var(--border-light); transition: background 0.1s; }
+  #history-tbody tr:last-child { border-bottom: none; }
+  #history-tbody tr:hover { background: var(--bg-secondary); }
+  #history-tbody td { padding: 8px 14px; vertical-align: top; color: var(--text-primary); word-break: break-word; }
+  .hist-ts   { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .hist-user { font-weight: 600; color: var(--wf-blue); }
+  .hist-field { font-size: 11px; color: var(--text-tertiary); font-style: italic; }
+  .hist-old  { color: var(--text-secondary); background: #fef2f2; border-radius: 3px; padding: 1px 4px; font-size:11px; }
+  .hist-new  { color: #166534; background: #f0fdf4; border-radius: 3px; padding: 1px 4px; font-size:11px; }
+  .hist-event { color: #1e40af; background: #eff6ff; border-radius: 3px; padding: 1px 4px; font-size:11px; font-style:italic; }
 
   /* ── AUDIT INFO TOOLTIP ── */
   .audit-info-tooltip {
@@ -994,81 +1006,143 @@
             <div class="ps" id="wpd-sub">WP-2026-Q2-001 · Testwork · Q2 2026 Financial Audit</div>
           </div>
           <div class="row-actions">
-            <button class="btn-s"><i class="ti ti-clock"></i>History</button>
+            <button class="btn-s" onclick="openHistory()"><i class="ti ti-clock"></i>History</button>
             <button class="btn-s"><i class="ti ti-send"></i>Submit for review</button>
-            <button class="btn-p"><i class="ti ti-edit"></i>Edit</button>
+            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-edit"></i>Edit</button>
           </div>
         </div>
 
         <!-- Workpaper Information -->
         <div class="sect-card">
-          <div class="sect-hdr" style="flex-wrap:wrap;gap:8px">
+          <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
-            <!-- Results + Preparer + Reviewer in upper right -->
-            <div style="display:flex;align-items:flex-start;gap:14px;margin-left:auto">
-              <!-- Results + Status column -->
-              <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
-                <select id="wpd-results" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="updateResultsStyle()">
-                  <option value="">— Select —</option>
-                  <option value="pass">Pass</option>
-                  <option value="passex">Pass w/ Exceptions</option>
-                  <option value="fail">Fail</option>
-                  <option value="met">Objectives Met</option>
-                  <option value="notmet">Objectives Not Met</option>
-                </select>
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
-                <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-                  <option value="draft">Draft</option>
-                  <option value="review">In review</option>
-                  <option value="approved">Reviewed</option>
-                </select>
-              </div>
-              <div style="width:0.5px;height:40px;background:var(--border-light);align-self:center"></div>
-              <!-- Preparer column -->
-              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
-                <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-                  <option value="jdavis">J. Davis (jdavis)</option>
-                  <option value="mchen">M. Chen (mchen)</option>
-                  <option value="rpatel">R. Patel (rpatel)</option>
-                  <option value="ltorres">L. Torres (ltorres)</option>
-                  <option value="skim">S. Kim (skim)</option>
-                  <option value="lmgr">L. Manager (lmgr)</option>
-                  <option value="awong">A. Wong (awong)</option>
-                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
-                </select>
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
-                <input type="date" id="wpd-date-started" value="2026-04-01"
-                  style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-              </div>
-              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
-              <!-- Reviewer column -->
-              <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
-                <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-                  <option value="mchen">M. Chen (mchen)</option>
-                  <option value="jdavis">J. Davis (jdavis)</option>
-                  <option value="rpatel">R. Patel (rpatel)</option>
-                  <option value="ltorres">L. Torres (ltorres)</option>
-                  <option value="skim">S. Kim (skim)</option>
-                  <option value="lmgr">L. Manager (lmgr)</option>
-                  <option value="awong">A. Wong (awong)</option>
-                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
-                </select>
-                <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Review date</div>
-                <input type="date" id="wpd-review-date" value="2026-06-15"
-                  style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-              </div>
-              <div style="width:0.5px;height:80px;background:var(--border-light);align-self:center"></div>
-            </div>
           </div>
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px;border-bottom:0.5px solid var(--border-light)">
+            <!-- Results + Status column — far left -->
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
+              <select id="wpd-results" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="updateResultsStyle()">
+                <option value="">— Select —</option>
+                <option value="pass">Pass</option>
+                <option value="passex">Pass w/ Exceptions</option>
+                <option value="fail">Fail</option>
+                <option value="met">Objectives Met</option>
+                <option value="notmet">Objectives Not Met</option>
+              </select>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
+              <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                <option value="draft">Draft</option>
+                <option value="review">In review</option>
+                <option value="approved">Reviewed</option>
+              </select>
+            </div>
+            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- Spacer pushes reviewer group to far right -->
+            <div style="flex:1"></div>
+            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- Preparer + Date Started (immediately left of Reviewer) -->
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
+              <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                <option value="jdavis">J. Davis (jdavis)</option>
+                <option value="mchen">M. Chen (mchen)</option>
+                <option value="rpatel">R. Patel (rpatel)</option>
+                <option value="ltorres">L. Torres (ltorres)</option>
+                <option value="skim">S. Kim (skim)</option>
+                <option value="lmgr">L. Manager (lmgr)</option>
+                <option value="awong">A. Wong (awong)</option>
+                <option value="bnguyen">B. Nguyen (bnguyen)</option>
+              </select>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
+              <input type="date" id="wpd-date-started" value="2026-04-01"
+                style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date submitted for review</div>
+              <input type="date" id="wpd-date-submitted"
+                style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+            </div>
+            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- Reviewer + date reviewed column -->
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
+              <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                <option value="mchen">M. Chen (mchen)</option>
+                <option value="jdavis">J. Davis (jdavis)</option>
+                <option value="rpatel">R. Patel (rpatel)</option>
+                <option value="ltorres">L. Torres (ltorres)</option>
+                <option value="skim">S. Kim (skim)</option>
+                <option value="lmgr">L. Manager (lmgr)</option>
+                <option value="awong">A. Wong (awong)</option>
+                <option value="bnguyen">B. Nguyen (bnguyen)</option>
+              </select>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date reviewed</div>
+              <input type="date" id="wpd-review-date"
+                style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+            </div>
+            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- Secondary Reviewer column — far right -->
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Secondary reviewer</div>
+              <select id="wpd-secondary-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                <option value="">— None —</option>
+                <option value="mchen">M. Chen (mchen)</option>
+                <option value="jdavis">J. Davis (jdavis)</option>
+                <option value="rpatel">R. Patel (rpatel)</option>
+                <option value="ltorres">L. Torres (ltorres)</option>
+                <option value="skim">S. Kim (skim)</option>
+                <option value="lmgr">L. Manager (lmgr)</option>
+                <option value="awong">A. Wong (awong)</option>
+                <option value="bnguyen">B. Nguyen (bnguyen)</option>
+              </select>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Secondary review date</div>
+              <input type="date" id="wpd-secondary-review-date"
+                style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+            </div>
+          </div><!-- /fields wrapper -->
           <div class="sect-body">
             <!-- Population, Sample Method & Sample Size -->
             <div class="field-grid">
-              <div class="fld"><div class="fl">Population definition</div><div class="fv" id="wpd-population">All revenue transactions ≥ $50,000 recorded in the general ledger from Apr 1 – Jun 30, 2026. Total population: 1,248 items.</div></div>
-              <div class="fld"><div class="fl">Sample method</div><div class="fv"><span class="type-tag" id="wpd-sample-method">Statistical — random</span></div></div>
-              <div class="fld"><div class="fl">Sample size</div><div class="fv" id="wpd-sample-size">60 <span style="font-size:13px;color:var(--text-secondary);font-weight:400">items</span></div></div>
+              <div class="fld">
+                <div class="fl">Population definition</div>
+                <div class="fv">
+                  <textarea id="wpd-population"
+                    oninput="autoResizeTA(this)"
+                    onfocus="inlineFieldFocused(this)"
+                    onblur="inlineFieldBlurred(this,'Population definition')"
+                    style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
+                           background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                           padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
+                           transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
+                  ></textarea>
+                </div>
+              </div>
+              <div class="fld">
+                <div class="fl">Sample method</div>
+                <div class="fv">
+                  <textarea id="wpd-sample-method"
+                    oninput="autoResizeTA(this)"
+                    onfocus="inlineFieldFocused(this)"
+                    onblur="inlineFieldBlurred(this,'Sample method')"
+                    style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
+                           background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                           padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
+                           transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
+                  ></textarea>
+                </div>
+              </div>
+              <div class="fld">
+                <div class="fl">Sample size</div>
+                <div class="fv">
+                  <textarea id="wpd-sample-size"
+                    oninput="autoResizeTA(this)"
+                    onfocus="inlineFieldFocused(this)"
+                    onblur="inlineFieldBlurred(this,'Sample size')"
+                    style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
+                           background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                           padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
+                           transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
+                  ></textarea>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1161,27 +1235,21 @@
         <div class="sect-card" id="sect-narrative">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative</div>
-            <button class="btn-s" style="font-size:11px;padding:3px 8px" id="narrative-edit-btn" onclick="toggleNarrative()"><i class="ti ti-edit"></i>Edit</button>
           </div>
           <div class="sect-body">
-            <div id="narrative-view" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;min-height:24px">Management follows ASC 606 for revenue recognition. All contracts are reviewed at inception by the Controller to determine performance obligations. Revenue is deferred until delivery milestones are met and confirmed by the operations team. Journal entries above $25,000 require dual approval from both the Controller and CFO. The Finance Director performs a monthly management review of all revenue accounts, comparing actuals to forecast and investigating variances greater than 5%.</div>
-            <div id="narrative-edit" style="display:none;flex-direction:column;gap:8px">
-              <textarea id="narrative-textarea"
-                maxlength="2000"
-                oninput="autoResizeTA(this)"
-                style="width:100%;min-height:140px;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-medium);border-radius:var(--radius-md);padding:10px 12px;resize:vertical;outline:none;line-height:1.6;transition:border-color 0.12s"
-                oninput="updateCharCount()"
-                onfocus="this.style.borderColor='var(--blue-600)'"
-                onblur="this.style.borderColor='var(--border-medium)'"
-                placeholder="Describe the process and key controls being tested. Include relevant procedures, approvals, and control activities (max 2,000 characters)…"
-              >Management follows ASC 606 for revenue recognition. All contracts are reviewed at inception by the Controller to determine performance obligations. Revenue is deferred until delivery milestones are met and confirmed by the operations team. Journal entries above $25,000 require dual approval from both the Controller and CFO. The Finance Director performs a monthly management review of all revenue accounts, comparing actuals to forecast and investigating variances greater than 5%.</textarea>
-              <div style="display:flex;align-items:center;justify-content:space-between">
-                <span id="char-count" style="font-size:11px;color:var(--text-tertiary)">447 / 2,000 characters</span>
-                <div style="display:flex;gap:7px">
-                  <button class="btn-s" style="font-size:12px" onclick="cancelNarrative()">Cancel</button>
-                  <button class="btn-p" style="font-size:12px" onclick="saveNarrative()"><i class="ti ti-check"></i>Save</button>
-                </div>
-              </div>
+            <textarea id="narrative-textarea"
+              maxlength="2000"
+              oninput="autoResizeTA(this);updateCharCount()"
+              onfocus="narrativeFocused(this)"
+              onblur="narrativeBlurred(this)"
+              style="width:100%;min-height:80px;font-size:13px;font-family:inherit;color:var(--text-primary);
+                     background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                     padding:6px 8px;resize:none;outline:none;line-height:1.6;overflow:hidden;
+                     transition:background 0.15s,border-color 0.15s;cursor:text"
+              placeholder="Describe the process and key controls being tested…"
+            ></textarea>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
+              <span id="char-count" style="font-size:11px;color:var(--text-tertiary)">0 / 2,000 characters</span>
             </div>
           </div>
         </div>
@@ -1688,6 +1756,72 @@
           <i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i>
           <span>Loading preview…</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workpaper History Modal -->
+  <div id="history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10003;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(1100px,96vw);box-shadow:0 20px 60px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:#fff">Change History</div>
+          <div id="history-subtitle" style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px"></div>
+        </div>
+        <button onclick="closeHistory()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+      <!-- Table -->
+      <div style="overflow-y:auto;flex:1">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+          <colgroup>
+            <col style="width:155px">
+            <col style="width:100px">
+            <col style="width:130px">
+            <col style="width:auto">
+            <col style="width:auto">
+          </colgroup>
+          <thead style="position:sticky;top:0;z-index:1">
+            <tr style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+              <th style="padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Date &amp; Time</th>
+              <th style="padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">User</th>
+              <th style="padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Field</th>
+              <th style="padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Old Value</th>
+              <th style="padding:9px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">New Value</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic">No changes recorded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Footer -->
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+        <span id="history-count" style="font-size:12px;color:var(--text-tertiary)">0 changes</span>
+        <button class="btn-s" onclick="closeHistory()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10002;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:360px;max-width:92vw;padding:24px;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:36px;height:36px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-trash" style="font-size:18px;color:#dc2626"></i>
+        </div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Delete file?</div>
+      </div>
+      <p id="delete-confirm-msg" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:20px">
+        Are you sure you want to delete this file? This action cannot be undone.
+      </p>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-s" onclick="cancelDelete()" style="min-width:72px">Cancel</button>
+        <button class="btn-p" onclick="confirmDelete()" style="min-width:72px;background:#dc2626;border-color:#dc2626">
+          <i class="ti ti-trash" style="font-size:13px"></i>Delete
+        </button>
       </div>
     </div>
   </div>
@@ -2601,6 +2735,12 @@ function openWP(i) {
   }
   const statusSel = document.getElementById('wpd-status');
   if (statusSel) statusSel.value = w.status || 'draft';
+  const secRevSel = document.getElementById('wpd-secondary-reviewer');
+  if (secRevSel) secRevSel.value = w.secondaryReviewer || '';
+  const secRdEl = document.getElementById('wpd-secondary-review-date');
+  try { if (secRdEl) secRdEl.value = w.secondaryReviewDate ? new Date(w.secondaryReviewDate).toISOString().split('T')[0] : ''; } catch(e) {}
+  const subEl = document.getElementById('wpd-date-submitted');
+  try { if (subEl) subEl.value = w.dateSubmitted ? new Date(w.dateSubmitted).toISOString().split('T')[0] : ''; } catch(e) {}
   const dsEl = document.getElementById('wpd-date-started');
   if (dsEl) dsEl.value = w.dateStarted || '';
   const rdEl = document.getElementById('wpd-review-date');
@@ -2647,14 +2787,21 @@ function openWP(i) {
     : `<span style="font-size:13px;font-weight:400;color:var(--text-secondary)">N/A</span>`;
 
   // ── Narrative ──
-  const narEl = document.getElementById('narrative-view');
-  if (narEl) narEl.textContent = w.narrative || '—';
-  // Reset edit mode if open
-  const narEdit = document.getElementById('narrative-edit');
-  const narBtn  = document.getElementById('narrative-edit-btn');
-  if (narEdit) narEdit.style.display = 'none';
-  if (narEl)   narEl.style.display   = '';
-  if (narBtn)  narBtn.style.display  = '';
+  // Inline editable fields — population, sample method, sample size
+  const popTA = document.getElementById('wpd-population');
+  const smTA  = document.getElementById('wpd-sample-method');
+  const ssTA  = document.getElementById('wpd-sample-size');
+  if (popTA) popTA.value = w.population   || '';
+  if (smTA)  smTA.value  = w.sampleMethod || '';
+  if (ssTA)  ssTA.value  = w.sampleSize   || '';
+  setTimeout(() => {
+    [popTA, smTA, ssTA].forEach(ta => { if (ta) autoResizeTA(ta); });
+  }, 50);
+  const narTA = document.getElementById('narrative-textarea');
+  if (narTA) {
+    narTA.value = w.narrative || '';
+    setTimeout(() => { autoResizeTA(narTA); updateCharCount(); }, 50);
+  }
 
   // ── Assessment Entities (stored as comma-separated text for tooltip) ──
   const entitiesEl = document.getElementById('wpd-entities');
@@ -2718,6 +2865,92 @@ function showPage(name) {
 let currentWPIndex = -1;
 
 /* ══════════════════════════════════════
+   CHANGE HISTORY
+══════════════════════════════════════ */
+
+// Per-workpaper change log: { ref: [ {ts, user, field, oldVal, newVal} ] }
+const wpChangeLog = {};
+
+function nowStamp() {
+  const d = new Date();
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  return `${date} ${time}`;
+}
+
+function logChange(ref, field, oldVal, newVal, user) {
+  if (!ref) return;
+  if (oldVal === newVal) return; // no actual change
+  if (!wpChangeLog[ref]) wpChangeLog[ref] = [];
+  wpChangeLog[ref].unshift({ // newest first
+    ts:     nowStamp(),
+    user:   user || 'jdavis',
+    field,
+    oldVal: oldVal != null ? String(oldVal) : '',
+    newVal: newVal != null ? String(newVal) : '',
+  });
+}
+
+function logEvent(ref, description, user) {
+  if (!ref) return;
+  if (!wpChangeLog[ref]) wpChangeLog[ref] = [];
+  wpChangeLog[ref].unshift({
+    ts:     nowStamp(),
+    user:   user || 'jdavis',
+    field:  'Event',
+    oldVal: '',
+    newVal: description,
+    isEvent: true,
+  });
+}
+
+function openHistory() {
+  const ref = WORKPAPERS[currentWPIndex]?.ref;
+  const wp  = WORKPAPERS[currentWPIndex];
+  document.getElementById('history-subtitle').textContent =
+    ref ? `${ref} · ${wp?.name || ''}` : 'No workpaper open';
+  renderHistoryTable(ref);
+  document.getElementById('history-overlay').style.display = 'flex';
+}
+
+function closeHistory() {
+  document.getElementById('history-overlay').style.display = 'none';
+}
+
+function renderHistoryTable(ref) {
+  const log = (ref && wpChangeLog[ref]) || [];
+  const tbody = document.getElementById('history-tbody');
+  const countEl = document.getElementById('history-count');
+  if (countEl) countEl.textContent = `${log.length} change${log.length !== 1 ? 's' : ''}`;
+
+  if (!log.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic">No changes recorded yet for this workpaper.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = log.map(entry => {
+    const oldCell = entry.isEvent
+      ? `<td>—</td>`
+      : `<td><span class="hist-old">${escHistVal(entry.oldVal) || '—'}</span></td>`;
+    const newCell = entry.isEvent
+      ? `<td><span class="hist-event">${escHistVal(entry.newVal)}</span></td>`
+      : `<td><span class="hist-new">${escHistVal(entry.newVal) || '—'}</span></td>`;
+    return `<tr>
+      <td class="hist-ts">${entry.ts}</td>
+      <td class="hist-user">${entry.user}</td>
+      <td class="hist-field">${entry.field}</td>
+      ${oldCell}
+      ${newCell}
+    </tr>`;
+  }).join('');
+}
+
+function escHistVal(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ══════════════════════════════════════
    SAVE CURRENT PAGE — persist all editable fields back to data
 ══════════════════════════════════════ */
 function saveCurrentPage() {
@@ -2730,19 +2963,38 @@ function saveCurrentPage() {
     const w = WORKPAPERS[currentWPIndex];
     if (!w) return;
 
-    // Workpaper information header fields
+    // Workpaper information header fields — log any changes
     const prepSel     = document.getElementById('wpd-preparer');
     const revSel      = document.getElementById('wpd-reviewer');
     const resSel      = document.getElementById('wpd-results');
     const statusWPSel = document.getElementById('wpd-status');
     const dsEl        = document.getElementById('wpd-date-started');
     const rdEl        = document.getElementById('wpd-review-date');
-    if (prepSel)     w.preparer    = prepSel.value;
-    if (revSel)      w.reviewer    = revSel.value;
-    if (resSel)      w.results     = resSel.value;
-    if (statusWPSel) w.status      = statusWPSel.value;
-    if (dsEl)        w.dateStarted = dsEl.value;
-    if (rdEl)        w.reviewDate  = rdEl.value;
+    const subEl2      = document.getElementById('wpd-date-submitted');
+    const secRevSel2  = document.getElementById('wpd-secondary-reviewer');
+    const secRdEl2    = document.getElementById('wpd-secondary-review-date');
+
+    const fieldMap = [
+      [prepSel,    'preparer',            'Preparer',                 v => v],
+      [revSel,     'reviewer',            'Reviewer',                 v => v],
+      [resSel,     'results',             'Results',                  v => v],
+      [statusWPSel,'status',              'Status',                   v => v],
+      [dsEl,       'dateStarted',         'Date started',             v => v],
+      [rdEl,       'reviewDate',          'Date reviewed',            v => v],
+      [subEl2,     'dateSubmitted',       'Date submitted for review',v => v],
+      [secRevSel2, 'secondaryReviewer',   'Secondary reviewer',       v => v],
+      [secRdEl2,   'secondaryReviewDate', 'Secondary review date',    v => v],
+    ];
+
+    fieldMap.forEach(([el, key, label]) => {
+      if (!el) return;
+      const newVal = el.value;
+      const oldVal = w[key] || '';
+      if (newVal !== oldVal) {
+        logChange(w.ref, label, oldVal, newVal);
+        w[key] = newVal;
+      }
+    });
 
     // Scope fields (population is now a div with textContent)
     const popEl = document.getElementById('wpd-population');
@@ -2756,16 +3008,16 @@ function saveCurrentPage() {
       w.sampleSize = isNaN(num) ? null : num;
     }
 
-    // Narrative — save whatever text is currently shown (view mode)
-    const narEl = document.getElementById('narrative-view');
-    const narTA = document.getElementById('narrative-textarea');
-    // If edit mode is open, save from textarea; otherwise from view
-    const narEdit = document.getElementById('narrative-edit');
-    if (narEdit && narEdit.style.display !== 'none' && narTA) {
-      w.narrative = narTA.value;
-    } else if (narEl) {
-      w.narrative = narEl.textContent;
-    }
+    // Inline editable fields — persist if changed (already logged on blur)
+    const popTA2 = document.getElementById('wpd-population');
+    const smTA2  = document.getElementById('wpd-sample-method');
+    const ssTA2  = document.getElementById('wpd-sample-size');
+    if (popTA2) w.population   = popTA2.value;
+    if (smTA2)  w.sampleMethod = smTA2.value;
+    if (ssTA2)  w.sampleSize   = ssTA2.value;
+    // Narrative — read from always-on textarea (change already logged on blur)
+    const narTA2 = document.getElementById('narrative-textarea');
+    if (narTA2) w.narrative = narTA2.value;
 
     // FS Accounts — linked financial statement accounts & footnotes (RC dialog)
     w.fsAccounts = [...rcDialogSelected];
@@ -4559,12 +4811,12 @@ function renderBookmarkPanel(fileId, ref, idx) {
     html += bookmarks.map(bm => {
       const indent = Math.min(bm.depth * 16, 48);
       const pageLabel = bm.page ? `Page ${bm.page}` : '';
-      const clickHandler = (objURL && bm.page)
-        ? `openURLInTab('${objURL}#page=${bm.page}')`
+      const clickHandler = bm.page
+        ? `openBookmarkInPreview('${fileId}', ${idx}, '${ref}', ${bm.page})`
         : 'return false';
       return `<a class="bookmark-item" style="--bm-indent:${indent}px"
         href="#" onclick="${clickHandler};return false"
-        title="${bm.page ? 'Open PDF at page ' + bm.page : 'Page unknown'}">
+        title="${bm.page ? 'Open in viewer at page ' + bm.page : 'Page unknown'}">
         <i class="ti ti-${bm.depth > 0 ? 'corner-down-right' : 'bookmark'}" style="opacity:0.6"></i>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${bm.title}</span>
         ${pageLabel ? `<span class="bm-page">${pageLabel}</span>` : ''}
@@ -4579,9 +4831,9 @@ function renderBookmarkPanel(fileId, ref, idx) {
       Named destinations <span style="font-weight:400;margin-left:4px">(${namedDests.length}${namedDests.length === 100 ? ', first 100 shown' : ''})</span>
     </div>`;
     html += namedDests.map(d => {
-      const clickHandler = objURL ? `openURLInTab('${objURL}#page=${d.page}')` : 'return false';
+      const clickHandler = `openBookmarkInPreview('${fileId}', ${idx}, '${ref}', ${d.page})`;
       return `<a class="bookmark-item" href="#" onclick="${clickHandler};return false"
-        title="Open PDF at page ${d.page}">
+        title="Open in viewer at page ${d.page}">
         <i class="ti ti-map-pin" style="opacity:0.6;font-size:12px"></i>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px">${d.title}</span>
         <span class="bm-page">Page ${d.page}</span>
@@ -4604,19 +4856,6 @@ function renderBookmarkPanel(fileId, ref, idx) {
     </div>`;
   }
 
-  // ── Page navigation strip ──────────────────────────────────────────
-  if (objURL && totalPages > 0) {
-    html += `<div style="padding:8px 14px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;gap:8px;background:var(--bg-primary)">
-      <span style="font-size:11px;color:var(--text-tertiary)">Go to page:</span>
-      <input type="number" min="1" max="${totalPages}" value="1" id="pgnum-${fileId}"
-        style="width:60px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none">
-      <span style="font-size:11px;color:var(--text-tertiary)">of ${totalPages}</span>
-      <button class="bm-btn" onclick="openPDFAtPage('${fileId}')">
-        <i class="ti ti-external-link"></i>Open
-      </button>
-    </div>`;
-  }
-
   panel.innerHTML = html + '</div>';
 }
 
@@ -4625,6 +4864,30 @@ function closeBookmarkPanel(fileId) {
   const btn   = document.getElementById('bmbtn-'   + fileId);
   if (panel) panel.classList.remove('open');
   if (btn)   btn.classList.remove('active');
+}
+
+// Open a PDF sample file in the preview modal, jump directly to a specific page
+async function openBookmarkInPreview(fileId, idx, ref, page) {
+  const entry = inMemoryFiles[ref]?.sample?.[idx];
+  if (!entry?.file) { alert('File not available in memory.'); return; }
+
+  // Open the preview modal with this file
+  document.getElementById('file-preview-title').textContent = entry.name;
+  setPreviewIcon(entry.name);
+  openFilePreviewOverlay();
+  window._previewFile = entry.file;
+
+  // Render all pages then scroll to the target page
+  await renderPDFPreview(entry.file);
+
+  // After rendering, scroll to the target page
+  setTimeout(() => {
+    currentPreviewPage = page;
+    document.getElementById('preview-page-input').value = page;
+    const body   = document.getElementById('file-preview-body');
+    const target = body.querySelector(`[data-page="${page}"]`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
 }
 
 function openPDFAtPage(fileId) {
@@ -4643,6 +4906,32 @@ function openPDFAtPage(fileId) {
 }
 
 /* ══════════════════════════════════════
+   DELETE CONFIRMATION
+══════════════════════════════════════ */
+let _pendingDelete = null; // { ref, bucket, idx }
+
+function promptDelete(ref, bucket, idx, name) {
+  _pendingDelete = ref ? { ref, bucket, idx } : null;
+  const msg = document.getElementById('delete-confirm-msg');
+  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${name || 'this file'}</strong>?<br><span style="font-size:12px;color:var(--text-tertiary)">This action cannot be undone.</span>`;
+  document.getElementById('delete-confirm-overlay').style.display = 'flex';
+}
+
+function cancelDelete() {
+  _pendingDelete = null;
+  document.getElementById('delete-confirm-overlay').style.display = 'none';
+}
+
+function confirmDelete() {
+  document.getElementById('delete-confirm-overlay').style.display = 'none';
+  if (_pendingDelete) {
+    const { ref, bucket, idx } = _pendingDelete;
+    deleteMemFile(ref, bucket, idx);
+    _pendingDelete = null;
+  }
+}
+
+/* ══════════════════════════════════════
    FILE REVIEWED BUTTON
 ══════════════════════════════════════ */
 const fileReviewState = {}; // { key: { reviewer, reviewedAt } }
@@ -4651,7 +4940,10 @@ function markFileReviewed(key) {
   const now  = new Date();
   const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  const prev = fileReviewState[key];
   fileReviewState[key] = { reviewer: 'jdavis', reviewedAt: `${date} at ${time}` };
+  const ref = getWPRef();
+  logEvent(ref, `File marked as Reviewed by jdavis on ${date} at ${time}${prev ? ' (updated)' : ''}`);
   applyReviewedState(key);
 }
 
@@ -4664,15 +4956,16 @@ function applyReviewedState(key) {
     btn.style.background   = '#dcfce7';
     btn.style.color        = '#166534';
     btn.style.borderColor  = '#86efac';
-    btn.innerHTML          = '<i class="ti ti-check" style="font-size:12px"></i>Reviewed';
+    btn.innerHTML          = '<i class="ti ti-check" style="font-size:12px;margin-right:2px"></i>Reviewed';
     if (stamp) {
       stamp.style.display  = 'block';
-      stamp.innerHTML      = `<strong>${state.reviewer}</strong><br>${state.reviewedAt}`;
+      stamp.innerHTML      = `<strong>${state.reviewer}</strong> · ${state.reviewedAt}`;
     }
   } else {
     btn.style.background  = '#fff';
     btn.style.color       = 'var(--text-secondary)';
     btn.style.borderColor = 'var(--border-light)';
+    btn.innerHTML         = 'Reviewed';
     if (stamp) { stamp.style.display = 'none'; stamp.innerHTML = ''; }
   }
 }
@@ -4748,6 +5041,7 @@ function processUploadedFiles(files, bucket) {
       })(),
     };
     inMemoryFiles[ref][bucket].push(entry);
+    logEvent(ref, `File added to ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${file.name} (${formatFileSize(file.size)})`);
   });
 
   refreshFileList(ref, bucket);
@@ -4796,7 +5090,7 @@ function refreshFileList(ref, bucket) {
         const verb = f.uploadedBy === 'Wavefire' ? 'Generated by' : 'Uploaded by';
         const meta = `${f.name.split('.').pop().toUpperCase()} · ${f.size} · ${verb} ${f.uploadedBy} on ${f.uploadedOn}`;
         return fileRowHtml(getFileIcon(f.file), f.name, meta,
-          true, `deleteMemFile('${ref}','workpaper',${i})`, null,
+          true, `promptDelete('${ref}','workpaper',${i},f.name)`, null,
           `downloadMemFile('${ref}','workpaper',${i})`,
           `previewMemFile('${ref}','workpaper',${i})`);
       }).join('');
@@ -4841,32 +5135,30 @@ function refreshFileList(ref, bucket) {
             <div style="flex:1"></div>
             <div style="flex:1"></div>
             <!-- Review box -->
-            <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;
-                        border:0.5px solid var(--border-light);border-radius:var(--radius-md);
-                        padding:5px 8px;background:var(--bg-secondary);min-width:90px;margin-right:8px">
+            <div style="display:flex;align-items:flex-start;gap:4px;margin-top:1px">
+              ${f.file.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls') || f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.doc') ? `
+              <button class="btn-s" id="bmbtn-${fileId}" onclick="toggleBookmarks('${fileId}',${i},'${safeRef}')" title="Import bookmarks &amp; destinations">
+                <i class="ti ti-bookmark"></i>Quick Links
+              </button>` : ''}
+            </div>
+            <div class="file-actions" style="align-items:center;gap:4px;margin-top:1px">
+              <button class="icon-btn" title="Download" onclick="downloadMemFile('${safeRef}','sample',${i})"><i class="ti ti-download"></i></button>
+              <button class="icon-btn" title="Delete" onclick="promptDelete('${safeRef}','sample',${i},f.name)" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;min-width:180px;margin-left:8px">
               <div style="display:flex;align-items:center;gap:6px;width:100%">
                 <button onclick="markFileReviewed('sf_rev_${i}')" id="review-btn-sf_rev_${i}"
-                  style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);
-                         background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;
-                         transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center"
+                  style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center"
                   onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
                   onmouseout="resetReviewBtnStyle('sf_rev_${i}')">
-                  <i class="ti ti-check" style="font-size:12px"></i>Reviewed
+                  Reviewed
                 </button>
                 <span onclick="clearFileReview('sf_rev_${i}')"
                   style="font-size:9px;color:var(--text-tertiary);cursor:pointer;text-decoration:underline dotted;white-space:nowrap"
                   onmouseover="this.style.color='var(--red-700)'"
                   onmouseout="this.style.color='var(--text-tertiary)'">Clear</span>
               </div>
-              <div id="review-stamp-sf_rev_${i}" style="font-size:9px;color:var(--text-tertiary);display:none;line-height:1.4;width:100%"></div>
-            </div>
-            <div class="file-actions" style="align-items:flex-start;gap:4px;margin-top:1px">
-              ${f.file.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls') || f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.doc') ? `
-              <button class="btn-s" id="bmbtn-${fileId}" onclick="toggleBookmarks('${fileId}',${i},'${safeRef}')" title="Import bookmarks &amp; destinations">
-                <i class="ti ti-bookmark"></i>Quick Links
-              </button>` : ''}
-              <button class="icon-btn" title="Download" onclick="downloadMemFile('${safeRef}','sample',${i})"><i class="ti ti-download"></i></button>
-              <button class="icon-btn" title="Delete" onclick="deleteMemFile('${safeRef}','sample',${i})" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>
+              <div id="review-stamp-sf_rev_${i}" style="font-size:9px;color:var(--text-secondary);display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%"></div>
             </div>
           </div>
           <div class="bookmark-panel" id="bmpanel-${fileId}">
@@ -4886,7 +5178,7 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
     ? `<button class="icon-btn" title="Download" onclick="${dlCall}"><i class="ti ti-download"></i></button>`
     : `<button class="icon-btn" title="Download" onclick="downloadPlaceholder('${escHtml(name)}')"><i class="ti ti-download"></i></button>`;
   const delBtn = isDynamic
-    ? `<button class="icon-btn" title="Delete" onclick="${deleteCall}" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>`
+    ? `<button class="icon-btn" title="Delete" onclick="promptDelete(${deleteCall.includes('deleteMemFile')?'\'' + deleteCall.match(/deleteMemFile\(\'([^']+)\'/)?.[1]+'\',\''+(deleteCall.match(/,\'([^']+)\',/)?.[1]||'workpaper')+'\','+(deleteCall.match(/,(\d+)\)$/)?.[1]||0):null}, '${escHtml(name)}')" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>`
     : `<button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button>`;
   const prevCall = previewCall || `previewStaticFile('${escHtml(name)}')`;
   const prevBtn = `<button onclick="${prevCall}" title="Preview file"
@@ -4912,10 +5204,14 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
     </div>
     ${prevBtn}
     <div style="flex:1"></div>
+    <div class="file-actions" style="gap:4px;margin-top:1px">
+      ${dlBtn}
+      ${delBtn}
+    </div>
     <!-- Review box -->
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;
                 border:0.5px solid var(--border-light);border-radius:var(--radius-md);
-                padding:5px 8px;background:var(--bg-secondary);min-width:90px;margin-right:8px">
+                padding:5px 8px;background:#e2e8f0;min-width:180px;margin-left:8px">
       <div style="display:flex;align-items:center;gap:6px;width:100%">
         <button onclick="markFileReviewed('${reviewKey}')" id="review-btn-${reviewKey}"
           style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);
@@ -4923,18 +5219,14 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
                  transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center"
           onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
           onmouseout="resetReviewBtnStyle('${reviewKey}')">
-          <i class="ti ti-check" style="font-size:12px"></i>Reviewed
+          Reviewed
         </button>
         <span onclick="clearFileReview('${reviewKey}')"
           style="font-size:9px;color:var(--text-tertiary);cursor:pointer;text-decoration:underline dotted;white-space:nowrap"
           onmouseover="this.style.color='var(--red-700)'"
           onmouseout="this.style.color='var(--text-tertiary)'">Clear</span>
       </div>
-      <div id="review-stamp-${reviewKey}" style="font-size:9px;color:var(--text-tertiary);display:none;line-height:1.4;width:100%"></div>
-    </div>
-    <div class="file-actions" style="gap:4px;margin-top:1px">
-      ${dlBtn}
-      ${delBtn}
+      <div id="review-stamp-${reviewKey}" style="font-size:9px;color:var(--text-secondary);display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%"></div>
     </div>
   </div>`;
 }
@@ -4968,8 +5260,11 @@ function downloadPlaceholder(name) {
 }
 
 function deleteMemFile(ref, bucket, idx) {
+  const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
+  const name = entry?.name || 'file';
   if (inMemoryFiles[ref]?.[bucket]) {
     inMemoryFiles[ref][bucket].splice(idx, 1);
+    logEvent(ref, `File deleted from ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${name}`);
     refreshFileList(ref, bucket);
   }
 }
@@ -5595,38 +5890,58 @@ function updateResultsStyle() {
 ══════════════════════════════════════ */
 let narrativeSaved = document.getElementById ? '' : '';
 
-function toggleNarrative() {
-  const view = document.getElementById('narrative-view');
-  const edit = document.getElementById('narrative-edit');
-  const btn  = document.getElementById('narrative-edit-btn');
-  const ta   = document.getElementById('narrative-textarea');
-  ta.value = view.textContent.trim();
-  updateCharCount();
-  view.style.display = 'none';
-  edit.style.display = 'flex';
-  btn.style.display  = 'none';
-  ta.focus();
+let _narrativeSnapshot = '';
+const _inlineSnapshots = {};
+
+function inlineFieldFocused(ta) {
+  _inlineSnapshots[ta.id] = ta.value;
+  ta.style.background  = 'var(--bg-secondary)';
+  ta.style.borderColor = 'var(--blue-600)';
 }
 
-function saveNarrative() {
-  const view = document.getElementById('narrative-view');
-  const edit = document.getElementById('narrative-edit');
-  const btn  = document.getElementById('narrative-edit-btn');
-  const ta   = document.getElementById('narrative-textarea');
-  view.textContent   = ta.value.trim() || '—';
-  view.style.display = '';
-  edit.style.display = 'none';
-  btn.style.display  = '';
+function inlineFieldBlurred(ta, fieldLabel) {
+  ta.style.background  = 'transparent';
+  ta.style.borderColor = 'transparent';
+  const newVal = ta.value;
+  const oldVal = _inlineSnapshots[ta.id] ?? '';
+  if (newVal !== oldVal) {
+    const ref = getWPRef();
+    logChange(ref, fieldLabel, oldVal, newVal);
+    if (WORKPAPERS[currentWPIndex]) {
+      const keyMap = {
+        'wpd-population':   'population',
+        'wpd-sample-method':'sampleMethod',
+        'wpd-sample-size':  'sampleSize',
+      };
+      const key = keyMap[ta.id];
+      if (key) WORKPAPERS[currentWPIndex][key] = newVal;
+    }
+  }
+  autoResizeTA(ta);
 }
 
-function cancelNarrative() {
-  const view = document.getElementById('narrative-view');
-  const edit = document.getElementById('narrative-edit');
-  const btn  = document.getElementById('narrative-edit-btn');
-  view.style.display = '';
-  edit.style.display = 'none';
-  btn.style.display  = '';
+function narrativeFocused(ta) {
+  _narrativeSnapshot = ta.value;
+  ta.style.background  = 'var(--bg-secondary)';
+  ta.style.borderColor = 'var(--blue-600)';
 }
+
+function narrativeBlurred(ta) {
+  ta.style.background  = 'transparent';
+  ta.style.borderColor = 'transparent';
+  const newVal = ta.value;
+  if (newVal !== _narrativeSnapshot) {
+    const ref = getWPRef();
+    logChange(ref, 'Process / Control Narrative', _narrativeSnapshot, newVal);
+    if (WORKPAPERS[currentWPIndex]) WORKPAPERS[currentWPIndex].narrative = newVal;
+  }
+  autoResizeTA(ta);
+}
+
+// Keep stubs so any remaining calls don't throw
+function toggleNarrative() {}
+function saveNarrative()   {}
+function cancelNarrative() {}
 
 function updateCharCount() {
   const ta    = document.getElementById('narrative-textarea');
