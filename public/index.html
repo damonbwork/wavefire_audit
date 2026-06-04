@@ -47,6 +47,10 @@
     --radius-lg: 10px;
   }
 
+  html {
+    overflow-x: auto;
+  }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--bg-tertiary);
@@ -54,9 +58,11 @@
     font-size: 14px;
     line-height: 1.5;
     min-height: 100vh;
+    min-width: 900px;
+    overflow-x: auto;
   }
 
-  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  .app { display: flex; flex-direction: column; min-height: 100vh; min-width: 900px; }
 
   /* ── WAVEFIRE PRIMARY NAV ── */
   .wf-topbar {
@@ -701,16 +707,27 @@
           </select>
         </div>
         <div class="wf-ctl-divider"></div>
-        <div class="wf-ctl-group">
-          <div class="wf-ctl-label">Audit period</div>
-          <div id="sel-period" style="font-size:12px;font-weight:500;color:var(--text-primary);padding:1px 0;min-width:100px">Apr – Jun 2026</div>
-        </div>
-        <div class="wf-ctl-divider"></div>
-        <div class="wf-ctl-group">
-          <div class="wf-ctl-label">Workpaper ref</div>
-          <select id="sel-wp-ref" class="wf-ctl-select" aria-label="Select workpaper reference" onchange="onNavWpRefChange()">
-            <option value="">— Select —</option>
-          </select>
+        <div class="wf-ctl-group" style="flex-direction:row;align-items:center;gap:4px">
+          <button id="wp-nav-prev" onclick="navigateWP(-1)"
+            style="background:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);
+                   width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+                   cursor:pointer;color:var(--text-secondary);transition:all 0.15s;flex-shrink:0"
+            title="Previous workpaper">
+            <i class="ti ti-chevron-left" style="font-size:13px"></i>
+          </button>
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <div class="wf-ctl-label">Workpaper</div>
+            <select id="sel-wp-ref" class="wf-ctl-select" aria-label="Select workpaper reference" onchange="onNavWpRefChange()">
+              <option value="">— Select —</option>
+            </select>
+          </div>
+          <button id="wp-nav-next" onclick="navigateWP(1)"
+            style="background:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);
+                   width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+                   cursor:pointer;color:var(--text-secondary);transition:all 0.15s;flex-shrink:0"
+            title="Next workpaper">
+            <i class="ti ti-chevron-right" style="font-size:13px"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -726,12 +743,15 @@
       <div class="page active" id="page-audits">
         <div class="ph">
           <div>
-            <div class="pt">All audits</div>
-            <div class="ps">12 audits across all periods and types</div>
+            <div class="pt">All Audits</div>
+            <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
           </div>
-          <div class="row-actions">
-            <button class="btn-s"><i class="ti ti-download"></i>Export</button>
-            <button class="btn-p"><i class="ti ti-plus"></i>New audit</button>
+          <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
+            <button class="btn-p" style="background:#0891b2;border-color:#0891b2" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+              <button class="btn-p"><i class="ti ti-plus"></i>New audit</button>
+            </div>
           </div>
         </div>
         <div class="filters">
@@ -751,14 +771,14 @@
             <option>Active</option>
             <option>Closed</option>
             <option>Locked</option>
+            <option>Archive</option>
           </select>
-          <select id="filter-period" onchange="filterAudits()">
-            <option value="">All periods</option>
-            <option>Apr – Jun 2026</option>
-            <option>Jan – Mar 2026</option>
-            <option>Oct – Dec 2025</option>
-            <option>FY 2025</option>
-          </select>
+          <!-- Show archived toggle -->
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:var(--bg-primary);white-space:nowrap;user-select:none">
+            <input type="checkbox" id="show-archived" onchange="filterAudits()"
+              style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
+            Show archived
+          </label>
           <!-- Searchable internal control picker -->
           <div id="ctrl-picker" style="position:relative">
             <button id="ctrl-picker-btn" onclick="toggleCtrlPicker(event)"
@@ -825,9 +845,12 @@
             <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
             <div class="ps" id="wp-page-sub">Financial · Apr – Jun 2026 · Owner: J. Davis</div>
           </div>
-          <div class="row-actions">
-            <button class="btn-s"><i class="ti ti-download"></i>Export</button>
-            <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
+          <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
+            <button class="btn-p" style="background:#0891b2;border-color:#0891b2" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+              <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
+            </div>
           </div>
         </div>
 
@@ -835,11 +858,58 @@
         <div class="sect-card" id="audit-info-card">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-info-circle"></i>Audit information</div>
-            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-edit"></i>Edit</button>
+            <button class="btn-s" id="aud-edit-btn" style="font-size:11px;padding:3px 8px" onclick="toggleAuditInfoEdit()"><i class="ti ti-edit"></i>Edit</button>
           </div>
           <div class="sect-body">
             <div class="field-grid">
-              <!-- Audit Owner -->
+              <!-- Audit Year -->
+              <div class="fld">
+                <div class="fl">Audit year</div>
+                <input id="aud-year" type="number" min="2000" max="2099" placeholder="e.g. 2026"
+                  class="aud-field-select"
+                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);
+                         border:0.5px solid var(--border-light);border-radius:var(--radius-md);
+                         padding:4px 8px;outline:none;width:90px"
+                  onfocus="this.style.borderColor='var(--wf-blue)'"
+                  onblur="this.style.borderColor='var(--border-light)'; saveAuditYear(this.value)">
+              </div>
+              <!-- Audit Period (structured) -->
+              <div class="fld" style="grid-column: span 2">
+                <div class="fl">Audit period</div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <!-- Read-only concatenated view (shown when locked) -->
+                  <span id="aud-period-read" style="font-size:13px;color:var(--text-primary);font-weight:500;display:none"></span>
+                  <!-- From -->
+                  <div style="display:flex;align-items:center;gap:4px">
+                    <select id="aud-period-from-month" class="aud-field-select" style="width:80px" onchange="rebuildAuditPeriod()">
+                      <option value="">Month</option>
+                      <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
+                      <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
+                      <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
+                    </select>
+                    <input id="aud-period-from-day" type="number" min="1" max="31" placeholder="Day"
+                      class="aud-field-select" style="width:56px" onchange="rebuildAuditPeriod()">
+                    <input id="aud-period-from-year" type="number" min="2000" max="2099" placeholder="Year"
+                      class="aud-field-select" style="width:68px" onchange="rebuildAuditPeriod()">
+                  </div>
+                  <span id="aud-period-separator" style="font-size:13px;color:var(--text-tertiary)">–</span>
+                  <!-- To -->
+                  <div style="display:flex;align-items:center;gap:4px">
+                    <select id="aud-period-to-month" class="aud-field-select" style="width:80px" onchange="rebuildAuditPeriod()">
+                      <option value="">Month</option>
+                      <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
+                      <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
+                      <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
+                    </select>
+                    <input id="aud-period-to-day" type="number" min="1" max="31" placeholder="Day"
+                      class="aud-field-select" style="width:56px" onchange="rebuildAuditPeriod()">
+                    <input id="aud-period-to-year" type="number" min="2000" max="2099" placeholder="Year"
+                      class="aud-field-select" style="width:68px" onchange="rebuildAuditPeriod()">
+                  </div>
+                  <span id="aud-period-preview" style="font-size:12px;color:var(--text-tertiary);margin-left:4px;font-style:italic"></span>
+                </div>
+              </div>
+              <!-- Audit Manager -->
               <div class="fld">
                 <div class="fl">Audit owner</div>
                 <select id="aud-owner" class="aud-field-select">
@@ -888,6 +958,7 @@
                   <option value="review">In review</option>
                   <option value="closed">Closed</option>
                   <option value="locked">Locked</option>
+                  <option value="archive">Archive</option>
                 </select>
               </div>
             </div>
@@ -915,7 +986,8 @@
             <option>Planning</option>
             <option>Testwork</option>
             <option>Report</option>
-            <option>Memo</option>
+                        <option>Admin</option>
+            <option>Other</option>
           </select>
           <!-- 3. Preparer -->
           <select id="wp-filter-preparer" onchange="filterWorkpapers()">
@@ -929,7 +1001,14 @@
           <select id="wp-filter-review-month" onchange="filterWorkpapers()" style="min-width:140px">
             <option value="">All review months</option>
           </select>
-          <!-- 6. Results -->
+          <!-- 6. Status -->
+          <select id="wp-filter-status" onchange="filterWorkpapers()">
+            <option value="">All statuses</option>
+            <option>Draft</option>
+            <option>In review</option>
+            <option>Reviewed</option>
+          </select>
+          <!-- 7. Results -->
           <select id="wp-filter-results" onchange="filterWorkpapers()" style="min-width:160px">
             <option value="">All results</option>
             <option value="pass">Pass</option>
@@ -937,13 +1016,6 @@
             <option value="fail">Fail</option>
             <option value="met">Objectives Met</option>
             <option value="notmet">Objectives Not Met</option>
-          </select>
-          <!-- 7. Status -->
-          <select id="wp-filter-status" onchange="filterWorkpapers()">
-            <option value="">All statuses</option>
-            <option>Draft</option>
-            <option>In review</option>
-            <option>Reviewed</option>
           </select>
           <!-- Clear -->
           <button class="btn-s" id="wp-clear-filters-btn" onclick="clearWpFilters()" style="display:none;color:var(--red-700);border-color:var(--red-50)">
@@ -962,7 +1034,7 @@
             <thead>
               <tr>
                 <th>Reference</th><th>Workpaper name</th><th>Type</th>
-                <th>Preparer</th><th>Reviewer</th><th>Review date</th><th>Results</th><th>Status</th>
+                <th>Preparer</th><th>Reviewer</th><th>Review date</th><th>Status</th><th>Results</th>
               </tr>
             </thead>
             <tbody id="wp-tbody"></tbody>
@@ -983,20 +1055,26 @@
         </div>
 
         <!-- Audit Information — compact header strip -->
-        <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:10px;position:relative">
-          <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
-          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);flex-shrink:0">Audit</span>
-          <span id="wpd-audit-name"
-            style="font-size:13px;font-weight:600;color:var(--wf-navy);cursor:help;border-bottom:1px dashed var(--border-medium);padding-bottom:1px"
-            onmouseenter="showAuditInfoTooltip(event)"
-            onmouseleave="hideAuditInfoTooltip()"
-            onmousemove="moveAuditInfoTooltip(event)">Q2 2026 Financial Audit</span>
-          <span style="color:var(--border-medium);flex-shrink:0">·</span>
-          <span style="font-size:12px;color:var(--text-secondary)" id="wpd-audit-desc-short">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
+        <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;position:relative">
+          <div style="display:flex;align-items:center;gap:10px">
+            <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
+            <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);flex-shrink:0">Audit</span>
+            <span id="wpd-audit-name"
+              style="font-size:13px;font-weight:600;color:var(--wf-navy);cursor:help;border-bottom:1px dashed var(--border-medium);padding-bottom:1px"
+              onmouseenter="showAuditInfoTooltip(event)"
+              onmouseleave="hideAuditInfoTooltip()"
+              onmousemove="moveAuditInfoTooltip(event)">Q2 2026 Financial Audit</span>
+            <span style="color:var(--border-medium);flex-shrink:0">·</span>
+            <span style="font-size:12px;color:var(--text-secondary)" id="wpd-audit-desc-short">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-left:24px">
+            <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Audit Period:</span>
+            <span id="wpd-audit-period" style="font-size:12px;color:var(--text-primary);font-weight:500"></span>
+          </div>
         </div>
 
         <!-- Hidden audit detail fields (used by hover tooltip) -->
-        <span id="wpd-audit-owner"    style="display:none">J. Davis</span>
+        <span id="wpd-audit-manager"    style="display:none">J. Davis</span>
         <span id="wpd-audit-type"     style="display:none">Financial</span>
         <span id="wpd-audit-status"   style="display:none">active</span>
         <span id="wpd-audit-desc"     style="display:none">Review of revenue recognition policies and transaction-level testing for Q2 2026.</span>
@@ -1052,8 +1130,8 @@
           </div>
           <div class="row-actions">
             <button class="btn-s" onclick="openHistory()"><i class="ti ti-clock"></i>History</button>
-            <button class="btn-s" onclick="submitForReview()"><i class="ti ti-send"></i>Submit for review</button>
             <button class="btn-s" style="font-size:11px;padding:3px 8px" id="wpd-edit-btn" onclick="toggleWPHeaderEdit()"><i class="ti ti-edit"></i>Edit</button>
+            <button class="btn-s" onclick="submitForReview()"><i class="ti ti-send"></i>Submit for review</button>
           </div>
         </div>
 
@@ -1066,7 +1144,7 @@
             <!-- Results + Status column — far left -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
-              <select id="wpd-results" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="updateResultsStyle()">
+              <select id="wpd-results" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="updateResultsStyle(); logWPDropdownChange('wpd-results','Results')">
                 <option value="">— Select —</option>
                 <option value="pass">Pass</option>
                 <option value="passex">Pass w/ Exceptions</option>
@@ -1075,7 +1153,7 @@
                 <option value="notmet">Objectives Not Met</option>
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
-              <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status')">
                 <option value="draft">Draft</option>
                 <option value="review">In review</option>
                 <option value="approved">Reviewed</option>
@@ -1088,7 +1166,7 @@
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
-              <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-preparer','Preparer')">
                 <option value="jdavis">J. Davis (jdavis)</option>
                 <option value="mchen">M. Chen (mchen)</option>
                 <option value="rpatel">R. Patel (rpatel)</option>
@@ -1100,13 +1178,14 @@
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
               <input type="date" id="wpd-date-started" value="2026-04-01"
+                onchange="logWPDropdownChange('wpd-date-started','Date started')"
                 style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
             </div>
             <!-- Reviewer + Date Submitted For Review — far right -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
-              <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-reviewer','Reviewer')">
                 <option value="mchen">M. Chen (mchen)</option>
                 <option value="jdavis">J. Davis (jdavis)</option>
                 <option value="rpatel">R. Patel (rpatel)</option>
@@ -1118,7 +1197,11 @@
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date submitted for review</div>
               <input type="date" id="wpd-date-submitted"
+                onchange="logWPDropdownChange('wpd-date-submitted','Date submitted for review')"
                 style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date reviewed</div>
+              <div id="wpd-date-reviewed"
+                style="font-size:12px;font-weight:500;color:var(--text-secondary);padding:4px 2px;min-height:22px;font-style:italic">—</div>
             </div>
             <!-- Workpaper Review Sign-off subsection -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
@@ -1169,31 +1252,43 @@
                 </div>
               </div>
               <div class="fld">
-                <div class="fl">Sample method</div>
+                <div class="fl">Population reference file</div>
                 <div class="fv">
-                  <textarea id="wpd-sample-method"
-                    oninput="autoResizeTA(this)"
-                    onfocus="inlineFieldFocused(this)"
-                    onblur="inlineFieldBlurred(this,'Sample method')"
-                    style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
-                           background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
-                           padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
-                           transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
-                  ></textarea>
+                  <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openPopRefDialog()">
+                    <i class="ti ti-paperclip"></i>Select file(s)
+                  </button>
+                  <div id="wpd-pop-ref-files" style="display:flex;flex-direction:column;gap:4px"></div>
                 </div>
               </div>
-              <div class="fld">
-                <div class="fl">Sample size</div>
-                <div class="fv">
-                  <textarea id="wpd-sample-size"
-                    oninput="autoResizeTA(this)"
-                    onfocus="inlineFieldFocused(this)"
-                    onblur="inlineFieldBlurred(this,'Sample size')"
-                    style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
-                           background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
-                           padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
-                           transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
-                  ></textarea>
+              <!-- Sample Method + Sample Size side by side -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;grid-column:span 1">
+                <div class="fld">
+                  <div class="fl">Sample method</div>
+                  <div class="fv">
+                    <textarea id="wpd-sample-method"
+                      oninput="autoResizeTA(this)"
+                      onfocus="inlineFieldFocused(this)"
+                      onblur="inlineFieldBlurred(this,'Sample method')"
+                      style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
+                             background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                             padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
+                             transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
+                    ></textarea>
+                  </div>
+                </div>
+                <div class="fld">
+                  <div class="fl">Sample size</div>
+                  <div class="fv">
+                    <textarea id="wpd-sample-size"
+                      oninput="autoResizeTA(this)"
+                      onfocus="inlineFieldFocused(this)"
+                      onblur="inlineFieldBlurred(this,'Sample size')"
+                      style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);
+                             background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
+                             padding:3px 6px;resize:none;outline:none;line-height:1.5;overflow:hidden;
+                             transition:background 0.15s,border-color 0.15s;cursor:text;min-height:20px"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1206,6 +1301,19 @@
             <div class="sect-hdr-title"><i class="ti ti-lock"></i>Scope</div>
           </div>
           <div class="sect-body" style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Assessment entities — workpaper level -->
+            <div style="padding-bottom:14px;border-bottom:0.5px solid var(--border-light)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Assessment entities</div>
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openWPEntityDialog()">
+                  <i class="ti ti-plus"></i>Add / edit
+                </button>
+              </div>
+              <div id="wpd-scope-entities" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked — click Add / edit to link assessment entities to this workpaper.</span>
+              </div>
+            </div>
 
             <!-- Risk-to-Control relationship table -->
             <div>
@@ -1308,7 +1416,7 @@
         </div>
 
         <!-- Section 4: Attached Workpaper Files -->
-        <div class="sect-card">
+        <div class="sect-card" id="sect-wp-files">
           <div class="sect-hdr">
             <div class="sect-hdr-title">
               <i class="ti ti-paperclip"></i>Attached workpaper files
@@ -1370,7 +1478,7 @@
         </div>
 
         <!-- Section 6: Attached Sample Files -->
-        <div class="sect-card">
+        <div class="sect-card" id="sect-sample-files">
           <div class="sect-hdr">
             <div class="sect-hdr-title">
               <i class="ti ti-file-type-pdf"></i>Attached sample files
@@ -1407,15 +1515,15 @@
             <span>Drag files here or click to browse (PDF, Excel, Word, images)</span>
           </div>
           <!-- Analyze & Create Workpaper — below upload zone -->
-          <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
+          <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
             <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="analyzeWithClaude()" id="analyze-btn">
               <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
             </button>
             <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
               Analyze each of the attached sample files according to each of the above documented attributes. The output will create a new Attached Workpaper File above with the results of the analysis. The results should be reviewed and modified as necessary based upon the auditor's assessment.
             </p>
-          </div>
-        </div>
+          </div></div><!-- /sect-analyze -->
+        </div><!-- /sect-card sample files -->
 
       </div><!-- /page-wpdetail -->
 
@@ -1581,7 +1689,8 @@
                   <option>Planning</option>
                   <option>Testwork</option>
                   <option>Report</option>
-                  <option>Memo</option>
+                                    <option>Admin</option>
+                  <option>Other</option>
                 </select>
               </div>
               <div class="fld">
@@ -1593,74 +1702,11 @@
                 </select>
               </div>
             </div>
-            <div class="field-grid" style="margin-top:12px">
-              <div class="fld">
-                <div class="fl">Population definition</div>
-                <textarea id="nwp-population" placeholder="Describe the population…" rows="2"
-                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 10px;outline:none;width:100%;resize:vertical;font-family:inherit"
-                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
-              </div>
-              <div class="fld">
-                <div class="fl">Sample method</div>
-                <select id="nwp-sample-method" class="aud-field-select">
-                  <option value="">— Select method —</option>
-                  <option>Statistical — random</option>
-                  <option>Judgmental — top items by balance</option>
-                  <option>Judgmental — high-risk items only</option>
-                  <option>Risk-based — highest spend and criticality</option>
-                  <option>Walkthrough — one per control</option>
-                  <option>N/A — planning document</option>
-                  <option>N/A — audit report</option>
-                  <option>N/A — representation letter</option>
-                </select>
-              </div>
-              <div class="fld">
-                <div class="fl">Sample size</div>
-                <input id="nwp-sample-size" type="number" min="0" placeholder="e.g. 25"
-                  style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 10px;outline:none;width:100%"
-                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Risks & Controls (blank placeholder) -->
-        <div class="sect-card">
-          <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-lock"></i>Risks &amp; Controls</div>
-            <button class="btn-s" style="font-size:11px;padding:3px 8px"><i class="ti ti-plus"></i>Add risks &amp; controls</button>
-          </div>
-          <div class="sect-body" style="color:var(--text-tertiary);font-size:13px;font-style:italic">
-            No risks or controls linked yet. Use the button above to link from the Risks &amp; Controls module.
-          </div>
-        </div>
-
-        <!-- Process / Control Narrative (blank) -->
-        <div class="sect-card">
-          <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative</div>
-          </div>
-          <div class="sect-body">
-            <textarea id="nwp-narrative" maxlength="2000" placeholder="Describe the process and key controls being tested…" rows="4"
-              style="width:100%;font-size:13px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px 12px;resize:vertical;outline:none;line-height:1.6;font-family:inherit"
-              onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
-            <div style="text-align:right;font-size:11px;color:var(--text-tertiary);margin-top:4px" id="nwp-char-count">0 / 2,000</div>
-          </div>
-        </div>
-
-        <!-- Attached Files (blank) -->
-        <div class="sect-card">
-          <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-paperclip"></i>Attached files</div>
-            <button class="btn-p" style="font-size:11px;padding:4px 10px"><i class="ti ti-upload"></i>Upload</button>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;color:var(--text-tertiary);font-size:13px">
-            <i class="ti ti-cloud-upload" style="font-size:24px"></i>
-            <span>No files attached yet. Drag files here or click Upload.</span>
           </div>
         </div>
 
         <!-- Bottom action bar -->
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:8px">
         <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:8px">
           <button class="btn-s" onclick="showPage('workpapers')"><i class="ti ti-x"></i>Cancel</button>
           <button class="btn-p" onclick="submitNewWorkpaper()"><i class="ti ti-check"></i>Create workpaper</button>
@@ -1694,7 +1740,7 @@
         <span id="entity-selected-count" style="font-size:12px;color:var(--text-secondary)">0 selected</span>
         <div style="display:flex;gap:8px">
           <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
-          <button class="btn-p" onclick="applyEntitySelection()"><i class="ti ti-check"></i>Apply</button>
+          <button class="btn-p" onclick="applyEntitySelectionRouted()"><i class="ti ti-check"></i>Apply</button>
         </div>
       </div>
     </div>
@@ -1884,6 +1930,21 @@
           <button class="btn-s" onclick="exportHistoryCSV()"><i class="ti ti-download"></i>Export CSV</button>
           <button class="btn-s" onclick="closeHistory()">Close</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Population Reference File picker modal -->
+  <div id="pop-ref-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10002;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+        <div style="font-size:14px;font-weight:600;color:#fff"><i class="ti ti-paperclip" style="margin-right:6px"></i>Select Population Reference File(s)</div>
+        <button onclick="closePopRefDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="pop-ref-list" style="overflow-y:auto;flex:1;padding:8px 0"></div>
+      <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+        <button class="btn-s" onclick="closePopRefDialog()">Cancel</button>
+        <button class="btn-p" onclick="applyPopRefSelection()"><i class="ti ti-check"></i>Apply</button>
       </div>
     </div>
   </div>
@@ -2229,7 +2290,7 @@ const WORKPAPERS = [
   {
     auditName: "SOX Compliance Audit", ref: "WP-2026-DEFI-004",
     results: "",
-    name: "Deficiency Assessment Memo", type: "Memo",
+    name: "Deficiency Assessment Memo", type: "Report",
     preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-03-01",
     reviewDate: "2026-03-10", status: "draft",
     sampleSize: null, sampleMethod: "N/A — deficiency assessment",
@@ -2431,9 +2492,9 @@ const WORKPAPERS = [
 ══════════════════════════════════════ */
 let currentAudit = AUDITS[0];
 
-const statusClass = { active:"pill-active", planned:"pill-planned", closed:"pill-closed", locked:"pill-locked", review:"pill-review", approved:"pill-approved", draft:"pill-draft" };
-const statusLabel = { active:"Active", planned:"Planned", closed:"Closed", locked:"Locked", review:"In review", approved:"Reviewed", draft:"Draft" };
-const wpTypeClass = { Planning:"wp-type-planning", Testwork:"wp-type-testwork", Report:"wp-type-report", Memo:"wp-type-memo" };
+const statusClass = { active:"pill-active", planned:"pill-planned", closed:"pill-closed", locked:"pill-locked", archive:"pill-closed", review:"pill-review", approved:"pill-approved", draft:"pill-draft" };
+const statusLabel = { active:"Active", planned:"Planned", closed:"Closed", locked:"Locked", archive:"Archive", review:"In review", approved:"Reviewed", draft:"Draft" };
+const wpTypeClass = { Planning:"wp-type-planning", Testwork:"wp-type-testwork", Report:"wp-type-report", Admin:"wp-type-admin", Other:"wp-type-other" };
 
 function resultPill(r) {
   if (!r) return '<span style="font-size:11px;color:var(--text-tertiary)">—</span>';
@@ -2467,7 +2528,8 @@ const typeIconSVG = {
   'Planning':     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>',
   'Testwork':     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0H5m4 0h10m0-11v11m0 0h4M9 14l3 3 5-5"/></svg>',
   'Report':       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="10" y2="17"/></svg>',
-  'Memo':         '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  'Admin':        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>',
+  'Other':        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>',
 };
 
 function typePill(t) {
@@ -2482,7 +2544,8 @@ function typePill(t) {
 ══════════════════════════════════════ */
 function renderAudits(list) {
   const rows = list || AUDITS;
-  document.getElementById('audit-count-label').textContent = `Showing ${rows.length} audit${rows.length !== 1 ? 's' : ''}`;
+  const _acl = document.getElementById('audit-count-label'); if(_acl) _acl.textContent = `Showing ${rows.length} audit${rows.length !== 1 ? 's' : ''}`;
+  const _sub = document.getElementById('audits-page-sub'); if(_sub) _sub.textContent = `${AUDITS.length} audit${AUDITS.length !== 1 ? 's' : ''} across all periods and types`;
   document.getElementById('audit-tbody').innerHTML = rows.map(a => {
     const year = (a.period.match(/\b(20\d{2})\b/) || [])[1] || '—';
     return `
@@ -2501,11 +2564,12 @@ function renderAudits(list) {
 }
 
 function filterAudits() {
-  const search  = document.getElementById('audit-search').value.toLowerCase();
-  const type    = document.getElementById('filter-type').value;
-  const status  = document.getElementById('filter-status').value.toLowerCase();
-  const period  = document.getElementById('filter-period').value;
-  const control = document.getElementById('filter-control').value; // control ID e.g. "REV-CTL-01"
+  const search      = document.getElementById('audit-search').value.toLowerCase();
+  const type        = document.getElementById('filter-type').value;
+  const status      = document.getElementById('filter-status').value.toLowerCase();
+  const period      = document.getElementById('filter-period')?.value || '';
+  const control     = document.getElementById('filter-control').value;
+  const showArchived = document.getElementById('show-archived')?.checked || false;
 
   // Build a set of audit names that contain the selected control (across all their workpapers)
   let auditNamesWithControl = null;
@@ -2522,25 +2586,34 @@ function filterAudits() {
     (!type    || a.type === type) &&
     (!status  || a.status === status) &&
     (!period  || a.period === period) &&
-    (!auditNamesWithControl || auditNamesWithControl.has(a.name))
+    (!auditNamesWithControl || auditNamesWithControl.has(a.name)) &&
+    (showArchived || a.status !== 'archive')
   );
 
   renderAudits(filtered);
 
   // Show/hide the Clear button whenever any filter is active
-  const anyActive = search || type || status || period || control;
-  document.getElementById('clear-filters-btn').style.display = anyActive ? 'inline-flex' : 'none';
+  const anyActive = search || type || status || period || control || showArchived;
+  (document.getElementById('clear-filters-btn')||{}).style = anyActive ? 'display:inline-flex' : 'display:none';
 }
 
 function clearAuditFilters() {
   document.getElementById('audit-search').value   = '';
   document.getElementById('filter-type').value    = '';
   document.getElementById('filter-status').value  = '';
-  document.getElementById('filter-period').value  = '';
+  const _fp = document.getElementById('filter-period'); if(_fp) _fp.value = '';
   document.getElementById('filter-control').value = '';
-  document.getElementById('ctrl-picker-label').textContent = 'All internal controls';
+  const _cpl1 = document.getElementById('ctrl-picker-label'); if(_cpl1) _cpl1.textContent = 'All internal controls';
   document.getElementById('clear-filters-btn').style.display = 'none';
-  renderAudits();
+  // Clear reviewer and reviewDate for all draft workpapers on load
+WORKPAPERS.forEach(w => {
+  if ((w.status || 'draft') === 'draft') {
+    w.reviewer   = '';
+    w.reviewDate = '';
+  }
+});
+
+renderAudits();
 }
 
 /* ══════════════════════════════════════
@@ -2587,7 +2660,7 @@ function filterCtrlPickerList() {
 
 function selectCtrlFilter(id, label) {
   document.getElementById('filter-control').value = id;
-  document.getElementById('ctrl-picker-label').textContent = label;
+  const _cpl2 = document.getElementById('ctrl-picker-label'); if(_cpl2) _cpl2.textContent = label;
   // Truncate label if too long
   const btn = document.getElementById('ctrl-picker-btn');
   if (btn) btn.title = label;
@@ -2725,7 +2798,7 @@ function clearWpFilters() {
    RENDER — WORKPAPER TABLE
 ══════════════════════════════════════ */
 function renderWorkpapers(list) {
-  const typeOrder = { Planning: 1, Testwork: 2, Report: 3 };
+  const typeOrder = { Admin: 1, Planning: 2, Testwork: 3, Report: 5, Other: 6 };
   // Use provided list or default to all workpapers for current audit
   const base = list || WORKPAPERS.filter(w => w.auditName === currentAudit.name);
   const sorted = [...base].sort((a, b) =>
@@ -2734,15 +2807,15 @@ function renderWorkpapers(list) {
   document.getElementById('wp-tbody').innerHTML = sorted.map((w) => {
     const i = WORKPAPERS.indexOf(w);
     return `
-    <tr onclick="openWP(${i})">
+    <tr onclick="openWP(${i})" data-ref="${w.ref}">
       <td style="font-weight:500;color:var(--blue-600);white-space:nowrap">${w.ref}</td>
       <td style="font-weight:500">${w.name}</td>
       <td>${typePill(w.type)}</td>
       <td class="tm">${w.preparer}</td>
       <td class="tm">${w.reviewer}</td>
-      <td class="tm">${w.reviewDate}</td>
-      <td>${resultPill(w.results)}</td>
+      <td class="tm wp-review-date-cell">${w.reviewDate || '—'}</td>
       <td>${statusPill(w.status)}</td>
+      <td>${resultPill(w.results)}</td>
     </tr>`;
   }).join('');
   setTimeout(() => makeColumnsResizable('wp-table'), 0);
@@ -2761,10 +2834,10 @@ function openAudit(i) {
   });
   const clearBtn = document.getElementById('wp-clear-filters-btn');
   if (clearBtn) clearBtn.style.display = 'none';
-  document.getElementById('bc-audit-name').textContent  = currentAudit.name;
-  document.getElementById('wp-page-title').textContent  = currentAudit.name;
-  document.getElementById('wp-page-sub').textContent    = `${currentAudit.type} · ${currentAudit.period} · Owner: ${currentAudit.owner}`;
-  document.getElementById('wp-table-title').textContent = `Workpapers — ${currentAudit.name}`;
+  (document.getElementById('bc-audit-name')||{}).textContent = currentAudit.name;
+  (document.getElementById('wp-page-title')||{}).textContent = currentAudit.name;
+  (document.getElementById('wp-page-sub')||{}).textContent = `${currentAudit.type} · ${currentAudit.period} · Owner: ${currentAudit.owner}`;
+  const _wtt = document.getElementById('wp-table-title'); if(_wtt) _wtt.textContent = `Workpapers — ${currentAudit.name}`;
   renderWorkpapers(); // re-render filtered to this audit before showing the page
   populateWpFilters();
   populateAuditInfoCard(currentAudit);
@@ -2772,13 +2845,22 @@ function openAudit(i) {
 }
 
 function openWP(i) {
-  saveCurrentPage(); // persist any edits from the current page before switching
+  saveCurrentPage();
   const w = WORKPAPERS[i];
-  currentWPIndex = i; // track for saving on navigate away
+  currentWPIndex = i;
+
+  // Back-fill wpStyle for workpapers created before this feature
+  if (!w.wpStyle) {
+    const fullTypes = ['Testwork', 'Report'];
+    w.wpStyle = fullTypes.includes(w.type) ? 'full' : 'skinny';
+  }
 
   // Always derive the audit from the workpaper's own auditName — enforces 1-to-1 tie
   const audit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
   currentAudit = audit;
+
+  const auditPeriodEl = document.getElementById('wpd-audit-period');
+  if (auditPeriodEl) auditPeriodEl.textContent = audit?.period || '';
 
   // Keep nav box in sync
   const selAudit  = document.getElementById('sel-audit');
@@ -2793,18 +2875,28 @@ function openWP(i) {
   }
 
   // ── Breadcrumb & header ──
-  document.getElementById('bc-audit-wp').textContent     = audit.name;
-  document.getElementById('bc-wp-ref').textContent       = w.ref;
-  document.getElementById('wpd-title').textContent       = w.name;
-  document.getElementById('wpd-sub').textContent         = `${w.ref} · ${w.type} · ${audit.name}`;
+  const elBcAuditWp  = document.getElementById('bc-audit-wp');
+  const elBcWpRef    = document.getElementById('bc-wp-ref');
+  const elWpdTitle   = document.getElementById('wpd-title');
+  const elWpdSub     = document.getElementById('wpd-sub');
+  if (elBcAuditWp) elBcAuditWp.textContent = audit.name;
+  if (elBcWpRef)   elBcWpRef.textContent   = w.ref;
+  if (elWpdTitle)  elWpdTitle.textContent   = w.name;
+  if (elWpdSub)    elWpdSub.textContent     = `${w.ref} · ${w.type} · ${audit.name}`;
 
   // ── Audit information strip (compact) ──
-  document.getElementById('wpd-audit-name').textContent      = audit.name;
-  document.getElementById('wpd-audit-desc-short').textContent = audit.desc;
-  document.getElementById('wpd-audit-desc').textContent      = audit.desc;
-  document.getElementById('wpd-audit-owner').textContent     = audit.owner;
-  document.getElementById('wpd-audit-type').textContent      = audit.type;
-  document.getElementById('wpd-audit-status').textContent    = audit.status;
+  const elAuditName      = document.getElementById('wpd-audit-name');
+  const elAuditDescShort = document.getElementById('wpd-audit-desc-short');
+  const elAuditDesc      = document.getElementById('wpd-audit-desc');
+  const elAuditManager   = document.getElementById('wpd-audit-manager');
+  const elAuditType      = document.getElementById('wpd-audit-type');
+  const elAuditStatus    = document.getElementById('wpd-audit-status');
+  if (elAuditName)      elAuditName.textContent      = audit.name;
+  if (elAuditDescShort) elAuditDescShort.textContent = audit.desc;
+  if (elAuditDesc)      elAuditDesc.textContent      = audit.desc;
+  if (elAuditManager)   elAuditManager.textContent   = audit.owner;
+  if (elAuditType)      elAuditType.textContent      = audit.type;
+  if (elAuditStatus)    elAuditStatus.textContent    = audit.status;
   const prepSel = document.getElementById('wpd-preparer');
   const revSel  = document.getElementById('wpd-reviewer');
   if (prepSel) prepSel.value = w.preparer;
@@ -2888,6 +2980,12 @@ function openWP(i) {
     setTimeout(() => { autoResizeTA(narTA); updateCharCount(); }, 50);
   }
 
+  // ── Workpaper scope entities ──
+  if (!wpScopeEntities[w.ref]) {
+    wpScopeEntities[w.ref] = new Set(w.scopeEntities || []);
+  }
+  renderWPScopeEntities(w.ref);
+
   // ── Assessment Entities (stored as comma-separated text for tooltip) ──
   const entitiesEl = document.getElementById('wpd-entities');
   if (entitiesEl && w.entities) {
@@ -2913,15 +3011,19 @@ function openWP(i) {
   rcDialogSelected = new Set(w.fsAccounts || []);
   renderLinkedFSAccounts();
 
-  // ── Show/hide sections based on workpaper type ──
-  // Planning and Report types don't show Risks & Controls or Process/Control Narrative
-  const hideRCNarrative = (w.type === 'Planning' || w.type === 'Report');
-  const rcSect   = document.getElementById('sect-risks-controls');
-  const narSect  = document.getElementById('sect-narrative');
-  const attrSect = document.getElementById('sect-test-attributes');
-  if (rcSect)   rcSect.style.display   = hideRCNarrative ? 'none' : '';
-  if (narSect)  narSect.style.display  = hideRCNarrative ? 'none' : '';
-  if (attrSect) attrSect.style.display = hideRCNarrative ? 'none' : '';
+  // ── Show/hide sections based on workpaper style ──────────────────────
+  // Full workpaper (Testwork, Report, Memo): show all sections
+  // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
+  const fullTypes   = ['Testwork', 'Report'];
+  const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
+  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-files','sect-analyze'];
+  sectIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isFull ? '' : 'none';
+  });
+  // Attached workpaper files always visible (both full and skinny)
+  const wpFilesEl = document.getElementById('sect-wp-files');
+  if (wpFilesEl) wpFilesEl.style.display = '';
 
   // Tag view — segment 3 of reference, or derive from title
   const tagView = document.getElementById('wpd-tag-view');
@@ -2940,8 +3042,14 @@ function openWP(i) {
   // Start locked — user must press Edit to make changes
   setWPInfoLocked(true);
 
+  // Render population reference file selections
+  setTimeout(() => renderPopRefFiles(w.ref), 30);
+
   // Load workpaper review sign-off log
   setTimeout(() => loadWPReviewLog(w.ref), 30);
+
+  // Update prev/next arrow button states
+  setTimeout(updateWPNavArrows, 30);
 
   showPage('wpdetail');
 
@@ -2949,12 +3057,72 @@ function openWP(i) {
   setTimeout(autoResizeAllTAs, 50);
 }
 
+/* ══════════════════════════════════════
+   NAVIGATION HISTORY — Back button
+══════════════════════════════════════ */
+const _navHistory = [];
+
+function pushNav(page) {
+  _navHistory.push(page);
+  if (_navHistory.length > 20) _navHistory.shift();
+}
+
+function goBack() {
+  // Pop current page, then go to the previous one
+  _navHistory.pop(); // remove current
+  const prev = _navHistory.pop(); // get previous
+  if (prev) {
+    showPage(prev);
+  } else {
+    showPage('workpapers'); // default fallback
+  }
+}
+
+function updateWPNavArrows() {
+  const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit?.name);
+  const idx      = auditWPs.findIndex(w => w === WORKPAPERS[currentWPIndex]);
+  const prevBtn  = document.getElementById('wp-nav-prev');
+  const nextBtn  = document.getElementById('wp-nav-next');
+  if (!prevBtn || !nextBtn) return;
+
+  const isFirst = idx <= 0;
+  const isLast  = idx >= auditWPs.length - 1 || idx === -1;
+
+  [[prevBtn, isFirst], [nextBtn, isLast]].forEach(([btn, disabled]) => {
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.35' : '1';
+    btn.style.cursor  = disabled ? 'not-allowed' : 'pointer';
+    btn.style.color   = disabled ? 'var(--text-tertiary)' : 'var(--text-secondary)';
+  });
+}
+
+function navigateWP(direction) {
+  const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit?.name);
+  const curIdx   = auditWPs.findIndex(w => w === WORKPAPERS[currentWPIndex]);
+  const nextIdx  = curIdx + direction;
+  if (nextIdx < 0 || nextIdx >= auditWPs.length) return;
+
+  saveCurrentPage(); // persist all data first
+  const targetWP = auditWPs[nextIdx];
+  const globalIdx = WORKPAPERS.indexOf(targetWP);
+  if (globalIdx === -1) return;
+
+  // Update dropdown to reflect new WP
+  const selWpRef = document.getElementById('sel-wp-ref');
+  if (selWpRef) selWpRef.value = targetWP.ref;
+
+  openWP(globalIdx);
+}
+
 function showPage(name) {
-  saveCurrentPage(); // persist all editable fields before navigating away
+  saveCurrentPage();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
   if (pg) pg.classList.add('active');
+  pushNav(name);
+  // Gray out WP nav controls on non-workpaper-detail pages
+  setWPNavEnabled(name === 'wpdetail');
   document.querySelectorAll('.wf-nav-item').forEach(n => {
     n.classList.toggle('active', n.textContent.trim() === 'Audits');
   });
@@ -2975,37 +3143,78 @@ let currentWPIndex = -1;
 // Per-workpaper sign-off log: { ref: [ {reviewer, ts} ] }
 const wpReviewLog = {};
 
+const _demoReviewers = ['jdavis', 'mchen', 'rpatel', 'ltorres', 'skim', 'awong'];
+let   _demoReviewerIdx = 0;
+
+function updateWPDateReviewed(ref) {
+  const el  = document.getElementById('wpd-date-reviewed');
+  const log = wpReviewLog[ref] || [];
+  const w   = WORKPAPERS[currentWPIndex];
+
+  let displayDate = '';
+  if (log.length) {
+    // ts format: "Jun 3, 2026 2:47 PM" — extract date part only
+    displayDate = log[0].ts.split(' ').slice(0, 3).join(' ').replace(/,$/, '');
+    // Normalise: "Jun 3 2026" → "Jun 3, 2026"
+    if (!displayDate.includes(',')) {
+      const parts = displayDate.split(' ');
+      if (parts.length === 3) displayDate = `${parts[0]} ${parts[1]}, ${parts[2]}`;
+    }
+  }
+
+  // Update the Date Reviewed display on the workpaper detail page
+  if (el) {
+    el.textContent   = displayDate || '—';
+    el.style.color      = displayDate ? 'var(--text-primary)' : 'var(--text-tertiary)';
+    el.style.fontStyle  = displayDate ? 'normal' : 'italic';
+  }
+
+  // Persist to the workpaper data object so the list page can read it
+  if (w) w.reviewDate = displayDate;
+
+  // Refresh the workpaper list row if it's currently rendered
+  const row = document.querySelector(`#wp-tbody tr[data-ref="${ref}"]`);
+  if (row) {
+    const reviewDateCell = row.querySelector('.wp-review-date-cell');
+    if (reviewDateCell) reviewDateCell.textContent = displayDate || '—';
+  }
+}
+
 function addWPReview() {
   const ref = getWPRef();
   if (!ref) return;
   const now  = new Date();
   const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  const reviewer = WORKPAPERS[currentWPIndex]?.reviewer || 'jdavis';
+
+  // Cycle through demo reviewers on each press
+  const reviewer = _demoReviewers[_demoReviewerIdx % _demoReviewers.length];
+  _demoReviewerIdx++;
+
   if (!wpReviewLog[ref]) wpReviewLog[ref] = [];
+  // Always add a new row (no de-duplication by username)
+  wpReviewLog[ref].unshift({ reviewer, ts: `${date} ${time}` });
 
-  // If this reviewer already has a row, update the timestamp instead of adding a new row
-  const existing = wpReviewLog[ref].find(e => e.reviewer === reviewer);
-  const wpName   = WORKPAPERS[currentWPIndex]?.name || ref;
-
-  if (existing) {
-    const oldTs = existing.ts;
-    existing.ts = `${date} ${time}`;
-    logChange(ref, 'Review sign-off', `REVIEWED - ${wpName} · ${reviewer} ${oldTs}`, `REVIEWED - ${wpName} · ${reviewer} ${date} ${time}`);
-  } else {
-    wpReviewLog[ref].unshift({ reviewer, ts: `${date} ${time}` });
-    logEvent(ref, `REVIEWED - <strong>${wpName}</strong> · ${reviewer} ${date} ${time}`);
-  }
+  const wpName = WORKPAPERS[currentWPIndex]?.name || ref;
+  logEvent(ref, `REVIEWED - <strong>${wpName}</strong> · ${reviewer} ${date} ${time}`);
 
   renderWPReviewLog(ref);
-
-  // Turn button green
+  updateWPDateReviewed(ref);
   const btn = document.getElementById('wp-review-btn');
   if (btn) {
     btn.innerHTML = '<i class="ti ti-check" style="font-size:12px;margin-right:2px"></i>Reviewed';
-    btn.style.background   = '#dcfce7';
-    btn.style.color        = '#166534';
-    btn.style.borderColor  = '#86efac';
+    btn.style.background  = '#dcfce7';
+    btn.style.color       = '#166534';
+    btn.style.borderColor = '#86efac';
+  }
+
+  // On first press — update the Reviewer dropdown to the first demo user
+  if (wpReviewLog[ref].length === 1) {
+    const revSel = document.getElementById('wpd-reviewer');
+    if (revSel) {
+      const match = Array.from(revSel.options).find(o => o.value === reviewer);
+      if (match) revSel.value = match.value;
+    }
   }
 }
 
@@ -3056,11 +3265,93 @@ function clearWPReviewEntry(idx) {
   }
   renderWPReviewLog(ref);
   resetWPReviewBtn();
+  updateWPDateReviewed(ref);
 }
 
 function loadWPReviewLog(ref) {
   renderWPReviewLog(ref);
   resetWPReviewBtn();
+  updateWPDateReviewed(ref);
+}
+
+/* ══════════════════════════════════════
+   POPULATION REFERENCE FILE PICKER
+══════════════════════════════════════ */
+const wpPopRefFiles = {}; // { ref: Set of file names }
+
+function openPopRefDialog() {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpPopRefFiles[ref]) wpPopRefFiles[ref] = new Set();
+
+  // Gather ALL workpaper files: static demo files + in-memory uploads
+  const staticFiles = WORKPAPERS[currentWPIndex]?.files || [];
+  const memFiles    = inMemoryFiles[ref]?.workpaper || [];
+  const allNames    = [
+    ...staticFiles.map(f => f.name),
+    ...memFiles.map(f => f.name)
+  ];
+
+  const listEl = document.getElementById('pop-ref-list');
+  if (!allNames.length) {
+    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No attached workpaper files found. Upload files first.</div>`;
+  } else {
+    const cur = wpPopRefFiles[ref];
+    listEl.innerHTML = allNames.map(name => {
+      const checked = cur.has(name);
+      const safe = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const ext = name.split('.').pop().toUpperCase();
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-bottom:0.5px solid var(--border-light);transition:background 0.1s"
+        onclick="togglePopRef('${safe}',this)">
+        <div style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked ? 'var(--wf-navy)' : 'var(--border-medium)'};
+             background:${checked ? 'var(--wf-navy)' : '#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.1s" id="prf-cb-${CSS.escape(name)}">
+          ${checked ? '<i class="ti ti-check" style="font-size:11px;color:#fff"></i>' : ''}
+        </div>
+        <span style="font-size:11px;font-weight:600;color:var(--text-tertiary);min-width:36px">${ext}</span>
+        <span style="font-size:13px;color:var(--text-primary)">${name}</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('pop-ref-overlay').style.display = 'flex';
+}
+
+function togglePopRef(name, rowEl) {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpPopRefFiles[ref]) wpPopRefFiles[ref] = new Set();
+  const sel = wpPopRefFiles[ref];
+  const cbEl = document.getElementById('prf-cb-' + CSS.escape(name));
+  if (sel.has(name)) {
+    sel.delete(name);
+    if (cbEl) { cbEl.style.background = '#fff'; cbEl.style.borderColor = 'var(--border-medium)'; cbEl.innerHTML = ''; }
+  } else {
+    sel.add(name);
+    if (cbEl) { cbEl.style.background = 'var(--wf-navy)'; cbEl.style.borderColor = 'var(--wf-navy)'; cbEl.innerHTML = '<i class="ti ti-check" style="font-size:11px;color:#fff"></i>'; }
+  }
+}
+
+function applyPopRefSelection() {
+  const ref = getWPRef();
+  if (!ref) return;
+  renderPopRefFiles(ref);
+  document.getElementById('pop-ref-overlay').style.display = 'none';
+}
+
+function closePopRefDialog() {
+  document.getElementById('pop-ref-overlay').style.display = 'none';
+}
+
+function renderPopRefFiles(ref) {
+  const container = document.getElementById('wpd-pop-ref-files');
+  if (!container) return;
+  const sel = wpPopRefFiles[ref] || new Set();
+  if (!sel.size) { container.innerHTML = ''; return; }
+  container.innerHTML = [...sel].map(name =>
+    `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-primary)">
+      <i class="ti ti-file" style="font-size:12px;color:var(--wf-navy);flex-shrink:0"></i>
+      <span>${name}</span>
+    </div>`
+  ).join('');
 }
 
 /* ══════════════════════════════════════
@@ -3140,7 +3431,7 @@ function exportHistoryCSV() {
 function openHistory() {
   const ref = WORKPAPERS[currentWPIndex]?.ref;
   const wp  = WORKPAPERS[currentWPIndex];
-  document.getElementById('history-subtitle').textContent =
+  const _hs = document.getElementById('history-subtitle'); if(_hs) _hs.textContent =
     ref ? `${ref} · ${wp?.name || ''}` : 'No workpaper open';
   renderHistoryTable(ref);
   document.getElementById('history-overlay').style.display = 'flex';
@@ -3356,9 +3647,9 @@ const RISKS = {
 function showRiskTooltip(e, riskId) {
   const risk = RISKS[riskId];
   if (!risk) return;
-  document.getElementById('rtt-id').textContent    = risk.id;
-  document.getElementById('rtt-title').textContent = risk.title;
-  document.getElementById('rtt-desc').textContent  = risk.description;
+  (document.getElementById('rtt-id')||{}).textContent = risk.id;
+  (document.getElementById('rtt-title')||{}).textContent = risk.title;
+  (document.getElementById('rtt-desc')||{}).textContent = risk.description;
   positionRiskTooltip(e);
   document.getElementById('risk-tooltip').classList.add('visible');
 }
@@ -3469,11 +3760,11 @@ const CONTROLS = {
 function showCtrlTooltip(e, ctrlId) {
   const ctrl = CONTROLS[ctrlId];
   if (!ctrl) return;
-  document.getElementById('tt-id').textContent         = ctrl.id;
-  document.getElementById('tt-title').textContent      = ctrl.title;
-  document.getElementById('tt-desc').textContent       = ctrl.description;
-  document.getElementById('tt-ctrl-owner').textContent = ctrl.ctrlOwner;
-  document.getElementById('tt-proc-owner').textContent = ctrl.procOwner;
+  (document.getElementById('tt-id')||{}).textContent = ctrl.id;
+  (document.getElementById('tt-title')||{}).textContent = ctrl.title;
+  (document.getElementById('tt-desc')||{}).textContent = ctrl.description;
+  (document.getElementById('tt-ctrl-owner')||{}).textContent = ctrl.ctrlOwner;
+  (document.getElementById('tt-proc-owner')||{}).textContent = ctrl.procOwner;
   positionTooltip(e);
   document.getElementById('ctrl-tooltip').classList.add('visible');
 }
@@ -3501,12 +3792,12 @@ function positionTooltip(e) {
 ══════════════════════════════════════ */
 function showAuditInfoTooltip(e) {
   const audit = currentAudit;
-  document.getElementById('ait-name').textContent     = document.getElementById('wpd-audit-name').textContent;
-  document.getElementById('ait-desc').textContent     = document.getElementById('wpd-audit-desc').textContent;
-  document.getElementById('ait-owner').textContent    = document.getElementById('wpd-audit-owner').textContent;
-  document.getElementById('ait-biz-owner').textContent = document.getElementById('wpd-business-owner').textContent.trim();
-  document.getElementById('ait-type').textContent     = document.getElementById('wpd-audit-type').textContent;
-  document.getElementById('ait-status').textContent   = statusLabel[audit ? audit.status : 'active'] || 'Active';
+  (document.getElementById('ait-name')||{}).textContent = document.getElementById('wpd-audit-name').textContent;
+  (document.getElementById('ait-desc')||{}).textContent = document.getElementById('wpd-audit-desc').textContent;
+  (document.getElementById('ait-owner')||{}).textContent = document.getElementById('wpd-audit-manager').textContent;
+  (document.getElementById('ait-biz-owner')||{}).textContent = document.getElementById('wpd-business-owner').textContent.trim();
+  (document.getElementById('ait-type')||{}).textContent = document.getElementById('wpd-audit-type').textContent;
+  (document.getElementById('ait-status')||{}).textContent = statusLabel[audit ? audit.status : 'active'] || 'Active';
   // Entities
   const entRaw = document.getElementById('wpd-entities').textContent.trim();
   const entArr = entRaw ? entRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -3536,19 +3827,201 @@ function positionAuditTooltip(e) {
 /* ══════════════════════════════════════
    NEW WORKPAPER — open, ref builder, submit
 ══════════════════════════════════════ */
+/* ══════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════ */
+function openDashboard() {
+  const audit  = currentAudit;
+  const wpList = WORKPAPERS.filter(w => w.auditName === audit?.name);
+
+  // ── Status counts ──
+  const statusLabels = { draft:'Draft', review:'In Review', approved:'Approved', complete:'Complete' };
+  const statusCounts = {};
+  wpList.forEach(w => {
+    const s = w.status || 'draft';
+    statusCounts[s] = (statusCounts[s] || 0) + 1;
+  });
+
+  // ── By preparer ──
+  const prepCounts = {};
+  wpList.forEach(w => { const p = w.preparer || '—'; prepCounts[p] = (prepCounts[p] || 0) + 1; });
+
+  // ── By reviewer ──
+  const revCounts = {};
+  wpList.forEach(w => { const r = w.reviewer || '—'; revCounts[r] = (revCounts[r] || 0) + 1; });
+
+  // ── Missing data checks ──
+  const CHECKS = [
+    { id:'pop',      label:'Population definition is blank',             fn: w => !w.population || !w.population.trim() },
+    { id:'sm',       label:'Sample method is blank',                     fn: w => !w.sampleMethod || !w.sampleMethod.trim() },
+    { id:'ss',       label:'Sample size is blank',                       fn: w => !w.sampleSize && w.sampleSize !== 0 },
+    { id:'ent',      label:'No assessment entities selected',            fn: w => !(wpScopeEntities[w.ref]?.size) },
+    { id:'rc',       label:'No risks & controls linked',                 fn: w => !(w.fsAccounts?.length) },
+    { id:'fs',       label:'No financial statement accounts selected',   fn: w => !(wpFsAccounts[w.ref]?.length) },
+    { id:'nar',      label:'Process/control narrative is blank',         fn: w => !w.narrative || w.narrative === '—' || !w.narrative.trim() },
+    { id:'attr',     label:'No test attributes listed',                  fn: w => !(wpTestAttributes[w.ref]?.filter(a=>a.title).length) },
+    { id:'wpfiles',  label:'No attached workpaper files uploaded',       fn: w => !(inMemoryFiles[w.ref]?.workpaper?.length) && !(w.files?.length) },
+    { id:'sffiles',  label:'No attached sample files uploaded',          fn: w => !(inMemoryFiles[w.ref]?.sample?.length) && !(w.sampleFiles?.length) },
+  ];
+
+  // Only check full workpapers for scope/testing checks
+  const fullTypes = ['Testwork', 'Report'];
+  function isFullWP(w) { return fullTypes.includes(w.type) || w.wpStyle === 'full'; }
+
+  // Build missing data table rows — one row per workpaper showing which checks fail
+  const missingRows = wpList.map(w => {
+    const isFull = isFullWP(w);
+    const failing = CHECKS.filter(c => {
+      // Skip full-WP-only checks for skinny WPs
+      const fullOnlyChecks = ['pop','sm','ss','ent','rc','fs','nar','attr','wpfiles','sffiles'];
+      if (!isFull && ['ent','rc','fs','nar','attr','sffiles'].includes(c.id)) return false;
+      return c.fn(w);
+    });
+    if (!failing.length) return null;
+    return { wp: w, failing };
+  }).filter(Boolean);
+
+  // ── Build HTML ──
+  const now = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+
+  const statusColors = { draft:'#64748b', review:'#2563eb', approved:'#16a34a', complete:'#7c3aed' };
+  const statusBar = Object.entries(statusCounts).map(([s, n]) =>
+    `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid #e2e8f0">
+      <span style="width:10px;height:10px;border-radius:50%;background:${statusColors[s]||'#94a3b8'};flex-shrink:0"></span>
+      <span style="flex:1;font-size:14px;color:#1e293b">${statusLabels[s] || s}</span>
+      <span style="font-size:22px;font-weight:700;color:${statusColors[s]||'#94a3b8'}">${n}</span>
+    </div>`
+  ).join('');
+
+  const preparerBar = Object.entries(prepCounts).sort((a,b)=>b[1]-a[1]).map(([p, n]) =>
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="width:90px;font-size:12px;color:#64748b;text-align:right;flex-shrink:0">${p}</span>
+      <div style="flex:1;background:#e2e8f0;border-radius:99px;height:18px;overflow:hidden">
+        <div style="width:${Math.round((n/wpList.length)*100)}%;background:#39618b;height:100%;border-radius:99px;display:flex;align-items:center;padding-left:8px">
+          <span style="font-size:11px;font-weight:600;color:#fff">${n}</span>
+        </div>
+      </div>
+    </div>`
+  ).join('');
+
+  const reviewerBar = Object.entries(revCounts).sort((a,b)=>b[1]-a[1]).map(([r, n]) =>
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="width:90px;font-size:12px;color:#64748b;text-align:right;flex-shrink:0">${r}</span>
+      <div style="flex:1;background:#e2e8f0;border-radius:99px;height:18px;overflow:hidden">
+        <div style="width:${Math.round((n/wpList.length)*100)}%;background:#7c3aed;height:100%;border-radius:99px;display:flex;align-items:center;padding-left:8px">
+          <span style="font-size:11px;font-weight:600;color:#fff">${n}</span>
+        </div>
+      </div>
+    </div>`
+  ).join('');
+
+  // Missing data filter checkboxes + table
+  const checkboxes = CHECKS.map(c =>
+    `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;padding:4px 0">
+      <input type="checkbox" value="${c.id}" onchange="(function(){const ck=Array.from(document.querySelectorAll('#filter-checks input:checked')).map(c=>c.value);let v=0;document.querySelectorAll('.missing-row').forEach(r=>{const rc=(r.dataset.checks||'').split(',');const s=ck.some(c=>rc.includes(c));r.style.display=s?'':'none';if(s)v++;});document.getElementById('missing-count').textContent=v+' workpaper'+(v!==1?'s':'')+' with missing data';})()"  checked
+        style="width:14px;height:14px;accent-color:#39618b;cursor:pointer">
+      ${c.label}
+    </label>`
+  ).join('');
+
+  const tableRows = missingRows.map(({ wp, failing }) =>
+    `<tr class="missing-row" data-checks="${failing.map(f=>f.id).join(',')}">
+      <td style="padding:8px 12px;font-size:13px;color:#1e293b;font-weight:500">${wp.ref}</td>
+      <td style="padding:8px 12px;font-size:13px;color:#475569">${wp.name}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#64748b">${wp.type}</td>
+      <td style="padding:8px 12px">
+        ${failing.map(f => `<span style="display:inline-block;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:2px 7px;font-size:11px;margin:2px 2px 2px 0">${f.label}</span>`).join('')}
+      </td>
+    </tr>`
+  ).join('') || `<tr><td colspan="4" style="padding:24px;text-align:center;color:#94a3b8;font-style:italic">All workpapers have complete data for the selected checks ✓</td></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard — ${audit?.name || 'Audit'}</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f1f5f9; color:#1e293b; min-height:100vh; }
+  .topbar { background:#39618b; color:#fff; padding:14px 28px; display:flex; align-items:center; justify-content:space-between; }
+  .topbar h1 { font-size:18px; font-weight:700; }
+  .topbar .sub { font-size:12px; opacity:0.7; margin-top:2px; }
+  .grid { display:grid; grid-template-columns:280px 1fr 1fr; gap:18px; padding:24px 28px; }
+  .card { background:#fff; border-radius:10px; border:0.5px solid #e2e8f0; padding:20px; }
+  .card h2 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; margin-bottom:14px; }
+  .full-width { grid-column:1/-1; }
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:#f8fafc; border-bottom:0.5px solid #e2e8f0; }
+  th { padding:9px 12px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; }
+  tbody tr { border-bottom:0.5px solid #f1f5f9; }
+  tbody tr:hover { background:#f8fafc; }
+  .filters { display:flex; flex-wrap:wrap; gap:6px 20px; margin-bottom:14px; }
+  .badge-count { font-size:12px; color:#64748b; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div>
+    <h1>Audit Dashboard — ${audit?.name || ''}</h1>
+    <div class="sub">Generated ${now} · ${wpList.length} workpapers</div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h2>By Review Status</h2>
+    ${statusBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No workpapers</p>'}
+  </div>
+  <div class="card">
+    <h2>By Preparer</h2>
+    ${preparerBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No data</p>'}
+  </div>
+  <div class="card">
+    <h2>By Reviewer</h2>
+    ${reviewerBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No data</p>'}
+  </div>
+  <div class="card full-width">
+    <h2>Workpapers with Missing Data</h2>
+    <div class="filters" id="filter-checks">${checkboxes}</div>
+    <p class="badge-count" id="missing-count">${missingRows.length} workpaper${missingRows.length !== 1 ? 's' : ''} with missing data</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:160px">Reference</th>
+          <th>Workpaper</th>
+          <th style="width:100px">Type</th>
+          <th>Missing items</th>
+        </tr>
+      </thead>
+      <tbody id="missing-tbody">${tableRows}</tbody>
+    </table>
+  </div>
+</div>
+<\/html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 function openNewWorkpaper() {
   const audit = currentAudit;
 
   // Populate audit info strip on the new-wp page
-  document.getElementById('nwp-bc-audit').textContent   = audit.name;
-  document.getElementById('nwp-audit-name').textContent = audit.name;
-  document.getElementById('nwp-audit-desc').textContent = audit.desc;
+  const nwpBcAudit   = document.getElementById('nwp-bc-audit');
+  const nwpAuditName = document.getElementById('nwp-audit-name');
+  const nwpAuditDesc = document.getElementById('nwp-audit-desc');
+  const nwpSegYear   = document.getElementById('nwp-seg-year');
+  if (nwpBcAudit)   nwpBcAudit.textContent   = audit.name;
+  if (nwpAuditName) nwpAuditName.textContent  = audit.name;
+  if (nwpAuditDesc) nwpAuditDesc.textContent  = audit.desc;
   const auditSubEl = document.getElementById('nwp-audit-sub');
   if (auditSubEl) auditSubEl.textContent = audit.name;
 
   // Segment 2 — year derived from audit period
   const year = (audit.period.match(/\b(20\d{2})\b/) || [])[1] || new Date().getFullYear();
-  document.getElementById('nwp-seg-year').textContent = year;
+  if (nwpSegYear) nwpSegYear.textContent = year;
 
   // Segment 3 — clear and reset user-edited flag
   const seg3El = document.getElementById('nwp-seg3');
@@ -3563,21 +4036,21 @@ function openNewWorkpaper() {
     if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
   });
   const defaultSeq = maxSeq + 10;
-  document.getElementById('nwp-seg4').value = String(defaultSeq).padStart(4, '0');
+  const nwpSeg4 = document.getElementById('nwp-seg4'); if(nwpSeg4) nwpSeg4.value = String(defaultSeq).padStart(4, '0');
 
   // Clear all blank fields
-  document.getElementById('nwp-name').value           = '';
+  const nwpNameEl = document.getElementById('nwp-name'); if(nwpNameEl) nwpNameEl.value = '';
   const nwpDesc = document.getElementById('nwp-description');
   if (nwpDesc) { nwpDesc.value = ''; autoResizeTA(nwpDesc); }
   const nwpDc = document.getElementById('nwp-desc-count');
   if (nwpDc) nwpDc.textContent = '0 / 2,500';
-  document.getElementById('nwp-type').value           = '';
-  document.getElementById('nwp-status').value         = 'draft';
-  document.getElementById('nwp-population').value     = '';
-  document.getElementById('nwp-sample-method').value  = '';
-  document.getElementById('nwp-sample-size').value    = '';
-  document.getElementById('nwp-narrative').value      = '';
-  document.getElementById('nwp-char-count').textContent = '0 / 2,000';
+  const nwpTypeEl = document.getElementById('nwp-type'); if(nwpTypeEl) nwpTypeEl.value = '';
+  const nwpStatEl = document.getElementById('nwp-status'); if(nwpStatEl) nwpStatEl.value = 'draft';
+  const nwpPop = document.getElementById('nwp-population'); if(nwpPop) nwpPop.value = '';
+  const nwpSm = document.getElementById('nwp-sample-method'); if(nwpSm) nwpSm.value = '';
+  const nwpSs = document.getElementById('nwp-sample-size'); if(nwpSs) nwpSs.value = '';
+  const nwpNar = document.getElementById('nwp-narrative'); if(nwpNar) nwpNar.value = '';
+  const nwpCc = document.getElementById('nwp-char-count'); if(nwpCc) nwpCc.textContent = '0 / 2,000';
 
   // Set today's date for date started
   const today = new Date().toISOString().split('T')[0];
@@ -3585,18 +4058,19 @@ function openNewWorkpaper() {
   const nwpRd = document.getElementById('nwp-review-date'); if(nwpRd) nwpRd.value = '';
 
   // Hide inline ref error
-  document.getElementById('nwp-ref-error').style.display = 'none';
+  const nwpErr = document.getElementById('nwp-ref-error'); if(nwpErr) nwpErr.style.display = 'none';
 
   updateRefPreview();
   showPage('newwp');
 }
 
 function getBuiltRef() {
-  const year = document.getElementById('nwp-seg-year').textContent.trim();
+  const yearEl = document.getElementById('nwp-seg-year'); const year = yearEl ? yearEl.textContent.trim() : new Date().getFullYear().toString();
   const seg3El  = document.getElementById('nwp-seg3');
   const seg3raw = (seg3El?.value || '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
   const seg3    = seg3raw || null; // null = not entered yet
-  const seg4raw = document.getElementById('nwp-seg4').value;
+  const seg4El  = document.getElementById('nwp-seg4');
+  const seg4raw = seg4El?.value || '';
   const seg4    = seg4raw ? String(parseInt(seg4raw, 10)).padStart(4, '0') : '——';
   const seg3display = seg3 ? seg3 : '<span style="opacity:0.3">____</span>';
   return `WP-${year}-${seg3display}-${seg4}`;
@@ -3640,10 +4114,12 @@ function nwpTagInput() {
 }
 
 function getPlainRef() {
-  const year    = document.getElementById('nwp-seg-year').textContent.trim();
+  const yearEl  = document.getElementById('nwp-seg-year');
+  const year    = yearEl ? yearEl.textContent.trim() : new Date().getFullYear().toString();
   const seg3El  = document.getElementById('nwp-seg3');
   const seg3    = (seg3El?.value || '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4) || getNwpTag();
-  const seg4raw = document.getElementById('nwp-seg4').value;
+  const seg4El  = document.getElementById('nwp-seg4');
+  const seg4raw = seg4El?.value || '';
   const seg4    = seg4raw ? String(parseInt(seg4raw, 10)).padStart(3, '0') : '000';
   return `WP-${year}-${seg3}-${seg4}`;
 }
@@ -3670,23 +4146,30 @@ function updateRefPreview() {
     seg3Display.textContent = tag || '——';
     seg3Display.style.color = tag ? 'var(--wf-blue)' : 'var(--text-tertiary)';
   }
+
+  const previewEl = document.getElementById('nwp-ref-preview');
+  if (!previewEl) return; // page not loaded yet
+
   const ref = getBuiltRef();
-  document.getElementById('nwp-ref-preview').innerHTML = ref;
+  previewEl.innerHTML = ref;
 
   // Show inline error only if ref looks complete and is a duplicate
-  const seg3 = document.getElementById('nwp-seg3').value.trim();
-  const seg4 = document.getElementById('nwp-seg4').value;
-  const complete = seg3.length > 0 && seg4 && parseInt(seg4, 10) > 0;
-  const errEl = document.getElementById('nwp-ref-error');
-  if (complete && isRefDuplicate(ref)) {
-    errEl.style.display = 'inline-flex';
-    document.getElementById('nwp-ref-preview').style.color = 'var(--red-700)';
-  } else {
-    errEl.style.display = 'none';
-    document.getElementById('nwp-ref-preview').style.color = 'var(--wf-navy)';
+  const seg3v   = seg3El?.value.trim() || '';
+  const seg4El  = document.getElementById('nwp-seg4');
+  const seg4v   = seg4El?.value || '';
+  const complete = seg3v.length > 0 && seg4v && parseInt(seg4v, 10) > 0;
+  const errEl   = document.getElementById('nwp-ref-error');
+  if (errEl) {
+    if (complete && isRefDuplicate(ref.replace(/<[^>]+>/g, ''))) {
+      errEl.style.display = 'inline-flex';
+      previewEl.style.color = 'var(--red-700)';
+    } else {
+      errEl.style.display = 'none';
+      previewEl.style.color = 'var(--wf-navy)';
+    }
   }
 
-  // Update narrative char count while we're here
+  // Update narrative char count if present
   const narEl = document.getElementById('nwp-narrative');
   const ccEl  = document.getElementById('nwp-char-count');
   if (narEl && ccEl) ccEl.textContent = `${narEl.value.length} / 2,000`;
@@ -3694,9 +4177,9 @@ function updateRefPreview() {
 
 function submitNewWorkpaper() {
   const ref   = getPlainRef();
-  const name  = document.getElementById('nwp-name').value.trim();
-  const type  = document.getElementById('nwp-type').value;
-  const seg4v = document.getElementById('nwp-seg4').value;
+  const name  = document.getElementById('nwp-name')?.value.trim();
+  const type  = document.getElementById('nwp-type')?.value || 'Testwork';
+  const seg4v = document.getElementById('nwp-seg4')?.value || '0';
 
   // Validate seg3 — derive from title if blank
   const seg3El = document.getElementById('nwp-seg3');
@@ -3732,22 +4215,27 @@ function submitNewWorkpaper() {
   }
   if (nameBubble) nameBubble.style.display = 'none';
 
+  // Determine workpaper style: Full (Testwork, Report) vs Skinny (Admin, Other, Planning)
+  const fullTypes = ['Testwork', 'Report'];
+  const wpStyle   = fullTypes.includes(type || 'Testwork') ? 'full' : 'skinny';
+
   // Build the new workpaper object and push to WORKPAPERS
   const newWP = {
     auditName:    currentAudit.name,
     ref:          ref,
     name:         name,
     type:         type || 'Testwork',
-    preparer:     document.getElementById('nwp-preparer').value,
-    reviewer:     document.getElementById('nwp-reviewer').value,
+    wpStyle:      wpStyle,
+    preparer:     document.getElementById('nwp-preparer')?.value || '',
+    reviewer:     document.getElementById('nwp-reviewer')?.value || '',
     description:  document.getElementById('nwp-description')?.value || '',
     dateStarted:  document.getElementById('nwp-date-started')?.value || '',
     reviewDate:   document.getElementById('nwp-review-date')?.value || '',
-    status:       document.getElementById('nwp-status').value,
-    sampleSize:   parseInt(document.getElementById('nwp-sample-size').value) || null,
-    sampleMethod: document.getElementById('nwp-sample-method').value || 'N/A',
-    population:   document.getElementById('nwp-population').value || '—',
-    narrative:    document.getElementById('nwp-narrative').value || '—',
+    status:       document.getElementById('nwp-status')?.value || 'draft',
+    sampleSize:   parseInt(document.getElementById('nwp-sample-size')?.value || '0') || null,
+    sampleMethod: document.getElementById('nwp-sample-method')?.value || 'N/A',
+    population:   document.getElementById('nwp-population')?.value || '—',
+    narrative:    document.getElementById('nwp-narrative')?.value || '—',
     risks:        [],
     entities:     Array.from(currentAuditEntities).map(id => ALL_ENTITIES.find(e => e.id === id)?.name).filter(Boolean),
     files:        [],
@@ -3816,12 +4304,101 @@ function currentWPHasInfosecControl() {
   return ctrlIds.some(id => INFOSEC_CONTROLS.has(id));
 }
 
+/* ══════════════════════════════════════
+   WORKPAPER SCOPE — ASSESSMENT ENTITIES
+══════════════════════════════════════ */
+const wpScopeEntities = {}; // { ref: Set of entity ids }
+
+function openWPEntityDialog() {
+  const ref = WORKPAPERS[currentWPIndex]?.ref;
+  if (!ref) return;
+  if (!wpScopeEntities[ref]) wpScopeEntities[ref] = new Set();
+  const overlay = document.getElementById('entity-dialog-overlay');
+  if (!overlay) return;
+  overlay.dataset.mode = 'wp-scope';
+  // Use dialogTempEntities so renderEntityList shows checkmarks correctly
+  dialogTempEntities = new Set(wpScopeEntities[ref]);
+  document.getElementById('entity-search-input').value = '';
+  renderEntityList('');
+  updateEntityCount();
+  overlay.style.display = 'flex';
+  setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
+}
+
+function applyEntitySelectionRouted() {
+  const overlay = document.getElementById('entity-dialog-overlay');
+  if (overlay?.dataset.mode === 'wp-scope') {
+    applyWPEntitySelection();
+  } else {
+    applyEntitySelection();
+  }
+}
+
+function applyWPEntitySelection() {
+  const ref = WORKPAPERS[currentWPIndex]?.ref;
+  const w   = WORKPAPERS[currentWPIndex];
+  if (!ref || !w) return;
+
+  const prevSet = wpScopeEntities[ref] || new Set();
+  const newSet  = new Set(dialogTempEntities);
+
+  // ── Log removals (in prev but not in new) ──
+  prevSet.forEach(id => {
+    if (!newSet.has(id)) {
+      const entity = ALL_ENTITIES.find(e => e.id === id);
+      const name   = entity?.name || id;
+      logChange(ref, 'Assessment entities', `Assessment Entity removed: ${name}`, '');
+    }
+  });
+
+  // ── Log additions (in new but not in prev) ──
+  newSet.forEach(id => {
+    if (!prevSet.has(id)) {
+      const entity = ALL_ENTITIES.find(e => e.id === id);
+      const name   = entity?.name || id;
+      logChange(ref, 'Assessment entities', '', `Assessment Entity added: ${name}`);
+    }
+  });
+
+  wpScopeEntities[ref] = newSet;
+  w.scopeEntities = [...newSet];
+  renderWPScopeEntities(ref);
+
+  // ── Sync new entities up to the associated audit ──
+  newSet.forEach(id => {
+    if (!currentAuditEntities.has(id)) currentAuditEntities.add(id);
+  });
+  renderAuditEntityTags();
+
+  document.getElementById('entity-dialog-overlay').style.display = 'none';
+}
+
+function renderWPScopeEntities(ref) {
+  const container = document.getElementById('wpd-scope-entities');
+  if (!container) return;
+  const sel = wpScopeEntities[ref] || new Set();
+  if (!sel.size) {
+    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked — click Add / edit to link assessment entities to this workpaper.</span>`;
+    return;
+  }
+  const colorMap = { facility: '#16a34a', app: '#ea580c', biomed: '#7c3aed' };
+  container.innerHTML = [...sel].map(id => {
+    const e = ALL_ENTITIES.find(x => x.id === id);
+    if (!e) return '';
+    const color = colorMap[e.type] || '#64748b';
+    return `<span class="entity-tag" style="background:${color}15;color:${color};border-color:${color}40">
+      <i class="ti ti-building" style="font-size:11px"></i>${e.name}
+    </span>`;
+  }).join('');
+}
+
 function openEntityDialog() {
   dialogTempEntities = new Set(currentAuditEntities);
   document.getElementById('entity-search-input').value = '';
   renderEntityList('');
   updateEntityCount();
   const overlay = document.getElementById('entity-dialog-overlay');
+  overlay.dataset.mode = 'audit';
   overlay.style.display = 'flex';
   setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
 }
@@ -3896,7 +4473,7 @@ function toggleEntityItem(id) {
 
 function updateEntityCount() {
   const count = dialogTempEntities.size;
-  document.getElementById('entity-selected-count').textContent =
+  const _esc = document.getElementById('entity-selected-count'); if(_esc) _esc.textContent =
     count === 0 ? 'None selected' : `${count} entity selected`;
 }
 
@@ -3931,8 +4508,153 @@ function removeAuditEntity(id) {
 /* ══════════════════════════════════════
    POPULATE AUDIT INFO CARD when audit opens
 ══════════════════════════════════════ */
+function saveAuditYear(val) {
+  if (!currentAudit) return;
+  const year = parseInt(val);
+  if (year >= 2000 && year <= 2099) currentAudit.year = year;
+}
+
+/* ══════════════════════════════════════
+   AUDIT INFO CARD — EDIT LOCK
+══════════════════════════════════════ */
+const AUDIT_INFO_LOCKED_FIELDS = [
+  'aud-year',
+  'aud-period-from-month','aud-period-from-day','aud-period-from-year',
+  'aud-period-to-month','aud-period-to-day','aud-period-to-year',
+  'aud-owner','aud-biz-owner','aud-type',
+];
+
+function setAuditInfoLocked(locked) {
+  AUDIT_INFO_LOCKED_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled            = locked;
+    el.style.opacity       = locked ? '0.55' : '';
+    el.style.pointerEvents = locked ? 'none' : '';
+    el.style.cursor        = locked ? 'not-allowed' : '';
+  });
+  const btn = document.getElementById('aud-edit-btn');
+  if (btn) {
+    btn.innerHTML = locked
+      ? '<i class="ti ti-edit"></i>Edit'
+      : '<i class="ti ti-check"></i>Ok';
+    btn.style.color = locked ? '' : '#166634';
+  }
+  setAuditPeriodViewMode(locked);
+}
+
+function toggleAuditInfoEdit() {
+  const isLocked = document.getElementById('aud-owner')?.disabled !== false;
+  if (!isLocked) {
+    // Pressing Ok — rebuild period first, then lock
+    rebuildAuditPeriod();
+  }
+  setAuditInfoLocked(!isLocked);
+}
+
+function setAuditPeriodViewMode(locked) {
+  const partIds = [
+    'aud-period-from-month','aud-period-from-day','aud-period-from-year',
+    'aud-period-to-month','aud-period-to-day','aud-period-to-year',
+  ];
+  const separator = document.getElementById('aud-period-separator');
+  const readView  = document.getElementById('aud-period-read');
+  const preview   = document.getElementById('aud-period-preview');
+
+  partIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = locked ? 'none' : '';
+  });
+  if (separator) separator.style.display = locked ? 'none' : '';
+  if (preview)   preview.style.display   = locked ? 'none' : '';
+
+  if (readView) {
+    readView.textContent   = currentAudit?.period || '';
+    readView.style.display = locked ? '' : 'none';
+    readView.style.fontWeight = '400';
+    readView.style.color      = 'var(--text-primary)';
+    readView.style.fontSize   = '13px';
+  }
+}
+
+function rebuildAuditPeriod() {
+  const fromMonth = document.getElementById('aud-period-from-month')?.value || '';
+  const fromDay   = document.getElementById('aud-period-from-day')?.value   || '';
+  const fromYear  = document.getElementById('aud-period-from-year')?.value  || '';
+  const toMonth   = document.getElementById('aud-period-to-month')?.value   || '';
+  const toDay     = document.getElementById('aud-period-to-day')?.value     || '';
+  const toYear    = document.getElementById('aud-period-to-year')?.value    || '';
+
+  const fromParts = [fromMonth, fromDay ? `${fromDay}` : '', fromYear].filter(Boolean).join(' ').trim();
+  const toParts   = [toMonth,   toDay   ? `${toDay}`   : '', toYear  ].filter(Boolean).join(' ').trim();
+
+  let period = '';
+  if (fromParts && toParts) period = `${fromParts} – ${toParts}`;
+  else if (fromParts)       period = fromParts;
+  else if (toParts)         period = toParts;
+
+  const previewEl = document.getElementById('aud-period-preview');
+  if (previewEl) previewEl.textContent = period ? `→ ${period}` : '';
+
+  if (currentAudit && period) {
+    currentAudit.period = period;
+    const subEl = document.getElementById('wp-page-sub');
+    if (subEl) subEl.textContent = `${currentAudit.type} · ${period} · Owner: ${currentAudit.owner}`;
+    const selPeriod = document.getElementById('sel-period');
+    if (selPeriod) selPeriod.textContent = period;
+  }
+}
+
+function saveAuditPeriod(val) {
+  if (!currentAudit) return;
+  const trimmed = val.trim();
+  if (trimmed && trimmed !== currentAudit.period) {
+    currentAudit.period = trimmed;
+    // Update the workpaper page sub-line if visible
+    const subEl = document.getElementById('wp-page-sub');
+    if (subEl) subEl.textContent = `${currentAudit.type} · ${trimmed} · Owner: ${currentAudit.owner}`;
+    // Update the nav period display if it exists
+    const selPeriod = document.getElementById('sel-period');
+    if (selPeriod) selPeriod.textContent = trimmed;
+  }
+}
+
 function populateAuditInfoCard(audit) {
   if (!audit) return;
+  // Sync audit period — parse "Apr – Jun 2026" or "Apr 1 – Jun 30 2026" into parts
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function parsePeriodPart(str) {
+    if (!str) return { month:'', day:'', year:'' };
+    const monthMatch = MONTHS.find(m => str.includes(m));
+    const dayMatch   = str.match(/\b([1-9]|[12]\d|3[01])\b(?!\d{3})/);
+    const yearMatch  = str.match(/\b(20\d{2})\b/);
+    return {
+      month: monthMatch || '',
+      day:   dayMatch   ? dayMatch[1]  : '',
+      year:  yearMatch  ? yearMatch[1] : '',
+    };
+  }
+  const rawPeriod = audit.period || '';
+  const parts = rawPeriod.split(/\s*[–-]\s*/);
+  const from  = parsePeriodPart(parts[0]);
+  const to    = parsePeriodPart(parts[1] || '');
+
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  setVal('aud-period-from-month', from.month);
+  setVal('aud-period-from-day',   from.day);
+  setVal('aud-period-from-year',  from.year);
+  setVal('aud-period-to-month',   to.month);
+  setVal('aud-period-to-day',     to.day);
+  setVal('aud-period-to-year',    to.year);
+  const previewEl = document.getElementById('aud-period-preview');
+  if (previewEl && rawPeriod) previewEl.textContent = `→ ${rawPeriod}`;
+
+  // Sync audit year — derive from period or audit name if not stored
+  const yearInput = document.getElementById('aud-year');
+  if (yearInput) {
+    const year = audit.year || (audit.period?.match(/\b(20\d{2})\b/) || [])[1] || (audit.name?.match(/\b(20\d{2})\b/) || [])[1] || '';
+    yearInput.value = year;
+  }
   // Sync owner dropdown
   const ownerSel = document.getElementById('aud-owner');
   if (ownerSel) {
@@ -3960,6 +4682,8 @@ function populateAuditInfoCard(audit) {
   };
   currentAuditEntities = new Set(entityDefaults[audit.name] || []);
   renderAuditEntityTags();
+  // Lock all fields by default — user must press Edit to modify
+  setTimeout(() => setAuditInfoLocked(true), 10);
 }
 
 /* ══════════════════════════════════════
@@ -3990,8 +4714,8 @@ async function analyzeWithClaude() {
 
   // Open modal
   document.getElementById('analysis-overlay').style.display = 'flex';
-  document.getElementById('analysis-title').textContent = `Analyzing ${totalFiles} sample file${totalFiles !== 1 ? 's' : ''}…`;
-  document.getElementById('analysis-status').textContent = 'Preparing analysis…';
+  const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Analyzing ${totalFiles} sample file${totalFiles !== 1 ? 's' : ''}…`;
+  const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
   document.getElementById('analysis-progress-bar').style.width = '0%';
   document.getElementById('analysis-results-list').innerHTML = '';
   document.getElementById('export-xlsx-btn').style.display = 'none';
@@ -4003,7 +4727,7 @@ async function analyzeWithClaude() {
   // Helper to update progress bar
   function setProgress(pct, statusText) {
     if (pct !== null) document.getElementById('analysis-progress-bar').style.width = pct + '%';
-    document.getElementById('analysis-status').textContent = statusText;
+    const _as2 = document.getElementById('analysis-status'); if(_as2) _as2.textContent = statusText;
   }
 
   // Track failed entries for retry
@@ -4154,7 +4878,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           updateResultRow(row, 'done', null, null);
           // Update export button visibility
           const anyError = analysisResults.some(r => r.results.some(x => x.result === 'error'));
-          if (!anyError) document.getElementById('export-xlsx-btn').textContent = '⬇ Download .xlsx';
+          if (!anyError) (document.getElementById('export-xlsx-btn')||{}).textContent = '⬇ Download .xlsx';
         } else {
           updateResultRow(row, 'error', retry.error, `${retryCallbackName}()`);
         }
@@ -4198,7 +4922,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     : `Analysis complete — ${analysisResults.length} file${analysisResults.length !== 1 ? 's' : ''} evaluated successfully.`
   );
 
-  document.getElementById('analysis-title').textContent = errorCount > 0
+  const _at2 = document.getElementById('analysis-title'); if(_at2) _at2.textContent = errorCount > 0
     ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}`
     : 'Analysis complete';
 
@@ -4252,7 +4976,6 @@ function fileToBase64(file) {
    XLSX EXPORT
 ══════════════════════════════════════ */
 async function exportToXlsx() {
-  // Load SheetJS from CDN if not already loaded
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -4262,61 +4985,127 @@ async function exportToXlsx() {
     });
   }
 
-  const ref = getWPRef();
-  const wp  = WORKPAPERS[currentWPIndex];
+  const ref  = getWPRef();
+  const wp   = WORKPAPERS[currentWPIndex];
+  const now  = new Date();
+  const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
 
-  // ── Build worksheet data ──
-  // Header row: "Sample File" + one column per attribute
-  const headerRow = ['Sample File', ...attributes.map(a => `${a.num ? a.num + '. ' : ''}${a.title}`)];
-  const rows = [headerRow];
+  // ── Tick marks ──
+  const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
+  const TICK_LABEL = { pass: '✓  Pass', pass_exception: '⚠  Pass with Exception', fail: '✗  Fail', error: '–  Error / Not evaluated' };
 
-  // Tick mark symbols
-  const TICK = { pass: '✓ Pass', pass_exception: '⚠ Pass w/ Exception', fail: '✗ Fail', error: '– Error' };
+  // ── Collect all exceptions (pass_exception + fail) for the exceptions list ──
+  // exceptionList: [{num, file, attrTitle, note}]
+  let exNum = 0;
+  // Map: (fileIdx, attrIdx) → exception number string e.g. "E1"
+  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
 
-  for (const fileResult of analysisResults) {
-    const row = [fileResult.fileName];
-    for (const attr of attributes) {
-      // Try exact match first, then partial match (Claude sometimes appends description to title)
+  analysisResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
       if (!match) {
-        const attrLower = attr.title.toLowerCase();
+        const al = attr.title.toLowerCase();
         match = fileResult.results.find(r =>
-          r.title.toLowerCase().startsWith(attrLower) ||
-          attrLower.startsWith(r.title.toLowerCase()) ||
-          r.title.toLowerCase().includes(attrLower) ||
-          attrLower.includes(r.title.toLowerCase())
+          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
         );
       }
-      row.push(match ? (TICK[match.result] || '–') : '–');
-    }
-    rows.push(row);
-  }
+      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
+        exNum++;
+        exMap[`${fi}-${ai}`] = `E${exNum}`;
+      }
+    });
+  });
 
-  // Add a notes sheet
-  const noteRows = [['Sample File', 'Attribute', 'Result', 'Notes']];
-  for (const fileResult of analysisResults) {
-    for (const r of fileResult.results) {
-      noteRows.push([fileResult.fileName, r.title, TICK[r.result] || r.result, r.note || '']);
-    }
+  // ── Results sheet data ──
+  // Rows 1-4: header info
+  const wsData = [
+    [wp?.auditName || ''],                              // A1: Audit name
+    [`${ref} - ${wp?.name || ''}`],                    // A2: Ref - Title
+    ['jdavis'],                                         // A3: Username
+    [exportDate],                                       // A4: Date
+    [],                                                 // A5: blank spacer
+    // A6: grid header
+    ['Sample File', ...attributes.map(a => `${a.num ? a.num + '. ' : ''}${a.title}`)],
+  ];
+
+  // Grid rows — one per file
+  analysisResults.forEach((fileResult, fi) => {
+    const row = [fileResult.fileName];
+    attributes.forEach((attr, ai) => {
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      const tick  = match ? (TICK[match.result] || '–') : '–';
+      const exRef = exMap[`${fi}-${ai}`] ? ` [${exMap[`${fi}-${ai}`]}]` : '';
+      row.push(tick + exRef);
+    });
+    wsData.push(row);
+  });
+
+  // Blank spacer
+  wsData.push([]);
+
+  // ── Legend ──
+  wsData.push(['LEGEND']);
+  wsData.push(['✓', 'Pass — attribute met with no exceptions noted']);
+  wsData.push(['⚠', 'Pass with Exception — attribute substantially met; exception noted below']);
+  wsData.push(['✗', 'Fail — attribute not met; exception noted below']);
+  wsData.push(['–', 'Error / Not evaluated']);
+  wsData.push(['[E#]', 'Exception reference — see Exceptions list below']);
+
+  // Blank spacer
+  wsData.push([]);
+
+  // ── Exceptions list ──
+  let hasExceptions = false;
+  let eIdx = 0;
+  analysisResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
+      const key = `${fi}-${ai}`;
+      if (!exMap[key]) return;
+      if (!hasExceptions) {
+        wsData.push(['EXCEPTIONS']);
+        wsData.push(['Ref', 'File', 'Attribute', 'Finding']);
+        hasExceptions = true;
+      }
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      wsData.push([exMap[key], fileResult.fileName, attr.title, match?.note || '']);
+    });
+  });
+
+  if (!hasExceptions) {
+    wsData.push(['EXCEPTIONS']);
+    wsData.push(['No exceptions noted.']);
   }
 
   const wb = XLSX.utils.book_new();
-
-  // ── Results sheet ──
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-
-  // Column widths
-  ws['!cols'] = [{ wch: 36 }, ...attributes.map(() => ({ wch: 22 }))];
-
-  // Style header row (SheetJS CE doesn't support cell styles, but we can set row height)
-  ws['!rows'] = [{ hpt: 20 }];
-
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 40 }, ...attributes.map(() => ({ wch: 24 }))];
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
-  // ── Notes sheet ──
+  // ── Detailed Notes sheet ──
+  const noteRows = [['Sample File', 'Attribute', 'Result', 'Notes']];
+  for (const fileResult of analysisResults) {
+    for (const r of fileResult.results) {
+      noteRows.push([fileResult.fileName, r.title, TICK_LABEL[r.result] || r.result, r.note || '']);
+    }
+  }
   const wsNotes = XLSX.utils.aoa_to_sheet(noteRows);
-  wsNotes['!cols'] = [{ wch: 36 }, { wch: 28 }, { wch: 22 }, { wch: 60 }];
+  wsNotes['!cols'] = [{ wch: 36 }, { wch: 28 }, { wch: 26 }, { wch: 60 }];
   XLSX.utils.book_append_sheet(wb, wsNotes, 'Detailed Notes');
 
   // ── Metadata sheet ──
@@ -4335,7 +5124,6 @@ async function exportToXlsx() {
 
   // Download
   // Build filename: WP-YEAR-SEQ_TestResults_YYYYMMDD_HHMM
-  const now = new Date();
   // Extract year from audit period
   const auditYear = (wp?.auditName ? (AUDITS.find(a => a.name === wp.auditName)?.period.match(/\b(20\d{2})\b/) || [])[1] : null)
     || now.getFullYear();
@@ -4374,7 +5162,7 @@ async function exportToXlsx() {
   refreshFileList(ref, 'workpaper');
 
   // Show a brief confirmation in the modal status
-  document.getElementById('analysis-status').textContent =
+  const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
     `Download started — file also added to Attached Workpaper Files.`;
 }
 
@@ -4401,7 +5189,7 @@ async function previewMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   if (!entry?.file) { alert('File not available — try uploading it again.'); return; }
   const name = entry.name;
-  document.getElementById('file-preview-title').textContent = name;
+  const _fptEl = document.getElementById('file-preview-title'); if(_fptEl) _fptEl.textContent = name;
   setPreviewIcon(name);
   openFilePreviewOverlay();
   const isPDF = name.toLowerCase().endsWith('.pdf') || entry.file.type === 'application/pdf';
@@ -4415,7 +5203,7 @@ async function previewMemFile(ref, bucket, idx) {
 
 // Preview a static demo file (no real data — show placeholder)
 function previewStaticFile(name) {
-  document.getElementById('file-preview-title').textContent = name;
+  const _fptEl = document.getElementById('file-preview-title'); if(_fptEl) _fptEl.textContent = name;
   setPreviewIcon(name);
   openFilePreviewOverlay();
   document.getElementById('file-preview-nav').style.display = 'none';
@@ -4453,7 +5241,7 @@ async function renderPDFPreview(file) {
     previewTotalPages  = previewPDFDoc.numPages;
     currentPreviewPage = 1;
 
-    document.getElementById('preview-total-pages').textContent = previewTotalPages;
+    const _ptp = document.getElementById('preview-total-pages'); if(_ptp) _ptp.textContent = previewTotalPages;
     document.getElementById('preview-page-input').value = 1;
     document.getElementById('preview-page-input').max   = previewTotalPages;
     document.getElementById('file-preview-nav').style.display = 'flex';
@@ -4814,20 +5602,6 @@ function renderXlsxPanel(fileId, ref, idx) {
     </div>`;
   }
 
-  // ── Sheet tabs ───────────────────────────────────────────────────────
-  if (sheets.length) {
-    html += `<div class="bookmark-panel-header" style="margin-top:0">
-      <i class="ti ti-layout-bottombar" style="font-size:12px"></i>
-      Sheets <span style="font-weight:400;margin-left:4px">(${sheets.length})</span>
-    </div>`;
-    html += sheets.map(s =>
-      `<div class="bookmark-item" onclick="openXlsxAtRange('${fileId}', null, '${s.replace(/'/g,"\\'")}', null)">
-        <i class="ti ti-table-column" style="opacity:0.6;font-size:13px;flex-shrink:0"></i>
-        <span style="font-size:12px;color:var(--text-primary)">${s}</span>
-      </div>`
-    ).join('');
-  }
-
   html += '</div>';
 
   // ── Footer ───────────────────────────────────────────────────────────
@@ -4860,21 +5634,17 @@ function openXlsxAtRange(fileId, rangeName, sheet, range) {
       if (sheet && wb.SheetNames.includes(sheet)) {
         const sheetIdx = wb.SheetNames.indexOf(sheet);
 
-        // Ensure Workbook structure exists
-        wb.Workbook = wb.Workbook || {};
-        wb.Workbook.WBView = wb.Workbook.WBView || [{}];
-        // Set active tab — this is the most reliable SheetJS approach
-        wb.Workbook.WBView[0].activeTab = sheetIdx;
-
-        // Ensure Workbook.Sheets array is correct length
-        wb.Workbook.Sheets = wb.Workbook.Sheets || [];
+        // Safely ensure Workbook structure exists before setting activeTab
+        if (!wb.Workbook) wb.Workbook = {};
+        if (!wb.Workbook.WBView) wb.Workbook.WBView = [{}];
+        if (!wb.Workbook.Sheets) wb.Workbook.Sheets = wb.SheetNames.map(() => ({ Hidden: 0 }));
         while (wb.Workbook.Sheets.length < wb.SheetNames.length) {
           wb.Workbook.Sheets.push({ Hidden: 0 });
         }
-        // Un-hide target sheet just in case
+
+        wb.Workbook.WBView[0].activeTab = sheetIdx;
         wb.Workbook.Sheets[sheetIdx].Hidden = 0;
 
-        // Set cell selection / named range highlight
         const cleanRange = range ? range.replace(/\$/g, '') : 'A1';
         const activeCell = cleanRange.split(':')[0];
         if (wb.Sheets[sheet]) {
@@ -5172,7 +5942,7 @@ async function openBookmarkInPreview(fileId, idx, ref, page) {
   if (!entry?.file) { alert('File not available in memory.'); return; }
 
   // Open the preview modal with this file
-  document.getElementById('file-preview-title').textContent = entry.name;
+  const _fpt3 = document.getElementById('file-preview-title'); if(_fpt3) _fpt3.textContent = entry.name;
   setPreviewIcon(entry.name);
   openFilePreviewOverlay();
   window._previewFile = entry.file;
@@ -5367,9 +6137,9 @@ function updateRefSegment3(ref, newSeg3) {
 let wpInfoLocked = false;
 let _wpInfoSnapshot = {};
 
+// WP_INFO_FIELDS: fields locked/unlocked by the Edit button in the workpaper header
+// Only the header inputs (title + code) are controlled — all other fields are always editable
 const WP_INFO_FIELDS = [
-  { id: 'wpd-results',        label: 'Results' },
-  { id: 'wpd-status',         label: 'Status' },
   { id: 'wpd-preparer',       label: 'Preparer' },
   { id: 'wpd-reviewer',       label: 'Reviewer' },
   { id: 'wpd-date-started',   label: 'Date started' },
@@ -5377,33 +6147,16 @@ const WP_INFO_FIELDS = [
 ];
 
 function setWPInfoLocked(locked) {
-  wpInfoLocked = locked;
-  WP_INFO_FIELDS.forEach(({ id }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.disabled = locked;
-    el.style.opacity = locked ? '0.55' : '';
-    el.style.cursor  = locked ? 'not-allowed' : '';
-    el.style.pointerEvents = locked ? 'none' : '';
-  });
+  // No-op: only the title/code inputs in the header are locked by Edit/Ok.
+  // All other workpaper information fields are always editable.
 }
 
 function snapshotWPInfoFields() {
-  _wpInfoSnapshot = {};
-  WP_INFO_FIELDS.forEach(({ id }) => {
-    const el = document.getElementById(id);
-    if (el) _wpInfoSnapshot[id] = el.value;
-  });
+  // No-op: field changes are logged immediately on change, not on Ok.
 }
 
 function logWPInfoChanges(ref) {
-  WP_INFO_FIELDS.forEach(({ id, label }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const oldVal = _wpInfoSnapshot[id] ?? '';
-    const newVal = el.value;
-    if (newVal !== oldVal) logChange(ref, label, oldVal, newVal);
-  });
+  // No-op: field changes are logged immediately on change, not on Ok.
 }
 
 function toggleWPHeaderEdit() {
@@ -6176,7 +6929,7 @@ function rcSelectAll() {
 
 function updateRCCount() {
   const n = rcDialogTemp.size;
-  document.getElementById('rc-selected-count').textContent =
+  const _rsc = document.getElementById('rc-selected-count'); if(_rsc) _rsc.textContent =
     n === 0 ? 'None selected' : `${n} selected`;
 }
 
@@ -6343,7 +7096,7 @@ function toggleFsItem(id) {
 
 function updateFsCount() {
   const n = dialogFsTemp.size;
-  document.getElementById('fs-selected-count').textContent = n === 0 ? 'None selected' : `${n} selected`;
+  const _fsc = document.getElementById('fs-selected-count'); if(_fsc) _fsc.textContent = n === 0 ? 'None selected' : `${n} selected`;
 }
 
 function applyFsAccountSelection() {
@@ -6381,21 +7134,35 @@ function removeFsAccount(id) {
 /* ══════════════════════════════════════
    NAV BOX — cascade audit → period → wp ref
 ══════════════════════════════════════ */
+function setWPNavEnabled(enabled) {
+  const prevBtn  = document.getElementById('wp-nav-prev');
+  const nextBtn  = document.getElementById('wp-nav-next');
+  const wpSel    = document.getElementById('sel-wp-ref');
+  [prevBtn, nextBtn].forEach(btn => {
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.style.opacity      = enabled ? '1'            : '0.35';
+    btn.style.cursor       = enabled ? 'pointer'      : 'not-allowed';
+    btn.style.pointerEvents= enabled ? ''             : 'none';
+  });
+  if (wpSel) {
+    wpSel.disabled        = !enabled;
+    wpSel.style.opacity   = enabled ? '1' : '0.45';
+    wpSel.style.cursor    = enabled ? 'pointer' : 'not-allowed';
+  }
+}
+
 function onNavAuditChange() {
   const auditName  = document.getElementById('sel-audit').value;
-  const selPeriod  = document.getElementById('sel-period');
   const selWpRef   = document.getElementById('sel-wp-ref');
 
-  // Update period to match selected audit
+  // Update currentAudit
   const audit = AUDITS.find(a => a.name === auditName);
-  if (audit) {
-    selPeriod.textContent = audit.period;
-    currentAudit = audit;
-  }
+  if (audit) currentAudit = audit;
 
   // Blank out wp ref then populate only matching workpapers
   const matching = WORKPAPERS.filter(w => w.auditName === auditName);
-  selWpRef.innerHTML = '<option value="">— Select —</option>' +
+  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>' +
     matching.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
 
   // Navigate to the selected audit's workpaper list
@@ -6420,6 +7187,28 @@ function onNavWpRefChange() {
 /* ══════════════════════════════════════
    RESULTS DROPDOWN STYLING
 ══════════════════════════════════════ */
+function logWPDropdownChange(elId, label) {
+  const el  = document.getElementById(elId);
+  const ref = getWPRef();
+  const w   = WORKPAPERS[currentWPIndex];
+  if (!el || !ref || !w) return;
+  const newVal = el.value;
+  const keyMap = {
+    'wpd-results':        'results',
+    'wpd-status':         'status',
+    'wpd-preparer':       'preparer',
+    'wpd-reviewer':       'reviewer',
+    'wpd-date-started':   'dateStarted',
+    'wpd-date-submitted': 'dateSubmitted',
+  };
+  const key    = keyMap[elId];
+  const oldVal = key ? (w[key] || '') : '';
+  if (newVal !== oldVal) {
+    logChange(ref, label, oldVal, newVal);
+    if (key) w[key] = newVal;
+  }
+}
+
 function updateResultsStyle() {
   const sel = document.getElementById('wpd-results');
   if (!sel) return;
