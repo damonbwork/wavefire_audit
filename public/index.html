@@ -252,7 +252,7 @@
   .wp-type-memo     { background: var(--purple-50); color: var(--purple-800); border-color: var(--purple-100); }
 
   /* SECTION CARDS */
-  .sect-card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; }
+  .sect-card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; position: relative; }
   .sect-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 0.5px solid var(--border-light); background: var(--bg-secondary); }
   .sect-hdr-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
   .sect-hdr-title i { font-size: 14px; }
@@ -522,6 +522,47 @@
   }
   .risk-tag[data-risk-id] { cursor: help; }
   .risk-tag[data-risk-id]:hover { background: #FAC77540; border-color: var(--amber-800); color: var(--amber-800); }
+
+  /* ── REVIEW NOTES — dog-ear corner ── */
+  .notes-corner {
+    position:absolute;bottom:0;right:0;width:22px;height:22px;cursor:pointer;
+    overflow:hidden;flex-shrink:0;z-index:1;
+  }
+  .notes-corner::before {
+    content:'';position:absolute;bottom:0;right:0;
+    width:0;height:0;
+    border-style:solid;
+    border-width:0 0 22px 22px;
+    border-color:transparent transparent #cbd5e1 transparent;
+    transition:border-color 0.15s;
+  }
+  .notes-corner:hover::before { border-color:transparent transparent #39618b transparent; }
+  .notes-corner i { position:absolute;bottom:2px;right:2px;font-size:9px;color:#64748b;pointer-events:none;transition:color 0.15s; }
+  .notes-corner:hover i { color:#fff; }
+
+  /* ── REVIEW NOTES — floating window ── */
+  .notes-window {
+    position:fixed;z-index:11000;
+    background:var(--bg-primary);
+    border:0.5px solid var(--border-light);
+    border-radius:var(--radius-lg);
+    box-shadow:0 8px 32px rgba(0,0,0,0.18);
+    display:flex;flex-direction:column;
+    min-width:260px;min-height:180px;
+    resize:both;overflow:hidden;
+  }
+  .notes-window-hdr {
+    background:var(--wf-navy);color:#fff;
+    padding:8px 12px;
+    display:flex;align-items:center;justify-content:space-between;
+    cursor:move;flex-shrink:0;border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+    user-select:none;
+  }
+  .notes-window-hdr span { font-size:12px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .notes-window-hdr button { background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:50%;font-size:13px;display:flex;align-items:center;justify-content:center; }
+  .notes-window-body { flex:1;display:flex;flex-direction:column;padding:10px;gap:8px;overflow:hidden; }
+  .notes-window-body textarea { flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);outline:none;line-height:1.5; }
+  .notes-window-footer { padding:8px 10px;display:flex;justify-content:flex-end;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light); }
 
   /* ── HISTORY TABLE ── */
   #history-tbody tr { border-bottom: 0.5px solid var(--border-light); transition: background 0.1s; }
@@ -1051,7 +1092,7 @@
           <i class="ti ti-chevron-right"></i>
           <span onclick="showPage('workpapers')" id="bc-audit-wp">Q2 2026 Financial Audit</span>
           <i class="ti ti-chevron-right"></i>
-          <span class="cur" id="bc-wp-ref">WP-2026-REVE-001</span>
+          <span class="cur" id="bc-wp-ref">WP-2026-CC-001</span>
         </div>
 
         <!-- Audit Information — compact header strip -->
@@ -1090,7 +1131,7 @@
                 <div class="pt" id="wpd-title">Revenue Recognition Testing</div>
                 <div id="wpd-tag-view" style="font-size:13px;font-weight:700;color:var(--wf-navy);letter-spacing:1px;flex-shrink:0"></div>
               </div>
-              <div class="ps" id="wpd-sub">WP-2026-REVE-001 · Testwork · Q2 2026 Financial Audit</div>
+              <div class="ps" id="wpd-sub">WP-2026-CC-001 · Testwork · Q2 2026 Financial Audit</div>
             </div>
             <!-- Edit mode -->
             <div id="wpd-header-edit" style="display:none;flex-direction:column;gap:5px">
@@ -1136,7 +1177,7 @@
         </div>
 
         <!-- Workpaper Information -->
-        <div class="sect-card">
+        <div class="sect-card" id="sect-wpinfo">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
           </div>
@@ -1153,7 +1194,7 @@
                 <option value="notmet">Objectives Not Met</option>
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
-              <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status')">
+              <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status'); setDogEarsVisible(this.value !== 'approved' && this.value !== 'complete')">
                 <option value="draft">Draft</option>
                 <option value="review">In review</option>
                 <option value="approved">Reviewed</option>
@@ -1525,6 +1566,39 @@
           </div></div><!-- /sect-analyze -->
         </div><!-- /sect-card sample files -->
 
+        <!-- Section: Exceptions -->
+        <div class="sect-card" id="sect-exceptions">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-alert-triangle"></i>Exceptions</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()">
+                <i class="ti ti-download"></i>Export exceptions
+              </button>
+              <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addException()">
+                <i class="ti ti-plus"></i>Add exception
+              </button>
+            </div>
+          </div>
+          <div class="sect-body" style="padding:0">
+            <!-- Table header -->
+            <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 60px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception name</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception description</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Linked files</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception owner</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Management response</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Expected resolution</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Retested</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Delete</div>
+            </div>
+            <!-- Exception rows -->
+            <div id="exceptions-rows">
+              <div style="padding:18px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic" id="exceptions-empty">No exceptions recorded. Click "Add exception" to add one.</div>
+            </div>
+          </div>
+        </div>
+
       </div><!-- /page-wpdetail -->
 
       <!-- ══════════════════════════
@@ -1833,10 +1907,20 @@
       </div>
       <div id="analysis-status" style="font-size:12px;color:var(--text-secondary);min-height:18px;margin-bottom:18px"></div>
       <!-- File results list -->
-      <div id="analysis-results-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-bottom:18px"></div>
+      <div id="analysis-results-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-bottom:12px"></div>
+      <!-- Claude narrative commentary (shown after analysis completes) -->
+      <div id="analysis-commentary" style="display:none;background:var(--bg-secondary);border-radius:var(--radius-md);border:0.5px solid var(--border-light);padding:12px 14px;margin-bottom:14px;max-height:200px;overflow-y:auto">
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">
+          <i class="ti ti-message-chatbot" style="margin-right:4px"></i>Claude's Commentary
+        </div>
+        <div id="analysis-commentary-text" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"></div>
+      </div>
       <!-- Buttons -->
       <div style="display:flex;justify-content:flex-end;gap:8px" id="analysis-btn-row">
         <button class="btn-s" onclick="closeAnalysis()">Cancel</button>
+        <button class="btn-s" id="download-commentary-btn" style="display:none" onclick="downloadCommentary()">
+          <i class="ti ti-file-text"></i>Download commentary
+        </button>
         <button class="btn-p" id="export-xlsx-btn" style="display:none" onclick="exportToXlsx()">
           <i class="ti ti-download"></i>Download .xlsx
         </button>
@@ -1883,6 +1967,48 @@
           <span>Loading preview…</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Review Notes floating window -->
+  <div id="notes-window-template" class="notes-window" style="display:none;width:420px;height:460px;top:100px;left:calc(50% - 210px)">
+    <!-- Header -->
+    <div class="notes-window-hdr" id="notes-window-hdr-el">
+      <span id="notes-window-title">Section notes</span>
+      <div style="display:flex;gap:2px">
+        <button onclick="minimizeNotesWindow()" title="Minimize"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1"
+          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+          &#x2013;
+        </button>
+        <button onclick="expandNotesToTab()" title="Expand to new tab"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1"
+          onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+          &#x2610;
+        </button>
+        <button onclick="closeNotesWindow(false)" title="Close"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1"
+          onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+          &#x2715;
+        </button>
+      </div>
+    </div>
+    <!-- Filter subheader -->
+    <div style="display:flex;align-items:center;gap:4px;padding:5px 10px;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+      <span style="font-size:10px;color:var(--text-tertiary);margin-right:4px">Show:</span>
+      <button id="notes-filter-all"       onclick="setNotesFilter('all')"       class="btn-s" style="font-size:10px;padding:1px 7px">All</button>
+      <button id="notes-filter-uncleared" onclick="setNotesFilter('uncleared')" class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">Uncleared</button>
+      <button id="notes-filter-cleared"   onclick="setNotesFilter('cleared')"   class="btn-s" style="font-size:10px;padding:1px 7px">Cleared</button>
+    </div>
+    <!-- Body -->
+    <div style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px;min-height:0">
+      <div id="notes-entries-container" style="display:flex;flex-direction:column;gap:12px;min-width:0"></div>
+    </div>
+    <!-- Footer -->
+    <div style="padding:8px 10px;display:flex;justify-content:flex-end;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <button class="btn-s" onclick="closeNotesWindow(false)">Cancel</button>
+      <button class="btn-s" onclick="addNewReviewNote()" style="white-space:nowrap"><i class="ti ti-plus"></i>New review note</button>
+      <button class="btn-p" onclick="closeNotesWindow(true)"><i class="ti ti-check"></i>Ok</button>
     </div>
   </div>
 
@@ -2008,7 +2134,7 @@ const WORKPAPERS = [
 
   // ── Q2 2026 Financial Audit ──────────────────────────────────────────
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-REVE-001",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-CC-001",
     results: "passex",
     name: "Revenue Recognition Testing", type: "Testwork",
     preparer: "jdavis", reviewer: "mchen", dateStarted: "2026-04-10",
@@ -2029,7 +2155,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-AUDI-002",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-CC-002",
     results: "met",
     name: "Audit Planning Memorandum", type: "Planning",
     preparer: "jdavis", reviewer: "mchen", dateStarted: "2026-04-01",
@@ -2049,7 +2175,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-ACCO-003",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-OPS-003",
     results: "",
     name: "Accounts Receivable Confirmations", type: "Testwork",
     preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-05-01",
@@ -2069,7 +2195,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-MANA-004",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-SEC-004",
     results: "",
     name: "Management Representation Letter", type: "Report",
     preparer: "mchen", reviewer: "jdavis", dateStarted: "2026-06-20",
@@ -2087,7 +2213,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-RISK-005",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-SEC-005",
     results: "met",
     name: "Risk Assessment & Scoping Memo", type: "Planning",
     preparer: "jdavis", reviewer: "lmgr", dateStarted: "2026-04-02",
@@ -2108,7 +2234,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-INTE-006",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-SEC-006",
     results: "passex",
     name: "Internal Control Walkthrough", type: "Testwork",
     preparer: "rpatel", reviewer: "mchen", dateStarted: "2026-04-20",
@@ -2129,7 +2255,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-AUDI-007",
+    auditName: "Q2 2026 Financial Audit", ref: "WP-2026-CC-007",
     results: "",
     name: "Audit Report — Draft", type: "Report",
     preparer: "mchen", reviewer: "jdavis", dateStarted: "2026-06-25",
@@ -2150,7 +2276,7 @@ const WORKPAPERS = [
 
   // ── IT General Controls Review ────────────────────────────────────────
   {
-    auditName: "IT General Controls Review", ref: "WP-2026-ITPL-001",
+    auditName: "IT General Controls Review", ref: "WP-2026-CC-001",
     results: "met",
     name: "IT Planning Memo", type: "Planning",
     preparer: "mchen", reviewer: "lmgr", dateStarted: "2026-04-05",
@@ -2170,7 +2296,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "IT General Controls Review", ref: "WP-2026-ACCE-002",
+    auditName: "IT General Controls Review", ref: "WP-2026-IPE-002",
     results: "passex",
     name: "Access Management Testing", type: "Testwork",
     preparer: "awong", reviewer: "mchen", dateStarted: "2026-04-22",
@@ -2190,7 +2316,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "IT General Controls Review", ref: "WP-2026-CHAN-003",
+    auditName: "IT General Controls Review", ref: "WP-2026-CC-003",
     results: "",
     name: "Change Management Walkthrough", type: "Testwork",
     preparer: "bnguyen", reviewer: "mchen", dateStarted: "2026-05-01",
@@ -2209,7 +2335,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "IT General Controls Review", ref: "WP-2026-ITAU-004",
+    auditName: "IT General Controls Review", ref: "WP-2026-CC-004",
     results: "",
     name: "IT Audit Report", type: "Report",
     preparer: "mchen", reviewer: "lmgr", dateStarted: "2026-06-15",
@@ -2231,7 +2357,7 @@ const WORKPAPERS = [
 
   // ── SOX Compliance Audit ─────────────────────────────────────────────
   {
-    auditName: "SOX Compliance Audit", ref: "WP-2026-SOXS-001",
+    auditName: "SOX Compliance Audit", ref: "WP-2026-CC-001",
     results: "met",
     name: "SOX Scoping & Planning", type: "Planning",
     preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-01-05",
@@ -2250,7 +2376,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "SOX Compliance Audit", ref: "WP-2026-SECT-002",
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SEC-002",
     results: "pass",
     name: "Section 302 Certification Testing", type: "Testwork",
     preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-01-20",
@@ -2269,7 +2395,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "SOX Compliance Audit", ref: "WP-2026-SECT-003",
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SEC-003",
     results: "passex",
     name: "Section 404 ICFR Testing", type: "Testwork",
     preparer: "awong", reviewer: "rpatel", dateStarted: "2026-02-01",
@@ -2288,7 +2414,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "SOX Compliance Audit", ref: "WP-2026-DEFI-004",
+    auditName: "SOX Compliance Audit", ref: "WP-2026-CC-004",
     results: "",
     name: "Deficiency Assessment Memo", type: "Report",
     preparer: "rpatel", reviewer: "jdavis", dateStarted: "2026-03-01",
@@ -2306,7 +2432,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "SOX Compliance Audit", ref: "WP-2026-SOXA-005",
+    auditName: "SOX Compliance Audit", ref: "WP-2026-SEC-005",
     results: "",
     name: "SOX Audit Report", type: "Report",
     preparer: "rpatel", reviewer: "lmgr", dateStarted: "2026-03-15",
@@ -2327,7 +2453,7 @@ const WORKPAPERS = [
 
   // ── Operational Risk Assessment ───────────────────────────────────────
   {
-    auditName: "Operational Risk Assessment", ref: "WP-2025-OPER-001",
+    auditName: "Operational Risk Assessment", ref: "WP-2025-IPE-001",
     results: "met",
     name: "Operations Planning Memo", type: "Planning",
     preparer: "ltorres", reviewer: "lmgr", dateStarted: "2025-10-01",
@@ -2346,7 +2472,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Operational Risk Assessment", ref: "WP-2025-PROC-002",
+    auditName: "Operational Risk Assessment", ref: "WP-2025-SEC-002",
     results: "passex",
     name: "Process Walkthrough — Procurement", type: "Testwork",
     preparer: "ltorres", reviewer: "jdavis", dateStarted: "2025-10-15",
@@ -2366,7 +2492,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Operational Risk Assessment", ref: "WP-2025-OPER-003",
+    auditName: "Operational Risk Assessment", ref: "WP-2025-IPE-003",
     results: "met",
     name: "Operational Risk Report", type: "Report",
     preparer: "ltorres", reviewer: "lmgr", dateStarted: "2025-11-20",
@@ -2387,7 +2513,7 @@ const WORKPAPERS = [
 
   // ── Vendor Due Diligence ──────────────────────────────────────────────
   {
-    auditName: "Vendor Due Diligence", ref: "WP-2025-VEND-001",
+    auditName: "Vendor Due Diligence", ref: "WP-2025-OPS-001",
     results: "met",
     name: "Vendor Scoping Memo", type: "Planning",
     preparer: "jdavis", reviewer: "mchen", dateStarted: "2025-10-25",
@@ -2406,7 +2532,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Vendor Due Diligence", ref: "WP-2025-VEND-002",
+    auditName: "Vendor Due Diligence", ref: "WP-2025-CC-002",
     results: "",
     name: "Vendor Risk Assessment", type: "Testwork",
     preparer: "bnguyen", reviewer: "jdavis", dateStarted: "2025-11-10",
@@ -2428,7 +2554,7 @@ const WORKPAPERS = [
 
   // ── Payroll Audit ─────────────────────────────────────────────────────
   {
-    auditName: "Payroll Audit", ref: "WP-2026-PAYR-001",
+    auditName: "Payroll Audit", ref: "WP-2026-SEC-001",
     results: "met",
     name: "Payroll Planning Memo", type: "Planning",
     preparer: "skim", reviewer: "lmgr", dateStarted: "2026-01-10",
@@ -2447,7 +2573,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Payroll Audit", ref: "WP-2026-PAYR-002",
+    auditName: "Payroll Audit", ref: "WP-2026-IPE-002",
     results: "passex",
     name: "Payroll Disbursement Testing", type: "Testwork",
     preparer: "skim", reviewer: "jdavis", dateStarted: "2026-01-25",
@@ -2467,7 +2593,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Payroll Audit", ref: "WP-2026-PAYR-003",
+    auditName: "Payroll Audit", ref: "WP-2026-OPS-003",
     results: "",
     name: "Payroll Audit Report", type: "Report",
     preparer: "skim", reviewer: "lmgr", dateStarted: "2026-02-20",
@@ -3016,7 +3142,7 @@ function openWP(i) {
   // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
   const fullTypes   = ['Testwork', 'Report'];
   const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
-  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-files','sect-analyze'];
+  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isFull ? '' : 'none';
@@ -3047,6 +3173,16 @@ function openWP(i) {
 
   // Load workpaper review sign-off log
   setTimeout(() => loadWPReviewLog(w.ref), 30);
+
+  // Load exceptions
+  setTimeout(() => loadExceptions(w.ref), 30);
+
+  // Inject dog-ear review notes corners into each section
+  setTimeout(() => {
+    injectDogEars();
+    const status = w.status || 'draft';
+    setDogEarsVisible(status !== 'approved' && status !== 'complete');
+  }, 50);
 
   // Update prev/next arrow button states
   setTimeout(updateWPNavArrows, 30);
@@ -3352,6 +3488,611 @@ function renderPopRefFiles(ref) {
       <span>${name}</span>
     </div>`
   ).join('');
+}
+
+/* ══════════════════════════════════════
+   EXCEPTIONS
+══════════════════════════════════════ */
+const wpExceptions = {}; // { ref: [{num, name, desc, owner, mgmtResponse, resolutionDate, retested}] }
+
+function addException() {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpExceptions[ref]) wpExceptions[ref] = [];
+  const num = wpExceptions[ref].length + 1;
+  wpExceptions[ref].push({ num, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [] });
+  logEvent(ref, `Exception #${num} added`);
+  renderExceptions(ref);
+}
+
+function openExceptionFileDialog(ref, idx) {
+  // Gather all available files (workpaper + sample)
+  const staticWP  = WORKPAPERS.find(w => w.ref === ref)?.files || [];
+  const memWP     = inMemoryFiles[ref]?.workpaper || [];
+  const memSF     = inMemoryFiles[ref]?.sample    || [];
+  const allNames  = [
+    ...staticWP.map(f => f.name),
+    ...memWP.map(f => f.name),
+    ...memSF.map(f => f.name),
+  ];
+
+  const ex  = wpExceptions[ref]?.[idx];
+  const cur = new Set(ex?.linkedFiles || []);
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;display:flex;align-items:center;justify-content:center';
+
+  const listHTML = allNames.length
+    ? allNames.map(name => {
+        const checked = cur.has(name);
+        const safe = name.replace(/'/g,"\\'");
+        return `<label style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-bottom:0.5px solid #e2e8f0;font-size:13px;color:#1e293b">
+          <input type="checkbox" value="${safe}" ${checked ? 'checked' : ''} style="width:14px;height:14px;accent-color:#39618b;cursor:pointer">
+          <span>${name}</span>
+        </label>`;
+      }).join('')
+    : '<div style="padding:24px;text-align:center;color:#94a3b8;font-style:italic;font-size:13px">No attached files found. Upload files first.</div>';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:10px;width:min(520px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="background:#39618b;color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:10px 10px 0 0">
+        <div style="font-size:14px;font-weight:600"><i class="ti ti-paperclip" style="margin-right:6px"></i>Link files to exception #${(ex?.num||idx+1)}</div>
+        <button onclick="this.closest('.exc-file-overlay').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">✕</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">${listHTML}</div>
+      <div style="padding:12px 18px;border-top:0.5px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
+        <button onclick="this.closest('.exc-file-overlay').remove()" style="font-size:12px;padding:4px 12px;border:0.5px solid #e2e8f0;border-radius:6px;cursor:pointer;background:#fff">Cancel</button>
+        <button onclick="applyExceptionFiles(this,'${ref}',${idx})" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;cursor:pointer;background:#39618b;color:#fff"><i class="ti ti-check"></i> Apply</button>
+      </div>
+    </div>`;
+  overlay.className = 'exc-file-overlay';
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function applyExceptionFiles(btn, ref, idx) {
+  const overlay = btn.closest('.exc-file-overlay');
+  const checked = Array.from(overlay.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+  if (!wpExceptions[ref]?.[idx]) return;
+  const ex  = wpExceptions[ref][idx];
+  const old = (ex.linkedFiles || []).join('; ');
+  const nw  = checked.join('; ');
+  if (old !== nw) {
+    logChange(ref, `Exception #${ex.num} — Linked files`, old || '(none)', nw || '(none)');
+  }
+  ex.linkedFiles = checked;
+  overlay.remove();
+  renderExceptions(ref);
+}
+
+async function exportExceptions() {
+  const ref  = getWPRef();
+  const wp   = WORKPAPERS[currentWPIndex];
+  const list = wpExceptions[ref] || [];
+
+  if (!list.length) { alert('No exceptions to export.'); return; }
+
+  // Load SheetJS if not already loaded
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = resolve; script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const now        = new Date();
+  const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  // ── Header block (rows 1-4) ──
+  const wsData = [
+    [wp?.auditName || ''],                              // A1: Audit name
+    [`${ref} - ${wp?.name || ''}`],                    // A2: Ref - Title
+    ['jdavis'],                                         // A3: Username
+    [exportDate],                                       // A4: Date
+    [],                                                 // A5: blank
+    // A6: column headers
+    ['#', 'Exception Name', 'Exception Description', 'Linked Files', 'Exception Owner',
+     'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date'],
+  ];
+
+  // Data rows
+  list.forEach(ex => {
+    wsData.push([
+      ex.num,
+      ex.name          || '',
+      ex.desc          || '',
+      (ex.linkedFiles  || []).join('; '),
+      ex.owner         || '',
+      ex.mgmtResponse  || '',
+      ex.resolutionDate|| '',
+      ex.retested ? 'Yes' : 'No',
+      ex.retestedBy    || '',
+      ex.retestedDate  || '',
+    ]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [
+    { wch: 5 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
+
+  const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const hhmm= String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  XLSX.writeFile(wb, `${ref || 'Exceptions'}_Exceptions_${ts}_${hhmm}.xlsx`);
+}
+
+function confirmDeleteException(ref, idx) {
+  const ex   = wpExceptions[ref]?.[idx];
+  const name = ex?.name ? `"${ex.name}"` : `exception #${ex?.num || idx + 1}`;
+
+  // Create inline confirm overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:12000;display:flex;align-items:center;justify-content:center';
+
+  overlay.innerHTML = `
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);padding:24px 28px;max-width:380px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.22)">
+      <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Delete exception?</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">
+        Are you sure you want to delete ${name}? This cannot be undone.
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-s" id="exc-del-cancel">Cancel</button>
+        <button class="btn-p" style="background:#dc2626;border-color:#dc2626" id="exc-del-ok">
+          <i class="ti ti-trash"></i>Delete
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#exc-del-cancel').addEventListener('click', () => document.body.removeChild(overlay));
+  overlay.querySelector('#exc-del-ok').addEventListener('click', () => {
+    document.body.removeChild(overlay);
+    deleteException(ref, idx);
+  });
+  // Click outside to cancel
+  overlay.addEventListener('click', e => { if (e.target === overlay) document.body.removeChild(overlay); });
+}
+
+function deleteException(ref, idx) {
+  if (!wpExceptions[ref]) return;
+  const ex   = wpExceptions[ref][idx];
+  const label = ex?.name ? `Exception #${ex.num} "${ex.name}"` : `Exception #${ex?.num || idx + 1}`;
+  logEvent(ref, `${label} deleted`);
+  wpExceptions[ref].splice(idx, 1);
+  renderExceptions(ref);
+}
+
+function saveException(ref, idx, field, value) {
+  if (!wpExceptions[ref]?.[idx]) return;
+  const ex  = wpExceptions[ref][idx];
+  const old = ex[field] ?? '';
+  if (String(old) === String(value)) return;
+
+  const FIELD_LABELS = {
+    name:           'Exception name',
+    desc:           'Exception description',
+    owner:          'Exception owner',
+    mgmtResponse:   'Management response',
+    resolutionDate: 'Expected resolution date',
+  };
+  const label = FIELD_LABELS[field] || field;
+  logChange(ref, `Exception #${ex.num} — ${label}`, String(old), String(value));
+  ex[field] = value;
+}
+
+function renderExceptions(ref) {
+  const container  = document.getElementById('exceptions-rows');
+  const emptyEl    = document.getElementById('exceptions-empty');
+  if (!container) return;
+  const list = wpExceptions[ref] || [];
+
+  if (!list.length) {
+    container.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic" id="exceptions-empty">No exceptions recorded. Click "Add exception" to add one.</div>';
+    return;
+  }
+
+  const cellStyle = 'padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;';
+  const inputStyle = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;';
+
+  container.innerHTML = list.map((ex, i) => `
+    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
+      <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
+        oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      >${escHtml(ex.name)}</textarea></div>
+      <div style="${cellStyle}"><textarea rows="2" placeholder="Describe the exception…" style="${inputStyle}"
+        oninput="autoResizeTA(this);saveException('${ref}',${i},'desc',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      >${escHtml(ex.desc)}</textarea></div>
+      <div style="${cellStyle}flex-direction:column;gap:4px;align-items:flex-start">
+        <button class="btn-s" style="font-size:10px;padding:2px 7px;white-space:nowrap" onclick="openExceptionFileDialog('${ref}',${i})">
+          <i class="ti ti-paperclip"></i>Link files
+        </button>
+        <div id="exc-files-${ref.replace(/[^a-z0-9]/gi,'_')}_${i}" style="display:flex;flex-direction:column;gap:2px">
+          ${(ex.linkedFiles||[]).map(f=>`<div style="font-size:10px;color:var(--text-secondary);display:flex;align-items:center;gap:3px"><i class="ti ti-file" style="font-size:10px;color:var(--wf-navy)"></i>${escHtml(f)}</div>`).join('')}
+        </div>
+      </div>
+      <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
+        value="${escHtml(ex.owner)}"
+        oninput="saveException('${ref}',${i},'owner',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      ></div>
+      <div style="${cellStyle}"><textarea rows="2" placeholder="Management response…" style="${inputStyle}"
+        oninput="autoResizeTA(this);saveException('${ref}',${i},'mgmtResponse',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      >${escHtml(ex.mgmtResponse)}</textarea></div>
+      <div style="${cellStyle}"><input type="date" style="${inputStyle};cursor:pointer;"
+        value="${escHtml(ex.resolutionDate)}"
+        onchange="saveException('${ref}',${i},'resolutionDate',this.value)"
+      ></div>
+      <div style="${cellStyle}align-items:flex-start;flex-direction:column;gap:3px;justify-content:flex-start;padding-top:8px">
+        <div style="display:flex;align-items:center;justify-content:center;width:100%">
+          <input type="checkbox" ${ex.retested ? 'checked' : ''}
+            onchange="onExceptionRetested('${ref}',${i},this)"
+            style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
+        </div>
+        ${ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary);line-height:1.4;text-align:center;width:100%">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate)}</div>` : ''}
+      </div>
+      <div style="${cellStyle}align-items:center;justify-content:center;padding-top:8px">
+        <button class="icon-btn" style="color:var(--red-700);width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px" title="Delete exception"
+          onclick="confirmDeleteException('${ref}',${i})">
+          <i class="ti ti-trash"></i>
+        </button>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function onExceptionRetested(ref, idx, checkbox) {
+  if (!wpExceptions[ref]?.[idx]) return;
+  const ex = wpExceptions[ref][idx];
+  ex.retested = checkbox.checked;
+  if (checkbox.checked) {
+    const now  = new Date();
+    const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+    ex.retestedBy   = 'jdavis';
+    ex.retestedDate = `${date} ${time}`;
+    logEvent(ref, `Exception #${ex.num} marked as Retested by jdavis on ${date} ${time}`);
+  } else {
+    logChange(ref, `Exception #${ex.num} — Retested`, `Retested by ${ex.retestedBy} on ${ex.retestedDate}`, 'Retest cleared');
+    ex.retestedBy   = '';
+    ex.retestedDate = '';
+  }
+  renderExceptions(ref);
+}
+
+function loadExceptions(ref) {
+  renderExceptions(ref);
+}
+
+/* ══════════════════════════════════════
+   REVIEW NOTES — dog-ear corners & floating window
+══════════════════════════════════════ */
+const reviewNotes = {}; // { ref: { sectionId: 'note text' } }
+let _notesCurrentRef = null;
+let _notesCurrentSection = null;
+let _notesDragOffX = 0, _notesDragOffY = 0, _notesDragging = false;
+
+const SECTION_NAMES = {
+  'sect-wpinfo':          'Workpaper information',
+  'sect-narrative':       'Process / control narrative',
+  'sect-risks-controls':  'Linked risks & controls',
+  'sect-test-attributes': 'Test attributes',
+  'sect-wp-files':        'Attached workpaper files',
+  'sect-sample-files':    'Attached sample files',
+  'sect-analyze':         'Analyze & create workpaper',
+};
+
+function setDogEarsVisible(visible) {
+  document.querySelectorAll('.notes-corner').forEach(el => {
+    el.style.display = visible ? '' : 'none';
+  });
+  // Close the notes window if hiding corners
+  if (!visible) {
+    const win = document.getElementById('notes-window-template');
+    if (win && win.style.display !== 'none') closeNotesWindow(false);
+  }
+}
+
+function injectDogEars() {
+  Object.keys(SECTION_NAMES).forEach(id => {
+    const sect = document.getElementById(id);
+    if (!sect) return;
+    if (sect.querySelector('.notes-corner')) return; // already injected
+    const corner = document.createElement('div');
+    corner.className = 'notes-corner';
+    corner.title = 'Review notes';
+    corner.setAttribute('data-section', id);
+    corner.innerHTML = '<i class="ti ti-pencil" aria-hidden="true"></i>';
+    corner.addEventListener('click', () => openNotesWindow(id));
+    sect.appendChild(corner);
+  });
+}
+
+function makeNoteHeader() {
+  const now  = new Date();
+  const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  return `jdavis  ·  ${date} ${time}\n${'─'.repeat(32)}\n`;
+}
+
+let _notesFilter = 'uncleared'; // default: hide cleared
+
+function setNotesFilter(mode) {
+  _notesFilter = mode;
+  // Update button styles
+  ['all','uncleared','cleared'].forEach(m => {
+    const btn = document.getElementById('notes-filter-' + m);
+    if (!btn) return;
+    if (m === mode) {
+      btn.style.background   = 'var(--wf-navy)';
+      btn.style.color        = '#fff';
+      btn.style.borderColor  = 'var(--wf-navy)';
+    } else {
+      btn.style.background  = '';
+      btn.style.color       = '';
+      btn.style.borderColor = '';
+    }
+  });
+  applyNotesFilter();
+}
+
+function applyNotesFilter() {
+  const container = document.getElementById('notes-entries-container');
+  if (!container) return;
+  Array.from(container.children).forEach(entry => {
+    const isCleared = entry.querySelector('[data-cleared="1"]') !== null;
+    let show = true;
+    if (_notesFilter === 'cleared')   show = isCleared;
+    if (_notesFilter === 'uncleared') show = !isCleared;
+    entry.style.display = show ? '' : 'none';
+  });
+}
+
+function minimizeNotesWindow() {
+  const win = document.getElementById('notes-window-template');
+  if (!win) return;
+  const isMinimized = win.dataset.minimized === '1';
+  const body    = win.querySelector('div[style*="overflow-y:auto"]');
+  const filter  = win.querySelector('div[style*="background:var(--bg-secondary)"]');
+  const footer  = win.querySelector('div[style*="border-top:0.5px solid var(--border-light)"]');
+  if (!isMinimized) {
+    // Minimize — hide body and footer, shrink to header only
+    win.dataset.minimized = '1';
+    win.dataset.prevHeight = win.style.height || '460px';
+    if (body)   body.style.display   = 'none';
+    if (filter) filter.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+    win.style.height = 'auto';
+  } else {
+    // Restore
+    win.dataset.minimized = '0';
+    if (body)   body.style.display   = '';
+    if (filter) filter.style.display = '';
+    if (footer) footer.style.display = '';
+    win.style.height = win.dataset.prevHeight || '460px';
+  }
+}
+
+function addNoteEntry(container, text, focusNew) {
+  const DEMO_CLEARERS = ['mchen', 'rpatel', 'ltorres', 'skim', 'awong', 'bnguyen'];
+  const entry = document.createElement('div');
+  entry.style.cssText = 'display:flex;flex-direction:row;gap:6px;align-items:flex-start;width:100%';
+
+  // Textarea
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.placeholder = 'Enter review notes…';
+  ta.style.cssText = 'flex:1;min-width:0;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);outline:none;line-height:1.6;min-height:140px;overflow-y:hidden;box-sizing:border-box;display:block;width:100%';
+
+  function fitTA() {
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(140, ta.scrollHeight) + 'px';
+  }
+
+  ta.addEventListener('input', fitTA);
+  // Also resize on window resize
+  new ResizeObserver(fitTA).observe(ta.parentElement || ta);
+
+  // Right-side: cleared button + stamp pinned to right of textarea
+  const side = document.createElement('div');
+  side.style.cssText = 'flex-shrink:0;width:48px;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:4px';
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = 'Cleared';
+  clearBtn.style.cssText = 'font-size:9px;padding:2px 5px;border-radius:4px;border:0.5px solid var(--border-light);background:transparent;color:var(--text-tertiary);cursor:pointer;white-space:nowrap;transition:all 0.15s;width:100%';
+  clearBtn.title = 'Mark this note as cleared';
+
+  const stamp = document.createElement('div');
+  stamp.style.cssText = 'font-size:8px;color:var(--text-tertiary);text-align:center;line-height:1.4;display:none;word-break:break-all';
+
+  let clearerIdx = Math.floor(Math.random() * DEMO_CLEARERS.length);
+
+  clearBtn.addEventListener('click', () => {
+    const isCleared = clearBtn.dataset.cleared === '1';
+    if (!isCleared) {
+      const now  = new Date();
+      const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+      const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+      const clearer = DEMO_CLEARERS[clearerIdx % DEMO_CLEARERS.length];
+      clearBtn.dataset.cleared = '1';
+      clearBtn.style.background = '#2563eb';
+      clearBtn.style.color = '#fff';
+      clearBtn.style.borderColor = '#2563eb';
+      stamp.textContent = `${clearer}\n${date}\n${time}`;
+      stamp.style.display = 'block';
+      stamp.style.color = '#2563eb';
+    } else {
+      clearBtn.dataset.cleared = '0';
+      clearBtn.style.background = 'transparent';
+      clearBtn.style.color = 'var(--text-tertiary)';
+      clearBtn.style.borderColor = 'var(--border-light)';
+      stamp.style.display = 'none';
+    }
+    applyNotesFilter();
+    // Update dog-ear dot live (preview before Ok)
+    if (_notesCurrentSection) {
+      const allBtns      = Array.from(document.querySelectorAll('#notes-entries-container [data-cleared]'));
+      const totalEntries = Array.from(document.querySelectorAll('#notes-entries-container textarea')).filter(ta => ta.value.trim()).length;
+      const clearedCount = allBtns.filter(b => b.dataset.cleared === '1').length;
+      updateDogEarDot(_notesCurrentSection, totalEntries, clearedCount);
+    }
+  });
+
+  side.appendChild(clearBtn);
+  side.appendChild(stamp);
+  entry.appendChild(ta);
+  entry.appendChild(side);
+  container.appendChild(entry);
+
+  if (focusNew) {
+    setTimeout(() => {
+      fitTA();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+      ta.focus();
+      container.scrollTop = container.scrollHeight;
+    }, 30);
+  } else {
+    setTimeout(fitTA, 30);
+  }
+  return ta;
+}
+
+function addNewReviewNote() {
+  const container = document.getElementById('notes-entries-container');
+  if (!container) return;
+  addNoteEntry(container, makeNoteHeader(), true);
+}
+
+function openNotesWindow(sectionId) {
+  const ref  = getWPRef();
+  const win  = document.getElementById('notes-window-template');
+  const title= document.getElementById('notes-window-title');
+  const container = document.getElementById('notes-entries-container');
+  if (!win || !title || !container) return;
+
+  _notesCurrentRef     = ref;
+  _notesCurrentSection = sectionId;
+  title.textContent = SECTION_NAMES[sectionId] || sectionId;
+
+  // Clear existing entries
+  container.innerHTML = '';
+
+  // Load saved entries — stored as array of strings, or legacy single string
+  const saved = (ref && reviewNotes[ref]?.[sectionId]);
+  if (saved && saved.length) {
+    const entries = Array.isArray(saved) ? saved : [saved];
+    entries.forEach((text, i) => {
+      addNoteEntry(container, text, i === entries.length - 1);
+    });
+  } else {
+    // First open — create one blank entry with header
+    addNoteEntry(container, makeNoteHeader(), true);
+  }
+
+  win.style.display = 'flex';
+  setNotesFilter('uncleared');
+  makeDraggable(document.getElementById('notes-window-hdr-el'), win);
+  // Refit all textareas when window is resized
+  new ResizeObserver(() => {
+    win.querySelectorAll('textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.max(140, ta.scrollHeight) + 'px';
+    });
+  }).observe(win);
+}
+
+function closeNotesWindow(save) {
+  const win = document.getElementById('notes-window-template');
+  const container = document.getElementById('notes-entries-container');
+  if (!win) return;
+  if (save && _notesCurrentRef && _notesCurrentSection) {
+    if (!reviewNotes[_notesCurrentRef]) reviewNotes[_notesCurrentRef] = {};
+    const entries = Array.from(container?.querySelectorAll('textarea') || [])
+      .map(ta => ta.value)
+      .filter(v => v.trim());
+    reviewNotes[_notesCurrentRef][_notesCurrentSection] = entries;
+    // Determine dot state from cleared buttons
+    const allBtns     = Array.from(container?.querySelectorAll('[data-cleared]') || []);
+    const total       = entries.length;
+    const clearedCount= allBtns.filter(b => b.dataset.cleared === '1').length;
+    updateDogEarDot(_notesCurrentSection, total, clearedCount);
+  }
+  win.style.display = 'none';
+  _notesCurrentRef     = null;
+  _notesCurrentSection = null;
+}
+
+function updateDogEarDot(sectionId, total, clearedCount) {
+  const corner = document.querySelector(`#${sectionId} .notes-corner`);
+  if (!corner) return;
+  // Remove any existing dot
+  let dot = corner.querySelector('.notes-dot');
+  if (!dot) {
+    dot = document.createElement('span');
+    dot.className = 'notes-dot';
+    dot.style.cssText = 'position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;pointer-events:none;display:none;z-index:2';
+    corner.insertBefore(dot, corner.querySelector('i'));
+  }
+  if (total === 0) {
+    dot.style.display = 'none';
+  } else if (clearedCount < total) {
+    // Has uncleared notes — orange
+    dot.style.display = 'block';
+    dot.style.background = '#ea580c';
+  } else {
+    // All cleared — blue
+    dot.style.display = 'block';
+    dot.style.background = '#2563eb';
+  }
+}
+
+function expandNotesToTab() {
+  const container = document.getElementById('notes-entries-container');
+  const title = document.getElementById('notes-window-title');
+  const entries = Array.from(container?.querySelectorAll('textarea') || []).map(ta => ta.value).filter(v => v.trim());
+  const text  = entries.join('\n\n' + '═'.repeat(32) + '\n\n');
+  const sName = title?.textContent || 'Notes';
+  const ref   = _notesCurrentRef || '';
+  const wp    = WORKPAPERS[currentWPIndex]?.name || '';
+  const html  = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>${sName} — ${ref}</title>
+    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;background:#f8fafc;}
+    h2{font-size:16px;color:#39618b;margin-bottom:4px;}p{font-size:12px;color:#64748b;margin-bottom:16px;}
+    textarea{width:100%;height:calc(100vh - 140px);font-size:14px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;outline:none;resize:none;font-family:inherit;}
+    </style></head><body>
+    <h2>${sName}</h2><p>${ref}${wp ? ' — ' + wp : ''}</p>
+    <textarea id="ta">${text.replace(/</g,'&lt;')}</textarea>
+    <\/body><\/html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  window.open(URL.createObjectURL(blob), '_blank');
+}
+
+function makeDraggable(handle, win) {
+  if (handle._draggable) return;
+  handle._draggable = true;
+  handle.addEventListener('mousedown', e => {
+    _notesDragging = true;
+    const r = win.getBoundingClientRect();
+    _notesDragOffX = e.clientX - r.left;
+    _notesDragOffY = e.clientY - r.top;
+    win.style.right = 'auto';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!_notesDragging) return;
+    win.style.left = (e.clientX - _notesDragOffX) + 'px';
+    win.style.top  = (e.clientY - _notesDragOffY) + 'px';
+  });
+  document.addEventListener('mouseup', () => { _notesDragging = false; });
 }
 
 /* ══════════════════════════════════════
@@ -4692,6 +5433,40 @@ function populateAuditInfoCard(audit) {
 
 let analysisResults = []; // [{fileName, results:[{attrTitle, result, note},...]}]
 
+function downloadCommentary() {
+  const ref = getWPRef();
+  const wp  = WORKPAPERS[currentWPIndex];
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const header = [
+    `WAVEFIRE AUDIT — CLAUDE ANALYSIS COMMENTARY`,
+    `${'═'.repeat(60)}`,
+    `Audit:      ${wp?.auditName || ''}`,
+    `Workpaper:  ${ref} — ${wp?.name || ''}`,
+    `Generated:  ${dateStr} by jdavis`,
+    `${'═'.repeat(60)}`,
+    '',
+  ].join('\n');
+
+  const body = analysisResults
+    .filter(r => r.commentary?.trim())
+    .map(r => `FILE: ${r.fileName}\n${'─'.repeat(60)}\n${r.commentary.trim()}`)
+    .join('\n\n');
+
+  if (!body) { alert('No commentary to download.'); return; }
+
+  const content  = header + '\n' + body;
+  const blob     = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url      = URL.createObjectURL(blob);
+  const ts       = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const a        = document.createElement('a');
+  a.href         = url;
+  a.download     = `${ref || 'Analysis'}_Commentary_${ts}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 async function analyzeWithClaude() {
   const ref = getWPRef();
   if (!ref) return;
@@ -4719,6 +5494,10 @@ async function analyzeWithClaude() {
   document.getElementById('analysis-progress-bar').style.width = '0%';
   document.getElementById('analysis-results-list').innerHTML = '';
   document.getElementById('export-xlsx-btn').style.display = 'none';
+  const _commentaryBtn = document.getElementById('download-commentary-btn');
+  if (_commentaryBtn) _commentaryBtn.style.display = 'none';
+  const _commentaryEl = document.getElementById('analysis-commentary');
+  if (_commentaryEl) _commentaryEl.style.display = 'none';
   document.querySelector('#analysis-btn-row .btn-s').textContent = 'Cancel';
 
   analysisResults = [];
@@ -4833,9 +5612,15 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       const text = data.content?.find(b => b.type === 'text')?.text || '';
       if (!text) throw new Error('Claude returned an empty response. The PDF may be image-only or corrupted.');
 
+      // Separate JSON block from any narrative commentary
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)```|(\{[\s\S]*\})/);
+      const jsonStr   = jsonMatch ? (jsonMatch[1] || jsonMatch[2]).trim() : text.replace(/```json|```/g, '').trim();
+      // Commentary is anything outside the JSON block
+      const commentary = text.replace(/```json[\s\S]*?```/, '').replace(/\{[\s\S]*\}/, '').trim();
+
       let parsed;
       try {
-        parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+        parsed = JSON.parse(jsonStr);
       } catch(e) {
         throw new Error(`Claude response was not valid JSON. Raw: "${text.slice(0, 120)}…"`);
       }
@@ -4845,9 +5630,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         throw new Error('Claude returned results in an unexpected format.');
       }
 
-      return { ok: true, results };
+      return { ok: true, results, commentary };
     } catch(err) {
-      return { ok: false, error: err.message || String(err) };
+      return { ok: false, error: err.message || String(err), commentary: '' };
     }
   }
 
@@ -4860,7 +5645,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     const outcome = await analyzeOneFile(entry, row);
 
     if (outcome.ok) {
-      analysisResults.push({ fileName: entry.name, results: outcome.results });
+      analysisResults.push({ fileName: entry.name, results: outcome.results, commentary: outcome.commentary || '' });
       updateResultRow(row, 'done', null, null);
     } else {
       const errMsg = outcome.error;
@@ -4921,6 +5706,29 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
     : `Analysis complete — ${analysisResults.length} file${analysisResults.length !== 1 ? 's' : ''} evaluated successfully.`
   );
+
+  // Show any narrative commentary Claude returned
+  const allCommentary = analysisResults
+    .filter(r => r.commentary)
+    .map(r => r.commentary.trim())
+    .filter(Boolean);
+  const commentaryEl     = document.getElementById('analysis-commentary');
+  const commentaryTextEl = document.getElementById('analysis-commentary-text');
+  const commentaryBtn    = document.getElementById('download-commentary-btn');
+  if (allCommentary.length) {
+    const fullText = analysisResults
+      .filter(r => r.commentary?.trim())
+      .map(r => `FILE: ${r.fileName}\n${'─'.repeat(60)}\n${r.commentary.trim()}`)
+      .join('\n\n');
+    if (commentaryEl && commentaryTextEl) {
+      commentaryTextEl.textContent = fullText;
+      commentaryEl.style.display = '';
+    }
+    if (commentaryBtn) commentaryBtn.style.display = 'inline-flex';
+  } else {
+    if (commentaryEl)  commentaryEl.style.display  = 'none';
+    if (commentaryBtn) commentaryBtn.style.display  = 'none';
+  }
 
   const _at2 = document.getElementById('analysis-title'); if(_at2) _at2.textContent = errorCount > 0
     ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}`
@@ -5127,7 +5935,7 @@ async function exportToXlsx() {
   // Extract year from audit period
   const auditYear = (wp?.auditName ? (AUDITS.find(a => a.name === wp.auditName)?.period.match(/\b(20\d{2})\b/) || [])[1] : null)
     || now.getFullYear();
-  // Extract last segment (sequence number) from ref e.g. "WP-2026-INTE-006" → "006"
+  // Extract last segment (sequence number) from ref e.g. "WP-2026-SEC-006" → "006"
   const refParts = (ref || '').split('-');
   const seqNum = refParts[refParts.length - 1] || ref;
   // Format date and time
@@ -6128,7 +6936,7 @@ function onTagInput() {
 }
 
 function updateRefSegment3(ref, newSeg3) {
-  // Replace the third dash-separated segment: WP-2026-REVE-001 → WP-2026-NEWX-001
+  // Replace the third dash-separated segment: WP-2026-CC-001 → WP-2026-OPS-001
   const parts = ref.split('-');
   if (parts.length >= 3) parts[2] = newSeg3;
   return parts.join('-');
@@ -6178,7 +6986,7 @@ function toggleWPHeaderEdit() {
     titleIn.value = titleEl.textContent.trim();
     const refMatch = subEl.textContent.match(/^([^\s·]+)/);
     const currentRef = refMatch ? refMatch[1].trim() : (w?.ref || '');
-    // Split ref: WP-2026-REVE-001 → prefix=WP-2026-REVE, seq=001
+    // Split ref: WP-2026-CC-001 → prefix=WP-2026-REVE, seq=001
     const refParts = currentRef.split('-');
     const seqNum   = refParts.pop() || '001';
     const prefixWithoutSeg3 = refParts.slice(0, 2).join('-'); // WP-2026
@@ -6586,40 +7394,40 @@ function showUploadError(msg) {
 
 // Per-workpaper attribute rows (keyed by wp ref)
 const wpTestAttributes = {
-  "WP-2026-REVE-001": [
+  "WP-2026-CC-001": [
     { num: "1", title: "Authorization",       desc: "Verify that the revenue transaction has an approved contract or purchase order on file prior to recognition." },
     { num: "2", title: "Delivery confirmation",desc: "Confirm that a signed delivery acknowledgment or service completion form was received before the revenue entry date." },
     { num: "3", title: "Journal entry approval",desc: "Inspect the journal entry approval workflow to confirm dual sign-off by Controller and CFO for entries above $25,000." },
   ],
-  "WP-2026-ACCO-003": [
+  "WP-2026-OPS-003": [
     { num: "1", title: "Confirmation response", desc: "Verify that a positive confirmation response was received from the customer within the prescribed timeframe." },
     { num: "2", title: "Exception follow-up",   desc: "For non-responses, confirm that a second request was issued and alternative procedures were performed." },
   ],
-  "WP-2026-INTE-006": [
+  "WP-2026-SEC-006": [
     { num: "1", title: "Authorization", desc: "Authorization (or approval) is noted in the ticket history which starts in the ticket change log with a date and time stamp, then a username, a designation on the change log which includes \"approval set\". Approval should also be noted in the section called \"Approvers\" with the date and timestamp and \"state\" = approved and the approver name in the fourth column. If an approver name is found, then the attribute would Pass, otherwise it would Pass with exceptions or Fail." },
     { num: "2", title: "Documented Test Plan", desc: "Include one more column at far right for \"formally documented\" and put a \"Pass\" as the value for each ticket where both the \"change plan\" describes the change and the \"test plan\" describes how it will be tested, otherwise it would Pass with exceptions or Fail." },
   ],
-  "WP-2026-ACCE-002": [
+  "WP-2026-IPE-002": [
     { num: "1", title: "Access request approval", desc: "Verify that a formal access request with manager approval existed prior to account provisioning." },
     { num: "2", title: "Termination timeliness",  desc: "Confirm that terminated employee accounts were disabled within 24 hours of HR-notified termination date." },
     { num: "3", title: "Least privilege review",  desc: "Assess whether user access rights are limited to those necessary for the user's job responsibilities." },
   ],
-  "WP-2026-CHAN-003": [
+  "WP-2026-CC-003": [
     { num: "1", title: "Change request documentation", desc: "Confirm a complete change request, impact assessment, and rollback plan were in place before deployment." },
     { num: "2", title: "CAB approval",               desc: "Verify that the Change Advisory Board approved the change prior to production deployment." },
     { num: "3", title: "Post-implementation review",  desc: "Confirm that a post-implementation review was completed and documented within 5 business days of deployment." },
   ],
-  "WP-2026-SECT-003": [
+  "WP-2026-SEC-003": [
     { num: "1", title: "Control existence",    desc: "Confirm the ICFR control existed and was operational throughout the audit period." },
     { num: "2", title: "Sample testing",       desc: "Test a statistically valid sample of control executions for evidence of timely and accurate performance." },
     { num: "3", title: "Exception evaluation", desc: "Evaluate any noted control exceptions for severity classification per PCAOB AS 2201 criteria." },
   ],
-  "WP-2025-PROC-002": [
+  "WP-2025-SEC-002": [
     { num: "1", title: "PO authorization",      desc: "Confirm the purchase order was approved by an authorized approver separate from the requestor." },
     { num: "2", title: "Goods receipt",         desc: "Verify that goods receipt documentation was recorded before AP processed payment." },
     { num: "3", title: "Three-way match",        desc: "Confirm the PO, goods receipt, and vendor invoice agree within the tolerance threshold of 5% or $500." },
   ],
-  "WP-2026-PAYR-002": [
+  "WP-2026-IPE-002": [
     { num: "1", title: "Pay rate authorization", desc: "Confirm each pay rate change was supported by a signed written authorization approved by HR." },
     { num: "2", title: "Timesheet approval",     desc: "Verify timesheets were reviewed and approved by the employee's direct manager before payroll processing." },
   ],
@@ -7005,30 +7813,30 @@ const ALL_FS_ACCOUNTS = [
 
 // Per-workpaper FS account selections (keyed by wp ref)
 const wpFsAccounts = {
-  "WP-2026-REVE-001": ["is-revenue","bs-ar","fn-revrecog"],
-  "WP-2026-AUDI-002": ["is-revenue","bs-ar","is-cogs"],
-  "WP-2026-ACCO-003": ["bs-ar","fn-revrecog"],
-  "WP-2026-MANA-004": [],
-  "WP-2026-RISK-005": ["is-revenue","bs-ar","is-opex"],
-  "WP-2026-INTE-006": ["is-revenue","fn-revrecog"],
-  "WP-2026-AUDI-007": ["is-revenue","bs-ar","is-cogs","is-opex","is-netincome"],
-  "WP-2026-ITPL-001": [],
-  "WP-2026-ACCE-002": [],
-  "WP-2026-CHAN-003": [],
-  "WP-2026-ITAU-004": [],
-  "WP-2026-SOXS-001": ["is-revenue","bs-ar","bs-goodwill","is-netincome","fn-revrecog"],
-  "WP-2026-SECT-002": ["is-revenue","bs-ar"],
-  "WP-2026-SECT-003": ["is-revenue","bs-goodwill","bs-accrued","fn-revrecog","fn-commitments"],
-  "WP-2026-DEFI-004": ["bs-goodwill","fn-fairvalue"],
-  "WP-2026-SOXA-005": ["is-revenue","is-netincome","fn-revrecog","fn-subsequents"],
-  "WP-2025-OPER-001": ["bs-ap","bs-inventory","is-cogs"],
-  "WP-2025-PROC-002": ["bs-ap","bs-inventory","is-cogs","cf-ops"],
-  "WP-2025-OPER-003": ["bs-ap","bs-inventory","is-cogs"],
-  "WP-2025-VEND-001": ["bs-ap","fn-relatedparty"],
-  "WP-2025-VEND-002": ["bs-ap","fn-commitments","fn-relatedparty"],
-  "WP-2026-PAYR-001": ["is-salaries","bs-accrued"],
-  "WP-2026-PAYR-002": ["is-salaries","bs-accrued","cf-ops"],
-  "WP-2026-PAYR-003": ["is-salaries","bs-accrued"],
+  "WP-2026-CC-001": ["is-revenue","bs-ar","fn-revrecog"],
+  "WP-2026-CC-002": ["is-revenue","bs-ar","is-cogs"],
+  "WP-2026-OPS-003": ["bs-ar","fn-revrecog"],
+  "WP-2026-SEC-004": [],
+  "WP-2026-SEC-005": ["is-revenue","bs-ar","is-opex"],
+  "WP-2026-SEC-006": ["is-revenue","fn-revrecog"],
+  "WP-2026-CC-007": ["is-revenue","bs-ar","is-cogs","is-opex","is-netincome"],
+  "WP-2026-CC-001": [],
+  "WP-2026-IPE-002": [],
+  "WP-2026-CC-003": [],
+  "WP-2026-CC-004": [],
+  "WP-2026-CC-001": ["is-revenue","bs-ar","bs-goodwill","is-netincome","fn-revrecog"],
+  "WP-2026-SEC-002": ["is-revenue","bs-ar"],
+  "WP-2026-SEC-003": ["is-revenue","bs-goodwill","bs-accrued","fn-revrecog","fn-commitments"],
+  "WP-2026-CC-004": ["bs-goodwill","fn-fairvalue"],
+  "WP-2026-SEC-005": ["is-revenue","is-netincome","fn-revrecog","fn-subsequents"],
+  "WP-2025-IPE-001": ["bs-ap","bs-inventory","is-cogs"],
+  "WP-2025-SEC-002": ["bs-ap","bs-inventory","is-cogs","cf-ops"],
+  "WP-2025-IPE-003": ["bs-ap","bs-inventory","is-cogs"],
+  "WP-2025-OPS-001": ["bs-ap","fn-relatedparty"],
+  "WP-2025-CC-002": ["bs-ap","fn-commitments","fn-relatedparty"],
+  "WP-2026-SEC-001": ["is-salaries","bs-accrued"],
+  "WP-2026-IPE-002": ["is-salaries","bs-accrued","cf-ops"],
+  "WP-2026-OPS-003": ["is-salaries","bs-accrued"],
 };
 
 let currentFsSelection  = new Set();
