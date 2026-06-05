@@ -788,9 +788,9 @@
             <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
           </div>
           <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-            <button class="btn-p" style="background:#0891b2;border-color:#0891b2" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
             <div style="display:flex;gap:8px">
-              <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+              <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
               <button class="btn-p"><i class="ti ti-plus"></i>New audit</button>
             </div>
           </div>
@@ -887,9 +887,9 @@
             <div class="ps" id="wp-page-sub">Financial · Apr – Jun 2026 · Owner: J. Davis</div>
           </div>
           <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-            <button class="btn-p" style="background:#0891b2;border-color:#0891b2" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
             <div style="display:flex;gap:8px">
-              <button class="btn-s"><i class="ti ti-download"></i>Export</button>
+              <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
               <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
             </div>
           </div>
@@ -993,7 +993,7 @@
               <!-- Audit Status -->
               <div class="fld">
                 <div class="fl">Audit status</div>
-                <select id="aud-status" class="aud-field-select">
+                <select id="aud-status" class="aud-field-select" style="width:130px">
                   <option value="planned">Planned</option>
                   <option value="active">Active</option>
                   <option value="review">In review</option>
@@ -1362,7 +1362,7 @@
                 <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">
                   Linked risks &amp; controls <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary)">(from Risks &amp; Controls module)</span>
                 </div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openControlsDialog()">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -1421,7 +1421,7 @@
                 <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">
                   Linked financial statement accounts &amp; footnotes
                 </div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openFsAccountsDialog()">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -1798,13 +1798,19 @@
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Select assessment entities</div>
         <button onclick="closeEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
       </div>
-      <!-- Search -->
-      <div style="padding:12px 18px;border-bottom:0.5px solid var(--border-light)">
-        <div style="position:relative">
+      <!-- Search + filter -->
+      <div style="padding:10px 18px;border-bottom:0.5px solid var(--border-light)">
+        <div style="position:relative;margin-bottom:8px">
           <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:14px;pointer-events:none"></i>
           <input id="entity-search-input" type="text" placeholder="Search entities…"
             oninput="filterEntityList()"
             style="width:100%;padding:7px 10px 7px 32px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:13px;outline:none;background:var(--bg-secondary);color:var(--text-primary)">
+        </div>
+        <!-- Audit-entities filter — only visible in wp-scope mode -->
+        <div id="entity-audit-filter-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text-tertiary)">Show:</span>
+          <button id="entity-filter-all"       onclick="setEntityFilter('all')"       class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">All</button>
+          <button id="entity-filter-audit"     onclick="setEntityFilter('audit')"     class="btn-s" style="font-size:10px;padding:1px 7px">In this audit</button>
         </div>
       </div>
       <!-- Entity list -->
@@ -1820,7 +1826,7 @@
     </div>
   </div>
   <!-- Linked Risks & Controls — FS Accounts & Footnotes Grid Dialog -->
-  <div id="rc-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
+  <div id="rc-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:900px;max-width:97vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <!-- Header -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
@@ -1867,7 +1873,7 @@
   </div>
 
   <!-- FS Accounts & Footnotes Dialog -->
-  <div id="fs-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
+  <div id="fs-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:500px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Linked financial statement accounts &amp; footnotes</div>
@@ -2012,6 +2018,32 @@
     </div>
   </div>
 
+  <!-- Linked Risks & Controls — Controls Picker Dialog -->
+  <div id="ctrl-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:12001;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(780px,97vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#fff">Linked Risks &amp; Controls</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px">Select controls — related risks are linked automatically</div>
+        </div>
+        <button onclick="closeControlsDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;gap:10px">
+        <div style="position:relative;flex:1">
+          <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
+          <input id="ctrl-search-input" type="text" placeholder="Search controls or risks…" oninput="filterControlsDialog()"
+            style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+        </div>
+        <span id="ctrl-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
+      </div>
+      <div style="flex:1;overflow-y:auto" id="ctrl-list-container"></div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
+        <button class="btn-s" onclick="closeControlsDialog()">Cancel</button>
+        <button class="btn-p" onclick="applyControlsSelection()"><i class="ti ti-check"></i>Apply</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Workpaper History Modal -->
   <div id="history-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10003;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(1100px,96vw);box-shadow:0 20px 60px rgba(0,0,0,0.25);display:flex;flex-direction:column;max-height:calc(100vh - 64px)">
@@ -2057,6 +2089,25 @@
           <button class="btn-s" onclick="closeHistory()">Close</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Modal -->
+  <div id="dashboard-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:11500;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto">
+    <div style="background:#f1f5f9;border-radius:12px;width:min(1000px,97vw);box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+      <!-- Header -->
+      <div style="background:#39618b;color:#fff;padding:16px 24px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:16px;font-weight:700" id="dash-title">Audit Dashboard</div>
+          <div style="font-size:11px;opacity:0.7;margin-top:2px" id="dash-sub"></div>
+        </div>
+        <button onclick="document.getElementById('dashboard-overlay').style.display='none'"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px">
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
+      <!-- Body -->
+      <div id="dash-body" style="padding:20px;display:grid;grid-template-columns:240px 1fr 1fr;gap:16px"></div>
     </div>
   </div>
 
@@ -2967,6 +3018,14 @@ function openAudit(i) {
   renderWorkpapers(); // re-render filtered to this audit before showing the page
   populateWpFilters();
   populateAuditInfoCard(currentAudit);
+  // Populate the WP nav dropdown with this audit's workpapers
+  const selWpRef = document.getElementById('sel-wp-ref');
+  if (selWpRef) {
+    const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+    selWpRef.innerHTML = '<option value="">— Select workpaper —</option>' +
+      auditWPs.map(w => `<option value="${w.ref}">${w.ref} — ${w.name}</option>`).join('');
+    selWpRef.value = '';
+  }
   showPage('workpapers');
 }
 
@@ -3257,8 +3316,8 @@ function showPage(name) {
   const pg = document.getElementById(pageMap[name]);
   if (pg) pg.classList.add('active');
   pushNav(name);
-  // Gray out WP nav controls on non-workpaper-detail pages
-  setWPNavEnabled(name === 'wpdetail');
+  // Gray out WP nav controls on non-workpaper-detail pages, but enable on workpapers page
+  setWPNavEnabled(name === 'wpdetail' || name === 'workpapers');
   document.querySelectorAll('.wf-nav-item').forEach(n => {
     n.classList.toggle('active', n.textContent.trim() === 'Audits');
   });
@@ -3981,7 +4040,7 @@ function openNotesWindow(sectionId) {
 
   _notesCurrentRef     = ref;
   _notesCurrentSection = sectionId;
-  title.textContent = SECTION_NAMES[sectionId] || sectionId;
+  title.textContent = (SECTION_NAMES[sectionId] || sectionId).toUpperCase();
 
   // Clear existing entries
   container.innerHTML = '';
@@ -4414,6 +4473,162 @@ function positionRiskTooltip(e) {
 }
 
 /* ══════════════════════════════════════
+   LINKED RISKS & CONTROLS — CONTROLS PICKER
+══════════════════════════════════════ */
+// Map: controlId → array of riskIds it addresses
+const CTRL_RISKS_MAP = {
+  "REV-CTL-01": ["RSK-REV-01", "RSK-FIN-01"],
+  "REV-CTL-04": ["RSK-REV-02", "RSK-FIN-01"],
+  "FIN-CTL-11": ["RSK-FIN-01", "RSK-REV-01"],
+  "IT-CTL-01":  ["RSK-IT-01"],
+  "IT-CTL-02":  ["RSK-IT-02"],
+  "SOX-CTL-01": ["RSK-SOX-01", "RSK-FIN-01"],
+  "OPS-CTL-01": ["RSK-OPS-01"],
+  "OPS-CTL-02": ["RSK-OPS-01"],
+  "PAY-CTL-01": ["RSK-PAY-01"],
+  "PAY-CTL-02": ["RSK-PAY-01"],
+  "VDD-CTL-01": ["RSK-VDD-01"],
+};
+
+const wpLinkedControls = {}; // { ref: Set of controlIds }
+let   _ctrlDialogTemp  = new Set();
+
+function openControlsDialog() {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpLinkedControls[ref]) wpLinkedControls[ref] = new Set();
+  _ctrlDialogTemp = new Set(wpLinkedControls[ref]);
+  document.getElementById('ctrl-search-input').value = '';
+  renderControlsList('');
+  updateCtrlCount();
+  document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
+}
+
+function closeControlsDialog() {
+  document.getElementById('ctrl-dialog-overlay').style.display = 'none';
+}
+
+function filterControlsDialog() {
+  renderControlsList(document.getElementById('ctrl-search-input').value.toLowerCase());
+}
+
+function updateCtrlCount() {
+  const el = document.getElementById('ctrl-selected-count');
+  if (el) el.textContent = `${_ctrlDialogTemp.size} control${_ctrlDialogTemp.size !== 1 ? 's' : ''} selected`;
+}
+
+function renderControlsList(query) {
+  const container = document.getElementById('ctrl-list-container');
+  if (!container) return;
+
+  const ctrlIds = Object.keys(CONTROLS);
+  const filtered = ctrlIds.filter(id => {
+    const c = CONTROLS[id];
+    return !query ||
+      id.toLowerCase().includes(query) ||
+      c.title.toLowerCase().includes(query) ||
+      c.description.toLowerCase().includes(query) ||
+      (CTRL_RISKS_MAP[id] || []).some(rid => {
+        const r = RISKS[rid];
+        return r && (r.id.toLowerCase().includes(query) || r.title.toLowerCase().includes(query));
+      });
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">No controls match your search.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(id => {
+    const c       = CONTROLS[id];
+    const checked = _ctrlDialogTemp.has(id);
+    const riskIds = CTRL_RISKS_MAP[id] || [];
+    const riskTags= riskIds.map(rid => {
+      const r = RISKS[rid];
+      return r ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;white-space:nowrap">${rid}: ${r.title}</span>` : '';
+    }).join('');
+
+    return `<div onclick="toggleCtrl('${id}')"
+      style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked ? 'background:#f0fdf4' : ''}"
+      onmouseover="this.style.background='${checked ? '#dcfce7' : '#f8fafc'}'"
+      onmouseout="this.style.background='${checked ? '#f0fdf4' : ''}'">
+      <div id="ctrl-cb-${id}" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked ? 'var(--wf-navy)' : 'var(--border-medium)'};background:${checked ? 'var(--wf-navy)' : '#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:all 0.1s">
+        ${checked ? '<i class="ti ti-check" style="font-size:10px;color:#fff"></i>' : ''}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="font-size:11px;font-weight:700;color:var(--wf-blue)">${id}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${c.title}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;line-height:1.4">${c.description.slice(0,120)}…</div>
+        ${riskTags ? `<div style="display:flex;flex-wrap:wrap;gap:4px"><span style="font-size:10px;color:var(--text-tertiary);margin-right:2px">Linked risks:</span>${riskTags}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCtrl(id) {
+  if (_ctrlDialogTemp.has(id)) {
+    _ctrlDialogTemp.delete(id);
+  } else {
+    _ctrlDialogTemp.add(id);
+  }
+  updateCtrlCount();
+  filterControlsDialog();
+}
+
+function applyControlsSelection() {
+  const ref = getWPRef();
+  if (!ref) return;
+  const old = new Set(wpLinkedControls[ref] || []);
+  wpLinkedControls[ref] = new Set(_ctrlDialogTemp);
+
+  // Log additions and removals
+  _ctrlDialogTemp.forEach(id => { if (!old.has(id)) logEvent(ref, `Control linked: ${id} — ${CONTROLS[id]?.title || id}`); });
+  old.forEach(id => { if (!_ctrlDialogTemp.has(id)) logEvent(ref, `Control removed: ${id} — ${CONTROLS[id]?.title || id}`); });
+
+  // Derive linked risks from selected controls
+  const linkedRisks = new Set();
+  _ctrlDialogTemp.forEach(ctrlId => {
+    (CTRL_RISKS_MAP[ctrlId] || []).forEach(rid => linkedRisks.add(rid));
+  });
+
+  // Render the risks-controls table
+  renderRCTable(ref, _ctrlDialogTemp, linkedRisks);
+  closeControlsDialog();
+}
+
+function renderRCTable(ref, controlIds, riskIds) {
+  const tbody = document.getElementById('risks-tbody');
+  if (!tbody) return;
+
+  if (!riskIds.size) {
+    tbody.innerHTML = `<tr><td colspan="2" style="padding:14px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">No risks &amp; controls linked. Click "Add / edit" to link controls.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = [...riskIds].map(riskId => {
+    const risk = RISKS[riskId];
+    if (!risk) return '';
+    // Find controls linked to this risk
+    const linkedCtrls = [...controlIds].filter(cid => (CTRL_RISKS_MAP[cid] || []).includes(riskId));
+    const ctrlTags = linkedCtrls.map(cid => {
+      const c = CONTROLS[cid];
+      return `<span class="ctrl-tag" data-ctrl-id="${cid}" onmouseenter="showCtrlTooltip(event,'${cid}')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">${cid}: ${c?.title || cid}</span>`;
+    }).join('');
+    return `<tr style="border-bottom:0.5px solid var(--border-light)">
+      <td style="padding:9px 12px;vertical-align:top">
+        <span class="risk-tag" data-risk-id="${riskId}" onmouseenter="showRiskTooltip(event,'${riskId}')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)">
+          <span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">${riskId}</span>${risk.title}
+        </span>
+      </td>
+      <td style="padding:9px 12px;vertical-align:top"><div style="display:flex;flex-wrap:wrap;gap:4px">${ctrlTags}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
    CONTROLS DATA — from Risks & Controls module
 ══════════════════════════════════════ */
 const CONTROLS = {
@@ -4574,173 +4789,87 @@ function positionAuditTooltip(e) {
 function openDashboard() {
   const audit  = currentAudit;
   const wpList = WORKPAPERS.filter(w => w.auditName === audit?.name);
-
-  // ── Status counts ──
-  const statusLabels = { draft:'Draft', review:'In Review', approved:'Approved', complete:'Complete' };
-  const statusCounts = {};
-  wpList.forEach(w => {
-    const s = w.status || 'draft';
-    statusCounts[s] = (statusCounts[s] || 0) + 1;
-  });
-
-  // ── By preparer ──
-  const prepCounts = {};
-  wpList.forEach(w => { const p = w.preparer || '—'; prepCounts[p] = (prepCounts[p] || 0) + 1; });
-
-  // ── By reviewer ──
-  const revCounts = {};
-  wpList.forEach(w => { const r = w.reviewer || '—'; revCounts[r] = (revCounts[r] || 0) + 1; });
-
-  // ── Missing data checks ──
-  const CHECKS = [
-    { id:'pop',      label:'Population definition is blank',             fn: w => !w.population || !w.population.trim() },
-    { id:'sm',       label:'Sample method is blank',                     fn: w => !w.sampleMethod || !w.sampleMethod.trim() },
-    { id:'ss',       label:'Sample size is blank',                       fn: w => !w.sampleSize && w.sampleSize !== 0 },
-    { id:'ent',      label:'No assessment entities selected',            fn: w => !(wpScopeEntities[w.ref]?.size) },
-    { id:'rc',       label:'No risks & controls linked',                 fn: w => !(w.fsAccounts?.length) },
-    { id:'fs',       label:'No financial statement accounts selected',   fn: w => !(wpFsAccounts[w.ref]?.length) },
-    { id:'nar',      label:'Process/control narrative is blank',         fn: w => !w.narrative || w.narrative === '—' || !w.narrative.trim() },
-    { id:'attr',     label:'No test attributes listed',                  fn: w => !(wpTestAttributes[w.ref]?.filter(a=>a.title).length) },
-    { id:'wpfiles',  label:'No attached workpaper files uploaded',       fn: w => !(inMemoryFiles[w.ref]?.workpaper?.length) && !(w.files?.length) },
-    { id:'sffiles',  label:'No attached sample files uploaded',          fn: w => !(inMemoryFiles[w.ref]?.sample?.length) && !(w.sampleFiles?.length) },
-  ];
-
-  // Only check full workpapers for scope/testing checks
-  const fullTypes = ['Testwork', 'Report'];
-  function isFullWP(w) { return fullTypes.includes(w.type) || w.wpStyle === 'full'; }
-
-  // Build missing data table rows — one row per workpaper showing which checks fail
-  const missingRows = wpList.map(w => {
-    const isFull = isFullWP(w);
-    const failing = CHECKS.filter(c => {
-      // Skip full-WP-only checks for skinny WPs
-      const fullOnlyChecks = ['pop','sm','ss','ent','rc','fs','nar','attr','wpfiles','sffiles'];
-      if (!isFull && ['ent','rc','fs','nar','attr','sffiles'].includes(c.id)) return false;
-      return c.fn(w);
-    });
-    if (!failing.length) return null;
-    return { wp: w, failing };
-  }).filter(Boolean);
-
-  // ── Build HTML ──
-  const now = new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+  const now    = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
   const statusColors = { draft:'#64748b', review:'#2563eb', approved:'#16a34a', complete:'#7c3aed' };
-  const statusBar = Object.entries(statusCounts).map(([s, n]) =>
-    `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid #e2e8f0">
-      <span style="width:10px;height:10px;border-radius:50%;background:${statusColors[s]||'#94a3b8'};flex-shrink:0"></span>
-      <span style="flex:1;font-size:14px;color:#1e293b">${statusLabels[s] || s}</span>
-      <span style="font-size:22px;font-weight:700;color:${statusColors[s]||'#94a3b8'}">${n}</span>
-    </div>`
-  ).join('');
+  const statusLabels = { draft:'Draft', review:'In Review', approved:'Reviewed', complete:'Complete' };
+  const statusCounts = {};
+  wpList.forEach(w => { const s = w.status||'draft'; statusCounts[s]=(statusCounts[s]||0)+1; });
 
-  const preparerBar = Object.entries(prepCounts).sort((a,b)=>b[1]-a[1]).map(([p, n]) =>
-    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <span style="width:90px;font-size:12px;color:#64748b;text-align:right;flex-shrink:0">${p}</span>
-      <div style="flex:1;background:#e2e8f0;border-radius:99px;height:18px;overflow:hidden">
-        <div style="width:${Math.round((n/wpList.length)*100)}%;background:#39618b;height:100%;border-radius:99px;display:flex;align-items:center;padding-left:8px">
-          <span style="font-size:11px;font-weight:600;color:#fff">${n}</span>
+  const prepCounts = {};
+  wpList.forEach(w => { const p=w.preparer||'—'; prepCounts[p]=(prepCounts[p]||0)+1; });
+  const revCounts  = {};
+  wpList.forEach(w => { const r=w.reviewer||'—'; revCounts[r]=(revCounts[r]||0)+1; });
+
+  const CHECKS = [
+    { id:'pop',     label:'Population definition blank',   fn: w => !w.population?.trim() },
+    { id:'sm',      label:'Sample method blank',           fn: w => !w.sampleMethod?.trim() },
+    { id:'ss',      label:'Sample size blank',             fn: w => !w.sampleSize },
+    { id:'ent',     label:'No assessment entities',        fn: w => !(wpScopeEntities[w.ref]?.size) },
+    { id:'nar',     label:'Narrative blank',               fn: w => !w.narrative?.trim() || w.narrative==='—' },
+    { id:'attr',    label:'No test attributes',            fn: w => !(wpTestAttributes[w.ref]?.filter(a=>a.title).length) },
+    { id:'wpfiles', label:'No workpaper files',            fn: w => !(inMemoryFiles[w.ref]?.workpaper?.length)&&!(w.files?.length) },
+    { id:'sffiles', label:'No sample files',               fn: w => !(inMemoryFiles[w.ref]?.sample?.length)&&!(w.sampleFiles?.length) },
+  ];
+  const fullTypes = ['Testwork','Report'];
+  const missingRows = wpList.map(w => {
+    const isFull = fullTypes.includes(w.type)||w.wpStyle==='full';
+    const failing = CHECKS.filter(c => {
+      if (!isFull && ['ent','nar','attr','sffiles'].includes(c.id)) return false;
+      return c.fn(w);
+    });
+    return failing.length ? {w, failing} : null;
+  }).filter(Boolean);
+
+  const bar = (counts, color) => Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([name,n])=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      <span style="width:80px;font-size:11px;color:#64748b;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+      <div style="flex:1;background:#e2e8f0;border-radius:99px;height:16px;overflow:hidden">
+        <div style="width:${Math.max(8,Math.round((n/wpList.length)*100))}%;background:${color};height:100%;border-radius:99px;display:flex;align-items:center;padding-left:6px">
+          <span style="font-size:10px;font-weight:600;color:#fff">${n}</span>
         </div>
       </div>
-    </div>`
-  ).join('');
+    </div>`).join('');
 
-  const reviewerBar = Object.entries(revCounts).sort((a,b)=>b[1]-a[1]).map(([r, n]) =>
-    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <span style="width:90px;font-size:12px;color:#64748b;text-align:right;flex-shrink:0">${r}</span>
-      <div style="flex:1;background:#e2e8f0;border-radius:99px;height:18px;overflow:hidden">
-        <div style="width:${Math.round((n/wpList.length)*100)}%;background:#7c3aed;height:100%;border-radius:99px;display:flex;align-items:center;padding-left:8px">
-          <span style="font-size:11px;font-weight:600;color:#fff">${n}</span>
-        </div>
-      </div>
-    </div>`
-  ).join('');
-
-  // Missing data filter checkboxes + table
-  const checkboxes = CHECKS.map(c =>
-    `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;padding:4px 0">
-      <input type="checkbox" value="${c.id}" onchange="(function(){const ck=Array.from(document.querySelectorAll('#filter-checks input:checked')).map(c=>c.value);let v=0;document.querySelectorAll('.missing-row').forEach(r=>{const rc=(r.dataset.checks||'').split(',');const s=ck.some(c=>rc.includes(c));r.style.display=s?'':'none';if(s)v++;});document.getElementById('missing-count').textContent=v+' workpaper'+(v!==1?'s':'')+' with missing data';})()"  checked
-        style="width:14px;height:14px;accent-color:#39618b;cursor:pointer">
-      ${c.label}
-    </label>`
-  ).join('');
-
-  const tableRows = missingRows.map(({ wp, failing }) =>
-    `<tr class="missing-row" data-checks="${failing.map(f=>f.id).join(',')}">
-      <td style="padding:8px 12px;font-size:13px;color:#1e293b;font-weight:500">${wp.ref}</td>
-      <td style="padding:8px 12px;font-size:13px;color:#475569">${wp.name}</td>
-      <td style="padding:8px 12px;font-size:12px;color:#64748b">${wp.type}</td>
-      <td style="padding:8px 12px">
-        ${failing.map(f => `<span style="display:inline-block;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:2px 7px;font-size:11px;margin:2px 2px 2px 0">${f.label}</span>`).join('')}
-      </td>
-    </tr>`
-  ).join('') || `<tr><td colspan="4" style="padding:24px;text-align:center;color:#94a3b8;font-style:italic">All workpapers have complete data for the selected checks ✓</td></tr>`;
+  const missingTable = missingRows.length
+    ? `<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f8fafc;border-bottom:0.5px solid #e2e8f0">
+          <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;width:160px">Reference</th>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8">Workpaper</th>
+          <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8">Missing</th>
+        </tr></thead>
+        <tbody>${missingRows.map(({w,failing}) => {
+          const wpUrl = window.location.href.split('#')[0] + '#wp=' + encodeURIComponent(w.ref);
+          return `<tr style="border-bottom:0.5px solid #f1f5f9">
+            <td style="padding:7px 10px"><a href="${wpUrl}" target="_blank" style="color:#2563eb;font-weight:500;text-decoration:underline dotted;cursor:pointer">${w.ref}</a></td>
+            <td style="padding:7px 10px"><a href="${wpUrl}" target="_blank" style="color:#2563eb;text-decoration:underline dotted;cursor:pointer">${w.name}</a></td>
+            <td style="padding:7px 10px">${failing.map(f => '<span style="display:inline-block;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;font-size:10px;margin:1px">' + f.label + '</span>').join('')}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>`
+    : `<p style="color:#94a3b8;font-style:italic;font-size:13px">All workpapers have complete data ✓</p>`;
 
   const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dashboard — ${audit?.name || 'Audit'}</title>
-<style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f1f5f9; color:#1e293b; min-height:100vh; }
-  .topbar { background:#39618b; color:#fff; padding:14px 28px; display:flex; align-items:center; justify-content:space-between; }
-  .topbar h1 { font-size:18px; font-weight:700; }
-  .topbar .sub { font-size:12px; opacity:0.7; margin-top:2px; }
-  .grid { display:grid; grid-template-columns:280px 1fr 1fr; gap:18px; padding:24px 28px; }
-  .card { background:#fff; border-radius:10px; border:0.5px solid #e2e8f0; padding:20px; }
-  .card h2 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; margin-bottom:14px; }
-  .full-width { grid-column:1/-1; }
-  table { width:100%; border-collapse:collapse; }
-  thead tr { background:#f8fafc; border-bottom:0.5px solid #e2e8f0; }
-  th { padding:9px 12px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; }
-  tbody tr { border-bottom:0.5px solid #f1f5f9; }
-  tbody tr:hover { background:#f8fafc; }
-  .filters { display:flex; flex-wrap:wrap; gap:6px 20px; margin-bottom:14px; }
-  .badge-count { font-size:12px; color:#64748b; margin-bottom:12px; }
-</style>
-</head>
-<body>
-<div class="topbar">
-  <div>
-    <h1>Audit Dashboard — ${audit?.name || ''}</h1>
-    <div class="sub">Generated ${now} · ${wpList.length} workpapers</div>
-  </div>
-</div>
+<html lang="en"><head><meta charset="UTF-8"><title>Dashboard — ${audit?.name||''}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;padding:0}
+.topbar{background:#39618b;color:#fff;padding:14px 28px}.topbar h1{font-size:18px;font-weight:700}.topbar .sub{font-size:11px;opacity:.7;margin-top:2px}
+.grid{display:grid;grid-template-columns:240px 1fr 1fr;gap:16px;padding:20px}
+.card{background:#fff;border-radius:10px;border:.5px solid #e2e8f0;padding:18px}
+.card h2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:12px}
+.full{grid-column:1/-1}table{width:100%;border-collapse:collapse}
+</style></head><body>
+<div class="topbar"><h1>Dashboard — ${audit?.name||''}</h1><div class="sub">Generated ${now} · ${wpList.length} workpapers</div></div>
 <div class="grid">
-  <div class="card">
-    <h2>By Review Status</h2>
-    ${statusBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No workpapers</p>'}
+  <div class="card"><h2>By Review Status</h2>
+    ${Object.entries(statusCounts).map(([s,n])=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid #f1f5f9"><span style="width:10px;height:10px;border-radius:50%;background:${statusColors[s]||'#94a3b8'};flex-shrink:0"></span><span style="flex:1;font-size:13px;color:#1e293b">${statusLabels[s]||s}</span><span style="font-size:20px;font-weight:700;color:${statusColors[s]||'#94a3b8'}">${n}</span></div>`).join('')}
   </div>
-  <div class="card">
-    <h2>By Preparer</h2>
-    ${preparerBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No data</p>'}
-  </div>
-  <div class="card">
-    <h2>By Reviewer</h2>
-    ${reviewerBar || '<p style="color:#94a3b8;font-style:italic;font-size:13px">No data</p>'}
-  </div>
-  <div class="card full-width">
-    <h2>Workpapers with Missing Data</h2>
-    <div class="filters" id="filter-checks">${checkboxes}</div>
-    <p class="badge-count" id="missing-count">${missingRows.length} workpaper${missingRows.length !== 1 ? 's' : ''} with missing data</p>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:160px">Reference</th>
-          <th>Workpaper</th>
-          <th style="width:100px">Type</th>
-          <th>Missing items</th>
-        </tr>
-      </thead>
-      <tbody id="missing-tbody">${tableRows}</tbody>
-    </table>
-  </div>
-</div>
-<\/html>`;
+  <div class="card"><h2>By Preparer</h2>${bar(prepCounts,'#39618b')}</div>
+  <div class="card"><h2>By Reviewer</h2>${bar(revCounts,'#7c3aed')}</div>
+  <div class="card full"><h2>Workpapers with missing data <span style="font-weight:400;text-transform:none">(${missingRows.length})</span></h2>${missingTable}</div>
+</div></body></html>`;
 
-  const blob = new Blob([html], { type: 'text/html' });
+  const blob = new Blob([html], { type:'text/html' });
   const url  = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 10000);
@@ -5057,9 +5186,19 @@ function openWPEntityDialog() {
   const overlay = document.getElementById('entity-dialog-overlay');
   if (!overlay) return;
   overlay.dataset.mode = 'wp-scope';
-  // Use dialogTempEntities so renderEntityList shows checkmarks correctly
   dialogTempEntities = new Set(wpScopeEntities[ref]);
   document.getElementById('entity-search-input').value = '';
+  _entityFilter = 'all';
+  const filterRow = document.getElementById('entity-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'flex';
+  // Reset filter button styles
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('entity-filter-' + m);
+    if (!btn) return;
+    btn.style.background  = m === 'all' ? 'var(--wf-navy)' : '';
+    btn.style.color       = m === 'all' ? '#fff' : '';
+    btn.style.borderColor = m === 'all' ? 'var(--wf-navy)' : '';
+  });
   renderEntityList('');
   updateEntityCount();
   overlay.style.display = 'flex';
@@ -5122,20 +5261,20 @@ function renderWPScopeEntities(ref) {
     container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked — click Add / edit to link assessment entities to this workpaper.</span>`;
     return;
   }
-  const colorMap = { facility: '#16a34a', app: '#ea580c', biomed: '#7c3aed' };
   container.innerHTML = [...sel].map(id => {
     const e = ALL_ENTITIES.find(x => x.id === id);
     if (!e) return '';
-    const color = colorMap[e.type] || '#64748b';
-    return `<span class="entity-tag" style="background:${color}15;color:${color};border-color:${color}40">
-      <i class="ti ti-building" style="font-size:11px"></i>${e.name}
-    </span>`;
+    const { cls, icon } = entityStyle(e.category || e.type || 'facility');
+    return `<span class="${cls}"><i class="ti ${icon}"></i>${e.name}</span>`;
   }).join('');
 }
 
 function openEntityDialog() {
   dialogTempEntities = new Set(currentAuditEntities);
   document.getElementById('entity-search-input').value = '';
+  _entityFilter = 'all';
+  const filterRow = document.getElementById('entity-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'none';
   renderEntityList('');
   updateEntityCount();
   const overlay = document.getElementById('entity-dialog-overlay');
@@ -5148,42 +5287,68 @@ function closeEntityDialog() {
   document.getElementById('entity-dialog-overlay').style.display = 'none';
 }
 
+let _entityFilter = 'all'; // 'all' or 'audit'
+
+function setEntityFilter(mode) {
+  _entityFilter = mode;
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('entity-filter-' + m);
+    if (!btn) return;
+    if (m === mode) { btn.style.background = 'var(--wf-navy)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--wf-navy)'; }
+    else             { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
+  });
+  filterEntityList();
+}
+
 function filterEntityList() {
   const q = document.getElementById('entity-search-input').value.toLowerCase();
   renderEntityList(q);
 }
 
 function renderEntityList(query) {
-  const container = document.getElementById('entity-list-container');
-  const q = query.toLowerCase();
-  const filtered = ALL_ENTITIES.filter(e =>
+  const container  = document.getElementById('entity-list-container');
+  const q          = query.toLowerCase();
+  const overlay    = document.getElementById('entity-dialog-overlay');
+  const isWPScope  = overlay?.dataset.mode === 'wp-scope';
+  const auditEntities = currentAuditEntities || new Set();
+
+  let filtered = ALL_ENTITIES.filter(e =>
     e.name.toLowerCase().includes(q) || e.sub.toLowerCase().includes(q)
   );
+
+  // Apply audit filter (wp-scope only)
+  if (isWPScope && _entityFilter === 'audit') {
+    filtered = filtered.filter(e => auditEntities.has(e.id));
+  }
+
   if (filtered.length === 0) {
-    container.innerHTML = `<div style="padding:20px 18px;text-align:center;color:var(--text-tertiary);font-size:13px">No entities match "${query}"</div>`;
+    container.innerHTML = `<div style="padding:20px 18px;text-align:center;color:var(--text-tertiary);font-size:13px">${_entityFilter === 'audit' ? 'No audit entities match.' : `No entities match "${query}"`}</div>`;
     return;
   }
-  // Biomed only shown when workpaper has infosec controls
+
   const showBiomed = currentWPHasInfosecControl();
-  // Group by category
   const groups = [
-    { key: 'facility', label: 'Facilities',                              items: filtered.filter(e => e.category === 'facility') },
-    { key: 'app',      label: 'Applications',                            items: filtered.filter(e => e.category === 'app') },
-    { key: 'biomed',   label: 'Biomedical Equipment',                    items: showBiomed ? filtered.filter(e => e.category === 'biomed') : [] },
+    { key: 'facility', label: 'Facilities',         items: filtered.filter(e => e.category === 'facility') },
+    { key: 'app',      label: 'Applications',        items: filtered.filter(e => e.category === 'app') },
+    { key: 'biomed',   label: 'Biomedical Equipment',items: showBiomed ? filtered.filter(e => e.category === 'biomed') : [] },
   ].filter(g => g.items.length > 0);
 
   container.innerHTML = groups.map(g => {
     const groupHeader = `<div style="padding:6px 18px 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);background:var(--bg-secondary)">${g.label}</div>`;
     const rows = g.items.map(e => {
-      const checked = dialogTempEntities.has(e.id);
-      const { icon } = entityStyle(e.category);
-      const dotColor  = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
-      const checkedBg = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
+      const checked    = dialogTempEntities.has(e.id);
+      const inAudit    = auditEntities.has(e.id);
+      const { icon }   = entityStyle(e.category);
+      const dotColor   = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
+      const checkedBg  = dotColor;
+      const auditBadge = isWPScope && inAudit
+        ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
+        : '';
       return `<div class="entity-list-item${checked ? ' checked' : ''}" onclick="toggleEntityItem('${e.id}')" id="eli-${e.id}" data-cat="${e.category}">
         <div class="entity-checkbox" style="${checked ? 'background:' + checkedBg + ';border-color:' + checkedBg : ''}">${checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : ''}</div>
         <i class="ti ${icon}" style="font-size:15px;color:${dotColor};flex-shrink:0"></i>
         <div>
-          <div class="entity-name">${e.name}</div>
+          <div class="entity-name" style="display:flex;align-items:center;gap:0">${e.name}${auditBadge}</div>
           <div class="entity-sub">${e.sub}</div>
         </div>
       </div>`;
@@ -7091,29 +7256,108 @@ function saveWPHeaderEdit() {
   btn.style.color = '';
 }
 
+function showFutureEnhancement(btn) {
+  // Remove any existing bubble
+  document.querySelectorAll('.future-bubble').forEach(b => b.remove());
+  const bubble = document.createElement('div');
+  bubble.className = 'future-bubble';
+  bubble.style.cssText = `
+    position:absolute;right:calc(100% + 10px);top:50%;transform:translateY(-50%);
+    background:#fefce8;border:0.5px solid #fde047;border-radius:var(--radius-md);
+    padding:5px 11px;font-size:11px;color:#854d0e;white-space:nowrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.1);pointer-events:none;z-index:100`;
+  bubble.textContent = '⚡ Future enhancement';
+  const arrow = document.createElement('div');
+  arrow.style.cssText = `position:absolute;right:-5px;top:50%;transform:translateY(-50%);
+    width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;
+    border-left:5px solid #fde047`;
+  bubble.appendChild(arrow);
+  btn.style.position = 'relative';
+  btn.appendChild(bubble);
+  setTimeout(() => { bubble.remove(); btn.style.position = ''; }, 3000);
+}
+
 function submitForReview() {
   const w = WORKPAPERS[currentWPIndex];
   if (!w) return;
-  const statusSel = document.getElementById('wpd-status');
-  const oldVal = statusSel?.value || w.status || 'draft';
-  if (oldVal === 'review' || oldVal === 'approved') {
-    // Already in review or approved — no-op with subtle feedback
-    const btn = document.querySelector('.row-actions button[onclick="submitForReview()"]');
-    if (btn) { btn.style.color = 'var(--wf-blue)'; setTimeout(() => btn.style.color = '', 1200); }
+
+  const statusSel  = document.getElementById('wpd-status');
+  const reviewerSel = document.getElementById('wpd-reviewer');
+  const dateSub     = document.getElementById('wpd-date-submitted');
+  const submitBtn   = document.querySelector('.row-actions button[onclick="submitForReview()"]');
+
+  // Validate reviewer
+  if (!reviewerSel?.value) {
+    showSubmitBubble(submitBtn, 'No reviewer has been selected', '#dc2626', '#fef2f2', '#fca5a5');
     return;
   }
-  // Set to In Review
+
+  const oldVal = statusSel?.value || w.status || 'draft';
+  if (oldVal === 'approved' || oldVal === 'complete') {
+    showSubmitBubble(submitBtn, 'Already reviewed', '#2563eb', '#eff6ff', '#93c5fd');
+    return;
+  }
+
+  // Set status to In Review
   if (statusSel) statusSel.value = 'review';
   w.status = 'review';
-  logChange(w.ref, 'Status', 'draft', 'review');
+  logChange(w.ref, 'Status', oldVal, 'review');
   logEvent(w.ref, 'Submitted for review');
-  // Visual feedback on button
-  const btn = document.querySelector('.row-actions button[onclick="submitForReview()"]');
+
+  // Set date submitted to today
+  const today = new Date().toISOString().split('T')[0];
+  if (dateSub) {
+    const oldDate = dateSub.value;
+    dateSub.value = today;
+    if (oldDate !== today) logChange(w.ref, 'Date submitted for review', oldDate, today);
+    w.dateSubmitted = today;
+  }
+
+  // Show email confirmation bubble
+  const reviewerName = reviewerSel?.options[reviewerSel.selectedIndex]?.text || reviewerSel.value;
+  showSubmitBubble(submitBtn, `${reviewerName} has been emailed`, '#166534', '#f0fdf4', '#86efac');
+}
+
+function showSubmitBubble(btn, message, textColor, bgColor, borderColor) {
+  // Remove any existing bubble
+  document.querySelectorAll('.submit-bubble').forEach(b => b.remove());
+
+  const bubble = document.createElement('div');
+  bubble.className = 'submit-bubble';
+  bubble.style.cssText = `
+    position:absolute;
+    right:calc(100% + 10px);
+    top:50%;
+    transform:translateY(-50%);
+    background:${bgColor};
+    border:0.5px solid ${borderColor};
+    border-radius:var(--radius-md);
+    padding:5px 11px;
+    font-size:11px;
+    color:${textColor};
+    white-space:nowrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.1);
+    pointer-events:none;
+    z-index:100;
+  `;
+  bubble.textContent = message;
+
+  // Add arrow pointing right
+  const arrow = document.createElement('div');
+  arrow.style.cssText = `
+    position:absolute;right:-5px;top:50%;transform:translateY(-50%);
+    width:0;height:0;
+    border-top:5px solid transparent;
+    border-bottom:5px solid transparent;
+    border-left:5px solid ${borderColor};
+  `;
+  bubble.appendChild(arrow);
+
+  // Need relative container on the button
   if (btn) {
-    const orig = btn.innerHTML;
-    btn.innerHTML = '<i class="ti ti-check"></i>Submitted';
-    btn.style.color = '#166534';
-    setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; }, 2000);
+    btn.style.position = 'relative';
+    btn.appendChild(bubble);
+    setTimeout(() => { bubble.remove(); btn.style.position = ''; }, 4000);
   }
 }
 
@@ -7946,12 +8190,14 @@ function setWPNavEnabled(enabled) {
   const prevBtn  = document.getElementById('wp-nav-prev');
   const nextBtn  = document.getElementById('wp-nav-next');
   const wpSel    = document.getElementById('sel-wp-ref');
+  // Arrows only active on workpaper detail page
+  const arrowsEnabled = enabled && document.querySelector('#page-wpdetail.active') !== null;
   [prevBtn, nextBtn].forEach(btn => {
     if (!btn) return;
-    btn.disabled = !enabled;
-    btn.style.opacity      = enabled ? '1'            : '0.35';
-    btn.style.cursor       = enabled ? 'pointer'      : 'not-allowed';
-    btn.style.pointerEvents= enabled ? ''             : 'none';
+    btn.disabled = !arrowsEnabled;
+    btn.style.opacity      = arrowsEnabled ? '1'       : '0.35';
+    btn.style.cursor       = arrowsEnabled ? 'pointer' : 'not-allowed';
+    btn.style.pointerEvents= arrowsEnabled ? ''        : 'none';
   });
   if (wpSel) {
     wpSel.disabled        = !enabled;
