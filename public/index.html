@@ -4831,16 +4831,24 @@ function openDashboard() {
       </div>
     </div>`).join('');
 
+  const checkboxesHtml = CHECKS.map(c =>
+    `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;padding:3px 0;white-space:nowrap">
+      <input type="checkbox" value="${c.id}" class="dash-filter-cb" onchange="applyDashFilter()"
+        style="width:13px;height:13px;accent-color:#39618b;cursor:pointer">
+      ${c.label}
+    </label>`
+  ).join('');
+
   const missingTable = missingRows.length
-    ? `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    ? `<table id="dash-missing-table" style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="background:#f8fafc;border-bottom:0.5px solid #e2e8f0">
           <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;width:160px">Reference</th>
           <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8">Workpaper</th>
           <th style="padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8">Missing</th>
         </tr></thead>
-        <tbody>${missingRows.map(({w,failing}) => {
+        <tbody id="dash-missing-tbody">${missingRows.map(({w,failing}) => {
           const wpUrl = window.location.href.split('#')[0] + '#wp=' + encodeURIComponent(w.ref);
-          return `<tr style="border-bottom:0.5px solid #f1f5f9">
+          return `<tr class="dash-missing-row" data-checks="${failing.map(f=>f.id).join(',')}" style="border-bottom:0.5px solid #f1f5f9">
             <td style="padding:7px 10px"><a href="${wpUrl}" target="_blank" style="color:#2563eb;font-weight:500;text-decoration:underline dotted;cursor:pointer">${w.ref}</a></td>
             <td style="padding:7px 10px"><a href="${wpUrl}" target="_blank" style="color:#2563eb;text-decoration:underline dotted;cursor:pointer">${w.name}</a></td>
             <td style="padding:7px 10px">${failing.map(f => '<span style="display:inline-block;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;font-size:10px;margin:1px">' + f.label + '</span>').join('')}</td>
@@ -4866,8 +4874,29 @@ function openDashboard() {
   </div>
   <div class="card"><h2>By Preparer</h2>${bar(prepCounts,'#39618b')}</div>
   <div class="card"><h2>By Reviewer</h2>${bar(revCounts,'#7c3aed')}</div>
-  <div class="card full"><h2>Workpapers with missing data <span style="font-weight:400;text-transform:none">(${missingRows.length})</span></h2>${missingTable}</div>
-</div></body></html>`;
+  <div class="card full"><h2>Workpapers with missing data <span id="dash-missing-count" style="font-weight:400;text-transform:none">(select filters below to show)</span></h2>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 0 14px;border-bottom:.5px solid #f1f5f9;margin-bottom:12px">${checkboxesHtml}</div>
+    <div id="dash-missing-wrap">${missingTable}</div>
+  </div>
+</div>
+<script>
+function applyDashFilter() {
+  const checked = Array.from(document.querySelectorAll('.dash-filter-cb:checked')).map(cb => cb.value);
+  const rows    = document.querySelectorAll('.dash-missing-row');
+  const countEl = document.getElementById('dash-missing-count');
+  let visible   = 0;
+  rows.forEach(row => {
+    const rowChecks = (row.dataset.checks || '').split(',');
+    const show = checked.length > 0 && checked.some(c => rowChecks.includes(c));
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  if (countEl) countEl.textContent = checked.length === 0
+    ? '(select filters below to show)'
+    : visible + ' workpaper' + (visible !== 1 ? 's' : '') + ' with selected issues';
+}
+<\/script>
+</body></html>`;
 
   const blob = new Blob([html], { type:'text/html' });
   const url  = URL.createObjectURL(blob);
@@ -5246,7 +5275,15 @@ function applyWPEntitySelection() {
 
   // ── Sync new entities up to the associated audit ──
   newSet.forEach(id => {
-    if (!currentAuditEntities.has(id)) currentAuditEntities.add(id);
+    if (!currentAuditEntities.has(id)) {
+      currentAuditEntities.add(id);
+      // Also persist to the audit data object
+      const audit = AUDITS.find(a => a.name === w.auditName);
+      if (audit) {
+        if (!audit.entities) audit.entities = [];
+        if (!audit.entities.includes(id)) audit.entities.push(id);
+      }
+    }
   });
   renderAuditEntityTags();
 
@@ -5586,7 +5623,16 @@ function populateAuditInfoCard(audit) {
     "Vendor Due Diligence":        ["stcharles","mainst","workday"],
     "Payroll Audit":               ["stvincents","southbay","mainst","workday"],
   };
-  currentAuditEntities = new Set(entityDefaults[audit.name] || []);
+
+  // Use audit.entities if it has been updated (e.g. from workpaper additions),
+  // otherwise fall back to entityDefaults. This preserves any entities added from workpapers.
+  const baseEntities = entityDefaults[audit.name] || [];
+  const savedEntities = audit.entities || [];
+  const merged = new Set([...baseEntities, ...savedEntities]);
+  currentAuditEntities = merged;
+  // Keep audit.entities in sync so future navigations remember additions
+  audit.entities = [...merged];
+
   renderAuditEntityTags();
   // Lock all fields by default — user must press Edit to modify
   setTimeout(() => setAuditInfoLocked(true), 10);
