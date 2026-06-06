@@ -788,10 +788,10 @@
             <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
           </div>
           <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Review of Audits</button>
             <div style="display:flex;gap:8px">
               <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
-              <button class="btn-p"><i class="ti ti-plus"></i>New audit</button>
+              <button class="btn-p" onclick="openNewAudit()"><i class="ti ti-plus"></i>New audit</button>
             </div>
           </div>
         </div>
@@ -853,7 +853,7 @@
         <div class="tc">
           <div class="tb-bar">
             <div class="tb-title" id="audit-count-label">Showing 6 audits</div>
-            <button class="btn-s" style="font-size:11px"><i class="ti ti-adjustments-horizontal"></i>Columns</button>
+            
           </div>
           <div class="resizable-table"><table id="audit-table">
             <colgroup id="audit-colgroup">
@@ -886,12 +886,9 @@
             <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
             <div class="ps" id="wp-page-sub">Financial · Apr – Jun 2026 · Owner: J. Davis</div>
           </div>
-          <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
-            <div style="display:flex;gap:8px">
+          <div class="row-actions">
               <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
               <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
-            </div>
           </div>
         </div>
 
@@ -1003,16 +1000,59 @@
                 </select>
               </div>
             </div>
+            <!-- Description -->
+            <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border-light)">
+              <div class="fl" style="margin-bottom:5px">Description</div>
+              <textarea id="aud-desc"
+                placeholder="Enter a description for this audit…"
+                rows="3"
+                style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed"
+                onfocus="this.style.borderColor='var(--wf-blue)'"
+                onblur="this.style.borderColor='var(--border-light)'; saveAuditDesc(this.value)"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scope Section Card -->
+        <div class="sect-card" style="margin-bottom:0">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-scope"></i>Scope</div>
+          </div>
+          <div style="padding:14px 18px;display:flex;flex-direction:column;gap:14px">
             <!-- Assessment Entities -->
-            <div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border-light)">
+            <div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                 <div class="fl">Assessment entities</div>
                 <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openEntityDialog()">
-                  <i class="ti ti-plus"></i>Add / edit entities
+                  <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
               <div id="aud-entities" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px">
                 <!-- populated by JS -->
+              </div>
+            </div>
+            <!-- Linked Risks & Controls -->
+            <div style="border-top:0.5px solid var(--border-light);padding-top:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="fl">Linked risks &amp; controls</div>
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openAuditControlsDialog()">
+                  <i class="ti ti-plus"></i>Add / edit
+                </button>
+              </div>
+              <div id="aud-rc-tags" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No controls linked</span>
+              </div>
+            </div>
+            <!-- Linked Financial Statement Accounts & Footnotes -->
+            <div style="border-top:0.5px solid var(--border-light);padding-top:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="fl">Linked financial statement accounts &amp; footnotes</div>
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
+                  <i class="ti ti-plus"></i>Add / edit
+                </button>
+              </div>
+              <div id="aud-fs-tags" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>
               </div>
             </div>
           </div>
@@ -1791,7 +1831,7 @@
     </main>
   </div><!-- /body -->
   <!-- Entity Selection Dialog -->
-  <div id="entity-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;align-items:center;justify-content:center">
+  <div id="entity-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:11000;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <!-- Dialog header -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
@@ -1873,7 +1913,7 @@
   </div>
 
   <!-- FS Accounts & Footnotes Dialog -->
-  <div id="fs-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;align-items:center;justify-content:center">
+  <div id="fs-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:11500;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:500px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Linked financial statement accounts &amp; footnotes</div>
@@ -2019,7 +2059,7 @@
   </div>
 
   <!-- Linked Risks & Controls — Controls Picker Dialog -->
-  <div id="ctrl-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:12001;align-items:center;justify-content:center">
+  <div id="ctrl-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:11500;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(780px,97vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
         <div>
@@ -2108,6 +2148,137 @@
       </div>
       <!-- Body -->
       <div id="dash-body" style="padding:20px;display:grid;grid-template-columns:240px 1fr 1fr;gap:16px"></div>
+    </div>
+  </div>
+
+  <!-- New Audit Modal -->
+  <div id="new-audit-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9500;align-items:center;justify-content:center">
+    <div id="new-audit-modal" style="background:var(--bg-primary);border-radius:var(--radius-lg);width:calc(100vw - 48px);height:calc(100vh - 48px);display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);resize:both;overflow:hidden;min-width:400px;min-height:300px;position:fixed;top:24px;left:24px">
+      <!-- Header -->
+      <div id="new-audit-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0;cursor:move;user-select:none">
+        <div style="font-size:15px;font-weight:600;color:#fff">New Audit</div>
+        <button onclick="closeNewAudit()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>
+      </div>
+      <!-- Scrollable body -->
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Name <span style="color:#dc2626">*</span></div>
+          <input id="na-name" type="text" placeholder="e.g. Q3 2026 Financial Audit" maxlength="120"
+            style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)"
+            onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+        </div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Year</div>
+            <input id="na-year" type="number" min="2000" max="2099" placeholder="2026"
+              style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)"
+              onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+          </div>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Type</div>
+            <select id="na-type" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
+              <option value="">— Select —</option>
+              <option>Financial</option><option>SOX</option><option>Operations</option>
+              <option>IT / Systems</option><option>Compliance</option><option>Vendor / Third-party</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Manager</div>
+          <select id="na-owner" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
+            <option value="">— Select —</option>
+            <option>jdavis</option><option>mchen</option><option>rpatel</option>
+            <option>ltorres</option><option>skim</option><option>awong</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Audit Period</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <!-- From -->
+            <div style="display:flex;align-items:center;gap:4px">
+              <select id="na-period-from-month" style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:80px" onchange="rebuildNewAuditPeriod()">
+                <option value="">Month</option>
+                <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
+                <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
+                <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
+              </select>
+              <input id="na-period-from-day" type="number" min="1" max="31" placeholder="Day"
+                style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:56px"
+                onchange="rebuildNewAuditPeriod()">
+              <input id="na-period-from-year" type="number" min="2000" max="2099" placeholder="Year"
+                style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:68px"
+                onchange="rebuildNewAuditPeriod()">
+            </div>
+            <span style="font-size:13px;color:var(--text-tertiary)">–</span>
+            <!-- To -->
+            <div style="display:flex;align-items:center;gap:4px">
+              <select id="na-period-to-month" style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:80px" onchange="rebuildNewAuditPeriod()">
+                <option value="">Month</option>
+                <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
+                <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
+                <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
+              </select>
+              <input id="na-period-to-day" type="number" min="1" max="31" placeholder="Day"
+                style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:56px"
+                onchange="rebuildNewAuditPeriod()">
+              <input id="na-period-to-year" type="number" min="2000" max="2099" placeholder="Year"
+                style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:68px"
+                onchange="rebuildNewAuditPeriod()">
+            </div>
+            <span id="na-period-preview" style="font-size:11px;color:var(--text-tertiary);font-style:italic"></span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Description</div>
+          <textarea id="na-desc" rows="3" placeholder="Enter a description for this audit…"
+            style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5"
+            onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
+        </div>
+        <!-- Scope Section -->
+        <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-lg);overflow:hidden">
+          <div style="background:var(--bg-secondary);padding:8px 14px;border-bottom:0.5px solid var(--border-light)">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary)">Scope</div>
+          </div>
+          <div style="padding:14px;display:flex;flex-direction:column;gap:12px">
+            <!-- Assessment Entities -->
+            <div>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Assessment Entities</div>
+              <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openNewAuditEntityDialog()">
+                <i class="ti ti-plus"></i>Add / edit
+              </button>
+              <div id="na-entities" style="display:flex;flex-wrap:wrap;gap:6px;min-height:20px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities selected</span>
+              </div>
+            </div>
+            <!-- Linked Risks & Controls -->
+            <div style="border-top:0.5px solid var(--border-light);padding-top:12px">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Linked Risks &amp; Controls</div>
+              <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openNewAuditControlsDialog()">
+                <i class="ti ti-plus"></i>Add / edit
+              </button>
+              <div id="na-rc-tags" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No controls linked</span>
+              </div>
+            </div>
+            <!-- Linked Financial Statement Accounts & Footnotes -->
+            <div style="border-top:0.5px solid var(--border-light);padding-top:12px">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Linked Financial Statement Accounts &amp; Footnotes</div>
+              <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openNewAuditFSDialog()">
+                <i class="ti ti-plus"></i>Add / edit
+              </button>
+              <div id="na-fs-tags" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px">
+                <span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="na-error" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:var(--radius-md);padding:7px 10px"></div>
+      </div>
+      <!-- Footer — always visible at bottom of modal -->
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--bg-primary)">
+        <button class="btn-s" onclick="closeNewAudit()">Cancel</button>
+        <button class="btn-p" onclick="createNewAudit()"><i class="ti ti-check"></i>Save</button>
+      </div>
     </div>
   </div>
 
@@ -2676,11 +2847,11 @@ const wpTypeClass = { Planning:"wp-type-planning", Testwork:"wp-type-testwork", 
 function resultPill(r) {
   if (!r) return '<span style="font-size:11px;color:var(--text-tertiary)">—</span>';
   const map = {
-    pass:   { label: 'Pass',               bg: '#dcfce7', color: '#166534', border: '#86efac' },
-    passex: { label: 'Pass w/ Exceptions', bg: '#fef3c7', color: '#92400e', border: '#fde68a' },
-    fail:   { label: 'Fail',               bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
-    met:    { label: 'Objectives Met',     bg: '#dbeafe', color: '#1e40af', border: '#93c5fd' },
-    notmet: { label: 'Objectives Not Met', bg: '#ede9fe', color: '#5b21b6', border: '#c4b5fd' },
+    pass:   { label: 'Pass',               bg: '#ccfbf1', color: '#0f766e', border: '#5eead4' }, // teal
+    passex: { label: 'Pass w/ Exceptions', bg: '#fce7f3', color: '#9d174d', border: '#f9a8d4' }, // pink
+    fail:   { label: 'Fail',               bg: '#ffe4e6', color: '#be123c', border: '#fda4af' }, // rose
+    met:    { label: 'Objectives Met',     bg: '#e0e7ff', color: '#3730a3', border: '#a5b4fc' }, // indigo
+    notmet: { label: 'Objectives Not Met', bg: '#fdf4ff', color: '#7e22ce', border: '#d8b4fe' }, // violet
   };
   const c = map[r];
   if (!c) return '<span style="font-size:11px;color:var(--text-tertiary)">—</span>';
@@ -3018,6 +3189,29 @@ function openAudit(i) {
   renderWorkpapers(); // re-render filtered to this audit before showing the page
   populateWpFilters();
   populateAuditInfoCard(currentAudit);
+  // Render audit-level scope tags — aggregate FS accounts and controls from all workpapers
+  setTimeout(() => {
+    const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+    // Aggregate FS accounts
+    if (!auditLinkedFs[currentAudit.name]) auditLinkedFs[currentAudit.name] = new Set();
+    auditWPs.forEach(w => {
+      const wpFs = wpFsAccounts[w.ref] || w.fsAccounts || [];
+      wpFs.forEach(id => auditLinkedFs[currentAudit.name].add(id));
+    });
+    // Aggregate controls from all workpapers (session + static risk-linked + w.linkedControls)
+    if (!auditLinkedControls[currentAudit.name]) auditLinkedControls[currentAudit.name] = new Set();
+    auditWPs.forEach(w => {
+      const sessionCtrls = wpLinkedControls[w.ref] || new Set();
+      const staticCtrls  = w.linkedControls || [];
+      // Also extract from risks[].controls array in static data
+      const riskCtrls    = (w.risks || []).flatMap(r => r.controls || []);
+      sessionCtrls.forEach(id => auditLinkedControls[currentAudit.name].add(id));
+      staticCtrls.forEach(id  => auditLinkedControls[currentAudit.name].add(id));
+      riskCtrls.forEach(id    => auditLinkedControls[currentAudit.name].add(id));
+    });
+    renderAuditRCTags(currentAudit.name);
+    renderAuditFSTags(currentAudit.name);
+  }, 50);
   // Populate the WP nav dropdown with this audit's workpapers
   const selWpRef = document.getElementById('sel-wp-ref');
   if (selWpRef) {
@@ -3565,45 +3759,52 @@ function addException() {
 }
 
 function openExceptionFileDialog(ref, idx) {
-  // Gather all available files (workpaper + sample)
   const staticWP  = WORKPAPERS.find(w => w.ref === ref)?.files || [];
   const memWP     = inMemoryFiles[ref]?.workpaper || [];
   const memSF     = inMemoryFiles[ref]?.sample    || [];
-  const allNames  = [
-    ...staticWP.map(f => f.name),
-    ...memWP.map(f => f.name),
-    ...memSF.map(f => f.name),
-  ];
+
+  const wpNames   = [...staticWP.map(f => f.name), ...memWP.map(f => f.name)];
+  const sfNames   = memSF.map(f => f.name);
 
   const ex  = wpExceptions[ref]?.[idx];
   const cur = new Set(ex?.linkedFiles || []);
 
+  function sectionHtml(title, names) {
+    if (!names.length) return '';
+    const rows = names.map(name => {
+      const checked = cur.has(name);
+      const ext = name.split('.').pop().toUpperCase();
+      const safe = name.replace(/'/g, "\\'");
+      return `<label style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-bottom:0.5px solid #f1f5f9;font-size:13px;color:#1e293b">
+        <input type="checkbox" value="${safe}" ${checked ? 'checked' : ''} class="exc-file-cb"
+          style="width:14px;height:14px;accent-color:#39618b;cursor:pointer;flex-shrink:0">
+        <span style="font-size:10px;font-weight:600;color:#94a3b8;min-width:32px">${ext}</span>
+        <span>${name}</span>
+      </label>`;
+    }).join('');
+    return `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#64748b;padding:8px 18px 4px;background:#f8fafc;border-bottom:0.5px solid #e2e8f0;position:sticky;top:0;z-index:1">${title}</div>${rows}`;
+  }
+
+  const listHTML = (wpNames.length || sfNames.length)
+    ? sectionHtml('Attached Workpaper Files', wpNames) + sectionHtml('Attached Sample Files', sfNames)
+    : '<div style="padding:24px;text-align:center;color:#94a3b8;font-style:italic;font-size:13px">No attached files found. Upload files first.</div>';
+
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;display:flex;align-items:center;justify-content:center';
 
-  const listHTML = allNames.length
-    ? allNames.map(name => {
-        const checked = cur.has(name);
-        const safe = name.replace(/'/g,"\\'");
-        return `<label style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-bottom:0.5px solid #e2e8f0;font-size:13px;color:#1e293b">
-          <input type="checkbox" value="${safe}" ${checked ? 'checked' : ''} style="width:14px;height:14px;accent-color:#39618b;cursor:pointer">
-          <span>${name}</span>
-        </label>`;
-      }).join('')
-    : '<div style="padding:24px;text-align:center;color:#94a3b8;font-style:italic;font-size:13px">No attached files found. Upload files first.</div>';
-
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:10px;width:min(520px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
-      <div style="background:#39618b;color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:10px 10px 0 0">
-        <div style="font-size:14px;font-weight:600"><i class="ti ti-paperclip" style="margin-right:6px"></i>Link files to exception #${(ex?.num||idx+1)}</div>
+      <div style="background:#39618b;color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:10px 10px 0 0;flex-shrink:0">
+        <div style="font-size:14px;font-weight:600"><i class="ti ti-paperclip" style="margin-right:6px"></i>Link files to exception #${ex?.num || idx+1}</div>
         <button onclick="this.closest('.exc-file-overlay').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">✕</button>
       </div>
       <div style="overflow-y:auto;flex:1">${listHTML}</div>
-      <div style="padding:12px 18px;border-top:0.5px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
+      <div style="padding:12px 18px;border-top:0.5px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
         <button onclick="this.closest('.exc-file-overlay').remove()" style="font-size:12px;padding:4px 12px;border:0.5px solid #e2e8f0;border-radius:6px;cursor:pointer;background:#fff">Cancel</button>
         <button onclick="applyExceptionFiles(this,'${ref}',${idx})" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;cursor:pointer;background:#39618b;color:#fff"><i class="ti ti-check"></i> Apply</button>
       </div>
     </div>`;
+
   overlay.className = 'exc-file-overlay';
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
@@ -3611,7 +3812,7 @@ function openExceptionFileDialog(ref, idx) {
 
 function applyExceptionFiles(btn, ref, idx) {
   const overlay = btn.closest('.exc-file-overlay');
-  const checked = Array.from(overlay.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+  const checked = Array.from(overlay.querySelectorAll('.exc-file-cb:checked')).map(cb => cb.value);
   if (!wpExceptions[ref]?.[idx]) return;
   const ex  = wpExceptions[ref][idx];
   const old = (ex.linkedFiles || []).join('; ');
@@ -4473,6 +4674,103 @@ function positionRiskTooltip(e) {
 }
 
 /* ══════════════════════════════════════
+   AUDIT-LEVEL SCOPE — Risks & Controls + FS Accounts
+══════════════════════════════════════ */
+const auditLinkedControls = {}; // { auditName: Set of controlIds }
+const auditLinkedFs       = {}; // { auditName: Set of fsAccountIds }
+
+function renderAuditRCTags(auditName) {
+  const container = document.getElementById('aud-rc-tags');
+  if (!container) return;
+  const ctrls = auditLinkedControls[auditName] || new Set();
+  if (!ctrls.size) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No controls linked</span>';
+    return;
+  }
+  container.innerHTML = [...ctrls].map(id => {
+    const c = CONTROLS[id];
+    return `<span style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:4px;padding:2px 8px;white-space:nowrap">
+      <i class="ti ti-shield-check" style="font-size:10px;margin-right:3px"></i>${id}${c ? ': ' + c.title : ''}
+    </span>`;
+  }).join('');
+}
+
+function renderAuditFSTags(auditName) {
+  const container = document.getElementById('aud-fs-tags');
+  if (!container) return;
+  const fsIds = auditLinkedFs[auditName] || new Set();
+  if (!fsIds.size) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>';
+    return;
+  }
+  container.innerHTML = [...fsIds].map(id => {
+    // Try HOSPITAL_FS first, then ALL_FS_ACCOUNTS
+    const hItem = HOSPITAL_FS.find(f => f.id === id);
+    if (hItem) return `<span style="font-size:11px;background:#f0fdf4;color:#166534;border:0.5px solid #86efac;border-radius:4px;padding:2px 8px;white-space:nowrap">${hItem.code ? hItem.code + ': ' : ''}${hItem.desc}</span>`;
+    const aItem = (typeof ALL_FS_ACCOUNTS !== 'undefined') && ALL_FS_ACCOUNTS.find(a => a.id === id);
+    if (aItem) return `<span style="font-size:11px;background:#f0fdf4;color:#166534;border:0.5px solid #86efac;border-radius:4px;padding:2px 8px;white-space:nowrap">${aItem.code ? aItem.code + ': ' : ''}${aItem.name}</span>`;
+    return '';
+  }).filter(Boolean).join('');
+  if (!container.innerHTML) container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>';
+}
+
+function openAuditControlsDialog() {
+  const auditName = currentAudit?.name;
+  if (!auditName) return;
+  if (!auditLinkedControls[auditName]) auditLinkedControls[auditName] = new Set();
+  // Reuse the controls picker, seed with audit-level selections
+  _ctrlDialogTemp = new Set(auditLinkedControls[auditName]);
+  document.getElementById('ctrl-search-input').value = '';
+  renderControlsList('');
+  updateCtrlCount();
+  // Override apply to save at audit level
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'audit';
+  document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
+}
+
+// Patch applyControlsSelection to handle audit mode
+const _origApplyControlsSelection = applyControlsSelection;
+applyControlsSelection = function() {
+  const overlay = document.getElementById('ctrl-dialog-overlay');
+  if (overlay?.dataset.mode === 'audit') {
+    const auditName = currentAudit?.name;
+    if (auditName) {
+      auditLinkedControls[auditName] = new Set(_ctrlDialogTemp);
+      renderAuditRCTags(auditName);
+    }
+    overlay.dataset.mode = '';
+    closeControlsDialog();
+    return;
+  }
+  if (overlay?.dataset.mode === 'new-audit-ctrl') {
+    _newAuditControls = new Set(_ctrlDialogTemp);
+    renderNewAuditRCTags();
+    overlay.dataset.mode = '';
+    closeControlsDialog();
+    return;
+  }
+  _origApplyControlsSelection();
+};
+
+// Sync controls/FS from workpaper up to audit level
+function syncWPControlsToAudit(ref, ctrlSet) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w?.auditName) return;
+  const auditName = w.auditName;
+  if (!auditLinkedControls[auditName]) auditLinkedControls[auditName] = new Set();
+  ctrlSet.forEach(id => auditLinkedControls[auditName].add(id));
+}
+
+function syncWPFsToAudit(ref, fsSet) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w?.auditName) return;
+  const auditName = w.auditName;
+  if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
+  fsSet.forEach(id => auditLinkedFs[auditName].add(id));
+}
+
+/* ══════════════════════════════════════
    LINKED RISKS & CONTROLS — CONTROLS PICKER
 ══════════════════════════════════════ */
 // Map: controlId → array of riskIds it addresses
@@ -4596,6 +4894,8 @@ function applyControlsSelection() {
 
   // Render the risks-controls table
   renderRCTable(ref, _ctrlDialogTemp, linkedRisks);
+  // Sync to audit level
+  syncWPControlsToAudit(ref, _ctrlDialogTemp);
   closeControlsDialog();
 }
 
@@ -4902,6 +5202,227 @@ function applyDashFilter() {
   const url  = URL.createObjectURL(blob);
   window.open(url, '_blank');
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+/* New Audit — entity selection using the shared entity dialog */
+let _newAuditEntities = new Set();
+
+let _newAuditControls = new Set();
+let _newAuditFs       = new Set();
+
+function openNewAuditControlsDialog() {
+  _ctrlDialogTemp = new Set(_newAuditControls);
+  document.getElementById('ctrl-search-input').value = '';
+  renderControlsList('');
+  updateCtrlCount();
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'new-audit-ctrl';
+  document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
+}
+
+function openNewAuditFSDialog() {
+  currentFsSelection = new Set(_newAuditFs);
+  dialogFsTemp       = new Set(_newAuditFs);
+  document.getElementById('fs-search-input').value = '';
+  renderFsAccountList('');
+  updateFsCount();
+  document.getElementById('fs-dialog-overlay').dataset.mode = 'new-audit-fs';
+  document.getElementById('fs-dialog-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('fs-search-input').focus(), 50);
+}
+
+function renderNewAuditRCTags() {
+  const container = document.getElementById('na-rc-tags');
+  if (!container) return;
+  if (!_newAuditControls.size) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No controls linked</span>';
+    return;
+  }
+  container.innerHTML = [..._newAuditControls].map(id => {
+    const c = CONTROLS[id];
+    return `<span style="font-size:11px;background:#eff6ff;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:4px;padding:2px 8px;white-space:nowrap">
+      <i class="ti ti-shield-check" style="font-size:10px;margin-right:3px"></i>${id}${c ? ': ' + c.title : ''}
+    </span>`;
+  }).join('');
+}
+
+function renderNewAuditFSTags() {
+  const container = document.getElementById('na-fs-tags');
+  if (!container) return;
+  if (!_newAuditFs.size) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>';
+    return;
+  }
+  container.innerHTML = [..._newAuditFs].map(id => {
+    const hItem = HOSPITAL_FS.find(f => f.id === id);
+    if (hItem) return `<span style="font-size:11px;background:#f0fdf4;color:#166534;border:0.5px solid #86efac;border-radius:4px;padding:2px 8px;white-space:nowrap">${hItem.code ? hItem.code + ': ' : ''}${hItem.desc}</span>`;
+    const aItem = (typeof ALL_FS_ACCOUNTS !== 'undefined') && ALL_FS_ACCOUNTS.find(a => a.id === id);
+    if (aItem) return `<span style="font-size:11px;background:#f0fdf4;color:#166534;border:0.5px solid #86efac;border-radius:4px;padding:2px 8px;white-space:nowrap">${aItem.code ? aItem.code + ': ' : ''}${aItem.name}</span>`;
+    return '';
+  }).filter(Boolean).join('');
+  if (!container.innerHTML) container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked</span>';
+}
+
+function openNewAuditEntityDialog() {
+  // Reuse the existing entity dialog in a special mode
+  dialogTempEntities = new Set(_newAuditEntities);
+  document.getElementById('entity-search-input').value = '';
+  _entityFilter = 'all';
+  const filterRow = document.getElementById('entity-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'none';
+  // Reset filter buttons
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('entity-filter-' + m);
+    if (!btn) return;
+    btn.style.background  = m === 'all' ? 'var(--wf-navy)' : '';
+    btn.style.color       = m === 'all' ? '#fff' : '';
+    btn.style.borderColor = m === 'all' ? 'var(--wf-navy)' : '';
+  });
+  renderEntityList('');
+  updateEntityCount();
+  const overlay = document.getElementById('entity-dialog-overlay');
+  overlay.dataset.mode = 'new-audit';
+  overlay.style.display = 'flex';
+  setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
+}
+
+function renderNewAuditEntityTags() {
+  const container = document.getElementById('na-entities');
+  if (!container) return;
+  if (!_newAuditEntities.size) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities selected</span>';
+    return;
+  }
+  container.innerHTML = [..._newAuditEntities].map(id => {
+    const e = ALL_ENTITIES.find(x => x.id === id);
+    if (!e) return '';
+    const { cls, icon } = entityStyle(e.category || 'facility');
+    return `<span class="${cls}"><i class="ti ${icon}"></i>${e.name}</span>`;
+  }).join('');
+}
+
+function rebuildNewAuditPeriod() {
+  const fromMonth = document.getElementById('na-period-from-month')?.value || '';
+  const fromDay   = document.getElementById('na-period-from-day')?.value   || '';
+  const fromYear  = document.getElementById('na-period-from-year')?.value  || '';
+  const toMonth   = document.getElementById('na-period-to-month')?.value   || '';
+  const toDay     = document.getElementById('na-period-to-day')?.value     || '';
+  const toYear    = document.getElementById('na-period-to-year')?.value    || '';
+
+  const fromParts = [fromMonth, fromDay, fromYear].filter(Boolean).join(' ').trim();
+  const toParts   = [toMonth,   toDay,   toYear  ].filter(Boolean).join(' ').trim();
+
+  let period = '';
+  if (fromParts && toParts) period = `${fromParts} – ${toParts}`;
+  else if (fromParts)       period = fromParts;
+  else if (toParts)         period = toParts;
+
+  const prev = document.getElementById('na-period-preview');
+  if (prev) prev.textContent = period ? `→ ${period}` : '';
+}
+
+function makeNewAuditDraggable(handle, modal) {
+  if (handle._nadrg) return;
+  handle._nadrg = true;
+  let ox = 0, oy = 0, dragging = false;
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    const r = modal.getBoundingClientRect();
+    ox = e.clientX - r.left;
+    oy = e.clientY - r.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const newLeft = Math.max(0, Math.min(window.innerWidth  - modal.offsetWidth,  e.clientX - ox));
+    const newTop  = Math.max(0, Math.min(window.innerHeight - modal.offsetHeight, e.clientY - oy));
+    modal.style.left = newLeft + 'px';
+    modal.style.top  = newTop  + 'px';
+  });
+  document.addEventListener('mouseup', () => { dragging = false; });
+}
+
+function openNewAudit() {
+  _newAuditEntities = new Set();
+  _newAuditControls = new Set();
+  _newAuditFs       = new Set();
+  renderNewAuditEntityTags();
+  renderNewAuditRCTags();
+  renderNewAuditFSTags();
+  // Reset fields
+  document.getElementById('na-name').value  = '';
+  document.getElementById('na-year').value  = new Date().getFullYear();
+  document.getElementById('na-type').value  = '';
+  document.getElementById('na-owner').value = '';
+  const naDesc = document.getElementById('na-desc'); if (naDesc) naDesc.value = '';
+  ['na-period-from-month','na-period-to-month'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['na-period-from-day','na-period-from-year','na-period-to-day','na-period-to-year'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const prev = document.getElementById('na-period-preview'); if (prev) prev.textContent = '';
+  document.getElementById('na-error').style.display = 'none';
+
+  document.getElementById('new-audit-overlay').style.display = 'block';
+  makeNewAuditDraggable(document.getElementById('new-audit-hdr'), document.getElementById('new-audit-modal'));
+  setTimeout(() => document.getElementById('na-name').focus(), 50);
+}
+
+function closeNewAudit() {
+  document.getElementById('new-audit-overlay').style.display = 'none';
+}
+
+function createNewAudit() {
+  const name  = document.getElementById('na-name').value.trim();
+  const year  = document.getElementById('na-year').value;
+  const type  = document.getElementById('na-type').value;
+  const owner = document.getElementById('na-owner').value;
+  const errEl = document.getElementById('na-error');
+
+  // Assemble period from structured fields
+  const fromMonth = document.getElementById('na-period-from-month')?.value || '';
+  const fromDay   = document.getElementById('na-period-from-day')?.value   || '';
+  const fromYear  = document.getElementById('na-period-from-year')?.value  || '';
+  const toMonth   = document.getElementById('na-period-to-month')?.value   || '';
+  const toDay     = document.getElementById('na-period-to-day')?.value     || '';
+  const toYear    = document.getElementById('na-period-to-year')?.value    || '';
+  const fromParts = [fromMonth, fromDay, fromYear].filter(Boolean).join(' ').trim();
+  const toParts   = [toMonth,   toDay,   toYear  ].filter(Boolean).join(' ').trim();
+  const period = fromParts && toParts ? `${fromParts} – ${toParts}` : fromParts || toParts || '';
+
+  if (!name) {
+    errEl.textContent = 'Audit name is required.';
+    errEl.style.display = '';
+    document.getElementById('na-name').focus();
+    return;
+  }
+  if (AUDITS.some(a => a.name.toLowerCase() === name.toLowerCase())) {
+    errEl.textContent = `An audit named "${name}" already exists.`;
+    errEl.style.display = '';
+    return;
+  }
+
+  const newAudit = {
+    name,
+    year:   parseInt(year) || new Date().getFullYear(),
+    type:   type  || 'Financial',
+    owner:  owner || 'jdavis',
+    period,
+    status: 'Planned',
+    desc:   document.getElementById('na-desc')?.value.trim() || '',
+    entities: [..._newAuditEntities],
+  };
+  AUDITS.push(newAudit);
+  if (_newAuditControls.size) auditLinkedControls[name] = new Set(_newAuditControls);
+  if (_newAuditFs.size)       auditLinkedFs[name]       = new Set(_newAuditFs);
+
+  // Update audit nav dropdown
+  const selAudit = document.getElementById('sel-audit');
+  if (selAudit) {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    selAudit.appendChild(opt);
+  }
+
+  closeNewAudit();
+  renderAudits();
 }
 
 function openNewWorkpaper() {
@@ -5238,6 +5759,10 @@ function applyEntitySelectionRouted() {
   const overlay = document.getElementById('entity-dialog-overlay');
   if (overlay?.dataset.mode === 'wp-scope') {
     applyWPEntitySelection();
+  } else if (overlay?.dataset.mode === 'new-audit') {
+    _newAuditEntities = new Set(dialogTempEntities);
+    renderNewAuditEntityTags();
+    overlay.style.display = 'none';
   } else {
     applyEntitySelection();
   }
@@ -5451,6 +5976,10 @@ function removeAuditEntity(id) {
 /* ══════════════════════════════════════
    POPULATE AUDIT INFO CARD when audit opens
 ══════════════════════════════════════ */
+function saveAuditDesc(val) {
+  if (currentAudit) currentAudit.desc = val.trim();
+}
+
 function saveAuditYear(val) {
   if (!currentAudit) return;
   const year = parseInt(val);
@@ -5464,7 +5993,7 @@ const AUDIT_INFO_LOCKED_FIELDS = [
   'aud-year',
   'aud-period-from-month','aud-period-from-day','aud-period-from-year',
   'aud-period-to-month','aud-period-to-day','aud-period-to-year',
-  'aud-owner','aud-biz-owner','aud-type',
+  'aud-owner','aud-biz-owner','aud-type','aud-desc',
 ];
 
 function setAuditInfoLocked(locked) {
@@ -5591,6 +6120,9 @@ function populateAuditInfoCard(audit) {
   setVal('aud-period-to-year',    to.year);
   const previewEl = document.getElementById('aud-period-preview');
   if (previewEl && rawPeriod) previewEl.textContent = `→ ${rawPeriod}`;
+
+  const descEl = document.getElementById('aud-desc');
+  if (descEl) descEl.value = audit.desc || '';
 
   // Sync audit year — derive from period or audit name if not stored
   const yearInput = document.getElementById('aud-year');
@@ -6158,6 +6690,31 @@ async function exportToXlsx() {
   const filename = `WP-${auditYear}-${seqNum}_TestResults_${dateStr}_${timeStr}.xlsx`;
   XLSX.writeFile(wb, filename);
 
+  // ── Also auto-download commentary .txt if any commentary exists ──
+  const commentaryEntries = analysisResults
+    .filter(r => r.commentary?.trim())
+    .map(r => `FILE: ${r.fileName}\n${'─'.repeat(60)}\n${r.commentary.trim()}`);
+
+  if (commentaryEntries.length) {
+    const header = [
+      `WAVEFIRE AUDIT — CLAUDE ANALYSIS COMMENTARY`,
+      `${'═'.repeat(60)}`,
+      `Audit:      ${wp?.auditName || ''}`,
+      `Workpaper:  ${ref} — ${wp?.name || ''}`,
+      `Generated:  ${now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })} by jdavis`,
+      `${'═'.repeat(60)}`,
+      '',
+    ].join('\n');
+    const txtContent  = header + '\n' + commentaryEntries.join('\n\n');
+    const txtBlob     = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const txtUrl      = URL.createObjectURL(txtBlob);
+    const txtA        = document.createElement('a');
+    txtA.href         = txtUrl;
+    txtA.download     = `WP-${auditYear}-${seqNum}_Commentary_${dateStr}_${timeStr}.txt`;
+    document.body.appendChild(txtA); txtA.click(); document.body.removeChild(txtA);
+    setTimeout(() => URL.revokeObjectURL(txtUrl), 2000);
+  }
+
   // ── Add the exported file to Attached Workpaper Files ──
   const xlsxBlob = new Blob(
     [XLSX.write(wb, { bookType: 'xlsx', type: 'array' })],
@@ -6478,13 +7035,24 @@ function renderDocxPanel(fileId, ref, idx) {
       </div>`
     ).join('');
   } else {
-    html += `<div style="padding:14px 16px;display:flex;gap:10px;align-items:flex-start">
-      <i class="ti ti-info-circle" style="font-size:16px;color:#0369a1;flex-shrink:0;margin-top:1px"></i>
-      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
-        No bookmarks found in this Word document.<br>
-        To add bookmarks in Word: select text → Insert → Bookmark → name it → Add.
-      </div>
-    </div>`;
+    // No bookmarks — close panel and show bubble on the button
+    if (panel) { panel.innerHTML = ''; panel.classList.remove('open'); }
+    const btn = document.getElementById('bmbtn-' + fileId);
+    if (btn) {
+      document.querySelectorAll('.no-bookmark-bubble').forEach(b => b.remove());
+      const bubble = document.createElement('div');
+      bubble.className = 'no-bookmark-bubble';
+      bubble.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);background:#1e293b;color:#fff;font-size:11px;padding:6px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.25);z-index:10000;pointer-events:none';
+      bubble.textContent = 'No bookmarks found in this Word document';
+      const arrow = document.createElement('div');
+      arrow.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:100%;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #1e293b';
+      bubble.appendChild(arrow);
+      btn.style.position = 'relative';
+      btn.appendChild(bubble);
+      const dismiss = () => { bubble.remove(); btn.style.position = ''; document.removeEventListener('click', dismiss, true); };
+      setTimeout(() => document.addEventListener('click', dismiss, true), 10);
+    }
+    return;
   }
 
   html += '</div>';
@@ -6707,11 +7275,9 @@ async function loadPDFJS() {
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
     script.onload = () => {
-      // In sandboxed environments (artifact viewer, file://), web workers are blocked.
-      // Setting workerSrc to an empty string tells PDF.js to use the fake worker
-      // intentionally rather than trying and failing, which suppresses the console warning.
       try {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       } catch(e) {}
       resolve(window.pdfjsLib);
     };
@@ -6932,17 +7498,27 @@ function renderBookmarkPanel(fileId, ref, idx) {
 
   // ── No bookmarks found ─────────────────────────────────────────────
   if (!bookmarks.length && !namedDests.length) {
-    html = `<div style="padding:14px 16px;display:flex;gap:12px;align-items:flex-start">
-      <i class="ti ti-info-circle" style="font-size:18px;color:#0369a1;flex-shrink:0;margin-top:1px"></i>
-      <div>
-        <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:4px">No bookmarks or destinations found</div>
-        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
-          This PDF (${totalPages} page${totalPages !== 1 ? 's' : ''}) does not contain any bookmarks or named destinations.
-          This is common for scanned documents, image-only PDFs, or documents that were not structured with navigation markers.<br><br>
-          You can still navigate the document using the page control below, or open it directly to review its contents.
-        </div>
-      </div>
-    </div>`;
+    // Close the panel and show a dismissible bubble on the Quick Links button instead
+    if (panel) { panel.innerHTML = ''; panel.classList.remove('open'); }
+    const btn = document.getElementById('bmbtn-' + fileId);
+    if (btn) {
+      // Remove any existing bubble
+      document.querySelectorAll('.no-bookmark-bubble').forEach(b => b.remove());
+      const bubble = document.createElement('div');
+      bubble.className = 'no-bookmark-bubble';
+      bubble.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 8px);background:#1e293b;color:#fff;font-size:11px;padding:6px 12px;border-radius:6px;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.25);z-index:10000;pointer-events:none';
+      bubble.textContent = `No bookmarks or destinations found (${totalPages} page${totalPages!==1?'s':''})`;
+      // Arrow
+      const arrow = document.createElement('div');
+      arrow.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:100%;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid #1e293b';
+      bubble.appendChild(arrow);
+      btn.style.position = 'relative';
+      btn.appendChild(bubble);
+      // Dismiss on any click anywhere
+      const dismiss = () => { bubble.remove(); btn.style.position = ''; document.removeEventListener('click', dismiss, true); };
+      setTimeout(() => document.addEventListener('click', dismiss, true), 10);
+    }
+    return;
   }
 
   panel.innerHTML = html + '</div>';
@@ -8034,8 +8610,15 @@ function updateRCCount() {
 function applyRCSelection() {
   rcDialogSelected = new Set(rcDialogTemp);
   // Store on workpaper
-  if (WORKPAPERS[currentWPIndex]) {
-    WORKPAPERS[currentWPIndex].fsAccounts = [...rcDialogSelected];
+  const w = WORKPAPERS[currentWPIndex];
+  if (w) {
+    w.fsAccounts = [...rcDialogSelected];
+    // Sync to audit level
+    const auditName = w.auditName;
+    if (auditName) {
+      if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
+      rcDialogSelected.forEach(id => auditLinkedFs[auditName].add(id));
+    }
   }
   renderLinkedFSAccounts();
   closeRCDialog();
@@ -8199,8 +8782,25 @@ function updateFsCount() {
 
 function applyFsAccountSelection() {
   currentFsSelection = new Set(dialogFsTemp);
+  const overlay = document.getElementById('fs-dialog-overlay');
+  // New audit mode
+  if (overlay?.dataset.mode === 'new-audit-fs') {
+    _newAuditFs = new Set(currentFsSelection);
+    renderNewAuditFSTags();
+    overlay.dataset.mode = '';
+    closeFsAccountsDialog();
+    return;
+  }
+  // Default: save to current workpaper and sync to audit
   const ref = WORKPAPERS[currentWPIndex]?.ref;
-  if (ref) wpFsAccounts[ref] = [...currentFsSelection];
+  if (ref) {
+    wpFsAccounts[ref] = [...currentFsSelection];
+    const auditName = WORKPAPERS[currentWPIndex]?.auditName;
+    if (auditName) {
+      if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
+      currentFsSelection.forEach(id => auditLinkedFs[auditName].add(id));
+    }
+  }
   renderFsAccountTags();
   closeFsAccountsDialog();
 }
@@ -8313,11 +8913,11 @@ function updateResultsStyle() {
   const sel = document.getElementById('wpd-results');
   if (!sel) return;
   const colors = {
-    pass:   { bg:'#dcfce7', color:'#166534', border:'#86efac' },
-    passex: { bg:'#fef3c7', color:'#92400e', border:'#fde68a' },
-    fail:   { bg:'#fee2e2', color:'#991b1b', border:'#fca5a5' },
-    met:    { bg:'#dbeafe', color:'#1e40af', border:'#93c5fd' },
-    notmet: { bg:'#ede9fe', color:'#5b21b6', border:'#c4b5fd' },
+    pass:   { bg:'#ccfbf1', color:'#0f766e', border:'#5eead4' },
+    passex: { bg:'#fce7f3', color:'#9d174d', border:'#f9a8d4' },
+    fail:   { bg:'#ffe4e6', color:'#be123c', border:'#fda4af' },
+    met:    { bg:'#e0e7ff', color:'#3730a3', border:'#a5b4fc' },
+    notmet: { bg:'#fdf4ff', color:'#7e22ce', border:'#d8b4fe' },
     '':     { bg:'var(--bg-secondary)', color:'var(--text-primary)', border:'var(--border-light)' },
   };
   const c = colors[sel.value] || colors[''];
