@@ -788,7 +788,7 @@
             <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
           </div>
           <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
-            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard()"><i class="ti ti-layout-dashboard"></i>Review of Audits</button>
+            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openAuditAnalysis()"><i class="ti ti-chart-bar"></i>Audit Analysis</button>
             <div style="display:flex;gap:8px">
               <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
               <button class="btn-p" onclick="openNewAudit()"><i class="ti ti-plus"></i>New audit</button>
@@ -796,7 +796,6 @@
           </div>
         </div>
         <div class="filters">
-          <input type="text" id="audit-search" placeholder="Search audits…" oninput="filterAudits()">
           <select id="filter-type" onchange="filterAudits()">
             <option value="">All types</option>
             <option>SOX</option>
@@ -886,9 +885,12 @@
             <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
             <div class="ps" id="wp-page-sub">Financial · Apr – Jun 2026 · Owner: J. Davis</div>
           </div>
-          <div class="row-actions">
+          <div class="row-actions" style="flex-direction:column;align-items:flex-end;gap:6px">
+            <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="openDashboard(true)"><i class="ti ti-layout-dashboard"></i>Workpaper Analysis</button>
+            <div style="display:flex;gap:8px">
               <button class="btn-s" onclick="showFutureEnhancement(this)"><i class="ti ti-download"></i>Export</button>
               <button class="btn-p" onclick="openNewWorkpaper()"><i class="ti ti-plus"></i>New workpaper</button>
+            </div>
           </div>
         </div>
 
@@ -3192,6 +3194,18 @@ function openAudit(i) {
   saveCurrentPage(); // persist any edits from the current page before switching
   currentAudit = AUDITS[i];
   currentWPIndex = -1; // no workpaper open
+
+  // Sync the audit dropdown to reflect the selected audit
+  const selAudit = document.getElementById('sel-audit');
+  if (selAudit && currentAudit) selAudit.value = currentAudit.name;
+
+  // Populate the WP ref dropdown for this audit
+  const selWpRef = document.getElementById('sel-wp-ref');
+  if (selWpRef) {
+    const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+    selWpRef.innerHTML = '<option value="">— Select —</option>' +
+      auditWPs.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
+  }
   // Reset workpaper filters when switching audits
   ['wp-search','wp-filter-type','wp-filter-status','wp-filter-results'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
@@ -3228,14 +3242,6 @@ function openAudit(i) {
     renderAuditRCTags(currentAudit.name);
     renderAuditFSTags(currentAudit.name);
   }, 50);
-  // Populate the WP nav dropdown with this audit's workpapers
-  const selWpRef = document.getElementById('sel-wp-ref');
-  if (selWpRef) {
-    const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
-    selWpRef.innerHTML = '<option value="">— Select workpaper —</option>' +
-      auditWPs.map(w => `<option value="${w.ref}">${w.ref} — ${w.name}</option>`).join('');
-    selWpRef.value = '';
-  }
   showPage('workpapers');
 }
 
@@ -4625,12 +4631,35 @@ function saveCurrentPage() {
     const narTA2 = document.getElementById('narrative-textarea');
     if (narTA2) w.narrative = narTA2.value;
 
-    // FS Accounts — linked financial statement accounts & footnotes (RC dialog)
-    w.fsAccounts = [...rcDialogSelected];
+    // Linked Controls — persist session selections onto the workpaper object and sync to audit
+    const ref = w.ref;
+    if (wpLinkedControls[ref] && wpLinkedControls[ref].size) {
+      // Merge session controls with any already on the workpaper (from static data)
+      const existingCtrls = new Set(w.linkedControls || []);
+      wpLinkedControls[ref].forEach(id => existingCtrls.add(id));
+      w.linkedControls = [...existingCtrls];
+      // Sync to audit level
+      const auditName = w.auditName;
+      if (auditName) {
+        if (!auditLinkedControls[auditName]) auditLinkedControls[auditName] = new Set();
+        existingCtrls.forEach(id => auditLinkedControls[auditName].add(id));
+        renderAuditRCTags(auditName);
+      }
+    }
 
-    // FS Accounts from scope section (wpFsAccounts store)
-    if (wpFsAccounts[w.ref] !== undefined) {
-      w.scopeFsAccounts = [...(wpFsAccounts[w.ref] || [])];
+    // FS Accounts — two separate stores with different ID namespaces, keep them separate
+    // rcDialogSelected → HOSPITAL_FS IDs → w.fsAccounts
+    w.fsAccounts = [...rcDialogSelected];
+    // wpFsAccounts → ALL_FS_ACCOUNTS IDs → w.scopeFsAccounts
+    if (wpFsAccounts[w.ref]) w.scopeFsAccounts = [...wpFsAccounts[w.ref]];
+
+    // Sync both sets to audit level
+    const auditNameFs = w.auditName;
+    if (auditNameFs) {
+      if (!auditLinkedFs[auditNameFs]) auditLinkedFs[auditNameFs] = new Set();
+      rcDialogSelected.forEach(id => auditLinkedFs[auditNameFs].add(id));
+      (wpFsAccounts[w.ref] || []).forEach(id => auditLinkedFs[auditNameFs].add(id));
+      renderAuditFSTags(auditNameFs);
     }
 
     // Test attributes — read purely from DOM (authoritative); never merge with stale store data
@@ -4891,6 +4920,10 @@ function openControlsDialog() {
   const ref = getWPRef();
   if (!ref) return;
   if (!wpLinkedControls[ref]) wpLinkedControls[ref] = new Set();
+  // Merge session store with any statically-stored controls on the workpaper object
+  const w = WORKPAPERS[currentWPIndex];
+  const staticCtrls = w?.linkedControls || [];
+  staticCtrls.forEach(id => wpLinkedControls[ref].add(id));
   _ctrlDialogTemp = new Set(wpLinkedControls[ref]);
   document.getElementById('ctrl-search-input').value = '';
   _ctrlFilter = 'all';
@@ -5020,6 +5053,13 @@ function applyControlsSelection() {
   // Log additions and removals
   _ctrlDialogTemp.forEach(id => { if (!old.has(id)) logEvent(ref, `Control linked: ${id} — ${CONTROLS[id]?.title || id}`); });
   old.forEach(id => { if (!_ctrlDialogTemp.has(id)) logEvent(ref, `Control removed: ${id} — ${CONTROLS[id]?.title || id}`); });
+
+  // Persist immediately onto workpaper object so navigation never loses the data
+  const w = WORKPAPERS[currentWPIndex];
+  if (w) {
+    const merged = new Set([..._ctrlDialogTemp, ...(w.linkedControls || [])]);
+    w.linkedControls = [...merged];
+  }
 
   // Derive linked risks from selected controls
   const linkedRisks = new Set();
@@ -5221,7 +5261,86 @@ function positionAuditTooltip(e) {
 /* ══════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════ */
-function openDashboard() {
+function openAuditAnalysis() {
+  const now = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  const statusColors = { draft:'#64748b', review:'#2563eb', approved:'#16a34a', complete:'#7c3aed', planned:'#94a3b8', active:'#16a34a', closed:'#475569', locked:'#0369a1', archive:'#9ca3af' };
+
+  // Per-audit summary rows
+  const auditRows = AUDITS.filter(a => a.status !== 'archive').map(a => {
+    const wps = WORKPAPERS.filter(w => w.auditName === a.name);
+    const counts = {};
+    wps.forEach(w => { const s = w.status||'draft'; counts[s]=(counts[s]||0)+1; });
+    const total   = wps.length;
+    const done    = (counts.approved||0) + (counts.complete||0);
+    const pct     = total ? Math.round((done/total)*100) : 0;
+    const barColor = pct === 100 ? '#16a34a' : pct > 50 ? '#2563eb' : '#ea580c';
+    return `<tr style="border-bottom:0.5px solid #f1f5f9">
+      <td style="padding:9px 12px;font-size:13px;font-weight:500;color:#1e293b">${a.name}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#64748b">${a.type||'—'}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#64748b">${a.owner||'—'}</td>
+      <td style="padding:9px 12px;font-size:12px;color:#64748b">${a.period||'—'}</td>
+      <td style="padding:9px 12px;text-align:center"><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:${statusColors[a.status]||'#94a3b8'}22;color:${statusColors[a.status]||'#94a3b8'};border:0.5px solid ${statusColors[a.status]||'#94a3b8'}44">${a.status||'planned'}</span></td>
+      <td style="padding:9px 12px;font-size:12px;text-align:center;color:#1e293b;font-weight:600">${total}</td>
+      <td style="padding:9px 12px;min-width:120px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;background:#e2e8f0;border-radius:99px;height:10px;overflow:hidden">
+            <div style="width:${pct}%;background:${barColor};height:100%;border-radius:99px"></div>
+          </div>
+          <span style="font-size:11px;color:#64748b;white-space:nowrap;min-width:32px">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Counts by type
+  const typeCounts = {};
+  const statusAllCounts = {};
+  AUDITS.forEach(a => {
+    const t = a.type||'Other'; typeCounts[t]=(typeCounts[t]||0)+1;
+    const s = a.status||'planned'; statusAllCounts[s]=(statusAllCounts[s]||0)+1;
+  });
+
+  const pill = (label, count, color) =>
+    `<div style="background:${color}18;border:0.5px solid ${color}44;border-radius:8px;padding:10px 14px;min-width:90px;text-align:center">
+      <div style="font-size:22px;font-weight:700;color:${color}">${count}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:0.4px">${label}</div>
+    </div>`;
+
+  const typeCards = Object.entries(typeCounts).map(([t,n]) => pill(t, n, '#39618b')).join('');
+  const statusCards = Object.entries(statusAllCounts).map(([s,n]) => pill(s, n, statusColors[s]||'#94a3b8')).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Audit Analysis</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9}
+.topbar{background:#39618b;color:#fff;padding:14px 28px}.topbar h1{font-size:18px;font-weight:700}.topbar .sub{font-size:11px;opacity:.7;margin-top:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px}
+.card{background:#fff;border-radius:10px;border:.5px solid #e2e8f0;padding:18px}
+.full{grid-column:1/-1}
+.card h2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th{padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;background:#f8fafc;border-bottom:.5px solid #e2e8f0}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+</style></head><body>
+<div class="topbar"><h1>Audit Analysis</h1><div class="sub">Generated ${now} · ${AUDITS.length} audits</div></div>
+<div class="grid">
+  <div class="card"><h2>Audits by Type</h2><div class="pills">${typeCards}</div></div>
+  <div class="card"><h2>Audits by Status</h2><div class="pills">${statusCards}</div></div>
+  <div class="card full"><h2>Audit Summary — Workpaper Completion</h2>
+    <table>
+      <thead><tr>
+        <th>Audit Name</th><th>Type</th><th>Owner</th><th>Period</th><th>Status</th><th style="text-align:center">WPs</th><th>Completion</th>
+      </tr></thead>
+      <tbody>${auditRows}</tbody>
+    </table>
+  </div>
+</div></body></html>`;
+
+  const win = window.open('', '_blank');
+  if (win) { win.document.write(html); win.document.close(); }
+  else alert('Please allow popups for this site to view the Audit Analysis dashboard.');
+}
+
+function openDashboard(showUnused) {
   const audit  = currentAudit;
   const wpList = WORKPAPERS.filter(w => w.auditName === audit?.name);
   const now    = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
@@ -5235,6 +5354,8 @@ function openDashboard() {
   wpList.forEach(w => { const p=w.preparer||'—'; prepCounts[p]=(prepCounts[p]||0)+1; });
   const revCounts  = {};
   wpList.forEach(w => { const r=w.reviewer||'—'; revCounts[r]=(revCounts[r]||0)+1; });
+
+  const total = wpList.length || 1; // guard against division by zero
 
   const CHECKS = [
     { id:'pop',     label:'Population definition blank',   fn: w => !w.population?.trim() },
@@ -5260,7 +5381,7 @@ function openDashboard() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
       <span style="width:80px;font-size:11px;color:#64748b;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
       <div style="flex:1;background:#e2e8f0;border-radius:99px;height:16px;overflow:hidden">
-        <div style="width:${Math.max(8,Math.round((n/wpList.length)*100))}%;background:${color};height:100%;border-radius:99px;display:flex;align-items:center;padding-left:6px">
+        <div style="width:${Math.max(8,Math.round((n/total)*100))}%;background:${color};height:100%;border-radius:99px;display:flex;align-items:center;padding-left:6px">
           <span style="font-size:10px;font-weight:600;color:#fff">${n}</span>
         </div>
       </div>
@@ -5351,9 +5472,11 @@ function openDashboard() {
         </div>`).join('')
     : `<p style="color:#94a3b8;font-style:italic;font-size:13px">All audit-level scope items are referenced by at least one workpaper ✓</p>`;
 
+  // applyDashFilter is inlined as an onchange to avoid embedded script tags in the blob
+  const _adf = "var cb=document.querySelectorAll('.dash-filter-cb:checked'),r=document.querySelectorAll('.dash-missing-row'),n=document.getElementById('dash-missing-count'),v=0;[].forEach.call(r,function(row){var s=cb.length>0&&[].some.call(cb,function(c){return(row.dataset.checks||'').split(',').includes(c.value)});row.style.display=s?'':'none';if(s)v++;});if(n)n.textContent=cb.length===0?'(select filters below to show)':v+' workpaper'+(v!==1?'s':'')+' with selected issues';";
   const checkboxesHtml = CHECKS.map(c =>
     `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;padding:3px 0;white-space:nowrap">
-      <input type="checkbox" value="${c.id}" class="dash-filter-cb" onchange="applyDashFilter()"
+      <input type="checkbox" value="${c.id}" class="dash-filter-cb" onchange="${_adf}"
         style="width:13px;height:13px;accent-color:#39618b;cursor:pointer">
       ${c.label}
     </label>`
@@ -5389,42 +5512,29 @@ function openDashboard() {
 </style></head><body>
 <div class="topbar"><h1>Dashboard — ${audit?.name||''}</h1><div class="sub">Generated ${now} · ${wpList.length} workpapers</div></div>
 <div class="grid">
-  <div class="card"><h2>By Review Status</h2>
+  <div class="card"><h2>Workpapers by Review Status</h2>
     ${Object.entries(statusCounts).map(([s,n])=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid #f1f5f9"><span style="width:10px;height:10px;border-radius:50%;background:${statusColors[s]||'#94a3b8'};flex-shrink:0"></span><span style="flex:1;font-size:13px;color:#1e293b">${statusLabels[s]||s}</span><span style="font-size:20px;font-weight:700;color:${statusColors[s]||'#94a3b8'}">${n}</span></div>`).join('')}
   </div>
-  <div class="card"><h2>By Preparer</h2>${bar(prepCounts,'#39618b')}</div>
-  <div class="card"><h2>By Reviewer</h2>${bar(revCounts,'#7c3aed')}</div>
-  <div class="card full"><h2>Unused Scope Items <span style="font-weight:400;text-transform:none">(linked at audit level but not used on any workpaper)</span></h2>
+  <div class="card"><h2>Workpapers by Preparer</h2>${bar(prepCounts,'#39618b')}</div>
+  <div class="card"><h2>Workpapers by Reviewer</h2>${bar(revCounts,'#7c3aed')}</div>
+  ${showUnused ? `<div class="card full"><h2>Unused Scope Items <span style="font-weight:400;text-transform:none">(linked at audit level but not used on any workpaper)</span></h2>
     ${unusedScopeHtml}
-  </div>
+  </div>` : ''}
   <div class="card full"><h2>Workpapers with missing data <span id="dash-missing-count" style="font-weight:400;text-transform:none">(select filters below to show)</span></h2>
     <div style="display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 0 14px;border-bottom:.5px solid #f1f5f9;margin-bottom:12px">${checkboxesHtml}</div>
     <div id="dash-missing-wrap">${missingTable}</div>
   </div>
 </div>
-<script>
-function applyDashFilter() {
-  const checked = Array.from(document.querySelectorAll('.dash-filter-cb:checked')).map(cb => cb.value);
-  const rows    = document.querySelectorAll('.dash-missing-row');
-  const countEl = document.getElementById('dash-missing-count');
-  let visible   = 0;
-  rows.forEach(row => {
-    const rowChecks = (row.dataset.checks || '').split(',');
-    const show = checked.length > 0 && checked.some(c => rowChecks.includes(c));
-    row.style.display = show ? '' : 'none';
-    if (show) visible++;
-  });
-  if (countEl) countEl.textContent = checked.length === 0
-    ? '(select filters below to show)'
-    : visible + ' workpaper' + (visible !== 1 ? 's' : '') + ' with selected issues';
-}
-<\/script>
 </body></html>`;
 
-  const blob = new Blob([html], { type:'text/html' });
-  const url  = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  } else {
+    alert('Please allow popups for this site to view the Review of Audits dashboard.');
+  }
+  // No revokeObjectURL needed
 }
 
 /* New Audit — entity selection using the shared entity dialog */
@@ -8869,16 +8979,14 @@ function updateRCCount() {
 
 function applyRCSelection() {
   rcDialogSelected = new Set(rcDialogTemp);
-  // Store on workpaper
   const w = WORKPAPERS[currentWPIndex];
   if (w) {
+    // rcDialogSelected uses HOSPITAL_FS IDs — save separately from wpFsAccounts (ALL_FS_ACCOUNTS IDs)
     w.fsAccounts = [...rcDialogSelected];
-    // Sync to audit level — add any new accounts not already present
     const auditName = w.auditName;
     if (auditName) {
       if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
       rcDialogSelected.forEach(id => auditLinkedFs[auditName].add(id));
-      // Refresh the audit-level FS tags if the audit card is currently rendered
       renderAuditFSTags(auditName);
     }
   }
@@ -9056,12 +9164,14 @@ function applyFsAccountSelection() {
   // Default: save to current workpaper and sync to audit
   const ref = WORKPAPERS[currentWPIndex]?.ref;
   if (ref) {
+    // currentFsSelection uses ALL_FS_ACCOUNTS IDs — save separately from rcDialogSelected (HOSPITAL_FS IDs)
     wpFsAccounts[ref] = [...currentFsSelection];
+    const w = WORKPAPERS[currentWPIndex];
+    if (w) w.scopeFsAccounts = [...currentFsSelection];
     const auditName = WORKPAPERS[currentWPIndex]?.auditName;
     if (auditName) {
       if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
       currentFsSelection.forEach(id => auditLinkedFs[auditName].add(id));
-      // Refresh the audit-level FS tags if the audit card is currently rendered
       renderAuditFSTags(auditName);
     }
   }
