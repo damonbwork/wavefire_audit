@@ -1877,13 +1877,21 @@
         <button onclick="closeRCDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px"><i class="ti ti-x"></i></button>
       </div>
       <!-- Search -->
-      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;gap:10px">
-        <div style="position:relative;flex:1">
-          <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
-          <input id="rc-search-input" type="text" placeholder="Search accounts or footnotes…" oninput="filterRCGrid()"
-            style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="position:relative;flex:1">
+            <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
+            <input id="rc-search-input" type="text" placeholder="Search accounts or footnotes…" oninput="filterRCGrid()"
+              style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+          </div>
+          <span id="rc-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
         </div>
-        <span id="rc-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
+        <!-- Audit-linked filter — shown in wp-scope mode -->
+        <div id="rc-audit-filter-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text-tertiary)">Show:</span>
+          <button id="rc-filter-all"   onclick="setRCFilter('all')"   class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">All</button>
+          <button id="rc-filter-audit" onclick="setRCFilter('audit')" class="btn-s" style="font-size:10px;padding:1px 7px">In this audit</button>
+        </div>
       </div>
       <!-- Grid -->
       <div style="flex:1;overflow-y:auto;padding:0">
@@ -2068,13 +2076,21 @@
         </div>
         <button onclick="closeControlsDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>
       </div>
-      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;gap:10px">
-        <div style="position:relative;flex:1">
-          <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
-          <input id="ctrl-search-input" type="text" placeholder="Search controls or risks…" oninput="filterControlsDialog()"
-            style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+      <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="position:relative;flex:1">
+            <i class="ti ti-search" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-tertiary);font-size:13px;pointer-events:none"></i>
+            <input id="ctrl-search-input" type="text" placeholder="Search controls or risks…" oninput="filterControlsDialog()"
+              style="width:100%;padding:6px 10px 6px 30px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary)">
+          </div>
+          <span id="ctrl-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
         </div>
-        <span id="ctrl-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
+        <!-- Audit-controls filter — shown in wp-scope mode -->
+        <div id="ctrl-audit-filter-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text-tertiary)">Show:</span>
+          <button id="ctrl-filter-all"   onclick="setCtrlFilter('all')"   class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">All</button>
+          <button id="ctrl-filter-audit" onclick="setCtrlFilter('audit')" class="btn-s" style="font-size:10px;padding:1px 7px">In this audit</button>
+        </div>
       </div>
       <div style="flex:1;overflow-y:auto" id="ctrl-list-container"></div>
       <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
@@ -3447,13 +3463,25 @@ function openWP(i) {
 }
 
 /* ══════════════════════════════════════
-   NAVIGATION HISTORY — Back button
+   NAVIGATION HISTORY — Back button + Browser History
 ══════════════════════════════════════ */
 const _navHistory = [];
+let _suppressHistory = false; // true while handling popstate, to avoid re-pushing
 
 function pushNav(page) {
   _navHistory.push(page);
   if (_navHistory.length > 20) _navHistory.shift();
+
+  // Push to browser history so back/forward buttons work
+  if (!_suppressHistory) {
+    const state = { page, auditName: currentAudit?.name, wpRef: WORKPAPERS[currentWPIndex]?.ref };
+    const hash  = '#' + page
+      + (currentAudit?.name ? '&audit=' + encodeURIComponent(currentAudit.name) : '')
+      + (WORKPAPERS[currentWPIndex]?.ref ? '&wp=' + encodeURIComponent(WORKPAPERS[currentWPIndex].ref) : '');
+    try {
+      history.pushState(state, '', hash);
+    } catch(e) {}
+  }
 }
 
 function goBack() {
@@ -3464,6 +3492,69 @@ function goBack() {
     showPage(prev);
   } else {
     showPage('workpapers'); // default fallback
+  }
+}
+
+// Handle browser back/forward navigation
+window.addEventListener('popstate', (e) => {
+  _suppressHistory = true;
+  try {
+    const state = e.state;
+    if (!state) {
+      // No state (e.g. initial page load) — go to audits list
+      showPage('audits');
+      return;
+    }
+    // Restore audit context if specified
+    if (state.auditName) {
+      const audit = AUDITS.find(a => a.name === state.auditName);
+      if (audit && audit !== currentAudit) {
+        currentAudit = audit;
+      }
+    }
+    // Restore workpaper context if specified
+    if (state.wpRef) {
+      const idx = WORKPAPERS.findIndex(w => w.ref === state.wpRef);
+      if (idx !== -1 && idx !== currentWPIndex) {
+        currentWPIndex = idx;
+      }
+    }
+    showPage(state.page || 'audits');
+  } finally {
+    _suppressHistory = false;
+  }
+});
+
+// Handle deep-link hashes on initial load (e.g. #wp=WP-2026-IPE-001)
+function handleInitialHash() {
+  const hash = window.location.hash.replace(/^#/, '');
+  if (!hash) return;
+  const params = new URLSearchParams(hash.replace(/^([a-z]+)/, '').replace(/^&/, ''));
+  const pageMatch = hash.match(/^([a-z]+)/);
+  const page = pageMatch ? pageMatch[1] : '';
+
+  const wpRef = params.get('wp');
+  if (wpRef) {
+    const idx = WORKPAPERS.findIndex(w => w.ref === wpRef);
+    if (idx !== -1) {
+      _suppressHistory = true;
+      const w = WORKPAPERS[idx];
+      currentAudit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
+      openWP(idx);
+      _suppressHistory = false;
+      return;
+    }
+  }
+  const auditName = params.get('audit');
+  if (auditName) {
+    const audit = AUDITS.find(a => a.name === auditName);
+    if (audit) {
+      _suppressHistory = true;
+      currentAudit = audit;
+      if (page === 'workpapers') openAudit(AUDITS.indexOf(audit));
+      _suppressHistory = false;
+      return;
+    }
   }
 }
 
@@ -4721,6 +4812,9 @@ function openAuditControlsDialog() {
   // Reuse the controls picker, seed with audit-level selections
   _ctrlDialogTemp = new Set(auditLinkedControls[auditName]);
   document.getElementById('ctrl-search-input').value = '';
+  _ctrlFilter = 'all';
+  const filterRow = document.getElementById('ctrl-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'none';
   renderControlsList('');
   updateCtrlCount();
   // Override apply to save at audit level
@@ -4760,6 +4854,8 @@ function syncWPControlsToAudit(ref, ctrlSet) {
   const auditName = w.auditName;
   if (!auditLinkedControls[auditName]) auditLinkedControls[auditName] = new Set();
   ctrlSet.forEach(id => auditLinkedControls[auditName].add(id));
+  // Refresh the audit-level RC tags if the audit card is currently rendered
+  renderAuditRCTags(auditName);
 }
 
 function syncWPFsToAudit(ref, fsSet) {
@@ -4797,8 +4893,19 @@ function openControlsDialog() {
   if (!wpLinkedControls[ref]) wpLinkedControls[ref] = new Set();
   _ctrlDialogTemp = new Set(wpLinkedControls[ref]);
   document.getElementById('ctrl-search-input').value = '';
+  _ctrlFilter = 'all';
+  const filterRow = document.getElementById('ctrl-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'flex';
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('ctrl-filter-' + m);
+    if (!btn) return;
+    btn.style.background  = m === 'all' ? 'var(--wf-navy)' : '';
+    btn.style.color       = m === 'all' ? '#fff' : '';
+    btn.style.borderColor = m === 'all' ? 'var(--wf-navy)' : '';
+  });
   renderControlsList('');
   updateCtrlCount();
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'wp';
   document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
 }
@@ -4816,12 +4923,30 @@ function updateCtrlCount() {
   if (el) el.textContent = `${_ctrlDialogTemp.size} control${_ctrlDialogTemp.size !== 1 ? 's' : ''} selected`;
 }
 
+let _ctrlFilter = 'all'; // 'all' or 'audit'
+
+function setCtrlFilter(mode) {
+  _ctrlFilter = mode;
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('ctrl-filter-' + m);
+    if (!btn) return;
+    if (m === mode) { btn.style.background = 'var(--wf-navy)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--wf-navy)'; }
+    else             { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
+  });
+  filterControlsDialog();
+}
+
 function renderControlsList(query) {
   const container = document.getElementById('ctrl-list-container');
   if (!container) return;
 
+  const ref         = getWPRef();
+  const w           = WORKPAPERS[currentWPIndex];
+  const auditName   = w?.auditName;
+  const auditCtrls  = auditLinkedControls[auditName] || new Set();
+
   const ctrlIds = Object.keys(CONTROLS);
-  const filtered = ctrlIds.filter(id => {
+  let filtered = ctrlIds.filter(id => {
     const c = CONTROLS[id];
     return !query ||
       id.toLowerCase().includes(query) ||
@@ -4833,19 +4958,28 @@ function renderControlsList(query) {
       });
   });
 
+  // Apply audit filter
+  if (_ctrlFilter === 'audit') {
+    filtered = filtered.filter(id => auditCtrls.has(id));
+  }
+
   if (!filtered.length) {
-    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">No controls match your search.</div>';
+    container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">${_ctrlFilter === 'audit' ? 'No audit-linked controls match.' : 'No controls match your search.'}</div>`;
     return;
   }
 
   container.innerHTML = filtered.map(id => {
     const c       = CONTROLS[id];
     const checked = _ctrlDialogTemp.has(id);
+    const inAudit = auditCtrls.has(id);
     const riskIds = CTRL_RISKS_MAP[id] || [];
     const riskTags= riskIds.map(rid => {
       const r = RISKS[rid];
       return r ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;white-space:nowrap">${rid}: ${r.title}</span>` : '';
     }).join('');
+    const auditBadge = inAudit
+      ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
+      : '';
 
     return `<div onclick="toggleCtrl('${id}')"
       style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked ? 'background:#f0fdf4' : ''}"
@@ -4858,6 +4992,7 @@ function renderControlsList(query) {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
           <span style="font-size:11px;font-weight:700;color:var(--wf-blue)">${id}</span>
           <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${c.title}</span>
+          ${auditBadge}
         </div>
         <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;line-height:1.4">${c.description.slice(0,120)}…</div>
         ${riskTags ? `<div style="display:flex;flex-wrap:wrap;gap:4px"><span style="font-size:10px;color:var(--text-tertiary);margin-right:2px">Linked risks:</span>${riskTags}</div>` : ''}
@@ -5131,6 +5266,91 @@ function openDashboard() {
       </div>
     </div>`).join('');
 
+  // Pre-aggregate audit-level scope (controls/FS/entities) for ALL audits so the
+  // "Unused Scope Items" section is accurate even for audits not currently open
+  AUDITS.forEach(a => {
+    const aWPs = WORKPAPERS.filter(w => w.auditName === a.name);
+    if (!auditLinkedControls[a.name]) auditLinkedControls[a.name] = new Set();
+    if (!auditLinkedFs[a.name])       auditLinkedFs[a.name]       = new Set();
+    aWPs.forEach(w => {
+      (wpLinkedControls[w.ref] || new Set()).forEach(id => auditLinkedControls[a.name].add(id));
+      (w.risks || []).forEach(r => (r.controls || []).forEach(id => auditLinkedControls[a.name].add(id)));
+      const wpFs = wpFsAccounts[w.ref] || w.fsAccounts || [];
+      wpFs.forEach(id => auditLinkedFs[a.name].add(id));
+    });
+    // Seed entities set for non-current audits from stored a.entities
+    if (a.name !== audit?.name && !a._entitiesSeeded) {
+      a._entitiesSeeded = true;
+    }
+  });
+
+  // ── Unused scope items across ALL audits ──
+  // For each audit, find entities/controls/FS accounts linked at audit level
+  // but not referenced by any workpaper within that audit.
+  function entityNameOf(id) {
+    const e = ALL_ENTITIES.find(x => x.id === id);
+    return e ? e.name : id;
+  }
+  function controlNameOf(id) {
+    const c = CONTROLS[id];
+    return c ? `${id}: ${c.title}` : id;
+  }
+  function fsNameOf(id) {
+    const h = HOSPITAL_FS.find(f => f.id === id);
+    if (h) return `${h.code}: ${h.desc}`;
+    const a = (typeof ALL_FS_ACCOUNTS !== 'undefined') && ALL_FS_ACCOUNTS.find(x => x.id === id);
+    return a ? `${a.code}: ${a.name}` : id;
+  }
+
+  const unusedByAudit = AUDITS.map(a => {
+    const auditWPs = WORKPAPERS.filter(w => w.auditName === a.name);
+
+    // Union of all entity/control/fs IDs used by any workpaper in this audit
+    const usedEntities = new Set();
+    const usedControls = new Set();
+    const usedFs       = new Set();
+    auditWPs.forEach(w => {
+      (wpScopeEntities[w.ref] || new Set()).forEach(id => usedEntities.add(id));
+      (wpLinkedControls[w.ref] || new Set()).forEach(id => usedControls.add(id));
+      const wpFs = wpFsAccounts[w.ref] || w.fsAccounts || [];
+      wpFs.forEach(id => usedFs.add(id));
+      (w.risks || []).forEach(r => (r.controls || []).forEach(id => usedControls.add(id)));
+    });
+
+    // Audit-level linked sets
+    const auditEntities = (a.name === audit?.name ? currentAuditEntities : new Set(a.entities || []));
+    const auditCtrls    = auditLinkedControls[a.name] || new Set();
+    const auditFs       = auditLinkedFs[a.name]       || new Set();
+
+    const unusedEntities = [...auditEntities].filter(id => !usedEntities.has(id));
+    const unusedControls = [...auditCtrls].filter(id => !usedControls.has(id));
+    const unusedFs       = [...auditFs].filter(id => !usedFs.has(id));
+
+    return { audit: a, unusedEntities, unusedControls, unusedFs };
+  }).filter(r => r.unusedEntities.length || r.unusedControls.length || r.unusedFs.length);
+
+  const unusedScopeHtml = unusedByAudit.length
+    ? unusedByAudit.map(({audit:a, unusedEntities, unusedControls, unusedFs}) => `
+        <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid #f1f5f9">
+          <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px">${a.name}</div>
+          ${unusedEntities.length ? `
+            <div style="margin-bottom:6px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;margin-bottom:4px">Assessment Entities</div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">${unusedEntities.map(id=>`<span style="font-size:11px;background:#fefce8;color:#854d0e;border:0.5px solid #fde047;border-radius:4px;padding:2px 8px;white-space:nowrap">${entityNameOf(id)}</span>`).join('')}</div>
+            </div>` : ''}
+          ${unusedControls.length ? `
+            <div style="margin-bottom:6px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;margin-bottom:4px">Linked Risks &amp; Controls</div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">${unusedControls.map(id=>`<span style="font-size:11px;background:#fefce8;color:#854d0e;border:0.5px solid #fde047;border-radius:4px;padding:2px 8px;white-space:nowrap">${controlNameOf(id)}</span>`).join('')}</div>
+            </div>` : ''}
+          ${unusedFs.length ? `
+            <div>
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#94a3b8;margin-bottom:4px">Linked Financial Statement Accounts &amp; Footnotes</div>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">${unusedFs.map(id=>`<span style="font-size:11px;background:#fefce8;color:#854d0e;border:0.5px solid #fde047;border-radius:4px;padding:2px 8px;white-space:nowrap">${fsNameOf(id)}</span>`).join('')}</div>
+            </div>` : ''}
+        </div>`).join('')
+    : `<p style="color:#94a3b8;font-style:italic;font-size:13px">All audit-level scope items are referenced by at least one workpaper ✓</p>`;
+
   const checkboxesHtml = CHECKS.map(c =>
     `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;padding:3px 0;white-space:nowrap">
       <input type="checkbox" value="${c.id}" class="dash-filter-cb" onchange="applyDashFilter()"
@@ -5174,6 +5394,9 @@ function openDashboard() {
   </div>
   <div class="card"><h2>By Preparer</h2>${bar(prepCounts,'#39618b')}</div>
   <div class="card"><h2>By Reviewer</h2>${bar(revCounts,'#7c3aed')}</div>
+  <div class="card full"><h2>Unused Scope Items <span style="font-weight:400;text-transform:none">(linked at audit level but not used on any workpaper)</span></h2>
+    ${unusedScopeHtml}
+  </div>
   <div class="card full"><h2>Workpapers with missing data <span id="dash-missing-count" style="font-weight:400;text-transform:none">(select filters below to show)</span></h2>
     <div style="display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 0 14px;border-bottom:.5px solid #f1f5f9;margin-bottom:12px">${checkboxesHtml}</div>
     <div id="dash-missing-wrap">${missingTable}</div>
@@ -5213,6 +5436,9 @@ let _newAuditFs       = new Set();
 function openNewAuditControlsDialog() {
   _ctrlDialogTemp = new Set(_newAuditControls);
   document.getElementById('ctrl-search-input').value = '';
+  _ctrlFilter = 'all';
+  const filterRow = document.getElementById('ctrl-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'none';
   renderControlsList('');
   updateCtrlCount();
   document.getElementById('ctrl-dialog-overlay').dataset.mode = 'new-audit-ctrl';
@@ -8525,6 +8751,16 @@ function openRCDialog() {
   );
   rcDialogTemp = new Set(rcDialogSelected);
   document.getElementById('rc-search-input').value = '';
+  _rcFilter = 'all';
+  const filterRow = document.getElementById('rc-audit-filter-row');
+  if (filterRow) filterRow.style.display = 'flex';
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('rc-filter-' + m);
+    if (!btn) return;
+    btn.style.background  = m === 'all' ? 'var(--wf-navy)' : '';
+    btn.style.color       = m === 'all' ? '#fff' : '';
+    btn.style.borderColor = m === 'all' ? 'var(--wf-navy)' : '';
+  });
   renderRCGrid('');
   updateRCCount();
   document.getElementById('rc-dialog-overlay').style.display = 'flex';
@@ -8539,6 +8775,19 @@ function filterRCGrid() {
   renderRCGrid(document.getElementById('rc-search-input').value);
 }
 
+let _rcFilter = 'all'; // 'all' or 'audit'
+
+function setRCFilter(mode) {
+  _rcFilter = mode;
+  ['all','audit'].forEach(m => {
+    const btn = document.getElementById('rc-filter-' + m);
+    if (!btn) return;
+    if (m === mode) { btn.style.background = 'var(--wf-navy)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--wf-navy)'; }
+    else             { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
+  });
+  filterRCGrid();
+}
+
 function renderRCGrid(query) {
   const q = (query || '').toLowerCase();
   const body = document.getElementById('rc-grid-body');
@@ -8546,11 +8795,18 @@ function renderRCGrid(query) {
   rcVisibleIds = [];
   let html = '';
 
+  const w         = WORKPAPERS[currentWPIndex];
+  const auditName = w?.auditName;
+  const auditFs   = auditLinkedFs[auditName] || new Set();
+
   sections.forEach(sec => {
-    const items = HOSPITAL_FS.filter(r =>
+    let items = HOSPITAL_FS.filter(r =>
       r.section === sec &&
       (!q || r.code.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q) || (r.fn||'').toLowerCase().includes(q))
     );
+    if (_rcFilter === 'audit') {
+      items = items.filter(r => auditFs.has(r.id));
+    }
     if (!items.length) return;
 
     // Section header row
@@ -8561,23 +8817,27 @@ function renderRCGrid(query) {
     items.forEach(row => {
       rcVisibleIds.push(row.id);
       const checked = rcDialogTemp.has(row.id);
+      const inAudit = auditFs.has(row.id);
       const fnCell = row.fn
         ? `<span style="color:#7c3aed;font-style:italic;cursor:help;text-decoration:underline dotted"
              title="${row.fn.replace(/"/g,'&quot;')}">${row.desc.replace(/^Note:\s*/i,'')}</span>`
         : '';
+      const descCell = inAudit
+        ? `${row.desc} <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
+        : row.desc;
       html += `<tr class="${checked ? 'selected' : ''}" onclick="toggleRCRow('${row.id}',event)" id="rcrow-${row.id}">
         <td style="text-align:center"><input type="checkbox" class="rc-checkbox" ${checked ? 'checked' : ''}
           onclick="event.stopPropagation();toggleRCRow('${row.id}',event)"></td>
         <td class="code-col">${row.code}</td>
-        <td>${row.desc}</td>
+        <td>${row.fn ? fnCell : descCell}</td>
         <td class="num-col">${fmtUSD(row.cur)}</td>
         <td class="num-col">${fmtUSD(row.py)}</td>
-        <td class="fn-col">${fnCell}</td>
+        <td class="fn-col">${row.fn ? (inAudit ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;white-space:nowrap">In audit</span>` : '') : ''}</td>
       </tr>`;
     });
   });
 
-  body.innerHTML = html || `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary)">No results match "${query}"</td></tr>`;
+  body.innerHTML = html || `<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary)">${_rcFilter === 'audit' ? 'No audit-linked accounts match.' : `No results match "${query}"`}</td></tr>`;
 }
 
 function toggleRCRow(id, e) {
@@ -8613,11 +8873,13 @@ function applyRCSelection() {
   const w = WORKPAPERS[currentWPIndex];
   if (w) {
     w.fsAccounts = [...rcDialogSelected];
-    // Sync to audit level
+    // Sync to audit level — add any new accounts not already present
     const auditName = w.auditName;
     if (auditName) {
       if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
       rcDialogSelected.forEach(id => auditLinkedFs[auditName].add(id));
+      // Refresh the audit-level FS tags if the audit card is currently rendered
+      renderAuditFSTags(auditName);
     }
   }
   renderLinkedFSAccounts();
@@ -8799,6 +9061,8 @@ function applyFsAccountSelection() {
     if (auditName) {
       if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
       currentFsSelection.forEach(id => auditLinkedFs[auditName].add(id));
+      // Refresh the audit-level FS tags if the audit card is currently rendered
+      renderAuditFSTags(auditName);
     }
   }
   renderFsAccountTags();
@@ -9057,6 +9321,10 @@ onNavAuditChange();
 populateWpFilters();
 populateControlFilter();
 populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default audit on load
+
+// Set initial browser history state and handle any deep-link hash
+try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } catch(e) {}
+handleInitialHash();
 // Set Audits nav item active on initial load
 document.querySelectorAll('.wf-nav-item').forEach(n => {
   if (n.textContent.trim() === 'Audits') n.classList.add('active');
