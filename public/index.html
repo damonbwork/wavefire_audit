@@ -1547,8 +1547,9 @@
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Column headers -->
-            <div style="display:grid;grid-template-columns:80px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Number</div>
+            <div style="display:grid;grid-template-columns:52px 72px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">#</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">Attr #</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description</div>
               <div></div>
@@ -1556,6 +1557,29 @@
             <!-- Attribute rows -->
             <div id="test-attr-rows">
               <!-- First blank row rendered by JS on page load / workpaper open -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 5b: Sample Field Extraction -->
+        <div class="sect-card" id="sect-sample-field-extraction">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-table-column"></i>Sample field extraction</div>
+            <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addSampleFieldRow()">
+              <i class="ti ti-plus"></i>Add sample field
+            </button>
+          </div>
+          <div class="sect-body" style="padding:0">
+            <!-- Column headers -->
+            <div style="display:grid;grid-template-columns:80px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Number</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Field Name</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description</div>
+              <div></div>
+            </div>
+            <!-- Sample field rows -->
+            <div id="sample-field-rows">
+              <!-- Rendered by JS -->
             </div>
           </div>
         </div>
@@ -3404,6 +3428,7 @@ function openWP(i) {
 
   // ── Test Attributes ──
   renderTestAttributes(w.ref);
+  renderSampleFields(w.ref);
 
   // ── Financial Statement Accounts & Footnotes (Scope section) ──
   currentFsSelection = new Set(wpFsAccounts[w.ref] || []);
@@ -3417,7 +3442,7 @@ function openWP(i) {
   // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
   const fullTypes   = ['Testwork', 'Report'];
   const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
-  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-files','sect-analyze','sect-exceptions'];
+  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isFull ? '' : 'none';
@@ -4142,7 +4167,8 @@ const SECTION_NAMES = {
   'sect-wpinfo':          'Workpaper information',
   'sect-narrative':       'Process / control narrative',
   'sect-risks-controls':  'Linked risks & controls',
-  'sect-test-attributes': 'Test attributes',
+  'sect-test-attributes':         'Test attributes',
+  'sect-sample-field-extraction': 'Sample field extraction',
   'sect-wp-files':        'Attached workpaper files',
   'sect-sample-files':    'Attached sample files',
   'sect-analyze':         'Analyze & create workpaper',
@@ -4666,12 +4692,26 @@ function saveCurrentPage() {
     if (currentAttrWPRef === w.ref) {
       const domRows = [];
       document.querySelectorAll('.attr-row').forEach(row => {
-        const num   = row.querySelector('.attr-num-input')?.value || '';
-        const title = row.querySelectorAll('.attr-input')[0]?.value || '';
-        const desc  = row.querySelectorAll('.attr-input')[1]?.value || '';
-        if (num || title || desc) domRows.push({ num, title, desc });
+        const num            = row.querySelector('.attr-num-input')?.value || '';
+        const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
+        const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
+        const desc           = row.querySelector('.attr-desc')?.value || '';
+        const additionalInfo = row.querySelector('.attr-additional')?.value || '';
+        if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo });
       });
       wpTestAttributes[w.ref] = domRows;
+    }
+
+    // Sample field extraction — flush DOM to store
+    if (currentSFWPRef === w.ref) {
+      const sfDomRows = [];
+      document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach(row => {
+        const num  = row.querySelector('.sf-num-input')?.value || '';
+        const name = row.querySelector('.sf-name-input')?.value || '';
+        const desc = row.querySelector('.sf-desc-input')?.value || '';
+        if (num || name || desc) sfDomRows.push({ num, name, desc });
+      });
+      wpSampleFields[w.ref] = sfDomRows;
     }
 
     // Sample files — persist in-memory uploaded files reference
@@ -4893,6 +4933,104 @@ function syncWPFsToAudit(ref, fsSet) {
   const auditName = w.auditName;
   if (!auditLinkedFs[auditName]) auditLinkedFs[auditName] = new Set();
   fsSet.forEach(id => auditLinkedFs[auditName].add(id));
+}
+
+/* ══════════════════════════════════════
+   SAMPLE FIELD EXTRACTION
+══════════════════════════════════════ */
+const wpSampleFields = {}; // { ref: [{num, name, desc}] }
+let currentSFWPRef = null;
+
+function renderSampleFields(ref) {
+  currentSFWPRef = ref;
+  const rows = wpSampleFields[ref] || [];
+  const container = document.getElementById('sample-field-rows');
+  if (!container) return;
+
+  if (rows.length === 0) {
+    container.innerHTML = `<div style="padding:14px 16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No sample fields yet — click "Add sample field" to begin.</div>`;
+    return;
+  }
+  container.innerHTML = rows.map((f, i) => makeSampleFieldRowHtml(i, f.num, f.name, f.desc)).join('');
+  setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
+}
+
+function makeSampleFieldRowHtml(idx, num, name, desc) {
+  const base = (idx * 3) + 1;
+  return `<div class="attr-row" id="sf-row-${idx}">
+    <div class="attr-cell">
+      <input class="sf-num-input" type="text" maxlength="10" value="${escAttr(num)}" placeholder="#"
+        tabindex="${base}"
+        oninput="saveSFRow(${idx})" onblur="saveSFRow(${idx})" style="width:100%">
+    </div>
+    <div class="attr-cell">
+      <input class="sf-name-input" type="text" maxlength="120" value="${escAttr(name)}" placeholder="Field name…"
+        tabindex="${base + 1}"
+        oninput="saveSFRow(${idx})" onblur="saveSFRow(${idx})">
+    </div>
+    <div class="attr-cell">
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Describe this field or extraction criteria…"
+        tabindex="${base + 2}"
+        oninput="saveSFRow(${idx});autoResizeTA(this)" onblur="saveSFRow(${idx})"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px"
+        >${escAttr(desc)}</textarea>
+    </div>
+    <div class="attr-cell">
+      <button class="icon-btn" title="Remove field" onclick="removeSFRow(${idx})"
+        tabindex="-1" style="width:24px;height:24px;font-size:12px">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+  </div>`;
+}
+
+function saveSFRow(idx) {
+  if (!currentSFWPRef) return;
+  const rows = wpSampleFields[currentSFWPRef] || [];
+  const row = document.getElementById('sf-row-' + idx);
+  if (!row) return;
+  const num  = row.querySelector('.sf-num-input')?.value || '';
+  const name = row.querySelector('.sf-name-input')?.value || '';
+  const desc = row.querySelector('.sf-desc-input')?.value || '';
+  while (rows.length <= idx) rows.push({ num: '', name: '', desc: '' });
+  rows[idx] = { num, name, desc };
+  wpSampleFields[currentSFWPRef] = rows;
+}
+
+function addSampleFieldRow() {
+  if (!currentSFWPRef) return;
+  const domRows = [];
+  document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach(row => {
+    domRows.push({
+      num:  row.querySelector('.sf-num-input')?.value || '',
+      name: row.querySelector('.sf-name-input')?.value || '',
+      desc: row.querySelector('.sf-desc-input')?.value || '',
+    });
+  });
+  domRows.push({ num: String(domRows.length + 1), name: '', desc: '' });
+  wpSampleFields[currentSFWPRef] = domRows;
+  renderSampleFields(currentSFWPRef);
+  setTimeout(() => {
+    const rows = document.querySelectorAll('[id^="sf-row-"]');
+    const last = rows[rows.length - 1];
+    last?.querySelector('.sf-name-input')?.focus();
+  }, 50);
+}
+
+function removeSFRow(idx) {
+  if (!currentSFWPRef) return;
+  const domRows = [];
+  document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach((row, i) => {
+    if (i === idx) return;
+    domRows.push({
+      num:  row.querySelector('.sf-num-input')?.value || '',
+      name: row.querySelector('.sf-name-input')?.value || '',
+      desc: row.querySelector('.sf-desc-input')?.value || '',
+    });
+  });
+  domRows.forEach((row, i) => { row.num = String(i + 1); });
+  wpSampleFields[currentSFWPRef] = domRows;
+  renderSampleFields(currentSFWPRef);
 }
 
 /* ══════════════════════════════════════
@@ -6629,10 +6767,19 @@ async function analyzeWithClaude() {
     </div>${errorLine}${retryBtn}`;
   }
 
+  // Gather sample field extraction fields
+  const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
+
   // Build attribute prompt text
   const attrPrompt = attributes.map((a, i) =>
     `${i+1}. "${a.title}": ${a.desc || 'No description provided.'}`
   ).join('\n');
+
+  // Build sample field prompt text
+  const fieldPrompt = sampleFields.length
+    ? '\n\nSAMPLE FIELD EXTRACTION:\nAlso extract the following fields from the document. Include them in the "fields" array in your JSON response:\n' +
+      sampleFields.map((f, i) => `${i+1}. "${f.name}"${f.desc ? ': ' + f.desc : ''}`).join('\n')
+    : '';
 
   async function analyzeOneFile(entry, rowEl) {
     try {
@@ -6640,9 +6787,6 @@ async function analyzeWithClaude() {
       setProgress(null, `Sending ${entry.name} to Claude…`);
 
       // ── API endpoint detection ─────────────────────────────────────────
-      // Artifact viewer: claude.ai proxies API calls automatically — use direct URL with no extra headers
-      // Railway backend: use /api/claude proxy which adds the API key server-side
-      // Local file: will fail (use Railway instead)
       const host = window.location.hostname;
       const proto = window.location.protocol;
       const isArtifactViewer = host.includes('claude.ai') || proto === 'blob:' || host === '';
@@ -6656,21 +6800,31 @@ async function analyzeWithClaude() {
         headers['anthropic-version'] = '2023-06-01';
       }
 
+      const systemPrompt = sampleFields.length
+        ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
+For each test attribute, evaluate the document. Also extract the requested fields from the document.
+Respond ONLY with valid JSON — no markdown, no explanation.
+CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.
+Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>"}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or N/A if not found>"}]}`
+        : `You are an internal audit assistant evaluating sample files against test attributes.
+For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
+CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
+Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>"}]}`;
+
+      const userText = `Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          system: `You are an internal audit assistant evaluating sample files against test attributes.
-For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
-CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>"}]}`,
+          max_tokens: 1500,
+          system: systemPrompt,
           messages: [{
             role: 'user',
             content: [
               { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: `Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}\n\nRespond only with the JSON object.` }
+              { type: 'text', text: userText }
             ]
           }]
         })
@@ -6709,7 +6863,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         throw new Error('Claude returned results in an unexpected format.');
       }
 
-      return { ok: true, results, commentary };
+      const fields = parsed.fields || []; // extracted sample field values
+
+      return { ok: true, results, fields, commentary };
     } catch(err) {
       return { ok: false, error: err.message || String(err), commentary: '' };
     }
@@ -6724,12 +6880,12 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     const outcome = await analyzeOneFile(entry, row);
 
     if (outcome.ok) {
-      analysisResults.push({ fileName: entry.name, results: outcome.results, commentary: outcome.commentary || '' });
+      analysisResults.push({ fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: outcome.commentary || '' });
       updateResultRow(row, 'done', null, null);
     } else {
       const errMsg = outcome.error;
       failedEntries.push({ entry, row, fi });
-      analysisResults.push({ fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed — see error.' })) });
+      analysisResults.push({ fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed — see error.' })), fields: [] });
       // Store fi in a closure-safe way for the retry button
       const retryCallbackName = `_retryFile_${Date.now()}_${fi}`;
       window[retryCallbackName] = async () => {
@@ -6876,7 +7032,8 @@ async function exportToXlsx() {
   const wp   = WORKPAPERS[currentWPIndex];
   const now  = new Date();
   const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const xlsxFields  = (wpSampleFields[ref]     || []).filter(f => f.name);
 
   // ── Tick marks ──
   const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
@@ -6913,13 +7070,26 @@ async function exportToXlsx() {
     ['jdavis'],                                         // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
-    // A6: grid header
-    ['Sample File', ...attributes.map(a => `${a.num ? a.num + '. ' : ''}${a.title}`)],
+    // A6: grid header — field columns first, then attribute columns
+    ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
+    // A7: descriptions row
+    ['Attribute Description', ...xlsxFields.map(f => f.desc || ''), ...attributes.map(a => a.desc || '')],
+    // A8: additional info row (only if any attribute has it)
+    ...(attributes.some(a => a.additionalInfo) ? [['Additional Info', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')]] : []),
   ];
 
-  // Grid rows — one per file
+  // Grid rows — one per file, field values first then attribute results
   analysisResults.forEach((fileResult, fi) => {
-    const row = [fileResult.fileName];
+    // Field extraction values (in the order defined in sampleFields)
+    const fieldCells = xlsxFields.map(sf => {
+      const match = (fileResult.fields || []).find(f =>
+        f.name === sf.name || f.name.toLowerCase() === sf.name.toLowerCase()
+      );
+      return match?.value || 'N/A';
+    });
+
+    // Attribute result cells
+    const attrCells = [];
     attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
       if (!match) {
@@ -6931,9 +7101,9 @@ async function exportToXlsx() {
       }
       const tick  = match ? (TICK[match.result] || '–') : '–';
       const exRef = exMap[`${fi}-${ai}`] ? ` [${exMap[`${fi}-${ai}`]}]` : '';
-      row.push(tick + exRef);
+      attrCells.push(tick + exRef);
     });
-    wsData.push(row);
+    wsData.push([fileResult.fileName, ...fieldCells, ...attrCells]);
   });
 
   // Blank spacer
@@ -6981,7 +7151,7 @@ async function exportToXlsx() {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{ wch: 40 }, ...attributes.map(() => ({ wch: 24 }))];
+  ws['!cols'] = [{ wch: 40 }, ...xlsxFields.map(() => ({ wch: 22 })), ...attributes.map(() => ({ wch: 24 }))];
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
   // ── Detailed Notes sheet ──
@@ -8643,7 +8813,7 @@ function renderTestAttributes(ref) {
   const container = document.getElementById('test-attr-rows');
   if (!container) return;
 
-  let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.title, a.desc)).join('');
+  let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '')).join('');
   // No auto blank row — user must click "Add attribute" to add a new row
   if (rows.length === 0) {
     html = `<div style="padding:14px 16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No attributes yet — click "Add attribute" to begin.</div>`;
@@ -8654,27 +8824,41 @@ function renderTestAttributes(ref) {
   setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
 }
 
-function makeAttrRowHtml(idx, num, title, desc) {
-  const base = (idx * 3) + 1; // tabindex base: 1,4,7,10...
-  return `<div class="attr-row" id="attr-row-${idx}">
-    <div class="attr-cell">
+function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
+  const base = (idx * 5) + 1;
+  return `<div class="attr-row" id="attr-row-${idx}" style="display:grid;grid-template-columns:52px 72px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);align-items:start">
+    <div class="attr-cell" style="padding:6px 8px">
       <input class="attr-num-input" type="text" maxlength="10" value="${escAttr(num)}" placeholder="#"
         tabindex="${base}"
-        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})" style="width:100%">
+        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})" style="width:100%;font-size:12px">
     </div>
-    <div class="attr-cell">
-      <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
+    <div class="attr-cell" style="padding:6px 8px">
+      <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. A1"
         tabindex="${base + 1}"
+        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
+        style="width:100%;font-size:12px;font-weight:600;text-align:center">
+    </div>
+    <div class="attr-cell" style="padding:6px 12px">
+      <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
+        tabindex="${base + 2}"
         oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
     </div>
-    <div class="attr-cell">
-      <textarea class="attr-input" maxlength="2500" placeholder="Describe the attribute or test objective…"
-        tabindex="${base + 2}"
+    <div class="attr-cell" style="padding:6px 12px;display:flex;flex-direction:column;gap:4px">
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…"
+        tabindex="${base + 3}"
         oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px"
         >${escAttr(desc)}</textarea>
+      <div style="display:flex;align-items:flex-start;gap:6px;margin-top:2px">
+        <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-tertiary);white-space:nowrap;padding-top:5px">Additional Info:</span>
+        <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional info (included in exported workpaper)…"
+          tabindex="${base + 4}"
+          oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+          style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:11px;color:var(--text-secondary)"
+          >${escAttr(additionalInfo)}</textarea>
+      </div>
     </div>
-    <div class="attr-cell">
+    <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
         tabindex="-1" style="width:24px;height:24px;font-size:12px">
         <i class="ti ti-x"></i>
@@ -8702,12 +8886,13 @@ function saveAttrRow(idx) {
   const rows = wpTestAttributes[currentAttrWPRef] || [];
   const row = document.getElementById('attr-row-' + idx);
   if (!row) return;
-  const num   = row.querySelector('.attr-num-input')?.value || '';
-  const title = row.querySelectorAll('.attr-input')[0]?.value || '';
-  const desc  = row.querySelectorAll('.attr-input')[1]?.value || '';
-  // Extend array if needed
-  while (rows.length <= idx) rows.push({ num: '', title: '', desc: '' });
-  rows[idx] = { num, title, desc };
+  const num            = row.querySelector('.attr-num-input')?.value || '';
+  const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
+  const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
+  const desc           = row.querySelector('.attr-desc')?.value || '';
+  const additionalInfo = row.querySelector('.attr-additional')?.value || '';
+  while (rows.length <= idx) rows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '' });
+  rows[idx] = { num, attrRef, title, desc, additionalInfo };
   wpTestAttributes[currentAttrWPRef] = rows;
 }
 
@@ -8719,9 +8904,11 @@ function removeAttrRow(idx) {
   document.querySelectorAll('.attr-row').forEach((row, i) => {
     if (i === idx) return; // skip the one being deleted
     domRows.push({
-      num:   row.querySelector('.attr-num-input')?.value || '',
-      title: row.querySelectorAll('.attr-input')[0]?.value || '',
-      desc:  row.querySelectorAll('.attr-input')[1]?.value || '',
+      num:            row.querySelector('.attr-num-input')?.value || '',
+      attrRef:        row.querySelector('.attr-ref-input')?.value || '',
+      title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
+      desc:           row.querySelector('.attr-desc')?.value || '',
+      additionalInfo: row.querySelector('.attr-additional')?.value || '',
     });
   });
 
@@ -8742,13 +8929,15 @@ function addTestAttributeRow() {
   const domRows = [];
   document.querySelectorAll('.attr-row').forEach(row => {
     domRows.push({
-      num:   row.querySelector('.attr-num-input')?.value || '',
-      title: row.querySelectorAll('.attr-input')[0]?.value || '',
-      desc:  row.querySelectorAll('.attr-input')[1]?.value || '',
+      num:            row.querySelector('.attr-num-input')?.value || '',
+      attrRef:        row.querySelector('.attr-ref-input')?.value || '',
+      title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
+      desc:           row.querySelector('.attr-desc')?.value || '',
+      additionalInfo: row.querySelector('.attr-additional')?.value || '',
     });
   });
   // Push a guaranteed blank new row
-  domRows.push({ num: '', title: '', desc: '' });
+  domRows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '' });
   wpTestAttributes[currentAttrWPRef] = domRows;
   renderTestAttributes(currentAttrWPRef);
   // Focus the new title field
