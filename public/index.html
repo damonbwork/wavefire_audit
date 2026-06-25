@@ -7130,15 +7130,13 @@ async function exportToXlsx() {
     ['jdavis'],                                         // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
-    // A6: Attr # row
+    // A6: Attr # row — attribute ref numbers only
     ['Attr #', ...xlsxFields.map(() => ''), ...attributes.map(a => a.attrRef || a.num || '')],
-    // A7: Title row
+    // A7: Title row — sample field names + attribute titles
     ['Attribute Title', ...xlsxFields.map(f => f.name), ...attributes.map(a => a.title || '')],
-    // A8: Description row
-    ['Attribute Description', ...xlsxFields.map(f => f.desc || ''), ...attributes.map(a => a.desc || '')],
-    // A9: Additional Info row (always included when fields exist)
+    // A8: Additional Info row — attribute additional information only (no attribute description row)
     ['Additional Information', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
-    // A10: Sample file results header
+    // A9: Sample File results header
     ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
   ];
 
@@ -7468,28 +7466,90 @@ function previewGoPage(delta) {
 function renderNonPDFPreview(file, name) {
   document.getElementById('file-preview-nav').style.display = 'none';
   const n = name.toLowerCase();
-  // Images
+  const body = document.getElementById('file-preview-body');
+
+  // ── Images ──
   if (file.type.startsWith('image/')) {
     const url = URL.createObjectURL(file);
-    document.getElementById('file-preview-body').innerHTML =
-      `<img src="${url}" style="max-width:100%;max-height:calc(100vh - 140px);object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.3)">`;
+    body.innerHTML = `<img src="${url}" style="max-width:100%;max-height:calc(100vh - 140px);object-fit:contain;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.3)">`;
     return;
   }
-  // Text / CSV
+
+  // ── Text / CSV ──
   if (file.type.startsWith('text/') || n.endsWith('.csv') || n.endsWith('.txt')) {
     const reader = new FileReader();
     reader.onload = e => {
       const pre = document.createElement('pre');
       pre.style.cssText = 'background:#1e1e1e;color:#d4d4d4;padding:20px;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-all;max-width:860px;width:100%;margin:0;line-height:1.5;overflow-x:auto';
-      pre.textContent = e.target.result.slice(0, 50000); // cap at 50k chars
-      document.getElementById('file-preview-body').innerHTML = '';
-      document.getElementById('file-preview-body').appendChild(pre);
+      pre.textContent = e.target.result.slice(0, 50000);
+      body.innerHTML = '';
+      body.appendChild(pre);
     };
     reader.readAsText(file);
     return;
   }
-  // Unsupported
-  document.getElementById('file-preview-body').innerHTML = `
+
+  // ── Word documents (.docx) via Mammoth ──
+  if (n.endsWith('.docx') || n.endsWith('.doc')) {
+    body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px"><i class="ti ti-loader-2" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.5"></i>Loading Word document…</div>`;
+    loadMammoth().then(mammoth => {
+      return file.arrayBuffer().then(ab => mammoth.convertToHtml({ arrayBuffer: ab }));
+    }).then(result => {
+      body.innerHTML = `<div style="background:#fff;color:#1e293b;padding:32px 40px;border-radius:8px;max-width:860px;width:100%;margin:0 auto;font-family:Georgia,serif;font-size:14px;line-height:1.7;box-shadow:0 2px 12px rgba(0,0,0,0.15);overflow:auto">${result.value}</div>`;
+    }).catch(err => {
+      body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:40px;font-size:13px"><i class="ti ti-alert-triangle" style="font-size:24px;display:block;margin-bottom:8px"></i>Could not render Word document.<br><span style="font-size:12px;color:#64748b;margin-top:4px;display:block">${err.message}</span></div>`;
+    });
+    return;
+  }
+
+  // ── Excel files (.xlsx / .xls / .xlsm / .xlsb) via SheetJS ──
+  if (n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.xlsm') || n.endsWith('.xlsb') || n.endsWith('.csv')) {
+    body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px"><i class="ti ti-loader-2" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.5"></i>Loading spreadsheet…</div>`;
+    loadSheetJS().then(XLSX_LIB => {
+      return file.arrayBuffer().then(ab => {
+        const wb = XLSX_LIB.read(ab, { type: 'array' });
+        const sheetNames = wb.SheetNames;
+        const tabs = sheetNames.map((sn, si) => `<button onclick="renderXLSXSheet(this,${si})" data-si="${si}"
+          style="padding:4px 12px;font-size:12px;border:0.5px solid #e2e8f0;border-radius:6px 6px 0 0;cursor:pointer;background:${si===0?'#fff':'#f1f5f9'};color:${si===0?'#1e293b':'#64748b'};border-bottom:${si===0?'none':'0.5px solid #e2e8f0'};margin-right:2px">${sn}</button>`).join('');
+        // Store workbook for sheet switching
+        window._previewWorkbook = wb;
+        window._previewXLSXLIB = XLSX_LIB;
+
+        function sheetToHtml(ws) {
+          const html = XLSX_LIB.utils.sheet_to_html(ws, { editable: false });
+          return html.replace(/<table/g, '<table style="border-collapse:collapse;font-size:12px;width:100%"')
+                     .replace(/<td/g, '<td style="border:0.5px solid #e2e8f0;padding:4px 8px;white-space:nowrap"')
+                     .replace(/<th/g, '<th style="border:0.5px solid #e2e8f0;padding:4px 8px;background:#f8fafc;font-weight:600;white-space:nowrap"');
+        }
+
+        window._previewSheetToHtml = sheetToHtml;
+        const firstSheet = wb.Sheets[sheetNames[0]];
+        body.innerHTML = `
+          <div style="width:100%;display:flex;flex-direction:column;gap:0">
+            <div style="padding:8px 4px 0;background:#f1f5f9;border-bottom:0.5px solid #e2e8f0;display:flex;flex-wrap:wrap" id="xlsx-tab-bar">${tabs}</div>
+            <div style="overflow:auto;background:#fff;padding:12px;border-radius:0 0 8px 8px;flex:1" id="xlsx-sheet-body">${sheetToHtml(firstSheet)}</div>
+          </div>`;
+      });
+    }).catch(err => {
+      body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:40px;font-size:13px"><i class="ti ti-alert-triangle" style="font-size:24px;display:block;margin-bottom:8px"></i>Could not render spreadsheet.<br><span style="font-size:12px;color:#64748b;margin-top:4px;display:block">${err.message}</span></div>`;
+    });
+    return;
+  }
+
+  // ── PowerPoint (.pptx) — render slide count info ──
+  if (n.endsWith('.pptx') || n.endsWith('.ppt')) {
+    body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:40px 20px">
+      <i class="ti ti-presentation" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.5;color:#ea580c"></i>
+      <div style="font-size:14px;font-weight:500;margin-bottom:8px;color:#1e293b">${name}</div>
+      <div style="font-size:12px;color:#64748b;max-width:340px;line-height:1.6">
+        PowerPoint preview is not supported in the browser.<br>Use the download button to open it in PowerPoint or Google Slides.
+      </div>
+    </div>`;
+    return;
+  }
+
+  // ── Unsupported ──
+  body.innerHTML = `
     <div style="color:#ccc;text-align:center;padding:40px 20px">
       <i class="ti ti-file" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.5"></i>
       <div style="font-size:14px;font-weight:500;margin-bottom:8px">${name}</div>
@@ -7498,6 +7558,33 @@ function renderNonPDFPreview(file, name) {
         Use the download button to open it in the appropriate application.
       </div>
     </div>`;
+}
+
+function renderXLSXSheet(btn, sheetIdx) {
+  const wb = window._previewWorkbook;
+  const XLSX_LIB = window._previewXLSXLIB;
+  const toHtml = window._previewSheetToHtml;
+  if (!wb || !XLSX_LIB || !toHtml) return;
+  const sheetName = wb.SheetNames[sheetIdx];
+  const ws = wb.Sheets[sheetName];
+  document.getElementById('xlsx-sheet-body').innerHTML = toHtml(ws);
+  // Update tab styles
+  document.querySelectorAll('#xlsx-tab-bar button').forEach((b, i) => {
+    b.style.background    = i === sheetIdx ? '#fff' : '#f1f5f9';
+    b.style.color         = i === sheetIdx ? '#1e293b' : '#64748b';
+    b.style.borderBottom  = i === sheetIdx ? 'none' : '0.5px solid #e2e8f0';
+  });
+}
+
+async function loadSheetJS() {
+  if (window.XLSX) return window.XLSX;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error('Failed to load SheetJS from CDN.'));
+    document.head.appendChild(s);
+  });
 }
 
 /* ══════════════════════════════════════
