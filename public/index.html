@@ -429,7 +429,21 @@
   }
   .attr-input:focus { color: var(--wf-navy); }
   .attr-input::placeholder { color: var(--text-tertiary); }
-  .attr-num-input {
+  .attr-col-resize {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 1;
+  }
+  .attr-col-resize:hover { background: var(--wf-blue); opacity: 0.4; }
+  .attr-row-flex {
+    display: flex;
+    border-bottom: 0.5px solid var(--border-light);
+    align-items: stretch;
+  }
+  .attr-row-flex .attr-cell { padding: 6px 8px; overflow: hidden; }
     width: 100%; font-size: 12px; font-weight: 600; color: var(--wf-blue);
     background: transparent; border: none; outline: none;
     font-family: inherit; padding-top: 2px;
@@ -744,7 +758,7 @@
             <option>SOX Compliance Audit</option>
             <option>Operational Risk Assessment</option>
             <option>Vendor Due Diligence</option>
-            <option>Payroll Audit</option>
+            <option>PRS Audits</option>
           </select>
         </div>
         <div class="wf-ctl-divider"></div>
@@ -1546,13 +1560,14 @@
             </button>
           </div>
           <div class="sect-body" style="padding:0">
-            <!-- Column headers -->
-            <div style="display:grid;grid-template-columns:52px 72px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">Attr #</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description</div>
-              <div></div>
+            <!-- Resizable column headers -->
+            <div id="attr-col-hdr" style="display:flex;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);user-select:none">
+              <div class="attr-col-hdr-cell" data-col="num"     style="width:52px;min-width:36px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">#<span class="attr-col-resize" onmousedown="startAttrColResize(event,'num')"></span></div>
+              <div class="attr-col-hdr-cell" data-col="attrRef" style="width:72px;min-width:40px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">Attr #<span class="attr-col-resize" onmousedown="startAttrColResize(event,'attrRef')"></span></div>
+              <div class="attr-col-hdr-cell" data-col="title"   style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
+              <div class="attr-col-hdr-cell" data-col="desc"    style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
+              <div class="attr-col-hdr-cell" data-col="addl"    style="flex:1.2;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
+              <div style="width:36px;flex-shrink:0"></div>
             </div>
             <!-- Attribute rows -->
             <div id="test-attr-rows">
@@ -2391,7 +2406,7 @@ const AUDITS = [
   { name: "SOX Compliance Audit",        period: "Jan – Mar 2026", owner: "R. Patel",  type: "SOX",          wpCount: 22, status: "active",  desc: "Sarbanes-Oxley Section 302 and 404 compliance testing for Q1 2026." },
   { name: "Operational Risk Assessment", period: "Oct – Dec 2025", owner: "L. Torres", type: "Operations",   wpCount: 11, status: "closed",  desc: "Evaluation of operational controls across key business processes." },
   { name: "Vendor Due Diligence",        period: "FY 2025",        owner: "J. Davis",  type: "Compliance",   wpCount: 6,  status: "planned", desc: "Third-party vendor risk assessment and compliance review." },
-  { name: "Payroll Audit",               period: "Jan – Mar 2026", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of payroll processes, approvals, and disbursements." },
+  { name: "PRS Audits",               period: "Jan – Mar 2026", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of payroll processes, approvals, and disbursements." },
 ];
 
 const WORKPAPERS = [
@@ -2816,9 +2831,9 @@ const WORKPAPERS = [
     sampleFiles: []
   },
 
-  // ── Payroll Audit ─────────────────────────────────────────────────────
+  // ── PRS Audits ─────────────────────────────────────────────────────
   {
-    auditName: "Payroll Audit", ref: "WP-2026-SEC-001",
+    auditName: "PRS Audits", ref: "WP-2026-SEC-001",
     results: "met",
     name: "Payroll Planning Memo", type: "Planning",
     preparer: "skim", reviewer: "lmgr", dateStarted: "2026-01-10",
@@ -2837,9 +2852,9 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "Payroll Audit", ref: "WP-2026-IPE-002",
+    auditName: "PRS Audits", ref: "WP-2026-IPE-002",
     results: "passex",
-    name: "Payroll Disbursement Testing", type: "Testwork",
+    name: "PRS Invoice Testwork", type: "Testwork",
     preparer: "skim", reviewer: "jdavis", dateStarted: "2026-01-25",
     reviewDate: "2026-02-15", status: "review",
     sampleSize: 50, sampleMethod: "Statistical — random from payroll register",
@@ -2848,18 +2863,14 @@ const WORKPAPERS = [
       { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01","PAY-CTL-02"] }
     ],
     narrative: "Testing covered pay rate authorization, timesheet approval, new hire onboarding documentation, and termination processing. Sample of 50 payroll records tested. One exception: a pay rate increase for one employee was processed without a signed HR authorization form — the rate change matched an approved verbal instruction but lacked written documentation. Assessed as a low-risk observation.",
-    files: [
-      { icon: "ti-file-spreadsheet", name: "Payroll_Register_Q1_2026.xlsx",      meta: "Excel · 523 KB · skim · Jan 25, 2026" },
-      { icon: "ti-file-spreadsheet", name: "Payroll_Testing_Workbook_Q1.xlsx",   meta: "Excel · 289 KB · skim · Feb 8, 2026"  },
-      { icon: "ti-file-type-pdf",    name: "Pay_Rate_Exception_Detail.pdf",      meta: "PDF · 55 KB · skim · Feb 10, 2026"    }
-    ],
+    files: [],
     entities: ["St Vincent's Hospital", "South Bay Ortho"],
     sampleFiles: []
   },
   {
-    auditName: "Payroll Audit", ref: "WP-2026-OPS-003",
+    auditName: "PRS Audits", ref: "WP-2026-OPS-003",
     results: "",
-    name: "Payroll Audit Report", type: "Report",
+    name: "PRS Audits Report", type: "Report",
     preparer: "skim", reviewer: "lmgr", dateStarted: "2026-02-20",
     reviewDate: "2026-03-05", status: "draft",
     sampleSize: null, sampleMethod: "N/A — audit report",
@@ -2867,7 +2878,7 @@ const WORKPAPERS = [
     risks: [
       { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01"] }
     ],
-    narrative: "The Payroll Audit Report documents one finding: a pay rate change was processed without a signed written authorization, relying on verbal instruction only. The finding is rated as a low-risk observation. Management has agreed to update the HR pay change process to require a digital authorization form in Workday before any rate change can be processed, effective April 1, 2026.",
+    narrative: "The PRS Audits Report documents one finding: a pay rate change was processed without a signed written authorization, relying on verbal instruction only. The finding is rated as a low-risk observation. Management has agreed to update the HR pay change process to require a digital authorization form in Workday before any rate change can be processed, effective April 1, 2026.",
     files: [
       { icon: "ti-file-type-pdf",    name: "Payroll_Audit_Report_Q1_2026.pdf",  meta: "PDF · 445 KB · skim · Feb 20, 2026"  },
       { icon: "ti-file-description", name: "Payroll_Management_Response.docx",  meta: "Word · 76 KB · lmgr · Feb 24, 2026"  }
@@ -4691,7 +4702,7 @@ function saveCurrentPage() {
     // Test attributes — read purely from DOM (authoritative); never merge with stale store data
     if (currentAttrWPRef === w.ref) {
       const domRows = [];
-      document.querySelectorAll('.attr-row').forEach(row => {
+      document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
         const num            = row.querySelector('.attr-num-input')?.value || '';
         const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
         const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
@@ -4936,9 +4947,58 @@ function syncWPFsToAudit(ref, fsSet) {
 }
 
 /* ══════════════════════════════════════
+   TEST ATTRIBUTES — RESIZABLE COLUMNS
+══════════════════════════════════════ */
+const _attrColWidths = { num: 52, attrRef: 72, title: 180 }; // fixed cols only
+
+function startAttrColResize(e, col) {
+  e.preventDefault();
+  const hdrCell = document.querySelector(`#attr-col-hdr [data-col="${col}"]`);
+  if (!hdrCell) return;
+  const startX   = e.clientX;
+  const startW   = hdrCell.offsetWidth;
+
+  function onMove(ev) {
+    const newW = Math.max(36, startW + ev.clientX - startX);
+    _attrColWidths[col] = newW;
+    // Update header cell
+    hdrCell.style.width = newW + 'px';
+    // Update all data row cells with matching data-col
+    document.querySelectorAll(`#test-attr-rows [data-col="${col}"]`).forEach(cell => {
+      cell.style.width = newW + 'px';
+    });
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+}
+
+/* ══════════════════════════════════════
    SAMPLE FIELD EXTRACTION
 ══════════════════════════════════════ */
-const wpSampleFields = {}; // { ref: [{num, name, desc}] }
+const wpSampleFields = {
+  "WP-2026-IPE-002": [
+    { num:"1",  name:"COID",                                    desc:"Use the workpaper \"COID\" if it exists to look up the number corresponding to the facility name.  If not found return an empty cell" },
+    { num:"2",  name:"Facility",                                desc:"Search the sample document for the name of the hospital" },
+    { num:"3",  name:"Vendor Name",                             desc:"Search the sample document for the name of the vendor" },
+    { num:"4",  name:"Check #",                                 desc:"Search the sample document for the check # of the check" },
+    { num:"5",  name:"Check Date",                              desc:"" },
+    { num:"6",  name:"Check Amount",                            desc:"Search the sample document for the amount of the check" },
+    { num:"7",  name:"Contract Effective Date",                 desc:"Search the sample document for the date of the first amendment, if any" },
+    { num:"8",  name:"Date of Service",                         desc:"" },
+    { num:"9",  name:"Need to look in DocuSign for auto renew approval?", desc:"" },
+    { num:"10", name:"OG/Amend Signed Date",                   desc:"Search the sample document for the date of the first amendment, if any" },
+    { num:"11", name:"OG/Amend Legal/Ops Approval Date",        desc:"" },
+    { num:"12", name:"36 month renewal Calc",                   desc:"Search the sample document for the calculation of renewal amounts" },
+  ],
+}; // { ref: [{num, name, desc}] }
 let currentSFWPRef = null;
 
 function renderSampleFields(ref) {
@@ -6627,7 +6687,7 @@ function populateAuditInfoCard(audit) {
     "SOX Compliance Audit":        ["stcharles","stvincents","southwest","southbay","mainst","epic"],
     "Operational Risk Assessment": ["southwest","southbay","intelerad"],
     "Vendor Due Diligence":        ["stcharles","mainst","workday"],
-    "Payroll Audit":               ["stvincents","southbay","mainst","workday"],
+    "PRS Audits":               ["stvincents","southbay","mainst","workday"],
   };
 
   // Use audit.entities if it has been updated (e.g. from workpaper additions),
@@ -7070,12 +7130,16 @@ async function exportToXlsx() {
     ['jdavis'],                                         // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
-    // A6: grid header — field columns first, then attribute columns
-    ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
-    // A7: descriptions row
+    // A6: Attr # row
+    ['Attr #', ...xlsxFields.map(() => ''), ...attributes.map(a => a.attrRef || a.num || '')],
+    // A7: Title row
+    ['Attribute Title', ...xlsxFields.map(f => f.name), ...attributes.map(a => a.title || '')],
+    // A8: Description row
     ['Attribute Description', ...xlsxFields.map(f => f.desc || ''), ...attributes.map(a => a.desc || '')],
-    // A8: additional info row (only if any attribute has it)
-    ...(attributes.some(a => a.additionalInfo) ? [['Additional Info', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')]] : []),
+    // A9: Additional Info row (always included when fields exist)
+    ['Additional Information', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
+    // A10: Sample file results header
+    ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
   ];
 
   // Grid rows — one per file, field values first then attribute results
@@ -8581,8 +8645,9 @@ function refreshFileList(ref, bucket) {
       const dynRows    = memFiles.map((f,i) => {
         const verb = f.uploadedBy === 'Wavefire' ? 'Generated by' : 'Uploaded by';
         const meta = `${f.name.split('.').pop().toUpperCase()} · ${f.size} · ${verb} ${f.uploadedBy} on ${f.uploadedOn}`;
+        const safeName = f.name.replace(/'/g, "\\'");
         return fileRowHtml(getFileIcon(f.file), f.name, meta,
-          true, `promptDelete('${ref}','workpaper',${i},f.name)`, null,
+          true, `promptDelete('${ref}','workpaper',${i},'${safeName}')`, null,
           `downloadMemFile('${ref}','workpaper',${i})`,
           `previewMemFile('${ref}','workpaper',${i})`);
       }).join('');
@@ -8635,7 +8700,7 @@ function refreshFileList(ref, bucket) {
             </div>
             <div class="file-actions" style="align-items:center;gap:4px;margin-top:1px">
               <button class="icon-btn" title="Download" onclick="downloadMemFile('${safeRef}','sample',${i})"><i class="ti ti-download"></i></button>
-              <button class="icon-btn" title="Delete" onclick="promptDelete('${safeRef}','sample',${i},f.name)" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>
+              <button class="icon-btn" title="Delete" onclick="promptDelete('${safeRef}','sample',${i},'${safeName}')" style="color:var(--red-700)"><i class="ti ti-trash"></i></button>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;min-width:180px;margin-left:8px">
               <div style="display:flex;align-items:center;gap:6px;width:100%">
@@ -8667,8 +8732,8 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
     ? `<button class="icon-btn" title="Download" onclick="${dlCall}"><i class="ti ti-download"></i></button>`
     : `<button class="icon-btn" title="Download" onclick="downloadPlaceholder('${escHtml(name)}')"><i class="ti ti-download"></i></button>`;
   const delBtn = isDynamic
-    ? `<button class="icon-btn" title="Delete" style="color:var(--red-700)" onclick="fileRowDelete(this,'${escHtml(name)}');" data-delcall="${escHtml(deleteCall)}"><i class="ti ti-trash"></i></button>`
-    : `<button class="icon-btn" title="Delete"><i class="ti ti-trash"></i></button>`;
+    ? `<button class="icon-btn" title="Delete" style="color:var(--red-700)" onclick="${escHtml(deleteCall)}"><i class="ti ti-trash"></i></button>`
+    : `<button class="icon-btn" title="Delete" style="opacity:0.4" disabled><i class="ti ti-trash"></i></button>`;
   const prevCall = previewCall || `previewStaticFile('${escHtml(name)}')`;
   const prevBtn = `<button onclick="${prevCall}" title="Preview file"
     style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);
@@ -8800,8 +8865,17 @@ const wpTestAttributes = {
     { num: "3", title: "Three-way match",        desc: "Confirm the PO, goods receipt, and vendor invoice agree within the tolerance threshold of 5% or $500." },
   ],
   "WP-2026-IPE-002": [
-    { num: "1", title: "Pay rate authorization", desc: "Confirm each pay rate change was supported by a signed written authorization approved by HR." },
-    { num: "2", title: "Timesheet approval",     desc: "Verify timesheets were reviewed and approved by the employee's direct manager before payroll processing." },
+    { num:"1",  attrRef:"1a", title:"Contract",        desc:"Contract and/or renewal was in effect at the time of the service.", additionalInfo:"Can be confirmed by reviewing contract and date of services provided (invoice, timecard, etc.)" },
+    { num:"2",  attrRef:"1b", title:"Signed_Physician", desc:"Original agreement (and amendment if applicable) was signed by physician (or appropriate representative of contracted entity) and facility CEO before/on start date (amendment may not be dated but should be signed)", additionalInfo:"Can be confirmed by reviewing contract on signature page" },
+    { num:"3",  attrRef:"1c", title:"Signed_Corp",      desc:"Original agreement (and amendment if applicable) was approved by Corporate Legal and Division VP before/on start date", additionalInfo:"Confirm through DocuSign.  See \"List of Legal and VP approvers\" document for appropriate approvers. If effective date before 7/1/2021, N/A XX. If physician recruitment, N/A XX." },
+    { num:"4",  attrRef:"1d", title:"Signed_Timeline",  desc:"Original agreement (and amendment if applicable) was signed, dated, and approved by physician and facility CEO and approved by Corporate Legal and Division VP within 90 day grace period.", additionalInfo:"Per legal, there is a 90 day grace period for contract execution (signing and dating contract). Can be confirmed by reviewing contract on signature page and face sheet" },
+    { num:"5",  attrRef:"1e", title:"Renewal",          desc:"If agreement was greater than 36 months old at the time of service, confirm renewal was approved by Legal and Division VP around the 36 month interval (+ 90 day grace period).", additionalInfo:"Will need to go into DS to find approvals for renewal if current agreement is beyond 36 months" },
+    { num:"6",  attrRef:"2",  title:"Term",             desc:"Contract term is greater than or equal to one year for ongoing service (unless otherwise approved by Legal)", additionalInfo:"For Stark Law compliance, PRS contracts should be greater than 1 year, unless specific reason is noted and approved/documented by legal. Confirm by reviewing contract" },
+    { num:"7",  attrRef:"3",  title:"Payment_Accuracy", desc:"Payment agrees to contract terms.", additionalInfo:"We should be able to agree payment to a specific item/rate/schedule in the contract.  Ensure payment is permissible and paid in accordance to terms. This will include agreeing calculations to contract. If payment type is not listed in contract, we have issue. If the payment is related to physician recruitment, agree the payment to a physician site visit letter." },
+    { num:"8",  attrRef:"4",  title:"Payment_Support",  desc:"Payment has sufficient support - complete calculation and agrees to the payment.", additionalInfo:"If payment is for services related to a medical directorship, ensure a medical director timecard was completed and agrees to payment.    If payment is related to physician recruitment, ensure support for payment provided occurred at the same location as the facility (mileage/hotel reimbursement is in same city as facility).    Should be able to recalc payment amount." },
+    { num:"9",  attrRef:"5",  title:"Payee",            desc:"Payment made to a payee defined by the contract", additionalInfo:"Is payment made to contracting group/company or directly to physician.  Payment must agree to contracted name" },
+    { num:"10", attrRef:"6",  title:"Payment_Entity",   desc:"PRS was paid from the contracted or employer entity", additionalInfo:"See column M. If employed physician payment comes from employer entity if non-employed payment comes from contracted entity" },
+    { num:"11", attrRef:"7",  title:"Payment_Auth",     desc:"Payment is supported by a \"Payment to Physician\" or \"Payment to PRS\" form and signed by the appropriate parties before the check date.", additionalInfo:"This is only applicable if payment made outside of ARIBA.  If not, N/A 4." },
   ],
 };
 
@@ -8826,43 +8900,33 @@ function renderTestAttributes(ref) {
 
 function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
   const base = (idx * 5) + 1;
-  return `<div class="attr-row" id="attr-row-${idx}" style="display:grid;grid-template-columns:52px 72px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);align-items:start">
-    <div class="attr-cell" style="padding:6px 8px">
+  return `<div class="attr-row attr-row-flex" id="attr-row-${idx}">
+    <div class="attr-cell" data-col="num"     style="flex-shrink:0;width:var(--attr-col-num,52px);padding:6px 8px">
       <input class="attr-num-input" type="text" maxlength="10" value="${escAttr(num)}" placeholder="#"
-        tabindex="${base}"
-        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})" style="width:100%;font-size:12px">
+        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})" style="width:100%;font-size:12px">
     </div>
-    <div class="attr-cell" style="padding:6px 8px">
+    <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,72px);padding:6px 8px">
       <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. A1"
-        tabindex="${base + 1}"
-        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
+        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
         style="width:100%;font-size:12px;font-weight:600;text-align:center">
     </div>
-    <div class="attr-cell" style="padding:6px 12px">
+    <div class="attr-cell" data-col="title"   style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px">
       <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
-        tabindex="${base + 2}"
-        oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
+        tabindex="${base+2}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
     </div>
-    <div class="attr-cell" style="padding:6px 12px;display:flex;flex-direction:column;gap:4px">
+    <div class="attr-cell" data-col="desc"    style="flex:2;min-width:100px;padding:6px 12px">
       <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…"
-        tabindex="${base + 3}"
-        oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
-        style="width:100%;resize:none;overflow:hidden;min-height:24px"
-        >${escAttr(desc)}</textarea>
-      <div style="display:flex;align-items:flex-start;gap:6px;margin-top:2px">
-        <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-tertiary);white-space:nowrap;padding-top:5px">Additional Info:</span>
-        <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional info (included in exported workpaper)…"
-          tabindex="${base + 4}"
-          oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
-          style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:11px;color:var(--text-secondary)"
-          >${escAttr(additionalInfo)}</textarea>
-      </div>
+        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px">${escAttr(desc)}</textarea>
     </div>
-    <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
+    <div class="attr-cell" data-col="addl"    style="flex:1.2;min-width:80px;padding:6px 12px">
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…"
+        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px">${escAttr(additionalInfo)}</textarea>
+    </div>
+    <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
-        tabindex="-1" style="width:24px;height:24px;font-size:12px">
-        <i class="ti ti-x"></i>
-      </button>
+        tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
     </div>
   </div>`;
 }
@@ -8901,7 +8965,7 @@ function removeAttrRow(idx) {
 
   // Read ALL current DOM values into a fresh array (authoritative source)
   const domRows = [];
-  document.querySelectorAll('.attr-row').forEach((row, i) => {
+  document.querySelectorAll('#test-attr-rows .attr-row').forEach((row, i) => {
     if (i === idx) return; // skip the one being deleted
     domRows.push({
       num:            row.querySelector('.attr-num-input')?.value || '',
@@ -8927,7 +8991,7 @@ function addTestAttributeRow() {
 
   // First flush current DOM to store so we don't lose any edits
   const domRows = [];
-  document.querySelectorAll('.attr-row').forEach(row => {
+  document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
     domRows.push({
       num:            row.querySelector('.attr-num-input')?.value || '',
       attrRef:        row.querySelector('.attr-ref-input')?.value || '',
@@ -9623,7 +9687,21 @@ populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default aud
 
 // Set initial browser history state and handle any deep-link hash
 try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } catch(e) {}
-handleInitialHash();
+
+// ── Launch directly to PRS Audits → PRS Invoice Testwork ──
+(function launchToDefaultWP() {
+  const targetAudit = AUDITS.find(a => a.name === 'PRS Audits');
+  const targetWP    = WORKPAPERS.findIndex(w => w.name === 'PRS Invoice Testwork' && w.auditName === 'PRS Audits');
+  if (targetAudit && targetWP !== -1) {
+    currentAudit = targetAudit;
+    const selAudit = document.getElementById('sel-audit');
+    if (selAudit) selAudit.value = targetAudit.name;
+    openWP(targetWP);
+  } else {
+    handleInitialHash();
+  }
+})();
+
 // Set Audits nav item active on initial load
 document.querySelectorAll('.wf-nav-item').forEach(n => {
   if (n.textContent.trim() === 'Audits') n.classList.add('active');
