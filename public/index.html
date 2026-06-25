@@ -417,10 +417,9 @@
   .attr-row:hover { background: var(--bg-secondary); }
   .attr-cell {
     padding: 6px 10px;
-    border-right: 0.5px solid var(--border-light);
     display: flex; align-items: flex-start;
   }
-  .attr-cell:last-child { border-right: none; justify-content: center; align-items: flex-start; padding-top: 8px; }
+  .attr-cell:last-child { justify-content: center; align-items: flex-start; padding-top: 8px; }
   .attr-input {
     width: 100%; font-size: 12px; color: var(--text-primary);
     background: transparent; border: none; outline: none;
@@ -1226,6 +1225,7 @@
             </div>
           </div>
           <div class="row-actions">
+            <button class="btn-s" onclick="exportWorkpaperXLSX()"><i class="ti ti-download"></i>Export</button>
             <button class="btn-s" onclick="openHistory()"><i class="ti ti-clock"></i>History</button>
             <button class="btn-s" style="font-size:11px;padding:3px 8px" id="wpd-edit-btn" onclick="toggleWPHeaderEdit()"><i class="ti ti-edit"></i>Edit</button>
             <button class="btn-s" onclick="submitForReview()"><i class="ti ti-send"></i>Submit for review</button>
@@ -1562,8 +1562,8 @@
           <div class="sect-body" style="padding:0">
             <!-- Resizable column headers -->
             <div id="attr-col-hdr" style="display:flex;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);user-select:none">
-              <div class="attr-col-hdr-cell" data-col="num"     style="width:52px;min-width:36px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">#<span class="attr-col-resize" onmousedown="startAttrColResize(event,'num')"></span></div>
-              <div class="attr-col-hdr-cell" data-col="attrRef" style="width:72px;min-width:40px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px">Attr #<span class="attr-col-resize" onmousedown="startAttrColResize(event,'attrRef')"></span></div>
+              <div class="attr-col-hdr-cell" data-col="num" style="width:36px;min-width:36px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center">#</div>
+              <div class="attr-col-hdr-cell" data-col="attrRef" style="width:80px;min-width:50px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Attr #<span class="attr-col-resize" onmousedown="startAttrColResize(event,'attrRef')"></span></div>
               <div class="attr-col-hdr-cell" data-col="title"   style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
               <div class="attr-col-hdr-cell" data-col="desc"    style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
               <div class="attr-col-hdr-cell" data-col="addl"    style="flex:1.5;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
@@ -1579,17 +1579,25 @@
         <!-- Section 5b: Sample Field Extraction -->
         <div class="sect-card" id="sect-sample-field-extraction">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-table-column"></i>Sample field extraction</div>
+            <div class="sect-hdr-title" style="position:relative;cursor:default"
+              onmouseenter="document.getElementById('sf-tooltip').style.display='block'"
+              onmouseleave="document.getElementById('sf-tooltip').style.display='none'">
+              <i class="ti ti-table-column"></i>Sample field extraction
+              <div id="sf-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:340px;background:#1e293b;color:#fff;font-size:12px;line-height:1.6;padding:10px 14px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);z-index:9999;font-weight:400;pointer-events:none">
+                Wavefire will search the attached sample files for each of the data elements entered below and include the results in the workpaper when created. It will use any search guidance entered in the Search Guidance field to locate the data in the sample files.
+                <div style="position:absolute;top:-5px;left:18px;width:10px;height:10px;background:#1e293b;transform:rotate(45deg)"></div>
+              </div>
+            </div>
             <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addSampleFieldRow()">
               <i class="ti ti-plus"></i>Add sample field
             </button>
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Column headers -->
-            <div style="display:grid;grid-template-columns:80px 1fr 2fr 36px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Number</div>
+            <div style="display:grid;grid-template-columns:36px 1fr 2fr 36px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center">#</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Field Name</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Search Guidance <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
               <div></div>
             </div>
             <!-- Sample field rows -->
@@ -3440,6 +3448,8 @@ function openWP(i) {
   // ── Test Attributes ──
   renderTestAttributes(w.ref);
   renderSampleFields(w.ref);
+  initAttrGridPaste();
+  initSFGridPaste();
 
   // ── Financial Statement Accounts & Footnotes (Scope section) ──
   currentFsSelection = new Set(wpFsAccounts[w.ref] || []);
@@ -4703,7 +4713,7 @@ function saveCurrentPage() {
     if (currentAttrWPRef === w.ref) {
       const domRows = [];
       document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
-        const num            = row.querySelector('.attr-num-input')?.value || '';
+        const num            = String(Array.from(row.parentElement?.children || []).indexOf(row) + 1);
         const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
         const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
         const desc           = row.querySelector('.attr-desc')?.value || '';
@@ -4716,11 +4726,11 @@ function saveCurrentPage() {
     // Sample field extraction — flush DOM to store
     if (currentSFWPRef === w.ref) {
       const sfDomRows = [];
-      document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach(row => {
-        const num  = row.querySelector('.sf-num-input')?.value || '';
+      document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach((row, i) => {
+        const num  = String(i + 1); // auto-generated from position
         const name = row.querySelector('.sf-name-input')?.value || '';
         const desc = row.querySelector('.sf-desc-input')?.value || '';
-        if (num || name || desc) sfDomRows.push({ num, name, desc });
+        if (name || desc) sfDomRows.push({ num, name, desc });
       });
       wpSampleFields[w.ref] = sfDomRows;
     }
@@ -4947,6 +4957,159 @@ function syncWPFsToAudit(ref, fsSet) {
 }
 
 /* ══════════════════════════════════════
+   TEST ATTRIBUTES — PASTE FROM EXCEL
+══════════════════════════════════════ */
+function initSFGridPaste() {
+  const card = document.getElementById('sect-sample-field-extraction');
+  if (!card || card._pasteBound) return;
+  card._pasteBound = true;
+
+  card.addEventListener('paste', (e) => {
+    const active = document.activeElement;
+    if (!card.contains(active)) return;
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text || !text.includes('\t')) return;
+
+    e.preventDefault();
+
+    const rows = text.trim().split(/\r?\n/).map(row => row.split('\t'));
+    if (!rows.length || !currentSFWPRef) return;
+
+    // Flush current DOM state
+    const existing = [];
+    document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach(row => {
+      existing.push({
+        num:  String(Array.from(document.querySelectorAll('.attr-row[id^="sf-row-"]')).indexOf(row) + 1),
+        name: row.querySelector('.sf-name-input')?.value || '',
+        desc: row.querySelector('.sf-desc-input')?.value || '',
+      });
+    });
+
+    // Determine column offset from active element
+    const colMap = ['num', 'name', 'desc'];
+    let startColIdx = 0;
+    if (active.classList.contains('sf-name-input')) startColIdx = 0;
+    if (active.classList.contains('sf-desc-input')) startColIdx = 1;
+
+    // Determine row offset from active element
+    const activeRow  = active.closest('.attr-row');
+    const allRows    = Array.from(document.querySelectorAll('.attr-row[id^="sf-row-"]'));
+    let startRowIdx  = activeRow ? allRows.indexOf(activeRow) : existing.length;
+    if (startRowIdx < 0) startRowIdx = existing.length;
+
+    rows.forEach((pastedRow, ri) => {
+      const targetRowIdx = startRowIdx + ri;
+      while (existing.length <= targetRowIdx) {
+        existing.push({ num: String(existing.length + 1), name: '', desc: '' });
+      }
+      pastedRow.forEach((cell, ci) => {
+        const colIdx = startColIdx + ci;
+        if (colIdx >= colMap.length) return;
+        existing[targetRowIdx][colMap[colIdx]] = cell.trim();
+      });
+    });
+
+    wpSampleFields[currentSFWPRef] = existing;
+    renderSampleFields(currentSFWPRef);
+
+    // Brief confirmation bubble
+    const btn = card.querySelector('.btn-p');
+    if (btn) {
+      const bbl = document.createElement('span');
+      bbl.textContent = `✓ ${rows.length} row${rows.length!==1?'s':''} pasted`;
+      bbl.style.cssText = 'position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;white-space:nowrap;z-index:999;pointer-events:none';
+      btn.style.position = 'relative';
+      btn.appendChild(bbl);
+      setTimeout(() => { bbl.remove(); btn.style.position = ''; }, 2500);
+    }
+  });
+}
+
+function initAttrGridPaste() {
+  const container = document.getElementById('test-attr-rows');
+  if (!container || container._pasteBound) return;
+  container._pasteBound = true;
+
+  // Also listen on the section card so paste anywhere in the section works
+  const card = document.getElementById('sect-test-attributes');
+  if (!card) return;
+
+  card.addEventListener('paste', (e) => {
+    // Only handle if focus is inside the test attributes section
+    const active = document.activeElement;
+    if (!card.contains(active)) return;
+
+    const text = e.clipboardData?.getData('text/plain');
+    if (!text || !text.includes('\t')) return; // not tabular data
+
+    e.preventDefault();
+
+    const rows = text.trim().split(/\r?\n/).map(row => row.split('\t'));
+    if (!rows.length) return;
+
+    if (!currentAttrWPRef) return;
+
+    // Flush current DOM state first
+    const existing = [];
+    document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
+      existing.push({
+        num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
+        attrRef:        row.querySelector('.attr-ref-input')?.value || '',
+        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
+        desc:           row.querySelector('.attr-desc')?.value || '',
+        additionalInfo: row.querySelector('.attr-additional')?.value || '',
+      });
+    });
+
+    // Determine which column the cursor is in (to know where to start pasting)
+    const colMap = ['attrRef', 'title', 'desc', 'additionalInfo'];
+    let startColIdx = 0;
+    if (active.classList.contains('attr-ref-input'))   startColIdx = 0;
+    if (active.classList.contains('attr-input') && !active.classList.contains('attr-desc') && !active.classList.contains('attr-additional')) startColIdx = 1;
+    if (active.classList.contains('attr-desc'))        startColIdx = 2;
+    if (active.classList.contains('attr-additional'))  startColIdx = 3;
+
+    // Determine which row the cursor is in
+    const activeRow = active.closest('.attr-row');
+    const allRows   = Array.from(document.querySelectorAll('#test-attr-rows .attr-row'));
+    let startRowIdx = activeRow ? allRows.indexOf(activeRow) : existing.length;
+    if (startRowIdx < 0) startRowIdx = existing.length;
+
+    // Paste rows into the existing array, extending as needed
+    rows.forEach((pastedRow, ri) => {
+      const targetRowIdx = startRowIdx + ri;
+      // Ensure target row exists
+      while (existing.length <= targetRowIdx) {
+        existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '' });
+      }
+      pastedRow.forEach((cell, ci) => {
+        const colIdx = startColIdx + ci;
+        if (colIdx >= colMap.length) return;
+        existing[targetRowIdx][colMap[colIdx]] = cell.trim();
+      });
+    });
+
+    // Renumber if num column was pasted as part of paste (optional: only if user started from col 0)
+    // Leave user's numbering intact otherwise
+
+    wpTestAttributes[currentAttrWPRef] = existing;
+    renderTestAttributes(currentAttrWPRef);
+
+    // Show a brief confirmation bubble
+    const btn = card.querySelector('.btn-p');
+    if (btn) {
+      const bbl = document.createElement('span');
+      bbl.textContent = `✓ ${rows.length} row${rows.length!==1?'s':''} pasted`;
+      bbl.style.cssText = 'position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;white-space:nowrap;z-index:999;pointer-events:none';
+      btn.style.position = 'relative';
+      btn.appendChild(bbl);
+      setTimeout(() => { bbl.remove(); btn.style.position = ''; }, 2500);
+    }
+  });
+}
+
+/* ══════════════════════════════════════
    TEST ATTRIBUTES — RESIZABLE COLUMNS
 ══════════════════════════════════════ */
 const _attrColWidths = { num: 52, attrRef: 72, title: 180 }; // fixed cols only
@@ -5016,26 +5179,24 @@ function renderSampleFields(ref) {
 }
 
 function makeSampleFieldRowHtml(idx, num, name, desc) {
-  const base = (idx * 3) + 1;
-  return `<div class="attr-row" id="sf-row-${idx}">
-    <div class="attr-cell">
-      <input class="sf-num-input" type="text" maxlength="10" value="${escAttr(num)}" placeholder="#"
-        tabindex="${base}"
-        oninput="saveSFRow(${idx})" onblur="saveSFRow(${idx})" style="width:100%">
-    </div>
-    <div class="attr-cell">
+  const base   = (idx * 2) + 1;
+  const rowNum = idx + 1;
+  return `<div class="attr-row" id="sf-row-${idx}" style="display:grid;grid-template-columns:36px 1fr 2fr 36px;border-bottom:0.5px solid var(--border-light);align-items:start">
+    <div style="padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">${rowNum}</div>
+    <div class="attr-cell" style="padding:6px 12px">
       <input class="sf-name-input" type="text" maxlength="120" value="${escAttr(name)}" placeholder="Field name…"
-        tabindex="${base + 1}"
-        oninput="saveSFRow(${idx})" onblur="saveSFRow(${idx})">
+        tabindex="${base}"
+        oninput="saveSFRow(${idx})" onblur="saveSFRow(${idx})"
+        style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
-    <div class="attr-cell">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Describe this field or extraction criteria…"
-        tabindex="${base + 2}"
+    <div class="attr-cell" style="padding:6px 12px">
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…"
+        tabindex="${base + 1}"
         oninput="saveSFRow(${idx});autoResizeTA(this)" onblur="saveSFRow(${idx})"
-        style="width:100%;resize:none;overflow:hidden;min-height:24px"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary);line-height:1.5"
         >${escAttr(desc)}</textarea>
     </div>
-    <div class="attr-cell">
+    <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(${idx})"
         tabindex="-1" style="width:24px;height:24px;font-size:12px">
         <i class="ti ti-x"></i>
@@ -5049,7 +5210,7 @@ function saveSFRow(idx) {
   const rows = wpSampleFields[currentSFWPRef] || [];
   const row = document.getElementById('sf-row-' + idx);
   if (!row) return;
-  const num  = row.querySelector('.sf-num-input')?.value || '';
+  const num  = String(idx + 1); // auto-generated
   const name = row.querySelector('.sf-name-input')?.value || '';
   const desc = row.querySelector('.sf-desc-input')?.value || '';
   while (rows.length <= idx) rows.push({ num: '', name: '', desc: '' });
@@ -5062,7 +5223,7 @@ function addSampleFieldRow() {
   const domRows = [];
   document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach(row => {
     domRows.push({
-      num:  row.querySelector('.sf-num-input')?.value || '',
+      num:  '', // will be regenerated on render
       name: row.querySelector('.sf-name-input')?.value || '',
       desc: row.querySelector('.sf-desc-input')?.value || '',
     });
@@ -5083,7 +5244,7 @@ function removeSFRow(idx) {
   document.querySelectorAll('.attr-row[id^="sf-row-"]').forEach((row, i) => {
     if (i === idx) return;
     domRows.push({
-      num:  row.querySelector('.sf-num-input')?.value || '',
+      num:  '', // will be regenerated on render
       name: row.querySelector('.sf-name-input')?.value || '',
       desc: row.querySelector('.sf-desc-input')?.value || '',
     });
@@ -7078,6 +7239,163 @@ function fileToBase64(file) {
 /* ══════════════════════════════════════
    XLSX EXPORT
 ══════════════════════════════════════ */
+/* ══════════════════════════════════════
+   WORKPAPER EXPORT — full workpaper to XLSX
+══════════════════════════════════════ */
+function exportWorkpaperXLSX() {
+  if (!window.XLSX) {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => _doExportWorkpaperXLSX();
+    s.onerror = () => alert('Could not load the export library. Please check your internet connection.');
+    document.head.appendChild(s);
+  } else {
+    _doExportWorkpaperXLSX();
+  }
+}
+
+function _doExportWorkpaperXLSX() {
+  saveCurrentPage();
+  const w   = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  const ref  = w.ref;
+  const now  = new Date();
+  const ds   = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const ts   = String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  const rows = [];
+
+  const secHdr = (label) => [label, '', '', '', ''];
+  const colHdr = (...cells) => cells;
+  const blank  = () => [];
+
+  // ── WORKPAPER INFORMATION ──────────────────────────────────────────
+  rows.push(secHdr('WORKPAPER INFORMATION'));
+  rows.push(['Workpaper Name',    w.name || '']);
+  rows.push(['Reference',         ref]);
+  rows.push(['Type',              w.type || '']);
+  rows.push(['Audit',             w.auditName || '']);
+  rows.push(['Status',            w.status || '']);
+  rows.push(['Result',            w.results || '']);
+  rows.push(['Preparer',          w.preparer || '']);
+  rows.push(['Reviewer',          w.reviewer || '']);
+  rows.push(['Date Started',      w.dateStarted || '']);
+  rows.push(['Date Submitted',    w.dateSubmitted || '']);
+  rows.push(blank());
+
+  // ── PROCESS / CONTROL NARRATIVE ───────────────────────────────────
+  rows.push(secHdr('PROCESS / CONTROL NARRATIVE'));
+  rows.push([w.narrative || '']);
+  rows.push(blank());
+
+  // ── LINKED RISKS & CONTROLS ───────────────────────────────────────
+  rows.push(secHdr('LINKED RISKS & CONTROLS'));
+  const linkedCtrls = wpLinkedControls[ref] || new Set();
+  if (linkedCtrls.size) {
+    rows.push(colHdr('Control ID', 'Title', 'Description'));
+    linkedCtrls.forEach(id => {
+      const c = CONTROLS[id];
+      rows.push([id, c?.title || '', c?.description || '']);
+    });
+  } else { rows.push(['No controls linked']); }
+  rows.push(blank());
+
+  // ── ASSESSMENT ENTITIES ────────────────────────────────────────────
+  rows.push(secHdr('ASSESSMENT ENTITIES'));
+  const entities = wpScopeEntities[ref] || new Set();
+  if (entities.size) {
+    rows.push(colHdr('Entity Name', 'Category', 'Description'));
+    entities.forEach(id => {
+      const e = ALL_ENTITIES.find(x => x.id === id);
+      rows.push([e?.name || id, e?.category || '', e?.sub || '']);
+    });
+  } else { rows.push(['No entities linked']); }
+  rows.push(blank());
+
+  // ── TEST ATTRIBUTES ────────────────────────────────────────────────
+  rows.push(secHdr('TEST ATTRIBUTES'));
+  const attrs = (wpTestAttributes[ref] || []).filter(a => a.title);
+  if (attrs.length) {
+    rows.push(colHdr('#', 'Attr #', 'Title', 'Description', 'Additional Information'));
+    attrs.forEach((a, i) => rows.push([i+1, a.attrRef || '', a.title || '', a.desc || '', a.additionalInfo || '']));
+  } else { rows.push(['No test attributes defined']); }
+  rows.push(blank());
+
+  // ── SAMPLE FIELD EXTRACTION ────────────────────────────────────────
+  rows.push(secHdr('SAMPLE FIELD EXTRACTION'));
+  const sfields = (wpSampleFields[ref] || []).filter(f => f.name);
+  if (sfields.length) {
+    rows.push(colHdr('#', 'Field Name', 'Search Guidance'));
+    sfields.forEach((f, i) => rows.push([i+1, f.name, f.desc || '']));
+  } else { rows.push(['No sample fields defined']); }
+  rows.push(blank());
+
+  // ── ATTACHED WORKPAPER FILES ───────────────────────────────────────
+  rows.push(secHdr('ATTACHED WORKPAPER FILES'));
+  const wpFiles = [...(w.files || []).map(f => f.name), ...(inMemoryFiles[ref]?.workpaper || []).map(f => f.name)];
+  if (wpFiles.length) { rows.push(['File Name']); wpFiles.forEach(n => rows.push([n])); }
+  else { rows.push(['No workpaper files attached']); }
+  rows.push(blank());
+
+  // ── ATTACHED SAMPLE FILES ──────────────────────────────────────────
+  rows.push(secHdr('ATTACHED SAMPLE FILES'));
+  const sfFiles = [...(w.sampleFiles || []).map(f => f.name || f), ...(inMemoryFiles[ref]?.sample || []).map(f => f.name)];
+  if (sfFiles.length) { rows.push(['File Name']); sfFiles.forEach(n => rows.push([n])); }
+  else { rows.push(['No sample files attached']); }
+  rows.push(blank());
+
+  // ── EXCEPTIONS ─────────────────────────────────────────────────────
+  rows.push(secHdr('EXCEPTIONS'));
+  const exceptions = wpExceptions[ref] || [];
+  if (exceptions.length) {
+    rows.push(colHdr('#', 'Exception Name', 'Description', 'Owner', 'Management Response', 'Resolution Date', 'Retested'));
+    exceptions.forEach(ex => {
+      rows.push([ex.num||'', ex.name||'', ex.desc||'', ex.owner||'', ex.mgmtResponse||'', ex.resolutionDate||'', ex.retested||'']);
+      if (ex.linkedFiles?.length) rows.push(['', 'Linked Files:', ex.linkedFiles.join(', ')]);
+    });
+  } else { rows.push(['No exceptions noted']); }
+  rows.push(blank());
+
+  // ── REVIEW NOTES ───────────────────────────────────────────────────
+  rows.push(secHdr('REVIEW NOTES'));
+  const notesLog = wpReviewLog[ref] || {};
+  const allNoteEntries = Object.values(notesLog).flat();
+  if (allNoteEntries.length) {
+    rows.push(colHdr('Section', 'Note', 'Cleared', 'Cleared By'));
+    Object.entries(notesLog).forEach(([sectId, sectNotes]) => {
+      (sectNotes || []).forEach(n => rows.push([SECTION_NAMES[sectId] || sectId, n.text || '', n.cleared ? 'Yes' : 'No', n.clearedBy || '']));
+    });
+  } else { rows.push(['No review notes']); }
+  rows.push(blank());
+
+  // ── CHANGE LOG ─────────────────────────────────────────────────────
+  rows.push(secHdr('CHANGE LOG'));
+  const changes = wpChangeLog[ref] || [];
+  if (changes.length) {
+    rows.push(colHdr('Timestamp', 'Event'));
+    changes.forEach(c => rows.push([c.ts || '', c.msg || '']));
+  } else { rows.push(['No change log entries']); }
+
+  // ── Build and download ─────────────────────────────────────────────
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 45 }, { wch: 55 }, { wch: 55 }];
+
+  // Bold section headers (rows where col A is a known section name)
+  const sectionNames = new Set(['WORKPAPER INFORMATION','PROCESS / CONTROL NARRATIVE','LINKED RISKS & CONTROLS',
+    'ASSESSMENT ENTITIES','TEST ATTRIBUTES','SAMPLE FIELD EXTRACTION','ATTACHED WORKPAPER FILES',
+    'ATTACHED SAMPLE FILES','EXCEPTIONS','REVIEW NOTES','CHANGE LOG']);
+  rows.forEach((r, ri) => {
+    if (sectionNames.has(r[0])) {
+      const addr = XLSX.utils.encode_cell({ r: ri, c: 0 });
+      if (!ws[addr]) ws[addr] = { t: 's', v: r[0] };
+      ws[addr].s = { font: { bold: true, sz: 12 }, border: { bottom: { style: 'medium' } } };
+    }
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Workpaper');
+  XLSX.writeFile(wb, `${ref}_Export_${ds}_${ts}.xlsx`, { cellStyles: true });
+}
+
 async function exportToXlsx() {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
@@ -9016,29 +9334,27 @@ function renderTestAttributes(ref) {
 }
 
 function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
-  const base = (idx * 5) + 1;
+  const base   = (idx * 4) + 1;
+  const rowNum = idx + 1; // always sequential, not user-editable
   return `<div class="attr-row" id="attr-row-${idx}" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
-    <div class="attr-cell" data-col="num"     style="flex-shrink:0;width:var(--attr-col-num,52px);padding:6px 8px;min-width:36px">
-      <input class="attr-num-input" type="text" maxlength="10" value="${escAttr(num)}" placeholder="#"
-        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})" style="width:100%;font-size:12px">
-    </div>
-    <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,72px);padding:6px 8px;min-width:40px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. A1"
-        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
-        style="width:100%;font-size:12px;font-weight:600;text-align:center">
+    <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">${rowNum}</div>
+    <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
+      <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. 1a"
+        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
+        style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title"   style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
       <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
-        tabindex="${base+2}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
+        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
     </div>
     <div class="attr-cell" data-col="desc"    style="flex:2;min-width:100px;padding:6px 12px">
       <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…"
-        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        tabindex="${base+2}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px">${escAttr(desc)}</textarea>
     </div>
     <div class="attr-cell" data-col="addl"    style="flex:1.5;min-width:80px;padding:6px 12px">
       <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…"
-        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px">${escAttr(additionalInfo)}</textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
@@ -9067,7 +9383,7 @@ function saveAttrRow(idx) {
   const rows = wpTestAttributes[currentAttrWPRef] || [];
   const row = document.getElementById('attr-row-' + idx);
   if (!row) return;
-  const num            = row.querySelector('.attr-num-input')?.value || '';
+  const num            = String(idx + 1); // auto-generated, not user-editable
   const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
   const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
   const desc           = row.querySelector('.attr-desc')?.value || '';
@@ -9085,7 +9401,7 @@ function removeAttrRow(idx) {
   document.querySelectorAll('#test-attr-rows .attr-row').forEach((row, i) => {
     if (i === idx) return; // skip the one being deleted
     domRows.push({
-      num:            row.querySelector('.attr-num-input')?.value || '',
+      num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
       attrRef:        row.querySelector('.attr-ref-input')?.value || '',
       title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
       desc:           row.querySelector('.attr-desc')?.value || '',
@@ -9110,7 +9426,7 @@ function addTestAttributeRow() {
   const domRows = [];
   document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
     domRows.push({
-      num:            row.querySelector('.attr-num-input')?.value || '',
+      num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
       attrRef:        row.querySelector('.attr-ref-input')?.value || '',
       title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
       desc:           row.querySelector('.attr-desc')?.value || '',
