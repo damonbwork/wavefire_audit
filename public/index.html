@@ -1492,23 +1492,28 @@
         <!-- Section 3: Process / Control Narrative -->
         <div class="sect-card" id="sect-narrative">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative</div>
+            <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative <span style="font-size:10px;font-weight:400;opacity:0.65">(optional)</span></div>
           </div>
           <div class="sect-body">
+            <!-- File reference picker — top right above textarea -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px">
+              <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;flex:1;min-height:20px">
+                <!-- populated by JS -->
+              </div>
+              <button class="btn-s" style="font-size:11px;padding:3px 9px;flex-shrink:0;white-space:nowrap" onclick="openNarrativeRefDialog()">
+                <i class="ti ti-paperclip"></i>Select file
+              </button>
+            </div>
             <textarea id="narrative-textarea"
-              maxlength="2000"
-              oninput="autoResizeTA(this);updateCharCount()"
+              oninput="autoResizeTA(this)"
               onfocus="narrativeFocused(this)"
               onblur="narrativeBlurred(this)"
-              style="width:100%;min-height:80px;font-size:13px;font-family:inherit;color:var(--text-primary);
+              style="width:100%;min-height:120px;font-size:13px;font-family:inherit;color:var(--text-primary);
                      background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);
                      padding:6px 8px;resize:none;outline:none;line-height:1.6;overflow:hidden;
                      transition:background 0.15s,border-color 0.15s;cursor:text"
               placeholder="Describe the process and key controls being tested…"
             ></textarea>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
-              <span id="char-count" style="font-size:11px;color:var(--text-tertiary)">0 / 2,000 characters</span>
-            </div>
           </div>
         </div>
 
@@ -1551,6 +1556,27 @@
         </div>
 
 
+        <!-- Section 4b: Test Description -->
+        <div class="sect-card" id="sect-test-description">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title" style="position:relative;cursor:default"
+              onmouseenter="document.getElementById('td-tooltip').style.display='block'"
+              onmouseleave="document.getElementById('td-tooltip').style.display='none'">
+              <i class="ti ti-pencil"></i>test description <span style="font-size:10px;font-weight:400;opacity:0.65">(optional)</span>
+              <div id="td-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:300px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;pointer-events:none;text-transform:none;letter-spacing:normal">
+                Test description can be shared with Wavefire to guide the automated testwork.
+                <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
+              </div>
+            </div>
+          </div>
+          <div class="sect-body" style="padding:12px 16px">
+            <textarea id="wpd-test-desc" rows="5"
+              placeholder="Describe the test objectives, scope, and approach…"
+              oninput="saveWPTestDesc(this.value)"
+              style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:vertical;line-height:1.6;min-height:80px"></textarea>
+          </div>
+        </div>
+
         <!-- Section 5: Test Attributes -->
         <div class="sect-card" id="sect-test-attributes">
           <div class="sect-hdr">
@@ -1583,9 +1609,9 @@
               onmouseenter="document.getElementById('sf-tooltip').style.display='block'"
               onmouseleave="document.getElementById('sf-tooltip').style.display='none'">
               <i class="ti ti-table-column"></i>Sample field extraction
-              <div id="sf-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:340px;background:#1e293b;color:#fff;font-size:12px;line-height:1.6;padding:10px 14px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);z-index:9999;font-weight:400;pointer-events:none">
-                Wavefire will search the attached sample files for each of the data elements entered below and include the results in the workpaper when created. It will use any search guidance entered in the Search Guidance field to locate the data in the sample files.
-                <div style="position:absolute;top:-5px;left:18px;width:10px;height:10px;background:#1e293b;transform:rotate(45deg)"></div>
+              <div id="sf-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:340px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;pointer-events:none;text-transform:none;letter-spacing:normal">
+                Wavefire will search the attached sample files for each of the data elements entered below and include the results in the workpaper when created. It will use any search guidance entered in the search guidance field to locate the data in the sample files.
+                <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
               </div>
             </div>
             <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addSampleFieldRow()">
@@ -2343,6 +2369,22 @@
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--bg-primary)">
         <button class="btn-s" onclick="closeNewAudit()">Cancel</button>
         <button class="btn-p" onclick="createNewAudit()"><i class="ti ti-check"></i>Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Narrative Reference File picker modal -->
+  <div id="narrative-ref-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10002;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(480px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-size:14px;font-weight:600"><i class="ti ti-paperclip" style="margin-right:6px"></i>Select Narrative Reference File(s)</div>
+        <button onclick="document.getElementById('narrative-ref-overlay').style.display='none'"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="narrative-ref-list" style="overflow-y:auto;flex:1;padding:8px 0"></div>
+      <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+        <button class="btn-s" onclick="document.getElementById('narrative-ref-overlay').style.display='none'">Cancel</button>
+        <button class="btn-p" onclick="applyNarrativeRefSelection()"><i class="ti ti-check"></i>Apply</button>
       </div>
     </div>
   </div>
@@ -3421,7 +3463,7 @@ function openWP(i) {
   const narTA = document.getElementById('narrative-textarea');
   if (narTA) {
     narTA.value = w.narrative || '';
-    setTimeout(() => { autoResizeTA(narTA); updateCharCount(); }, 50);
+    setTimeout(() => { autoResizeTA(narTA); }, 50);
   }
 
   // ── Workpaper scope entities ──
@@ -3450,6 +3492,9 @@ function openWP(i) {
   renderSampleFields(w.ref);
   initAttrGridPaste();
   initSFGridPaste();
+  const tdEl = document.getElementById('wpd-test-desc');
+  if (tdEl) tdEl.value = w.testDesc || '';
+  renderNarrativeRefFiles(w.ref);
 
   // ── Financial Statement Accounts & Footnotes (Scope section) ──
   currentFsSelection = new Set(wpFsAccounts[w.ref] || []);
@@ -3463,7 +3508,7 @@ function openWP(i) {
   // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
   const fullTypes   = ['Testwork', 'Report'];
   const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
-  const sectIds     = ['sect-risks-controls','sect-narrative','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
+  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isFull ? '' : 'none';
@@ -3810,6 +3855,92 @@ function loadWPReviewLog(ref) {
    POPULATION REFERENCE FILE PICKER
 ══════════════════════════════════════ */
 const wpPopRefFiles = {}; // { ref: Set of file names }
+
+/* ══════════════════════════════════════
+   NARRATIVE REFERENCE FILE PICKER
+══════════════════════════════════════ */
+const wpNarrativeRefFiles = {}; // { ref: Set of filenames }
+
+function openNarrativeRefDialog() {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpNarrativeRefFiles[ref]) wpNarrativeRefFiles[ref] = new Set();
+
+  const staticFiles = WORKPAPERS[currentWPIndex]?.files || [];
+  const memWP       = inMemoryFiles[ref]?.workpaper || [];
+  const memSF       = inMemoryFiles[ref]?.sample    || [];
+  const allNames    = [
+    ...staticFiles.map(f => f.name),
+    ...memWP.map(f => f.name),
+    ...memSF.map(f => f.name),
+  ];
+
+  const listEl = document.getElementById('narrative-ref-list');
+  if (!allNames.length) {
+    listEl.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No attached files found. Upload files first.</div>`;
+  } else {
+    const cur = wpNarrativeRefFiles[ref];
+    listEl.innerHTML = allNames.map(name => {
+      const checked = cur.has(name);
+      const safe    = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const ext     = name.split('.').pop().toUpperCase();
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;border-bottom:0.5px solid var(--border-light)"
+        onclick="toggleNarrativeRef('${safe}',this)">
+        <div style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked ? 'var(--wf-navy)' : 'var(--border-medium)'};
+             background:${checked ? 'var(--wf-navy)' : '#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0" id="nrf-cb-${CSS.escape(name)}">
+          ${checked ? '<i class="ti ti-check" style="font-size:11px;color:#fff"></i>' : ''}
+        </div>
+        <span style="font-size:11px;font-weight:600;color:var(--text-tertiary);min-width:36px">${ext}</span>
+        <span style="font-size:13px;color:var(--text-primary)">${name}</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('narrative-ref-overlay').style.display = 'flex';
+}
+
+function toggleNarrativeRef(name, rowEl) {
+  const ref = getWPRef();
+  if (!ref) return;
+  if (!wpNarrativeRefFiles[ref]) wpNarrativeRefFiles[ref] = new Set();
+  const sel  = wpNarrativeRefFiles[ref];
+  const cbEl = document.getElementById('nrf-cb-' + CSS.escape(name));
+  if (sel.has(name)) {
+    sel.delete(name);
+    if (cbEl) { cbEl.style.background = '#fff'; cbEl.style.borderColor = 'var(--border-medium)'; cbEl.innerHTML = ''; }
+  } else {
+    sel.add(name);
+    if (cbEl) { cbEl.style.background = 'var(--wf-navy)'; cbEl.style.borderColor = 'var(--wf-navy)'; cbEl.innerHTML = '<i class="ti ti-check" style="font-size:11px;color:#fff"></i>'; }
+  }
+}
+
+function applyNarrativeRefSelection() {
+  const ref = getWPRef();
+  if (!ref) return;
+  renderNarrativeRefFiles(ref);
+  document.getElementById('narrative-ref-overlay').style.display = 'none';
+}
+
+function renderNarrativeRefFiles(ref) {
+  const container = document.getElementById('narrative-ref-files');
+  if (!container) return;
+  const sel = wpNarrativeRefFiles[ref] || new Set();
+  if (!sel.size) { container.innerHTML = ''; return; }
+  container.innerHTML = [...sel].map(name => {
+    const safe = name.replace(/'/g, "\\'");
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:5px;padding:2px 7px;color:var(--text-secondary)">
+      <i class="ti ti-file" style="font-size:11px;color:var(--wf-blue)"></i>${name}
+      <button onclick="removeNarrativeRef('${safe}')"
+        style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:11px;padding:0;line-height:1;margin-left:2px">&times;</button>
+    </span>`;
+  }).join('');
+}
+
+function removeNarrativeRef(name) {
+  const ref = getWPRef();
+  if (!ref || !wpNarrativeRefFiles[ref]) return;
+  wpNarrativeRefFiles[ref].delete(name);
+  renderNarrativeRefFiles(ref);
+}
 
 function openPopRefDialog() {
   const ref = getWPRef();
@@ -4188,6 +4319,7 @@ const SECTION_NAMES = {
   'sect-wpinfo':          'Workpaper information',
   'sect-narrative':       'Process / control narrative',
   'sect-risks-controls':  'Linked risks & controls',
+  'sect-test-description':        'Test description',
   'sect-test-attributes':         'Test attributes',
   'sect-sample-field-extraction': 'Sample field extraction',
   'sect-wp-files':        'Attached workpaper files',
@@ -4708,6 +4840,10 @@ function saveCurrentPage() {
       (wpFsAccounts[w.ref] || []).forEach(id => auditLinkedFs[auditNameFs].add(id));
       renderAuditFSTags(auditNameFs);
     }
+
+    // Test description
+    const tdEl = document.getElementById('wpd-test-desc');
+    if (tdEl && w) w.testDesc = tdEl.value;
 
     // Test attributes — read purely from DOM (authoritative); never merge with stale store data
     if (currentAttrWPRef === w.ref) {
@@ -6675,6 +6811,11 @@ function saveAuditDesc(val) {
   if (currentAudit) currentAudit.desc = val.trim();
 }
 
+function saveWPTestDesc(val) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (w) w.testDesc = val;
+}
+
 function saveAuditYear(val) {
   if (!currentAudit) return;
   const year = parseInt(val);
@@ -7311,6 +7452,11 @@ function _doExportWorkpaperXLSX() {
   } else { rows.push(['No entities linked']); }
   rows.push(blank());
 
+  // ── TEST DESCRIPTION ───────────────────────────────────────────────
+  rows.push(secHdr('TEST DESCRIPTION'));
+  rows.push([w.testDesc || '']);
+  rows.push(blank());
+
   // ── TEST ATTRIBUTES ────────────────────────────────────────────────
   rows.push(secHdr('TEST ATTRIBUTES'));
   const attrs = (wpTestAttributes[ref] || []).filter(a => a.title);
@@ -7380,7 +7526,7 @@ function _doExportWorkpaperXLSX() {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 45 }, { wch: 55 }, { wch: 55 }];
 
-  // Bold section headers (rows where col A is a known section name)
+  // Bold section headers
   const sectionNames = new Set(['WORKPAPER INFORMATION','PROCESS / CONTROL NARRATIVE','LINKED RISKS & CONTROLS',
     'ASSESSMENT ENTITIES','TEST ATTRIBUTES','SAMPLE FIELD EXTRACTION','ATTACHED WORKPAPER FILES',
     'ATTACHED SAMPLE FILES','EXCEPTIONS','REVIEW NOTES','CHANGE LOG']);
@@ -7393,7 +7539,22 @@ function _doExportWorkpaperXLSX() {
   });
 
   XLSX.utils.book_append_sheet(wb, ws, 'Workpaper');
-  XLSX.writeFile(wb, `${ref}_Export_${ds}_${ts}.xlsx`, { cellStyles: true });
+
+  // Build a safe filename from the workpaper name
+  const safeName = (w.name || ref).replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+  const filename = `wp_export-${safeName}_${ds}_${ts}.xlsx`;
+
+  // Write to array and force browser download
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+  const blob  = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href      = url;
+  a.download  = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 async function exportToXlsx() {
