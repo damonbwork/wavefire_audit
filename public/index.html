@@ -1209,6 +1209,7 @@
                   <option value="CC">CC</option>
                   <option value="SEC">SEC</option>
                   <option value="OPS">OPS</option>
+                  <option value="FIN">FIN</option>
                   <option value="IPE">IPE</option>
                 </datalist>
               </div>
@@ -1797,6 +1798,7 @@
                   <option value="CC">CC</option>
                   <option value="SEC">SEC</option>
                   <option value="OPS">OPS</option>
+                  <option value="FIN">FIN</option>
                   <option value="IPE">IPE</option>
                 </datalist>
               </div>
@@ -2064,6 +2066,20 @@
       <div id="file-preview-header">
         <i class="ti ti-file" id="file-preview-icon" style="font-size:16px;color:rgba(255,255,255,0.7);flex-shrink:0"></i>
         <span id="file-preview-title">File Preview</span>
+        <!-- Sample file navigation arrows -->
+        <div id="file-preview-file-nav" style="display:none;align-items:center;gap:4px;margin-left:auto;margin-right:8px">
+          <button id="fp-prev-file" onclick="previewNavFile(-1)" title="Previous sample file"
+            style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.15s"
+            onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+            <i class="ti ti-chevron-left"></i>
+          </button>
+          <span id="fp-file-counter" style="font-size:11px;color:rgba(255,255,255,0.7);white-space:nowrap;min-width:36px;text-align:center"></span>
+          <button id="fp-next-file" onclick="previewNavFile(1)" title="Next sample file"
+            style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background 0.15s"
+            onmouseover="this.style.background='rgba(255,255,255,0.22)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">
+            <i class="ti ti-chevron-right"></i>
+          </button>
+        </div>
         <button onclick="closeFilePreview()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <i class="ti ti-x"></i>
         </button>
@@ -2456,7 +2472,7 @@ const AUDITS = [
   { name: "SOX Compliance Audit",        period: "Jan – Mar 2026", owner: "R. Patel",  type: "SOX",          wpCount: 22, status: "active",  desc: "Sarbanes-Oxley Section 302 and 404 compliance testing for Q1 2026." },
   { name: "Operational Risk Assessment", period: "Oct – Dec 2025", owner: "L. Torres", type: "Operations",   wpCount: 11, status: "closed",  desc: "Evaluation of operational controls across key business processes." },
   { name: "Vendor Due Diligence",        period: "FY 2025",        owner: "J. Davis",  type: "Compliance",   wpCount: 6,  status: "planned", desc: "Third-party vendor risk assessment and compliance review." },
-  { name: "PRS Audits",               period: "Jan – Mar 2026", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of payroll processes, approvals, and disbursements." },
+  { name: "PRS Audits",               period: "", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of Potential Referral Payment Sources." },
 ];
 
 const WORKPAPERS = [
@@ -2625,7 +2641,7 @@ const WORKPAPERS = [
     sampleFiles: []
   },
   {
-    auditName: "IT General Controls Review", ref: "WP-2026-IPE-002",
+    auditName: "IT General Controls Review", ref: "WP-2026-FIN-002",
     results: "passex",
     name: "Access Management Testing", type: "Testwork",
     preparer: "awong", reviewer: "mchen", dateStarted: "2026-04-22",
@@ -2883,57 +2899,17 @@ const WORKPAPERS = [
 
   // ── PRS Audits ─────────────────────────────────────────────────────
   {
-    auditName: "PRS Audits", ref: "WP-2026-SEC-001",
-    results: "met",
-    name: "Payroll Planning Memo", type: "Planning",
-    preparer: "skim", reviewer: "lmgr", dateStarted: "2026-01-10",
-    reviewDate: "2026-01-20", status: "approved",
-    sampleSize: null, sampleMethod: "N/A — planning document",
-    population: "N/A — scope covers all payroll cycles for Q1 2026 (January–March), including regular payroll, bonuses, and commission payments.",
-    risks: [
-      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01","PAY-CTL-02"] }
-    ],
-    narrative: "Payroll audit scope covers the completeness and accuracy of payroll disbursements, new hire and termination processing, and the authorization of pay rate changes. The audit period covers Q1 2026 with a total payroll spend of approximately $4.2M across 312 employees. Key risks identified: ghost employees, unauthorized pay rate changes, and untimely termination processing.",
-    files: [
-      { icon: "ti-file-type-pdf",    name: "Payroll_Audit_Planning_Memo.pdf",   meta: "PDF · 267 KB · skim · Jan 10, 2026"  },
-      { icon: "ti-file-spreadsheet", name: "Payroll_Risk_Assessment.xlsx",      meta: "Excel · 134 KB · skim · Jan 12, 2026" }
-    ],
-    entities: ["St Vincent's Hospital"],
-    sampleFiles: []
-  },
-  {
-    auditName: "PRS Audits", ref: "WP-2026-IPE-002",
-    results: "passex",
+    auditName: "PRS Audits", ref: "WP-2026-FIN-002",
+    results: "",
     name: "PRS Invoice Testwork", type: "Testwork",
-    preparer: "skim", reviewer: "jdavis", dateStarted: "2026-01-25",
-    reviewDate: "2026-02-15", status: "review",
-    sampleSize: 50, sampleMethod: "Statistical — random from payroll register",
-    population: "All payroll disbursements processed in Q1 2026 (Jan–Mar). Total population: 936 payroll records across 312 employees for 3 monthly cycles.",
-    risks: [
-      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01","PAY-CTL-02"] }
-    ],
-    narrative: "Testing covered pay rate authorization, timesheet approval, new hire onboarding documentation, and termination processing. Sample of 50 payroll records tested. One exception: a pay rate increase for one employee was processed without a signed HR authorization form — the rate change matched an approved verbal instruction but lacked written documentation. Assessed as a low-risk observation.",
+    preparer: "", reviewer: "", dateStarted: "",
+    reviewDate: "", status: "draft",
+    sampleSize: null, sampleMethod: "",
+    population: "",
+    risks: [],
+    narrative: "",
     files: [],
     entities: ["St Vincent's Hospital", "South Bay Ortho"],
-    sampleFiles: []
-  },
-  {
-    auditName: "PRS Audits", ref: "WP-2026-OPS-003",
-    results: "",
-    name: "PRS Audits Report", type: "Report",
-    preparer: "skim", reviewer: "lmgr", dateStarted: "2026-02-20",
-    reviewDate: "2026-03-05", status: "draft",
-    sampleSize: null, sampleMethod: "N/A — audit report",
-    population: "N/A — report summarizing all payroll audit findings for Q1 2026.",
-    risks: [
-      { id: "RSK-PAY-01", label: "Risk of unauthorized payroll disbursements", controls: ["PAY-CTL-01"] }
-    ],
-    narrative: "The PRS Audits Report documents one finding: a pay rate change was processed without a signed written authorization, relying on verbal instruction only. The finding is rated as a low-risk observation. Management has agreed to update the HR pay change process to require a digital authorization form in Workday before any rate change can be processed, effective April 1, 2026.",
-    files: [
-      { icon: "ti-file-type-pdf",    name: "Payroll_Audit_Report_Q1_2026.pdf",  meta: "PDF · 445 KB · skim · Feb 20, 2026"  },
-      { icon: "ti-file-description", name: "Payroll_Management_Response.docx",  meta: "Word · 76 KB · lmgr · Feb 24, 2026"  }
-    ],
-    entities: ["St Vincent's Hospital", "South Bay Ortho", "Main St Clinic"],
     sampleFiles: []
   }
 ];
@@ -5283,7 +5259,7 @@ function startAttrColResize(e, col) {
    SAMPLE FIELD EXTRACTION
 ══════════════════════════════════════ */
 const wpSampleFields = {
-  "WP-2026-IPE-002": [
+  "WP-2026-FIN-002": [
     { num:"1",  name:"COID",                                    desc:"Use the workpaper \"COID\" if it exists to look up the number corresponding to the facility name.  If not found return an empty cell" },
     { num:"2",  name:"Facility",                                desc:"Search the sample document for the name of the hospital" },
     { num:"3",  name:"Vendor Name",                             desc:"Search the sample document for the name of the vendor" },
@@ -7838,20 +7814,63 @@ function closeFilePreview() {
 }
 
 // Preview an in-memory uploaded file
+// Track current preview context for file navigation
+let _fpRef    = null;
+let _fpBucket = null;
+let _fpIdx    = 0;
+
 async function previewMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   if (!entry?.file) { alert('File not available — try uploading it again.'); return; }
+
+  // Store context for prev/next navigation
+  _fpRef    = ref;
+  _fpBucket = bucket;
+  _fpIdx    = idx;
+
   const name = entry.name;
   const _fptEl = document.getElementById('file-preview-title'); if(_fptEl) _fptEl.textContent = name;
   setPreviewIcon(name);
   openFilePreviewOverlay();
+
+  // Show file nav arrows only for sample files
+  _updateFileNavButtons();
+
   const isPDF = name.toLowerCase().endsWith('.pdf') || entry.file.type === 'application/pdf';
   if (isPDF) {
-    window._previewFile = entry.file; // store for zoom re-render
+    window._previewFile = entry.file;
     await renderPDFPreview(entry.file);
   } else {
     renderNonPDFPreview(entry.file, name);
   }
+}
+
+function _updateFileNavButtons() {
+  const navBar = document.getElementById('file-preview-file-nav');
+  const counter = document.getElementById('fp-file-counter');
+  const prevBtn = document.getElementById('fp-prev-file');
+  const nextBtn = document.getElementById('fp-next-file');
+  if (!navBar) return;
+
+  const files = _fpBucket === 'sample' ? (inMemoryFiles[_fpRef]?.sample || []) : [];
+  if (_fpBucket !== 'sample' || files.length <= 1) {
+    navBar.style.display = 'none';
+    return;
+  }
+
+  navBar.style.display = 'flex';
+  if (counter) counter.textContent = `${_fpIdx + 1} / ${files.length}`;
+  if (prevBtn) prevBtn.disabled = _fpIdx <= 0;
+  if (nextBtn) nextBtn.disabled = _fpIdx >= files.length - 1;
+  if (prevBtn) prevBtn.style.opacity = _fpIdx <= 0 ? '0.35' : '1';
+  if (nextBtn) nextBtn.style.opacity = _fpIdx >= files.length - 1 ? '0.35' : '1';
+}
+
+async function previewNavFile(dir) {
+  const files = inMemoryFiles[_fpRef]?.sample || [];
+  const newIdx = _fpIdx + dir;
+  if (newIdx < 0 || newIdx >= files.length) return;
+  await previewMemFile(_fpRef, _fpBucket, newIdx);
 }
 
 // Preview a static demo file (no real data — show placeholder)
@@ -8070,18 +8089,21 @@ function renderNonPDFPreview(file, name) {
 }
 
 function renderXLSXSheet(btn, sheetIdx) {
-  const wb = window._previewWorkbook;
+  const wb      = window._previewWorkbook;
   const XLSX_LIB = window._previewXLSXLIB;
-  const toHtml = window._previewSheetToHtml;
+  const toHtml  = window._previewSheetToHtml;
+  const hl      = window._previewHighlight;
   if (!wb || !XLSX_LIB || !toHtml) return;
   const sheetName = wb.SheetNames[sheetIdx];
-  const ws = wb.Sheets[sheetName];
-  document.getElementById('xlsx-sheet-body').innerHTML = toHtml(ws);
+  const ws        = wb.Sheets[sheetName];
+  // Only highlight if this is the correct sheet for the named range
+  const highlight = hl && hl.size ? hl : null;
+  document.getElementById('xlsx-sheet-body').innerHTML = toHtml(ws, highlight);
   // Update tab styles
   document.querySelectorAll('#xlsx-tab-bar button').forEach((b, i) => {
-    b.style.background    = i === sheetIdx ? '#fff' : '#f1f5f9';
-    b.style.color         = i === sheetIdx ? '#1e293b' : '#64748b';
-    b.style.borderBottom  = i === sheetIdx ? 'none' : '0.5px solid #e2e8f0';
+    b.style.background   = i === sheetIdx ? '#fff' : '#f1f5f9';
+    b.style.color        = i === sheetIdx ? '#1e293b' : '#64748b';
+    b.style.borderBottom = i === sheetIdx ? 'none' : '0.5px solid #e2e8f0';
   });
 }
 
@@ -8372,57 +8394,100 @@ function openXlsxAtRange(fileId, rangeName, sheet, range) {
   const cache = pdfBookmarkCache[fileId];
   if (!cache?.file) return;
 
-  // Show brief feedback in panel
-  const panel = document.getElementById('bmpanel-' + fileId);
-  const tip   = document.createElement('div');
-  tip.style.cssText = 'font-size:10px;color:#0369a1;padding:4px 14px;background:#f0f9ff;border-top:0.5px solid #bfdbfe';
-  tip.innerHTML = `<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;display:inline-block;margin-right:4px"></i>
-    Preparing ${rangeName ? '"' + rangeName + '"' : sheet ? 'sheet "' + sheet + '"' : 'file'}…`;
-  if (panel) panel.appendChild(tip);
+  // Update file nav context — fileId is "ref-bucket-idx"
+  const parts = fileId.split('-');
+  // fileId pattern: ref + bucket + idx e.g. "WP-2026-FIN-002-sample-0"
+  // Find the sample index from the fileId
+  const sfMatch = fileId.match(/sample-(\d+)$/);
+  if (sfMatch) {
+    // Extract ref: everything before "-sample-N"
+    const sfIdx = parseInt(sfMatch[1]);
+    const sfRef = fileId.replace(/-sample-\d+$/, '');
+    _fpRef    = sfRef;
+    _fpBucket = 'sample';
+    _fpIdx    = sfIdx;
+  }
 
-  loadSheetJS().then(XLSX => {
-    cache.file.arrayBuffer().then(ab => {
-      const wb = XLSX.read(ab, { type: 'array', bookVBA: true });
+  // Open the file preview panel
+  const file = cache.file;
+  const name = cache.fileName;
 
-      if (sheet && wb.SheetNames.includes(sheet)) {
-        const sheetIdx = wb.SheetNames.indexOf(sheet);
+  // Open the preview overlay
+  const overlay = document.getElementById('file-preview-overlay');
+  const title   = document.getElementById('file-preview-title');
+  const body    = document.getElementById('file-preview-body');
+  if (!overlay || !body) return;
+  if (title) title.textContent = name + (rangeName ? ' — ' + rangeName : '');
+  document.getElementById('file-preview-nav').style.display = 'none';
+  body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px"><i class="ti ti-loader-2" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.5"></i>Loading spreadsheet…</div>`;
+  overlay.style.display = 'flex';
+  _updateFileNavButtons();
 
-        // Safely ensure Workbook structure exists before setting activeTab
-        if (!wb.Workbook) wb.Workbook = {};
-        if (!wb.Workbook.WBView) wb.Workbook.WBView = [{}];
-        if (!wb.Workbook.Sheets) wb.Workbook.Sheets = wb.SheetNames.map(() => ({ Hidden: 0 }));
-        while (wb.Workbook.Sheets.length < wb.SheetNames.length) {
-          wb.Workbook.Sheets.push({ Hidden: 0 });
-        }
+  loadSheetJS().then(XLSX_LIB => {
+    return file.arrayBuffer().then(ab => {
+      const wb = XLSX_LIB.read(ab, { type: 'array' });
+      const targetSheet = sheet && wb.SheetNames.includes(sheet) ? sheet : wb.SheetNames[0];
+      const sheetNames  = wb.SheetNames;
 
-        wb.Workbook.WBView[0].activeTab = sheetIdx;
-        wb.Workbook.Sheets[sheetIdx].Hidden = 0;
-
-        const cleanRange = range ? range.replace(/\$/g, '') : 'A1';
-        const activeCell = cleanRange.split(':')[0];
-        if (wb.Sheets[sheet]) {
-          wb.Sheets[sheet]['!selection'] = [{ sqref: cleanRange, activeCell }];
-        }
+      // Parse the range to determine which cells to highlight
+      let highlightCells = new Set();
+      if (range) {
+        try {
+          const cleanRange = range.replace(/\$/g, '');
+          const decoded    = XLSX_LIB.utils.decode_range(cleanRange);
+          for (let r = decoded.s.r; r <= decoded.e.r; r++) {
+            for (let c = decoded.s.c; c <= decoded.e.c; c++) {
+              highlightCells.add(XLSX_LIB.utils.encode_cell({ r, c }));
+            }
+          }
+        } catch(e) { /* ignore parse errors */ }
       }
 
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob  = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url   = URL.createObjectURL(blob);
-      const label = rangeName || sheet || 'file';
-      const a     = document.createElement('a');
-      a.href     = url;
-      a.download = `${cache.fileName.replace(/\.xlsx?$/i, '')}_${label.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      // Store workbook for sheet tab switching
+      window._previewWorkbook  = wb;
+      window._previewXLSXLIB  = XLSX_LIB;
+      window._previewHighlight = highlightCells;
+      window._previewSheetToHtml = (ws, highlight) => {
+        const ref  = ws['!ref'] ? XLSX_LIB.utils.decode_range(ws['!ref']) : { s:{r:0,c:0}, e:{r:0,c:0} };
+        let html   = '<table style="border-collapse:collapse;font-size:12px;width:100%">';
+        for (let r = ref.s.r; r <= ref.e.r; r++) {
+          html += '<tr>';
+          for (let c = ref.s.c; c <= ref.e.c; c++) {
+            const addr = XLSX_LIB.utils.encode_cell({ r, c });
+            const cell = ws[addr];
+            const val  = cell ? XLSX_LIB.utils.format_cell(cell) : '';
+            const isHL = highlight && highlight.has(addr);
+            html += `<td style="border:0.5px solid #e2e8f0;padding:4px 8px;white-space:nowrap;${isHL ? 'background:#fef9c3;font-weight:600;outline:1.5px solid #eab308;outline-offset:-1px;' : ''}">${val}</td>`;
+          }
+          html += '</tr>';
+        }
+        html += '</table>';
+        return html;
+      };
 
-      if (tip) {
-        tip.innerHTML = `<i class="ti ti-check" style="color:#16a34a;margin-right:4px"></i>
-          Download started — Excel will open to ${rangeName ? '"' + rangeName + '"' : sheet ? 'sheet "' + sheet + '"' : 'the file'}`;
-        setTimeout(() => tip.remove(), 4000);
+      const ws   = wb.Sheets[targetSheet];
+      const tabs = sheetNames.map((sn, si) => `<button onclick="renderXLSXSheet(this,${si})" data-si="${si}"
+        style="padding:4px 12px;font-size:12px;border:0.5px solid #e2e8f0;border-radius:6px 6px 0 0;cursor:pointer;background:${sn===targetSheet?'#fff':'#f1f5f9'};color:${sn===targetSheet?'#1e293b':'#64748b'};border-bottom:${sn===targetSheet?'none':'0.5px solid #e2e8f0'};margin-right:2px">${sn}</button>`).join('');
+
+      const sheetHtml = window._previewSheetToHtml(ws, highlightCells);
+
+      body.innerHTML = `
+        <div style="width:100%;display:flex;flex-direction:column;gap:0">
+          <div style="padding:8px 4px 0;background:#f1f5f9;border-bottom:0.5px solid #e2e8f0;display:flex;flex-wrap:wrap" id="xlsx-tab-bar">${tabs}</div>
+          ${rangeName ? `<div style="padding:5px 12px;background:#fefce8;border-bottom:0.5px solid #fde047;font-size:11px;color:#854d0e"><i class="ti ti-bookmark" style="margin-right:5px"></i>Showing named range: <strong>${rangeName}</strong>${range ? ' (' + range.replace(/\$/g,'') + ')' : ''}</div>` : ''}
+          <div style="overflow:auto;background:#fff;padding:12px;border-radius:0 0 8px 8px;flex:1" id="xlsx-sheet-body">${sheetHtml}</div>
+        </div>`;
+
+      // Scroll the first highlighted cell into view
+      if (highlightCells.size) {
+        setTimeout(() => {
+          const highlighted = body.querySelector('td[style*="background:#fef9c3"]');
+          if (highlighted) highlighted.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }, 100);
       }
-    }).catch(err => {
-      if (tip) { tip.style.color = '#dc2626'; tip.innerHTML = 'Error: ' + err.message; setTimeout(() => tip.remove(), 5000); }
     });
+  }).catch(err => {
+    body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:40px;font-size:13px"><i class="ti ti-alert-triangle" style="font-size:24px;display:block;margin-bottom:8px"></i>Could not render spreadsheet.<br><span style="font-size:12px;color:#64748b;margin-top:4px;display:block">${err.message}</span></div>`;
   });
 }
 
@@ -9440,7 +9505,7 @@ const wpTestAttributes = {
     { num: "1", title: "Authorization", desc: "Authorization (or approval) is noted in the ticket history which starts in the ticket change log with a date and time stamp, then a username, a designation on the change log which includes \"approval set\". Approval should also be noted in the section called \"Approvers\" with the date and timestamp and \"state\" = approved and the approver name in the fourth column. If an approver name is found, then the attribute would Pass, otherwise it would Pass with exceptions or Fail." },
     { num: "2", title: "Documented Test Plan", desc: "Include one more column at far right for \"formally documented\" and put a \"Pass\" as the value for each ticket where both the \"change plan\" describes the change and the \"test plan\" describes how it will be tested, otherwise it would Pass with exceptions or Fail." },
   ],
-  "WP-2026-IPE-002": [
+  "WP-2026-FIN-002": [
     { num: "1", title: "Access request approval", desc: "Verify that a formal access request with manager approval existed prior to account provisioning." },
     { num: "2", title: "Termination timeliness",  desc: "Confirm that terminated employee accounts were disabled within 24 hours of HR-notified termination date." },
     { num: "3", title: "Least privilege review",  desc: "Assess whether user access rights are limited to those necessary for the user's job responsibilities." },
@@ -9460,7 +9525,7 @@ const wpTestAttributes = {
     { num: "2", title: "Goods receipt",         desc: "Verify that goods receipt documentation was recorded before AP processed payment." },
     { num: "3", title: "Three-way match",        desc: "Confirm the PO, goods receipt, and vendor invoice agree within the tolerance threshold of 5% or $500." },
   ],
-  "WP-2026-IPE-002": [
+  "WP-2026-FIN-002": [
     { num:"1",  attrRef:"1a", title:"Contract",        desc:"Contract and/or renewal was in effect at the time of the service.", additionalInfo:"Can be confirmed by reviewing contract and date of services provided (invoice, timecard, etc.)" },
     { num:"2",  attrRef:"1b", title:"Signed_Physician", desc:"Original agreement (and amendment if applicable) was signed by physician (or appropriate representative of contracted entity) and facility CEO before/on start date (amendment may not be dated but should be signed)", additionalInfo:"Can be confirmed by reviewing contract on signature page" },
     { num:"3",  attrRef:"1c", title:"Signed_Corp",      desc:"Original agreement (and amendment if applicable) was approved by Corporate Legal and Division VP before/on start date", additionalInfo:"Confirm through DocuSign.  See \"List of Legal and VP approvers\" document for appropriate approvers. If effective date before 7/1/2021, N/A XX. If physician recruitment, N/A XX." },
@@ -9911,7 +9976,7 @@ const wpFsAccounts = {
   "WP-2026-SEC-006": ["is-revenue","fn-revrecog"],
   "WP-2026-CC-007": ["is-revenue","bs-ar","is-cogs","is-opex","is-netincome"],
   "WP-2026-CC-001": [],
-  "WP-2026-IPE-002": [],
+  "WP-2026-FIN-002": [],
   "WP-2026-CC-003": [],
   "WP-2026-CC-004": [],
   "WP-2026-CC-001": ["is-revenue","bs-ar","bs-goodwill","is-netincome","fn-revrecog"],
@@ -9925,7 +9990,7 @@ const wpFsAccounts = {
   "WP-2025-OPS-001": ["bs-ap","fn-relatedparty"],
   "WP-2025-CC-002": ["bs-ap","fn-commitments","fn-relatedparty"],
   "WP-2026-SEC-001": ["is-salaries","bs-accrued"],
-  "WP-2026-IPE-002": ["is-salaries","bs-accrued","cf-ops"],
+  "WP-2026-FIN-002": [],
   "WP-2026-OPS-003": ["is-salaries","bs-accrued"],
 };
 
