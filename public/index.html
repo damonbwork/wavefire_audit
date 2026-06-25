@@ -7130,27 +7130,24 @@ async function exportToXlsx() {
     ['jdavis'],                                         // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
-    // A6: Attr # row — attribute ref numbers only
-    ['Attr #', ...xlsxFields.map(() => ''), ...attributes.map(a => a.attrRef || a.num || '')],
-    // A7: Title row — sample field names + attribute titles
-    ['Attribute Title', ...xlsxFields.map(f => f.name), ...attributes.map(a => a.title || '')],
-    // A8: Additional Info row — attribute additional information only (no attribute description row)
+    // A6: Combined Attr # + Title row (e.g. "1a. Contract") — attributes only, no field headers
+    ['Attribute', ...xlsxFields.map(() => ''), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
+    // A7: Description row — attributes only
+    ['Description', ...xlsxFields.map(() => ''), ...attributes.map(a => a.desc || '')],
+    // A8: Additional Info row — attributes only
     ['Additional Information', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
-    // A9: Sample File results header
+    // A9: Sample File results header — field names appear here only
     ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
   ];
 
-  // Grid rows — one per file, field values first then attribute results
+  // Grid rows
   analysisResults.forEach((fileResult, fi) => {
-    // Field extraction values (in the order defined in sampleFields)
     const fieldCells = xlsxFields.map(sf => {
       const match = (fileResult.fields || []).find(f =>
         f.name === sf.name || f.name.toLowerCase() === sf.name.toLowerCase()
       );
       return match?.value || 'N/A';
     });
-
-    // Attribute result cells
     const attrCells = [];
     attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
@@ -7184,7 +7181,6 @@ async function exportToXlsx() {
 
   // ── Exceptions list ──
   let hasExceptions = false;
-  let eIdx = 0;
   analysisResults.forEach((fileResult, fi) => {
     attributes.forEach((attr, ai) => {
       const key = `${fi}-${ai}`;
@@ -7212,8 +7208,27 @@ async function exportToXlsx() {
   }
 
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  wb.SSF = {}; // ensure style data is preserved
+  const ws = XLSX.utils.aoa_to_sheet(wsData, { cellStyles: true });
   ws['!cols'] = [{ wch: 40 }, ...xlsxFields.map(() => ({ wch: 22 })), ...attributes.map(() => ({ wch: 24 }))];
+
+  // ── Apply bold + bottom border to header rows (rows 6-9, 0-indexed rows 5-8) ──
+  const headerRowNums = [5, 6, 7, 8]; // 0-indexed: rows 6,7,8,9 in the sheet
+  const totalCols = 1 + xlsxFields.length + attributes.length;
+  headerRowNums.forEach(rowIdx => {
+    const isLastHeader = rowIdx === 8; // "Sample File" row gets bold underline
+    for (let c = 0; c < totalCols; c++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: rowIdx, c });
+      if (!ws[cellAddr]) ws[cellAddr] = { t: 's', v: '' };
+      ws[cellAddr].s = {
+        font: { bold: true },
+        border: isLastHeader ? {
+          bottom: { style: 'medium', color: { rgb: '000000' } }
+        } : undefined,
+      };
+    }
+  });
+
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
   // ── Detailed Notes sheet ──
@@ -7256,7 +7271,7 @@ async function exportToXlsx() {
   const timeStr = String(now.getHours()).padStart(2, '0')
     + String(now.getMinutes()).padStart(2, '0');
   const filename = `WP-${auditYear}-${seqNum}_TestResults_${dateStr}_${timeStr}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  XLSX.writeFile(wb, filename, { cellStyles: true });
 
   // ── Also auto-download commentary .txt if any commentary exists ──
   const commentaryEntries = analysisResults
