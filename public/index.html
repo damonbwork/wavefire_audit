@@ -4344,11 +4344,12 @@ async function saveAnnotatedPDF() {
     const overlayRect = overlay?.getBoundingClientRect();
     const canvasRect  = firstCanvas.getBoundingClientRect();
 
-    // Scale: canvas CSS pixels → PDF units
-    const page0 = pages[0];
-    const _ps0 = page0.getSize(); const pw0 = _ps0.width, ph0 = _ps0.height;
-    const scaleX = pw0 / canvasRect.width;
-    const scaleY = ph0 / canvasRect.height;
+    console.log('[Save] canvasRect:', canvasRect.width, 'x', canvasRect.height);
+    console.log('[Save] page0 size:', pw0, 'x', ph0);
+
+    const scaleX = canvasRect.width  > 0 ? pw0 / canvasRect.width  : 1;
+    const scaleY = canvasRect.height > 0 ? ph0 / canvasRect.height : 1;
+    console.log('[Save] scaleX:', scaleX, 'scaleY:', scaleY);
 
     for (const ann of pdfAnnotations) {
       if (!ann.el) continue;
@@ -4389,9 +4390,10 @@ async function saveAnnotatedPDF() {
 
       // Guard against NaN
       if (!isFinite(pdfX) || !isFinite(pdfY)) {
-        console.warn('Skipping annotation with NaN coords:', ann.type, 'x=', localX, 'y=', localY, 'scaleX=', scaleX, 'scaleY=', scaleY);
+        console.warn('[Save] NaN coords for', ann.type, '— elX:', elX, 'elY:', elY, 'localX:', localX, 'localY:', localY, 'scaleX:', scaleX, 'scaleY:', scaleY, 'bodyRect:', bodyRect2.left, bodyRect2.top, 'elRect:', elRect.left, elRect.top);
         continue;
       }
+      console.log('[Save] Ann:', ann.type, 'pdfX:', pdfX.toFixed(1), 'pdfY:', pdfY.toFixed(1), 'page:', targetPageIdx);
 
       if (ann.type === 'legend' && ann.el) {
         const ta      = ann.el.querySelector('textarea');
