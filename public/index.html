@@ -3934,8 +3934,11 @@ function setAnnotationTool(tool) {
     btn.style.background  = currentAnnTool === t ? 'rgba(234,88,12,0.8)' : 'rgba(255,255,255,0.08)';
     btn.style.borderColor = currentAnnTool === t ? '#ea580c' : 'rgba(255,255,255,0.2)';
   });
-  const body = document.getElementById('file-preview-body');
-  if (body) body.style.cursor = currentAnnTool ? 'crosshair' : '';
+  const overlay = document.getElementById('pdf-ann-overlay');
+  const body    = document.getElementById('file-preview-body');
+  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
+  if (overlay) overlay.style.cursor        = currentAnnTool === 'text' ? 'text' : currentAnnTool === 'highlight' ? 'crosshair' : '';
+  if (body)    body.style.cursor           = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
 }
 
 function clearAnnotations(silent) {
@@ -5348,70 +5351,67 @@ function syncWPFsToAudit(ref, fsSet) {
     return null;
   }
 
-  // Wire annotation clicks directly on the overlay element (set up once on load)
-document.addEventListener('DOMContentLoaded', () => { setupAnnOverlay(); });
-setTimeout(setupAnnOverlay, 500);
+// Wire annotation clicks to the overlay (re-bound each time PDF renders)
+document.addEventListener('DOMContentLoaded', setupAnnOverlay);
+setTimeout(setupAnnOverlay, 800);
 
 function setupAnnOverlay() {
-  const body = document.getElementById('file-preview-body');
-  if (!body) return;
-  // Remove old listener and re-add fresh (avoids duplicate issues on re-open)
-  body.removeEventListener('click', body._annClickHandler);
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (!overlay) return;
+  if (overlay._annClickHandler) {
+    overlay.removeEventListener('click', overlay._annClickHandler);
+  }
 
-  body._annClickHandler = function(e) {
+  overlay._annClickHandler = function(e) {
     if (!currentAnnTool) return;
-    if (e.target.closest('.ann-item')) return;
+    if (e.target !== overlay) return;  // only blank overlay area
 
-    const bodyRect = body.getBoundingClientRect();
-    const x = e.clientX - bodyRect.left + body.scrollLeft;
-    const y = e.clientY - bodyRect.top  + body.scrollTop;
-
-    const overlay = document.getElementById('pdf-ann-overlay');
-    if (!overlay) return;
+    const rect = overlay.getBoundingClientRect();
+    const body = document.getElementById('file-preview-body');
+    const x = e.clientX - rect.left  + (body ? body.scrollLeft : 0);
+    const y = e.clientY - rect.top   + (body ? body.scrollTop  : 0);
 
     if (currentAnnTool === 'text') {
-      const wrap = document.createElement('div');
-      wrap.className = 'ann-item';
-      wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;z-index:50;pointer-events:all`;
-
       const ta = document.createElement('textarea');
-      ta.placeholder = 'Type note…';
-      ta.style.cssText = `min-width:180px;max-width:300px;min-height:40px;height:40px;
-        background:rgba(255,255,199,0.97);border:2px solid #eab308;border-radius:4px;
-        padding:5px 8px;font-size:12px;font-family:inherit;resize:both;
-        outline:none;box-shadow:0 3px 12px rgba(0,0,0,0.25);display:block;
-        pointer-events:all;cursor:text`;
-
-      wrap.appendChild(ta);
-      overlay.appendChild(wrap);
+      ta.className = 'ann-item';
+      ta.placeholder = 'Type note here…';
+      ta.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;' +
+        'min-width:180px;max-width:320px;min-height:40px;height:40px;' +
+        'background:rgba(255,255,199,0.97);border:2px solid #eab308;border-radius:4px;' +
+        'padding:5px 8px;font-size:12px;font-family:inherit;resize:both;' +
+        'outline:none;box-shadow:0 3px 12px rgba(0,0,0,0.25);' +
+        'z-index:60;pointer-events:all;cursor:text';
+      overlay.appendChild(ta);
+      // Double rAF ensures focus after all click event handlers finish
+      requestAnimationFrame(() => requestAnimationFrame(() => ta.focus()));
 
       const annIdx = pdfAnnotations.length;
       pdfAnnotations.push({ type:'text', x, y, text:'', el: ta });
-
-      requestAnimationFrame(() => { ta.focus(); });
-
       ta.addEventListener('input',     () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
       ta.addEventListener('mousedown', ev => ev.stopPropagation());
       ta.addEventListener('click',     ev => ev.stopPropagation());
 
-      let dm=false,dx=0,dy=0,wl=0,wt=0;
-      wrap.addEventListener('mousedown', ev => {
-        if (ev.target === ta) return;
-        dm=true; dx=ev.clientX; dy=ev.clientY;
-        wl=parseInt(wrap.style.left)||0; wt=parseInt(wrap.style.top)||0;
-        ev.preventDefault();
+      // Simple drag
+      let dm=false,mx=0,my=0,il=0,it=0;
+      ta.addEventListener('mousedown', ev => {
+        dm=true; mx=ev.clientX; my=ev.clientY;
+        il=parseInt(ta.style.left)||0; it=parseInt(ta.style.top)||0;
       });
-      document.addEventListener('mousemove', ev => { if(!dm)return; wrap.style.left=(wl+ev.clientX-dx)+'px'; wrap.style.top=(wt+ev.clientY-dy)+'px'; });
-      document.addEventListener('mouseup',   () => { dm=false; });
+      document.addEventListener('mousemove', ev => {
+        if (!dm) return;
+        ta.style.left = (il + ev.clientX - mx) + 'px';
+        ta.style.top  = (it + ev.clientY - my) + 'px';
+      });
+      document.addEventListener('mouseup', () => { dm = false; });
 
     } else if (currentAnnTool === 'highlight') {
       const hl = document.createElement('div');
       hl.className = 'ann-item';
-      hl.style.cssText = `position:absolute;left:${x-80}px;top:${y-14}px;width:160px;height:26px;
-        background:rgba(250,204,21,0.4);border:2px dashed #ca8a04;border-radius:2px;
-        box-sizing:border-box;z-index:40;pointer-events:all;cursor:move`;
+      hl.style.cssText = 'position:absolute;left:' + (x-80) + 'px;top:' + (y-14) + 'px;width:180px;height:28px;' +
+        'background:rgba(250,204,21,0.35);border:2px dashed #ca8a04;border-radius:2px;' +
+        'box-sizing:border-box;z-index:50;pointer-events:all;cursor:move';
       const rh = document.createElement('div');
-      rh.style.cssText = 'position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;background:#ca8a04;cursor:se-resize;border-radius:0 0 2px 0';
+      rh.style.cssText = 'position:absolute;right:0;bottom:0;width:14px;height:14px;background:#ca8a04;opacity:0.7;cursor:se-resize';
       hl.appendChild(rh);
       overlay.appendChild(hl);
       pdfAnnotations.push({ type:'highlight', el: hl });
@@ -5419,24 +5419,23 @@ function setupAnnOverlay() {
 
       let mode=null,sx=0,sy=0,ol=0,ot=0,ow=0,oh=0;
       hl.addEventListener('mousedown', ev => {
-        ev.stopPropagation();
-        mode = ev.target===rh ? 'resize' : 'move';
+        ev.stopPropagation(); ev.preventDefault();
+        mode = ev.target === rh ? 'resize' : 'move';
         sx=ev.clientX; sy=ev.clientY;
         ol=parseInt(hl.style.left)||0; ot=parseInt(hl.style.top)||0;
         ow=hl.offsetWidth; oh=hl.offsetHeight;
-        ev.preventDefault();
       });
       document.addEventListener('mousemove', ev => {
-        if(!mode)return;
-        const ddx=ev.clientX-sx, ddy=ev.clientY-sy;
-        if(mode==='move')  { hl.style.left=(ol+ddx)+'px'; hl.style.top=(ot+ddy)+'px'; }
-        if(mode==='resize'){ hl.style.width=Math.max(40,ow+ddx)+'px'; hl.style.height=Math.max(14,oh+ddy)+'px'; }
+        if (!mode) return;
+        var dx=ev.clientX-sx, dy=ev.clientY-sy;
+        if (mode==='move')   { hl.style.left=(ol+dx)+'px'; hl.style.top=(ot+dy)+'px'; }
+        if (mode==='resize') { hl.style.width=Math.max(40,ow+dx)+'px'; hl.style.height=Math.max(14,oh+dy)+'px'; }
       });
-      document.addEventListener('mouseup', ()=>{ mode=null; });
+      document.addEventListener('mouseup', () => { mode = null; });
     }
   };
 
-  body.addEventListener('click', body._annClickHandler);
+  overlay.addEventListener('click', overlay._annClickHandler);
 }
   // or from the focused cell only if nothing is explicitly ranged
   document.addEventListener('copy', (e) => {
@@ -7903,6 +7902,31 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   document.getElementById('export-xlsx-btn').style.display = 'inline-flex';
 
+  // ── Auto-annotate sample PDF files with tick marks immediately after analysis ──
+  // Build exMap here so it's available for annotation
+  const _exMapForAnnotation = {};
+  let _exNumForAnnotation = 0;
+  analysisResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
+        _exNumForAnnotation++;
+        _exMapForAnnotation[`${fi}-${ai}`] = `E${_exNumForAnnotation}`;
+      }
+    });
+  });
+  setTimeout(() => {
+    annotateSampleFilesWithTicks(ref, analysisResults, attributes, _exMapForAnnotation).catch(e => {
+      console.warn('Sample file annotation skipped:', e.message);
+    });
+  }, 300);
+
   // Restore cancel button to Close
   const _closeBtnFinal = document.querySelector('#analysis-btn-row .btn-s');
   if (_closeBtnFinal) {
@@ -8413,13 +8437,6 @@ async function exportToXlsx() {
   });
   refreshFileList(ref, 'workpaper');
 
-  // ── Auto-annotate sample PDF files with tick marks (background, non-blocking) ──
-  setTimeout(() => {
-    annotateSampleFilesWithTicks(ref, analysisResults, attributes, exMap).catch(e => {
-      console.warn('Sample file annotation skipped:', e.message);
-    });
-  }, 500);
-
   // Show a brief confirmation in the modal status
   const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
     `Download started — file also added to Attached Workpaper Files.`;
@@ -8715,14 +8732,17 @@ async function renderPDFPreview(file) {
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
     }
 
-    // Update overlay size to match total rendered content
-    const totalH = Array.from(body.children)
-      .filter(c => c.id !== 'pdf-ann-overlay')
-      .reduce((h, c) => h + c.offsetHeight, 0);
-    const annOverlay = document.getElementById('pdf-ann-overlay');
-    if (annOverlay) {
-      annOverlay.style.height = Math.max(totalH, body.scrollHeight) + 'px';
-    }
+    // Size overlay to match total rendered content so it covers all pages
+    requestAnimationFrame(() => {
+      const annOverlay = document.getElementById('pdf-ann-overlay');
+      if (annOverlay) {
+        annOverlay.style.width  = body.scrollWidth  + 'px';
+        annOverlay.style.height = body.scrollHeight + 'px';
+      }
+    });
+
+    // Re-bind annotation handler
+    setupAnnOverlay();
 
     // Scroll page tracking
     body.addEventListener('scroll', () => {
