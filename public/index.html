@@ -2166,7 +2166,7 @@
           <span>Loading preview…</span>
         </div>
         <!-- Annotation overlay — sits above the PDF canvas -->
-        <div id="pdf-ann-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:10;overflow:auto"></div>
+        <div id="pdf-ann-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:20"></div>
       </div>
     </div>
   </div>
@@ -3932,11 +3932,8 @@ function setAnnotationTool(tool) {
     btn.style.background  = currentAnnTool === t ? 'rgba(234,88,12,0.8)' : 'rgba(255,255,255,0.08)';
     btn.style.borderColor = currentAnnTool === t ? '#ea580c' : 'rgba(255,255,255,0.2)';
   });
-
-  const overlay = document.getElementById('pdf-ann-overlay');
-  const body    = document.getElementById('file-preview-body');
-  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
-  if (body)    body.style.cursor           = currentAnnTool ? 'crosshair' : '';
+  const body = document.getElementById('file-preview-body');
+  if (body) body.style.cursor = currentAnnTool ? 'crosshair' : '';
 }
 
 function clearAnnotations(silent) {
@@ -5354,73 +5351,95 @@ document.addEventListener('DOMContentLoaded', () => { setupAnnOverlay(); });
 setTimeout(setupAnnOverlay, 500); // fallback if DOMContentLoaded already fired
 
 function setupAnnOverlay() {
-  const overlay = document.getElementById('pdf-ann-overlay');
-  if (!overlay || overlay._annBound) return;
-  overlay._annBound = true;
+  const body = document.getElementById('file-preview-body');
+  if (!body || body._annBound) return;
+  body._annBound = true;
 
-  overlay.addEventListener('click', function(e) {
+  body.addEventListener('click', function(e) {
     if (!currentAnnTool) return;
-    // Don't trigger if clicking an existing annotation element
-    if (e.target !== overlay) return;
+    // Don't trigger if clicking on an existing annotation element
+    if (e.target.closest('.ann-item')) return;
 
-    const rect = overlay.getBoundingClientRect();
-    const x = e.clientX - rect.left + overlay.scrollLeft;
-    const y = e.clientY - rect.top  + overlay.scrollTop;
+    const bodyRect = body.getBoundingClientRect();
+    // Position relative to the body div (scrolled)
+    const x = e.clientX - bodyRect.left + body.scrollLeft;
+    const y = e.clientY - bodyRect.top  + body.scrollTop;
+
+    const overlay = document.getElementById('pdf-ann-overlay');
+    if (!overlay) return;
 
     if (currentAnnTool === 'text') {
-      const input = document.createElement('textarea');
-      input.placeholder = 'Type annotation…';
-      input.style.cssText = `position:absolute;left:${x}px;top:${y}px;min-width:160px;max-width:280px;min-height:32px;
-        background:rgba(255,255,199,0.95);border:1.5px solid #eab308;border-radius:4px;padding:5px 7px;font-size:12px;
-        font-family:inherit;resize:both;outline:none;z-index:30;box-shadow:0 2px 10px rgba(0,0,0,0.25);
-        cursor:text;pointer-events:all`;
-      overlay.appendChild(input);
-      // Small delay so the click doesn't immediately blur
-      setTimeout(() => input.focus(), 10);
+      const wrap = document.createElement('div');
+      wrap.className = 'ann-item';
+      wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;z-index:50;pointer-events:all`;
+
+      const ta = document.createElement('textarea');
+      ta.placeholder = 'Type note…';
+      ta.style.cssText = `min-width:160px;max-width:280px;min-height:36px;height:36px;
+        background:rgba(255,255,199,0.97);border:2px solid #eab308;border-radius:4px;
+        padding:5px 8px;font-size:12px;font-family:inherit;resize:both;
+        outline:none;box-shadow:0 2px 10px rgba(0,0,0,0.2);display:block;
+        pointer-events:all;cursor:text`;
+
+      wrap.appendChild(ta);
+      overlay.appendChild(wrap);
 
       const annIdx = pdfAnnotations.length;
-      pdfAnnotations.push({ type:'text', x, y, text:'', el: input });
+      pdfAnnotations.push({ type:'text', x, y, text:'', el: ta });
 
-      input.addEventListener('input', () => { pdfAnnotations[annIdx].text = input.value; });
-      input.addEventListener('blur', () => {
-        if (!input.value.trim()) { pdfAnnotations.splice(annIdx, 1); input.remove(); }
-        else { pdfAnnotations[annIdx].text = input.value.trim(); updateAnnCount(); }
+      // Focus after a tick so the click event fully resolves first
+      requestAnimationFrame(() => { ta.focus(); });
+
+      ta.addEventListener('input', () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
+      ta.addEventListener('mousedown', ev => ev.stopPropagation());
+      ta.addEventListener('click', ev => ev.stopPropagation());
+
+      // Make wrap draggable by clicking outside the textarea
+      let dm=false,dx=0,dy=0,wl=0,wt=0;
+      wrap.addEventListener('mousedown', ev => {
+        if (ev.target === ta) return;
+        dm=true; dx=ev.clientX; dy=ev.clientY;
+        wl=parseInt(wrap.style.left)||0; wt=parseInt(wrap.style.top)||0;
+        ev.preventDefault();
       });
-      input.addEventListener('mousedown', ev => ev.stopPropagation());
-      input.addEventListener('click',     ev => ev.stopPropagation());
+      document.addEventListener('mousemove', ev => {
+        if (!dm) return;
+        wrap.style.left = (wl + ev.clientX - dx) + 'px';
+        wrap.style.top  = (wt + ev.clientY - dy) + 'px';
+      });
+      document.addEventListener('mouseup', () => { dm = false; });
 
     } else if (currentAnnTool === 'highlight') {
       const hl = document.createElement('div');
-      hl.style.cssText = `position:absolute;left:${x - 70}px;top:${y - 12}px;width:140px;height:22px;
-        background:rgba(250,204,21,0.45);border:1.5px dashed #ca8a04;border-radius:2px;
-        cursor:move;z-index:20;box-sizing:border-box;pointer-events:all`;
+      hl.className = 'ann-item';
+      hl.style.cssText = `position:absolute;left:${x-70}px;top:${y-12}px;width:160px;height:24px;
+        background:rgba(250,204,21,0.4);border:2px dashed #ca8a04;border-radius:2px;
+        box-sizing:border-box;z-index:40;pointer-events:all;cursor:move`;
 
-      // Resize handle
       const rh = document.createElement('div');
-      rh.style.cssText = 'position:absolute;right:0;bottom:0;width:10px;height:10px;cursor:se-resize;background:rgba(202,138,4,0.5);border-radius:1px';
+      rh.title = 'Resize';
+      rh.style.cssText = 'position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;background:#ca8a04;cursor:se-resize;border-radius:0 0 2px 0';
       hl.appendChild(rh);
-
       overlay.appendChild(hl);
       pdfAnnotations.push({ type:'highlight', el: hl });
       updateAnnCount();
 
-      // Drag to move
-      let mode=null,startX=0,startY=0,origL=0,origT=0,origW=0,origH=0;
+      let mode=null,sx=0,sy=0,ol=0,ot=0,ow=0,oh=0;
       hl.addEventListener('mousedown', ev => {
         ev.stopPropagation();
-        const isResize = ev.target === rh;
-        mode = isResize ? 'resize' : 'move';
-        startX = ev.clientX; startY = ev.clientY;
-        origL = parseInt(hl.style.left)||0; origT = parseInt(hl.style.top)||0;
-        origW = hl.offsetWidth;             origH = hl.offsetHeight;
+        mode = ev.target === rh ? 'resize' : 'move';
+        sx=ev.clientX; sy=ev.clientY;
+        ol=parseInt(hl.style.left)||0; ot=parseInt(hl.style.top)||0;
+        ow=hl.offsetWidth; oh=hl.offsetHeight;
+        ev.preventDefault();
       });
       document.addEventListener('mousemove', ev => {
         if (!mode) return;
-        const dx = ev.clientX - startX, dy = ev.clientY - startY;
-        if (mode === 'move')   { hl.style.left = (origL+dx)+'px'; hl.style.top = (origT+dy)+'px'; }
-        if (mode === 'resize') { hl.style.width = Math.max(40,origW+dx)+'px'; hl.style.height = Math.max(14,origH+dy)+'px'; }
+        const ddx=ev.clientX-sx, ddy=ev.clientY-sy;
+        if (mode==='move')   { hl.style.left=(ol+ddx)+'px'; hl.style.top=(ot+ddy)+'px'; }
+        if (mode==='resize') { hl.style.width=Math.max(40,ow+ddx)+'px'; hl.style.height=Math.max(14,oh+ddy)+'px'; }
       });
-      document.addEventListener('mouseup', () => { mode = null; });
+      document.addEventListener('mouseup', ()=>{ mode=null; });
     }
   });
 }
@@ -7883,11 +7902,11 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   document.getElementById('export-xlsx-btn').style.display = 'inline-flex';
 
-  // Restore cancel button and add log download link
+  // Restore cancel button to Close
   const _closeBtnFinal = document.querySelector('#analysis-btn-row .btn-s');
   if (_closeBtnFinal) {
     _closeBtnFinal.textContent = 'Close';
-    _closeBtnFinal.onclick = null; // reset to original close behaviour
+    _closeBtnFinal.onclick = closeAnalysis;
   }
   // Add "Download log" button
   const _btnRow2 = document.getElementById('analysis-btn-row');
