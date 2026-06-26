@@ -8936,40 +8936,33 @@ async function renderPDFPreview(file) {
   const overlay = document.getElementById('pdf-ann-overlay');
   if (overlay && overlay.parentNode === body) body.removeChild(overlay);
 
-  body.innerHTML = `<div style="color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px">
-    <i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i>
-    <span style="font-size:13px">Loading PDF…</span>
-  </div>`;
+  // Clear body
+  Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
   if (overlay) body.appendChild(overlay);
 
   try {
-    // Create a blob URL for the file
     const blobUrl = URL.createObjectURL(file);
-    window._currentPDFBlobUrl = blobUrl; // store for cleanup
+    if (window._currentPDFBlobUrl) URL.revokeObjectURL(window._currentPDFBlobUrl);
+    window._currentPDFBlobUrl = blobUrl;
 
-    // Use native browser PDF rendering via iframe - works on all browsers, zero deps
-    const iframe = document.createElement('iframe');
-    iframe.src = blobUrl + '#toolbar=1&navpanes=0&scrollbar=1&view=FitH';
-    iframe.style.cssText = 'width:100%;height:100%;min-height:600px;border:none;display:block;background:#525659';
-    iframe.title = file.name;
+    // <embed> renders in-browser on Chrome/Edge/Firefox without triggering OS handlers
+    const embed = document.createElement('embed');
+    embed.src   = blobUrl;
+    embed.type  = 'application/pdf';
+    embed.style.cssText = 'width:100%;height:100%;min-height:700px;border:none;display:block';
 
-    // Clear body content (keep overlay)
-    Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
-    body.insertBefore(iframe, overlay);
-
-    // Hide PDF nav bar (not applicable for iframe)
+    body.insertBefore(embed, overlay);
     document.getElementById('file-preview-nav').style.display = 'none';
 
-    // Update overlay size after iframe loads
-    iframe.onload = () => {
-      if (overlay) {
-        overlay.style.width  = (iframe.offsetWidth  || body.clientWidth)  + 'px';
-        overlay.style.height = (iframe.offsetHeight || body.clientHeight || 600) + 'px';
-      }
-      setupAnnOverlay();
-    };
+    if (overlay) {
+      setTimeout(() => {
+        overlay.style.width  = body.clientWidth  + 'px';
+        overlay.style.height = Math.max(body.clientHeight, 700) + 'px';
+        setupAnnOverlay();
+      }, 300);
+    }
 
-    previewPDFDoc      = true; // signal that a PDF is open
+    previewPDFDoc      = true;
     previewTotalPages  = 1;
     currentPreviewPage = 1;
 
