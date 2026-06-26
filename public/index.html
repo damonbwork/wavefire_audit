@@ -2134,18 +2134,38 @@
         </div>
       </div>
       <!-- Annotation toolbar (PDF only) -->
-      <div id="pdf-annotation-toolbar" style="display:none;align-items:center;gap:8px;padding:6px 14px;background:#1e293b;border-bottom:0.5px solid rgba(255,255,255,0.1)">
+      <div id="pdf-annotation-toolbar" style="display:none;align-items:center;gap:6px;padding:6px 14px;background:#1e293b;border-bottom:0.5px solid rgba(255,255,255,0.1);flex-wrap:wrap">
         <span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Annotate:</span>
-        <button id="ann-tool-text" onclick="setAnnotationTool('text')" title="Add text annotation"
+        <button id="ann-tool-text" onclick="setAnnotationTool('text')" title="Add text note"
           style="font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff;transition:background 0.15s"
           onmouseover="this.style.background='rgba(255,255,255,0.18)'" onmouseout="if(currentAnnTool!=='text')this.style.background='rgba(255,255,255,0.08)'">
           <i class="ti ti-cursor-text" style="margin-right:4px"></i>Text
         </button>
-        <button id="ann-tool-highlight" onclick="setAnnotationTool('highlight')" title="Highlight"
+        <button id="ann-tool-highlight" onclick="setAnnotationTool('highlight')" title="Highlight area"
           style="font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff;transition:background 0.15s"
           onmouseover="this.style.background='rgba(255,255,255,0.18)'" onmouseout="if(currentAnnTool!=='highlight')this.style.background='rgba(255,255,255,0.08)'">
           <i class="ti ti-highlight" style="margin-right:4px"></i>Highlight
         </button>
+        <!-- Tick mark divider -->
+        <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
+        <span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Tick:</span>
+        <button onclick="placeTickMark('pass')" title="Pass"
+          style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(22,163,74,0.5);cursor:pointer;background:rgba(22,163,74,0.2);color:#4ade80;min-width:32px">
+          ✓
+        </button>
+        <button onclick="placeTickMark('pass_exception')" title="Pass with Exception"
+          style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(234,88,12,0.5);cursor:pointer;background:rgba(234,88,12,0.2);color:#fb923c;min-width:32px">
+          ⚠
+        </button>
+        <button onclick="placeTickMark('fail')" title="Fail"
+          style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(220,38,38,0.5);cursor:pointer;background:rgba(220,38,38,0.2);color:#f87171;min-width:32px">
+          ✗
+        </button>
+        <button onclick="placeTickMark('na')" title="N/A"
+          style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);min-width:32px">
+          N/A
+        </button>
+        <!-- Right side -->
         <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
         <span id="ann-count-label" style="font-size:11px;color:rgba(255,255,255,0.5)">0 annotations</span>
         <button onclick="clearAnnotations()" title="Clear all annotations"
@@ -3941,6 +3961,70 @@ function setAnnotationTool(tool) {
   if (body)    body.style.cursor           = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
 }
 
+const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', na:'N/A' };
+const TICK_COLORS  = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', na:'#6b7280' };
+const TICK_BG      = { pass:'rgba(22,163,74,0.12)', pass_exception:'rgba(234,88,12,0.12)', fail:'rgba(220,38,38,0.12)', na:'rgba(107,114,128,0.12)' };
+
+function placeTickMark(type) {
+  const overlay = document.getElementById('pdf-ann-overlay');
+  const body    = document.getElementById('file-preview-body');
+  if (!overlay) return;
+  const scrollTop  = body ? body.scrollTop  : 0;
+  const scrollLeft = body ? body.scrollLeft : 0;
+  const bw = body ? body.clientWidth  : 400;
+  const bh = body ? body.clientHeight : 600;
+  const x  = scrollLeft + bw / 2 - 20;
+  const y  = scrollTop  + bh / 2 - 20;
+  _addTickToOverlay(overlay, type, x, y);
+}
+
+function _addTickToOverlay(overlay, type, x, y) {
+  const sym = TICK_SYMBOLS[type] || '?';
+  const col = TICK_COLORS[type]  || '#374151';
+  const bg  = TICK_BG[type]      || 'rgba(55,65,81,0.1)';
+
+  const tick = document.createElement('div');
+  tick.className = 'ann-item';
+  tick.dataset.tickType = type;
+  tick.style.cssText = `position:absolute;left:${x}px;top:${y}px;
+    font-size:22px;font-weight:900;color:${col};
+    background:${bg};border:1.5px solid ${col};
+    border-radius:6px;padding:2px 8px;cursor:move;
+    z-index:55;pointer-events:all;user-select:none;
+    line-height:1.3;white-space:nowrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.2)`;
+  tick.textContent = sym;
+  overlay.appendChild(tick);
+
+  const annIdx = pdfAnnotations.length;
+  pdfAnnotations.push({ type:'tick', tickType: type, symbol: sym, x, y, el: tick });
+  updateAnnCount();
+
+  // Draggable
+  let dm=false, mx=0, my=0, ox=0, oy=0;
+  tick.addEventListener('mousedown', ev => {
+    dm=true; mx=ev.clientX; my=ev.clientY;
+    ox=parseInt(tick.style.left)||0; oy=parseInt(tick.style.top)||0;
+    ev.stopPropagation(); ev.preventDefault();
+  });
+  document.addEventListener('mousemove', ev => {
+    if (!dm) return;
+    tick.style.left = (ox + ev.clientX - mx) + 'px';
+    tick.style.top  = (oy + ev.clientY - my) + 'px';
+  });
+  document.addEventListener('mouseup', () => { dm = false; });
+
+  // Double-click to remove
+  tick.addEventListener('dblclick', ev => {
+    ev.stopPropagation();
+    const idx = pdfAnnotations.findIndex(a => a.el === tick);
+    if (idx >= 0) pdfAnnotations.splice(idx, 1);
+    tick.remove();
+    updateAnnCount();
+  });
+  return tick;
+}
+
 function clearAnnotations(silent) {
   pdfAnnotations = [];
   const overlay = document.getElementById('pdf-ann-overlay');
@@ -3969,11 +4053,16 @@ async function loadPdfLib() {
 
 async function saveAnnotatedPDF() {
   const btn = document.getElementById('ann-save-btn');
-  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  if (btn) { btn.innerHTML = '<i class="ti ti-loader-2"></i> Saving…'; btn.disabled = true; }
 
   try {
+    // Get source file
+    if (!_fpRef || _fpBucket == null || _fpIdx == null) throw new Error('No file context — open a file first.');
     const entry = inMemoryFiles[_fpRef]?.[_fpBucket]?.[_fpIdx];
-    if (!entry?.file) throw new Error('Source file not found');
+    if (!entry?.file) throw new Error('Source file not available in memory.');
+    if (!entry.name.toLowerCase().endsWith('.pdf')) throw new Error('Only PDF files can be annotated and saved.');
+
+    if (pdfAnnotations.length === 0) throw new Error('No annotations to save — add text or highlights first.');
 
     const PDFLib    = await loadPdfLib();
     const origBytes = await entry.file.arrayBuffer();
@@ -3981,73 +4070,110 @@ async function saveAnnotatedPDF() {
     const pages     = pdfDoc.getPages();
     const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
-    const canvas = document.querySelector('#file-preview-body canvas');
-    const canvasRect = canvas?.getBoundingClientRect();
+    // Get the first canvas to establish scale
+    const body      = document.getElementById('file-preview-body');
+    const overlay   = document.getElementById('pdf-ann-overlay');
+    const firstCanvas = body?.querySelector('canvas');
+    if (!firstCanvas) throw new Error('PDF canvas not found — is the PDF still open?');
 
-    // Apply each annotation to the PDF
+    const overlayRect = overlay?.getBoundingClientRect();
+    const canvasRect  = firstCanvas.getBoundingClientRect();
+
+    // Scale: canvas CSS pixels → PDF units
+    const page0 = pages[0];
+    const { width: pw0, height: ph0 } = page0.getSize();
+    const scaleX = pw0 / canvasRect.width;
+    const scaleY = ph0 / canvasRect.height;
+
     for (const ann of pdfAnnotations) {
-      // Determine which PDF page (use page 0 for now; future: multi-page tracking)
-      const page = pages[previewPDFDoc ? (previewCurrentPage - 1) : 0];
+      // Find which page this annotation is on by its Y position
+      const pageWrappers = Array.from(body.querySelectorAll('[data-page]'));
+      let targetPageIdx = 0;
+      if (pageWrappers.length > 1 && overlayRect) {
+        // ann.x/y are relative to the overlay top-left (which is same as body top-left)
+        let cumH = 0;
+        for (let pi = 0; pi < pageWrappers.length; pi++) {
+          cumH += pageWrappers[pi].offsetHeight;
+          if (ann.y < cumH) { targetPageIdx = pi; break; }
+          targetPageIdx = pi;
+        }
+      }
+      const page = pages[Math.min(targetPageIdx, pages.length - 1)];
       if (!page) continue;
       const { width: pw, height: ph } = page.getSize();
 
-      if (ann.type === 'text' && ann.text) {
-        // Convert overlay px coords to PDF coords (PDF origin is bottom-left)
-        const scaleX = pw / (canvasRect?.width || pw);
-        const scaleY = ph / (canvasRect?.height || ph);
-        const pdfX  = ann.x * scaleX;
-        const pdfY  = ph - (ann.y * scaleY) - 14; // flip Y axis
+      // Offset within the target page
+      let pageOffsetY = 0;
+      for (let pi = 0; pi < targetPageIdx; pi++) {
+        pageOffsetY += pageWrappers[pi]?.offsetHeight || 0;
+      }
+      const localY = ann.y - pageOffsetY;
 
-        page.drawRectangle({ x: pdfX - 2, y: pdfY - 4, width: ann.text.length * 7 + 8, height: 20, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.85 });
-        page.drawText(ann.text, { x: pdfX, y: pdfY, size: 11, font, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+      // Map to PDF coords (PDF Y is bottom-up)
+      const pdfX = ann.x * scaleX;
+      const pdfY = ph - (localY * scaleY);
+
+      if (ann.type === 'text' && ann.el?.value?.trim()) {
+        const text = ann.el.value.trim();
+        const textW = Math.min(text.length * 6.5 + 12, pw * 0.4);
+        page.drawRectangle({ x: pdfX - 2, y: pdfY - 14, width: textW, height: 18, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.9 });
+        page.drawText(text, { x: pdfX + 2, y: pdfY - 10, size: 10, font, color: PDFLib.rgb(0.05, 0.05, 0.05), maxWidth: pw * 0.4 });
+      }
+
+      if (ann.type === 'tick' && ann.symbol) {
+        const tColors = { pass:[0.09,0.47,0.24], pass_exception:[0.93,0.35,0.00], fail:[0.75,0.07,0.22], na:[0.42,0.45,0.50] };
+        const tc = tColors[ann.tickType] || tColors.na;
+        const tickFontSize = 14;
+        page.drawText(ann.symbol, { x: pdfX, y: pdfY, size: tickFontSize, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
       }
 
       if (ann.type === 'highlight' && ann.el) {
-        const r    = ann.el.getBoundingClientRect();
-        const obr  = document.getElementById('pdf-ann-overlay').getBoundingClientRect();
-        const relX = r.left - obr.left;
-        const relY = r.top  - obr.top;
-        const scaleX = pw / (canvasRect?.width || pw);
-        const scaleY = ph / (canvasRect?.height || ph);
-        const pdfX  = relX * scaleX;
-        const pdfW  = r.width  * scaleX;
-        const pdfH  = r.height * scaleY;
-        const pdfY  = ph - (relY * scaleY) - pdfH;
-        page.drawRectangle({ x: pdfX, y: pdfY, width: pdfW, height: pdfH, color: PDFLib.rgb(0.98, 0.8, 0.08), opacity: 0.4 });
+        const hlRect = ann.el.getBoundingClientRect();
+        if (!overlayRect) continue;
+        // Convert from viewport coords to overlay-relative coords
+        const hx = hlRect.left - overlayRect.left + (body?.scrollLeft || 0);
+        const hy = hlRect.top  - overlayRect.top  + (body?.scrollTop  || 0) - pageOffsetY;
+        const hpdfX = hx * scaleX;
+        const hpdfY = ph - (hy * scaleY) - (hlRect.height * scaleY);
+        const hpdfW = hlRect.width  * scaleX;
+        const hpdfH = hlRect.height * scaleY;
+        page.drawRectangle({ x: hpdfX, y: hpdfY, width: Math.max(hpdfW, 10), height: Math.max(hpdfH, 4), color: PDFLib.rgb(0.98, 0.8, 0.08), opacity: 0.4 });
       }
     }
 
-    const pdfBytes  = await pdfDoc.save();
-    const blob      = new Blob([pdfBytes], { type: 'application/pdf' });
+    const pdfBytes = await pdfDoc.save();
+    const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
+    const origName = entry.name.replace(/\.pdf$/i, '');
+    const annName  = `${origName}_annotated.pdf`;
 
-    // Build annotated filename
-    const origName  = entry.name.replace(/\.pdf$/i, '');
-    const annName   = `${origName}_annotated.pdf`;
-
-    // Trigger download
+    // Download
     const url = URL.createObjectURL(blob);
     const a   = document.createElement('a'); a.href = url; a.download = annName;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
     // Auto-attach to workpaper files
-    const annFile = new File([blob], annName, { type: 'application/pdf' });
     if (!inMemoryFiles[_fpRef]) inMemoryFiles[_fpRef] = { workpaper: [], sample: [] };
-    const now  = new Date();
-    const meta = `PDF · ${(blob.size/1024).toFixed(0)} KB · jdavis · ${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
-    inMemoryFiles[_fpRef].workpaper.push({ name: annName, file: annFile, size: `${(blob.size/1024).toFixed(0)} KB`, uploadedBy:'jdavis', uploadedOn: now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) });
-    logEvent(_fpRef, `Annotated PDF created: ${annName}`);
+    const annFile = new File([blob], annName, { type: 'application/pdf' });
+    const nowStr  = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    const wpFiles = inMemoryFiles[_fpRef].workpaper;
+    const existIdx = wpFiles.findIndex(f => f.name === annName);
+    const fileEntry = { name: annName, file: annFile, size: `${(blob.size/1024).toFixed(0)} KB`, uploadedBy:'jdavis', uploadedOn: nowStr };
+    if (existIdx >= 0) wpFiles[existIdx] = fileEntry; else wpFiles.push(fileEntry);
+    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotated PDF saved: ${annName}`);
     refreshFileList(_fpRef, 'workpaper');
 
-    // Show success
-    if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved & attached!'; btn.style.background='#16a34a'; }
+    if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
     setTimeout(() => {
-      if (btn) { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save annotated PDF'; btn.style.background='#ea580c'; btn.disabled = false; }
-    }, 3000);
+      if (btn) { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save annotated PDF'; btn.style.background = '#ea580c'; btn.disabled = false; }
+    }, 2500);
 
-  } catch (err) {
-    if (btn) { btn.textContent = 'Error — try again'; btn.style.background='#dc2626'; btn.disabled = false; }
-    console.error('Annotation save error:', err);
+  } catch(err) {
+    console.error('saveAnnotatedPDF error:', err);
+    if (btn) { btn.innerHTML = 'Error: ' + err.message; btn.style.background = '#dc2626'; btn.disabled = false; }
+    setTimeout(() => {
+      if (btn) { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save annotated PDF'; btn.style.background = '#ea580c'; }
+    }, 4000);
   }
 }
 
