@@ -7,7 +7,7 @@
 <!-- Preconnect to CDNs for faster loading -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://unpkg.com">
-<!-- Eagerly load PDF.js — workerSrc set to same file (PDF.js 2.x fake-worker mode) -->
+<!-- Eagerly load PDF.js — worker suppressed, disableWorker used per getDocument call -->
 <script>
 (function() {
   var host      = window.location.hostname;
@@ -18,27 +18,22 @@
     ? '/pdfjs/pdf.min.js'
     : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
 
-  var s = document.createElement('script');
-  s.src = pdfSrc;
-  s.async = true;
-  s.onload = function() {
-    if (window.pdfjsLib) {
-      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = pdfSrc; } catch(e) {}
-    }
-  };
-  s.onerror = function() {
-    var cdnSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
-    var s2 = document.createElement('script');
-    s2.src = cdnSrc;
-    s2.async = true;
-    s2.onload = function() {
+  function load(src) {
+    var s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = function() {
       if (window.pdfjsLib) {
-        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = cdnSrc; } catch(e) {}
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
       }
     };
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s);
+    s.onerror = function() {
+      if (src !== 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js') {
+        load('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
+      }
+    };
+    document.head.appendChild(s);
+  }
+  load(pdfSrc);
 })();
 </script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
@@ -9914,7 +9909,11 @@ async function renderPDFPreview(file) {
   try {
     const pdfjsLib = await loadPDFJS();
     const arrayBuffer = await file.arrayBuffer();
-    previewPDFDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    previewPDFDoc = await Promise.race([
+      pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true, isEvalSupported: false }).promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('PDF load timed out — please try again.')), 15000))
+    ]);
     previewTotalPages  = previewPDFDoc.numPages;
     currentPreviewPage = 1;
 
@@ -10540,11 +10539,8 @@ async function loadPDFJS() {
           reject(new Error('PDF.js loaded but pdfjsLib not found'));
           return;
         }
-        // Point workerSrc at the SAME script — PDF.js 2.x will use
-        // the already-loaded main thread code as a fake worker.
-        try {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = src;
-        } catch(e) {}
+        // Suppress the worker entirely — we pass disableWorker:true to getDocument
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
         resolve(window.pdfjsLib);
       };
       s.onerror = () => {
