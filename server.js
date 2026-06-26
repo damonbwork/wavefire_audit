@@ -1,61 +1,39 @@
 /**
  * Wavefire Audit App — Backend API Proxy
- * ──────────────────────────────────────
- * This server sits between the browser and Anthropic's API.
- * The API key lives here (on the server) and is never exposed to the browser.
- *
- * WHAT THIS FILE DOES:
- *   - Serves the frontend HTML file at the root URL  (GET /)
- *   - Proxies Claude API calls                       (POST /api/claude)
- *   - Health check                                   (GET /health)
- *   - API key test                                   (GET /api/test)
- *
- * HOW TO RUN LOCALLY:
- *   1. npm install
- *   2. Create a .env file with:  ANTHROPIC_API_KEY=sk-ant-...
- *   3. node server.js
- *   4. Open http://localhost:3000
- *
- * HOW TO DEPLOY TO RAILWAY:
- *   See README.md for full deployment instructions.
  */
 
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
-const https   = require('https');   
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // PDFs can be large when base64-encoded
+app.use(express.json({ limit: '50mb' }));
 
 // ── Serve the frontend HTML ─────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── PDF.js proxy routes — serves worker from Railway to avoid CDN blocking ──
+// ── PDF.js — served from npm package (no CDN needed) ───────────────────────
 app.get('/pdfjs/pdf.min.js', (req, res) => {
-  const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'public, max-age=86400');
-  https.get(url, (upstream) => upstream.pipe(res)).on('error', () => res.status(502).send('// proxy error'));
+  res.sendFile(require.resolve('pdfjs-dist/build/pdf.min.js'));
 });
 
 app.get('/pdfjs/pdf.worker.min.js', (req, res) => {
-  const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'public, max-age=86400');
-  https.get(url, (upstream) => upstream.pipe(res)).on('error', () => res.status(502).send('// proxy error'));
+  res.sendFile(require.resolve('pdfjs-dist/build/pdf.worker.min.js'));
 });
 
 // ── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ── API key + Claude connectivity test ──────────────────────────────────────
-// Visit /api/test in your browser to diagnose issues without needing a PDF
 app.get('/api/test', async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -97,7 +75,6 @@ app.post('/api/claude', async (req, res) => {
   if (!apiKey) {
     return res.status(500).json({ error: { message: 'ANTHROPIC_API_KEY is not set on the server.' } });
   }
-
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method:  'POST',
@@ -108,7 +85,6 @@ app.post('/api/claude', async (req, res) => {
       },
       body: JSON.stringify(req.body),
     });
-
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (err) {
