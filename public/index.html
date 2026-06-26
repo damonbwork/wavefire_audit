@@ -7891,7 +7891,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           headers,
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 1200,
+            max_tokens: 4000,
             system: systemPrompt,
             messages: [{
               role: 'user',
@@ -7948,7 +7948,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     }
   }
 
-  // ── Pre-convert all files to base64 in parallel (fast, CPU-bound) ──
+  // ── Pre-convert all files to base64 in parallel (fast) ──
   logEntry('INFO', `Pre-converting ${memFiles.length} files to base64`);
   setProgress(5, `Preparing ${memFiles.length} file${memFiles.length!==1?'s':''}…`);
 
@@ -7960,8 +7960,8 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   logEntry('INFO', 'Base64 conversion complete, starting parallel analysis');
 
-  // ── Analyze files in parallel — max 3 concurrent API calls ──
-  const CONCURRENCY = 3;
+  // ── Analyze all files with max 5 concurrent API calls ──
+  const CONCURRENCY = 5;
   const rows = memFiles.map(entry => addResultRow(entry.name, 'loading'));
 
   // Inject base64 from cache into analyzeOneFile
@@ -7991,7 +7991,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           headers,
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 1200,
+            max_tokens: 4000,
             system: systemPrompt,
             messages: [{ role: 'user', content: [
               { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
@@ -8011,8 +8011,35 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
       const textBlock = data.content?.find(b => b.type === 'text');
       if (!textBlock) throw new Error('No text in response');
-      const raw = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
-      const parsed = JSON.parse(raw);
+      let raw = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
+
+      // Attempt to repair truncated JSON — find last complete result object and close the array/object
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch(parseErr) {
+        // Try to salvage partial JSON by closing any open structures
+        let repaired = raw;
+        // Close open string if needed
+        const quoteCount = (repaired.match(/"/g) || []).length;
+        if (quoteCount % 2 !== 0) repaired += '"';
+        // Close open objects and arrays
+        const opens  = (repaired.match(/[\[{]/g) || []).length;
+        const closes = (repaired.match(/[\]}]/g) || []).length;
+        const diff   = opens - closes;
+        // Remove trailing comma before closing
+        repaired = repaired.replace(/,\s*$/, '');
+        for (let d = 0; d < diff; d++) {
+          repaired += (repaired.trimEnd().endsWith('{') || repaired.trimEnd().endsWith('[')) ? ']}' : '}';
+        }
+        // Last resort: just close with }]}
+        try { parsed = JSON.parse(repaired); }
+        catch(e2) {
+          try { parsed = JSON.parse(raw + '"}]}'); }
+          catch(e3) { throw new Error(`JSON parse failed (truncated response — try again): ${parseErr.message}`); }
+        }
+      }
+
       if (!parsed.results?.length) throw new Error('No results in response');
       return { ok: true, results: parsed.results, fields: parsed.fields || [], commentary: '' };
     } catch(err) {
@@ -8020,48 +8047,56 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     }
   }
 
-  // Process in chunks of CONCURRENCY
-  for (let i = 0; i < memFiles.length; i += CONCURRENCY) {
-    if (_cancelled) break;
-    const chunk = memFiles.slice(i, Math.min(i + CONCURRENCY, memFiles.length));
-    const chunkRows = rows.slice(i, i + chunk.length);
+  // ── Semaphore: keep exactly CONCURRENCY requests in flight at all times ──
+  let inFlight = 0;
+  let nextIdx  = 0;
 
-    await Promise.all(chunk.map(async (entry, ci) => {
-      const fi  = i + ci;
-      const row = chunkRows[ci];
-      if (_cancelled) return;
+  await new Promise(resolveAll => {
+    function startNext() {
+      while (inFlight < CONCURRENCY && nextIdx < memFiles.length && !_cancelled) {
+        const fi    = nextIdx++;
+        const entry = memFiles[fi];
+        const row   = rows[fi];
+        inFlight++;
 
-      let outcome;
-      try {
-        outcome = await analyzeOneFileFast(entry, row, fi);
-        logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', entry.name, { ok: outcome.ok });
-      } catch(e) {
-        logEntry('FILE_EXCEPTION', `${entry.name}: ${e.message}`);
-        outcome = { ok: false, error: e.message, commentary: '' };
+        analyzeOneFileFast(entry, row, fi).then(outcome => {
+          if (!_cancelled) {
+            if (outcome.ok) {
+              analysisResults[fi] = { fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: '' };
+              updateResultRow(row, 'done', null, null);
+            } else {
+              analysisResults[fi] = { fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
+              failedEntries.push({ entry, row, fi });
+              const retryName = `_retry_${Date.now()}_${fi}`;
+              window[retryName] = async () => {
+                updateResultRow(row, 'loading', 'Retrying…', null);
+                const retry = await analyzeOneFileFast(entry, row, fi);
+                if (retry.ok) { analysisResults[fi] = { fileName: entry.name, results: retry.results, fields: retry.fields || [], commentary: '' }; updateResultRow(row, 'done', null, null); }
+                else updateResultRow(row, 'error', retry.error, `${retryName}()`);
+              };
+              updateResultRow(row, 'error', outcome.error, `${retryName}()`);
+            }
+            processed++;
+            setProgress(Math.round(5 + (processed / totalFiles) * 90), `${processed} of ${totalFiles} complete…`);
+            logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', entry.name);
+          }
+          inFlight--;
+          if (nextIdx >= memFiles.length && inFlight === 0) resolveAll();
+          else startNext();
+        }).catch(err => {
+          analysisResults[fi] = { fileName: entry.name, results: [], fields: [] };
+          inFlight--;
+          processed++;
+          if (nextIdx >= memFiles.length && inFlight === 0) resolveAll();
+          else startNext();
+        });
       }
+      if (memFiles.length === 0) resolveAll();
+    }
+    startNext();
+  });
 
-      if (outcome.ok) {
-        analysisResults[fi] = { fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: '' };
-        updateResultRow(row, 'done', null, null);
-      } else {
-        analysisResults[fi] = { fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
-        failedEntries.push({ entry, row, fi });
-        const retryName = `_retry_${Date.now()}_${fi}`;
-        window[retryName] = async () => {
-          updateResultRow(row, 'loading', 'Retrying…', null);
-          const retry = await analyzeOneFileFast(entry, row, fi);
-          if (retry.ok) { analysisResults[fi] = { fileName: entry.name, results: retry.results, fields: retry.fields || [], commentary: '' }; updateResultRow(row, 'done', null, null); }
-          else updateResultRow(row, 'error', retry.error, `${retryName}()`);
-        };
-        updateResultRow(row, 'error', outcome.error, `${retryName}()`);
-      }
-
-      processed++;
-      setProgress(Math.round(5 + (processed / totalFiles) * 75), `${processed} of ${totalFiles} complete…`);
-    }));
-  }
-
-  // Ensure analysisResults array is dense (fill any gaps)
+  // Ensure analysisResults array is dense
   for (let i = 0; i < memFiles.length; i++) {
     if (!analysisResults[i]) analysisResults[i] = { fileName: memFiles[i].name, results: [], fields: [] };
   }
@@ -8207,13 +8242,17 @@ function closeAnalysis() {
   document.getElementById('analysis-overlay').style.display = 'none';
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+async function fileToBase64(file) {
+  // arrayBuffer + Uint8Array is ~3x faster than FileReader.readAsDataURL
+  const buf   = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary  = '';
+  // Process in 32KB chunks to avoid call stack overflow on large files
+  const CHUNK = 32768;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 /* ══════════════════════════════════════
@@ -8781,12 +8820,22 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
       ensureFileStore(ref);
-      // Replace existing annotated version if present
-      const wpFiles = inMemoryFiles[ref].workpaper;
-      const existIdx = wpFiles.findIndex(f => f.name === annName);
-      const entry = { file: annFile, name: annName, size: formatFileSize(annBlob.size), type: 'application/pdf', uploadedBy: 'Wavefire', uploadedOn: nowStr };
-      if (existIdx >= 0) wpFiles[existIdx] = entry; else wpFiles.push(entry);
-      refreshFileList(ref, 'workpaper');
+
+      // Store annotated version in SAMPLE FILES (replacing original)
+      const sfFiles = inMemoryFiles[ref].sample;
+
+      // Remove the original file
+      const origIdx = sfFiles.findIndex(f => f.name === fileName);
+      if (origIdx >= 0) sfFiles.splice(origIdx, 1);
+
+      // Add annotated version in its place (or replace existing annotated)
+      const existAnnotIdx = sfFiles.findIndex(f => f.name === annName);
+      const annEntry = { file: annFile, name: annName, size: formatFileSize(annBlob.size), type: 'application/pdf', uploadedBy: 'Wavefire', uploadedOn: nowStr };
+      if (existAnnotIdx >= 0) sfFiles[existAnnotIdx] = annEntry;
+      else if (origIdx >= 0) sfFiles.splice(origIdx, 0, annEntry); // insert at same position
+      else sfFiles.push(annEntry);
+
+      refreshFileList(ref, 'sample');
 
     } catch(err) {
       console.warn('Annotation failed for', fileName, ':', err.message);
