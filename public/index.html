@@ -7509,25 +7509,76 @@ async function analyzeWithClaude() {
     return;
   }
 
-  // Open modal
+  // ── Activity log ─────────────────────────────────────────────────
+  const analysisLog = [];
+  const logEntry = (type, msg, data) => {
+    const entry = { ts: new Date().toISOString(), type, msg, ...(data ? { data } : {}) };
+    analysisLog.push(entry);
+    console.log(`[Wavefire Analysis] ${type}: ${msg}`, data || '');
+  };
+  const downloadActivityLog = () => {
+    const lines = analysisLog.map(e => `[${e.ts}] [${e.type}] ${e.msg}${e.data ? ' — ' + JSON.stringify(e.data) : ''}`).join('\n');
+    const blob  = new Blob([lines], { type: 'text/plain' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a'); a.href = url; a.download = `wavefire_analysis_log_${Date.now()}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  // ── Cancellation ─────────────────────────────────────────────────
+  let _cancelled = false;
+  let _timeoutHandle = null;
+  const TIMEOUT_MS = 120000; // 2 minute hard timeout
+
+  // Open modal — guarded access only
   document.getElementById('analysis-overlay').style.display = 'flex';
   const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Analyzing ${totalFiles} sample file${totalFiles !== 1 ? 's' : ''}…`;
   const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
-  document.getElementById('analysis-progress-bar').style.width = '0%';
-  document.getElementById('analysis-results-list').innerHTML = '';
-  document.getElementById('export-xlsx-btn').style.display = 'none';
+  const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
+  const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
+  const _eb = document.getElementById('export-xlsx-btn'); if(_eb) _eb.style.display = 'none';
   const _commentaryBtn = document.getElementById('download-commentary-btn');
   if (_commentaryBtn) _commentaryBtn.style.display = 'none';
   const _commentaryEl = document.getElementById('analysis-commentary');
   if (_commentaryEl) _commentaryEl.style.display = 'none';
-  document.querySelector('#analysis-btn-row .btn-s').textContent = 'Cancel';
+
+  // Safe cancel button wiring
+  const _cancelBtn = document.querySelector('#analysis-btn-row .btn-s');
+  if (_cancelBtn) {
+    _cancelBtn.textContent = 'Cancel';
+    _cancelBtn._origOnclick = _cancelBtn.onclick;
+    _cancelBtn.onclick = () => {
+      _cancelled = true;
+      if (_timeoutHandle) clearTimeout(_timeoutHandle);
+      logEntry('CANCEL', 'User cancelled analysis');
+      // Offer log download
+      const overlay = document.getElementById('analysis-overlay');
+      if (overlay) overlay.style.display = 'none';
+      if (confirm('Analysis cancelled. Download activity log for debugging?')) downloadActivityLog();
+    };
+  }
+
+  // Hard timeout
+  _timeoutHandle = setTimeout(() => {
+    if (!_cancelled) {
+      _cancelled = true;
+      logEntry('TIMEOUT', `Analysis timed out after ${TIMEOUT_MS/1000}s`);
+      const _as3 = document.getElementById('analysis-status');
+      if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
+      const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
+      if (confirm('Analysis timed out. Download activity log?')) downloadActivityLog();
+    }
+  }, TIMEOUT_MS);
+
+  logEntry('START', 'Analysis started', { ref, totalFiles, attributes: attributes.length, options: opts });
 
   analysisResults = [];
   let processed = 0;
 
   // Helper to update progress bar
   function setProgress(pct, statusText) {
-    if (pct !== null) document.getElementById('analysis-progress-bar').style.width = pct + '%';
+    if (_cancelled) return;
+    if (pct !== null) { const _pb2 = document.getElementById('analysis-progress-bar'); if(_pb2) _pb2.style.width = pct + '%'; }
     const _as2 = document.getElementById('analysis-status'); if(_as2) _as2.textContent = statusText;
   }
 
@@ -7604,17 +7655,18 @@ async function analyzeWithClaude() {
 
   async function analyzeOneFile(entry, rowEl) {
     try {
+      logEntry('API_START', `Converting ${entry.name} to base64`);
       const base64 = await fileToBase64(entry.file);
+      logEntry('API_BASE64', `Base64 ready, ${Math.round(base64.length/1024)}KB encoded`);
+      if (_cancelled) return { ok: false, error: 'Cancelled', commentary: '' };
       setProgress(null, `Sending ${entry.name} to Claude…`);
 
       // ── API endpoint detection ─────────────────────────────────────────
       const host = window.location.hostname;
       const proto = window.location.protocol;
       const isArtifactViewer = host.includes('claude.ai') || proto === 'blob:' || host === '';
-      const isRailway = host.includes('railway.app') || (!isArtifactViewer && proto === 'https:');
-      const apiUrl = isArtifactViewer
-        ? 'https://api.anthropic.com/v1/messages'
-        : '/api/claude';
+      const apiUrl = isArtifactViewer ? 'https://api.anthropic.com/v1/messages' : '/api/claude';
+      logEntry('API_ENDPOINT', `Using endpoint: ${apiUrl}, isArtifactViewer: ${isArtifactViewer}`);
 
       const headers = { 'Content-Type': 'application/json' };
       if (isArtifactViewer) {
@@ -7641,6 +7693,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
       const userText = `${contextBlock}Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
 
+      logEntry('API_FETCH', `Sending request to Claude for ${entry.name}`);
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
@@ -7659,6 +7712,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       });
 
       // Check HTTP status first
+      logEntry('API_RESPONSE', `HTTP ${response.status} for ${entry.name}`);
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         const reason  = errBody?.error?.message || `HTTP ${response.status} ${response.statusText}`;
@@ -7700,12 +7754,25 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   }
 
   // Analyze each uploaded (real) file
+  logEntry('INFO', `Starting analysis of ${memFiles.length} uploaded files`);
+
   for (let fi = 0; fi < memFiles.length; fi++) {
+    if (_cancelled) { logEntry('CANCEL', `Cancelled before processing file ${fi+1}`); break; }
     const entry = memFiles[fi];
+    logEntry('FILE_START', `Processing file ${fi+1}/${memFiles.length}: ${entry.name}`);
     const row = addResultRow(entry.name, 'loading');
     setProgress(Math.round((processed / totalFiles) * 80), `Analyzing ${entry.name} (${fi+1} of ${memFiles.length})…`);
 
-    const outcome = await analyzeOneFile(entry, row);
+    let outcome;
+    try {
+      outcome = await analyzeOneFile(entry, row);
+      logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', `Result for ${entry.name}`, { ok: outcome.ok, error: outcome.error });
+    } catch(e) {
+      logEntry('FILE_EXCEPTION', `Exception processing ${entry.name}: ${e.message}`);
+      outcome = { ok: false, error: e.message, commentary: '' };
+    }
+
+    if (_cancelled) break;
 
     if (outcome.ok) {
       analysisResults.push({ fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: outcome.commentary || '' });
@@ -7714,17 +7781,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       const errMsg = outcome.error;
       failedEntries.push({ entry, row, fi });
       analysisResults.push({ fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed — see error.' })), fields: [] });
-      // Store fi in a closure-safe way for the retry button
       const retryCallbackName = `_retryFile_${Date.now()}_${fi}`;
       window[retryCallbackName] = async () => {
         updateResultRow(row, 'loading', 'Retrying…', null);
         const retry = await analyzeOneFile(entry, row);
         if (retry.ok) {
-          // Replace previous error result
           const idx = analysisResults.findIndex(r => r.fileName === entry.name);
           if (idx >= 0) analysisResults[idx].results = retry.results;
           updateResultRow(row, 'done', null, null);
-          // Update export button visibility
           const anyError = analysisResults.some(r => r.results.some(x => x.result === 'error'));
           if (!anyError) (document.getElementById('export-xlsx-btn')||{}).textContent = '⬇ Download .xlsx';
         } else {
@@ -7765,6 +7829,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const errorCount   = analysisResults.filter(r => r.results.some(x => x.result === 'error')).length;
   const successCount = analysisResults.length - errorCount;
 
+  if (_timeoutHandle) clearTimeout(_timeoutHandle);
+  logEntry('COMPLETE', `Analysis finished. ${successCount} ok, ${errorCount} errors`);
+
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
     : `Analysis complete — ${analysisResults.length} file${analysisResults.length !== 1 ? 's' : ''} evaluated successfully.`
@@ -7798,7 +7865,24 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     : 'Analysis complete';
 
   document.getElementById('export-xlsx-btn').style.display = 'inline-flex';
-  document.querySelector('#analysis-btn-row .btn-s').textContent = 'Close';
+
+  // Restore cancel button and add log download link
+  const _closeBtnFinal = document.querySelector('#analysis-btn-row .btn-s');
+  if (_closeBtnFinal) {
+    _closeBtnFinal.textContent = 'Close';
+    _closeBtnFinal.onclick = null; // reset to original close behaviour
+  }
+  // Add "Download log" button
+  const _btnRow2 = document.getElementById('analysis-btn-row');
+  if (_btnRow2 && !document.getElementById('dl-log-btn')) {
+    const logBtn = document.createElement('button');
+    logBtn.id = 'dl-log-btn';
+    logBtn.className = 'btn-s';
+    logBtn.style.cssText = 'font-size:10px;color:var(--text-tertiary)';
+    logBtn.innerHTML = '<i class="ti ti-file-text"></i> Download log';
+    logBtn.onclick = downloadActivityLog;
+    _btnRow2.insertBefore(logBtn, _btnRow2.firstChild);
+  }
 
   // Show "Retry all failed" button if there were errors
   const btnRow = document.getElementById('analysis-btn-row');
