@@ -4378,10 +4378,48 @@ async function saveAnnotatedPDF() {
       const pdfX = ann.x * scaleX;
       const pdfY = ph - (localY * scaleY);
 
+      if (ann.type === 'legend' && ann.el) {
+        const ta      = ann.el.querySelector('textarea');
+        const text    = ta ? ta.value : (ann.text || '');
+        const lines   = text.split('\n').filter(l => l.trim());
+        const lx      = pdfX;
+        let   ly      = pdfY;
+        const lineH   = 10;
+        // Background box
+        const boxH = lines.length * lineH + 12;
+        const boxW = 260;
+        page.drawRectangle({ x: lx - 4, y: ly - boxH + 4, width: boxW, height: boxH,
+          color: PDFLib.rgb(0.99, 0.99, 0.92), opacity: 0.95 });
+        page.drawRectangle({ x: lx - 4, y: ly - boxH + 4, width: boxW, height: boxH,
+          borderColor: PDFLib.rgb(0.5, 0.5, 0.3), borderWidth: 0.5,
+          color: PDFLib.rgb(0.99, 0.99, 0.92), opacity: 0 });
+        // Draw each line
+        for (const line of lines) {
+          const isHeader = line.startsWith('Testwork') || line.startsWith('-') || line.startsWith('\u2500');
+          // Strip non-ASCII chars that WinAnsi fonts can't encode
+          const safeLine = line.replace(/[^\x00-\x7F]/g, c => {
+            const map = {'✓':'P','⚠':'PE','✗':'F','–':'-','—':'-','…':'...','\u2500':'-'};
+            return map[c] || '';
+          });
+          if (!safeLine.trim()) { ly -= lineH; continue; }
+          try {
+            page.drawText(safeLine.slice(0, 55), {
+              x: lx, y: ly, size: isHeader ? 8 : 7,
+              font: isHeader ? font : fontReg,
+              color: isHeader ? PDFLib.rgb(0.15, 0.35, 0.55) : PDFLib.rgb(0.1, 0.1, 0.1),
+            });
+          } catch(e) {}
+          ly -= lineH;
+        }
+        continue;
+      }
+
       if (ann.type === 'text') {
-        // text is in textarea inside wrapper div
         const ta   = ann.el?.querySelector?.('textarea') || ann.el;
-        const text = (ta?.value || ann.text || '').trim();
+        const text = (ta?.value || ann.text || '').trim().replace(/[^\x00-\x7F]/g, c => {
+          const map = {'✓':'P','⚠':'PE','✗':'F','–':'-','—':'-','…':'...'};
+          return map[c] || '';
+        });
         if (!text) continue;
         const textW = Math.min(text.length * 6.5 + 12, pw * 0.4);
         page.drawRectangle({ x: pdfX - 2, y: pdfY - 14, width: textW, height: 18, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.9 });
@@ -4391,9 +4429,10 @@ async function saveAnnotatedPDF() {
       if (ann.type === 'tick' && ann.symbol) {
         const tColors = { pass:[0.09,0.47,0.24], pass_exception:[0.93,0.35,0.00], fail:[0.75,0.07,0.22], na:[0.42,0.45,0.50] };
         const tc = tColors[ann.tickType] || tColors.na;
-        page.drawText(ann.symbol, { x: pdfX, y: pdfY, size: 14, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
-        // Draw note text if present
-        const noteText = (ann.text || '').trim();
+        // Map Unicode symbols to ASCII equivalents safe for WinAnsi PDF fonts
+        const pdfSym = { '✓':'P', '⚠':'PE', '✗':'F', '–':'-', 'N/A':'N/A' }[ann.symbol] || ann.symbol.replace(/[^\x00-\x7F]/g, '?');
+        page.drawText(pdfSym, { x: pdfX, y: pdfY, size: 14, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
+        const noteText = (ann.text || '').trim().replace(/[^\x00-\x7F]/g, '');
         if (noteText) {
           page.drawText(noteText, { x: pdfX + 18, y: pdfY, size: 8, font: fontReg, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
         }
@@ -6092,99 +6131,96 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
 
   // Remove any existing legend
   overlay.querySelector('.ann-legend')?.remove();
+  pdfAnnotations = pdfAnnotations.filter(a => a.type !== 'legend');
 
-  const TICK_SYM = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–', na:'N/A' };
-  const TICK_COL = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280' };
+  const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
 
-  const rows = attributes.map((attr, ai) => {
-    let match = (fileResult?.results || []).find(r => r.title === attr.title);
+  // Build plain-text content the user can freely edit
+  const lines = ['Testwork Summary', '─'.repeat(40)];
+  attributes.forEach((attr, ai) => {
+    let match = (fileResult.results || []).find(r => r.title === attr.title);
     if (!match) {
       const al = attr.title.toLowerCase();
-      match = (fileResult?.results || []).find(r =>
+      match = (fileResult.results || []).find(r =>
         r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
       );
     }
     const result  = match?.result || 'error';
-    const tick    = TICK_SYM[result] || '–';
-    const color   = TICK_COL[result] || '#6b7280';
+    const tick    = TICK_SYMS[result] || '–';
     const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
     const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
-    const pageNum = (match?.page && match.page > 0)           ? String(match.page)      : '';
-    const ref     = (attr.attrRef || attr.num || String(ai+1));
-    const section = (match?.section || '').slice(0, 18);
-    const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph   : '';
+    const pageNum = (match?.page && match.page > 0) ? '  Pg ' + match.page : '';
+    const section = (match?.section || '').slice(0, 20);
+    const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph : '';
     const loc     = [section, para].filter(Boolean).join(' ');
-    return { tick, color, label, exRef, pageNum, ref, loc };
+    const locStr  = loc ? '  ' + loc : '';
+    lines.push(tick + '  ' + label + exRef + pageNum + locStr);
+    if (match?.note) lines.push('     ' + match.note.slice(0, 60));
   });
+  const defaultText = lines.join('\n');
 
-  // Build table HTML
-  const rowsHtml = rows.map((r, i) => `
-    <tr style="background:${i%2===0?'transparent':'rgba(0,0,0,0.04)'}">
-      <td style="padding:2px 4px;font-weight:900;color:${r.color};font-size:13px">${r.tick}</td>
-      <td style="padding:2px 4px;font-size:10px;color:#1e293b;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}${r.exRef}</td>
-      <td style="padding:2px 4px;font-size:10px;color:#475569;text-align:center">${r.pageNum}</td>
-      <td style="padding:2px 4px;font-size:10px;color:#64748b;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.loc}</td>
-    </tr>`).join('');
-
+  // Wrapper
   const legend = document.createElement('div');
   legend.className = 'ann-item ann-legend';
-  legend.style.cssText = `position:absolute;right:12px;top:12px;z-index:55;pointer-events:all;
-    background:rgba(252,252,238,0.97);border:1.5px solid rgba(180,170,100,0.7);
-    border-radius:5px;box-shadow:0 3px 12px rgba(0,0,0,0.2);min-width:340px;
-    font-family:inherit;user-select:none`;
+  legend.style.cssText = 'position:absolute;right:12px;top:12px;z-index:55;pointer-events:all;' +
+    'background:rgba(252,252,238,0.97);border:1.5px solid rgba(180,170,100,0.7);' +
+    'border-radius:5px;box-shadow:0 3px 12px rgba(0,0,0,0.2);min-width:300px;max-width:420px;' +
+    'display:flex;flex-direction:column;font-family:inherit;user-select:none';
 
-  legend.innerHTML = `
-    <div class="ann-legend-handle" style="background:#39618b;color:#fff;padding:5px 10px;border-radius:3px 3px 0 0;
-      cursor:move;display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <span style="font-size:11px;font-weight:700;letter-spacing:0.3px">Testwork Summary</span>
-      <span style="font-size:9px;opacity:0.7">drag to move</span>
-    </div>
-    <div style="overflow:auto;max-height:260px">
-      <table style="border-collapse:collapse;width:100%;font-family:inherit">
-        <thead>
-          <tr style="background:rgba(0,0,0,0.06);border-bottom:1px solid rgba(0,0,0,0.1)">
-            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left"></th>
-            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Attribute</th>
-            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:center">Pg</th>
-            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Section / Para</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-    </div>`;
+  // Drag handle header
+  const handle = document.createElement('div');
+  handle.className = 'ann-legend-handle';
+  handle.style.cssText = 'background:#39618b;color:#fff;padding:5px 10px;border-radius:3px 3px 0 0;' +
+    'cursor:move;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0';
+  handle.innerHTML = '<span style="font-size:11px;font-weight:700;letter-spacing:0.3px">Testwork Summary</span>' +
+    '<span style="font-size:9px;opacity:0.6">drag to move · click text to edit</span>';
 
+  // Editable textarea with all summary content
+  const ta = document.createElement('textarea');
+  ta.value = defaultText;
+  ta.spellcheck = false;
+  ta.style.cssText = 'width:100%;min-height:180px;background:transparent;border:none;outline:none;' +
+    'padding:8px 10px;font-size:11px;font-family:monospace;line-height:1.55;resize:both;' +
+    'color:#1e293b;cursor:text;box-sizing:border-box;border-radius:0 0 5px 5px';
+  ta.title = 'Click to edit — all text is freely editable';
+
+  legend.appendChild(handle);
+  legend.appendChild(ta);
   overlay.appendChild(legend);
 
-  // Make draggable via header handle
-  const handle = legend.querySelector('.ann-legend-handle');
-  let dm=false, mx=0, my=0, sx=0, sy=0;
+  // Draggable via handle
+  let dm=false, mx=0, my=0, sl=0, st=0;
   handle.addEventListener('mousedown', ev => {
     _selectAnnotation(legend);
-    dm=true;
-    mx=ev.clientX; my=ev.clientY;
-    sx=parseInt(legend.style.right)||0;
-    sy=parseInt(legend.style.top)||0;
+    dm=true; mx=ev.clientX; my=ev.clientY;
+    // Switch from right-anchored to left-anchored on first drag
+    if (legend.style.right) {
+      const oRect = overlay.getBoundingClientRect();
+      const lRect = legend.getBoundingClientRect();
+      legend.style.left  = (lRect.left - oRect.left) + 'px';
+      legend.style.right = '';
+    }
+    sl=parseInt(legend.style.left)||0; st=parseInt(legend.style.top)||0;
     ev.stopPropagation(); ev.preventDefault();
   });
   document.addEventListener('mousemove', ev => {
     if (!dm) return;
-    // Switch from right-anchored to left-anchored on first drag
-    if (legend.style.right !== undefined && legend.style.left === '') {
-      const overlayRect = overlay.getBoundingClientRect();
-      const legRect = legend.getBoundingClientRect();
-      legend.style.left = (legRect.left - overlayRect.left) + 'px';
-      legend.style.right = '';
-    }
-    legend.style.left = (parseInt(legend.style.left)||0) + (ev.clientX - mx) + 'px';
-    legend.style.top  = (parseInt(legend.style.top)||0)  + (ev.clientY - my) + 'px';
+    legend.style.left = (sl + ev.clientX - mx) + 'px';
+    legend.style.top  = (st + ev.clientY - my) + 'px';
     mx = ev.clientX; my = ev.clientY;
+    sl = parseInt(legend.style.left)||0; st = parseInt(legend.style.top)||0;
   });
   document.addEventListener('mouseup', () => { dm = false; });
 
-  // Track in pdfAnnotations so it's included in undo/redo
-  pdfAnnotations.push({ type:'legend', el: legend });
+  ta.addEventListener('mousedown', ev => ev.stopPropagation());
+  ta.addEventListener('click',     ev => ev.stopPropagation());
+
+  const annIdx = pdfAnnotations.length;
+  pdfAnnotations.push({ type:'legend', el: legend, text: ta.value });
+  ta.addEventListener('input', () => { pdfAnnotations[annIdx].text = ta.value; });
   updateAnnCount();
 }
+
 
 function setupAnnOverlay() {
   const overlay = document.getElementById('pdf-ann-overlay');
