@@ -3929,13 +3929,14 @@ function setAnnotationTool(tool) {
   ['text','highlight'].forEach(t => {
     const btn = document.getElementById('ann-tool-' + t);
     if (!btn) return;
-    btn.style.background = currentAnnTool === t ? 'rgba(234,88,12,0.7)' : 'rgba(255,255,255,0.08)';
+    btn.style.background  = currentAnnTool === t ? 'rgba(234,88,12,0.8)' : 'rgba(255,255,255,0.08)';
     btn.style.borderColor = currentAnnTool === t ? '#ea580c' : 'rgba(255,255,255,0.2)';
   });
-  const body = document.getElementById('file-preview-body');
-  if (body) body.style.cursor = currentAnnTool ? 'crosshair' : '';
+
   const overlay = document.getElementById('pdf-ann-overlay');
+  const body    = document.getElementById('file-preview-body');
   if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
+  if (body)    body.style.cursor           = currentAnnTool ? 'crosshair' : '';
 }
 
 function clearAnnotations(silent) {
@@ -3953,64 +3954,6 @@ function updateAnnCount() {
 }
 
 // Wire up clicks on the PDF body to place annotations
-document.addEventListener('click', function(e) {
-  if (!currentAnnTool) return;
-  const body   = document.getElementById('file-preview-body');
-  const canvas = body?.querySelector('canvas');
-  if (!canvas || !body.contains(e.target)) return;
-
-  const bodyRect   = body.getBoundingClientRect();
-  const canvasRect = canvas.getBoundingClientRect();
-  const x = e.clientX - canvasRect.left;
-  const y = e.clientY - canvasRect.top;
-  const scaleX = canvas.width  / canvasRect.width;
-  const scaleY = canvas.height / canvasRect.height;
-
-  if (currentAnnTool === 'text') {
-    // Place an editable text input on the overlay
-    const overlay = document.getElementById('pdf-ann-overlay');
-    if (!overlay) return;
-    const input = document.createElement('textarea');
-    input.placeholder = 'Type annotation…';
-    input.style.cssText = `position:absolute;left:${x}px;top:${y}px;min-width:140px;max-width:260px;min-height:28px;
-      background:rgba(255,255,199,0.92);border:1.5px solid #eab308;border-radius:4px;padding:4px 6px;font-size:12px;
-      font-family:inherit;resize:both;outline:none;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,0.2)`;
-    overlay.appendChild(input);
-    input.focus();
-
-    const annIdx = pdfAnnotations.length;
-    pdfAnnotations.push({ type:'text', x, y, text:'', scaleX, scaleY, pageEl: canvas });
-
-    input.addEventListener('blur', () => {
-      if (input.value.trim()) {
-        pdfAnnotations[annIdx].text = input.value.trim();
-        updateAnnCount();
-      } else {
-        pdfAnnotations.splice(annIdx, 1);
-        input.remove();
-      }
-    });
-    input.addEventListener('input', () => { pdfAnnotations[annIdx].text = input.value; });
-
-  } else if (currentAnnTool === 'highlight') {
-    // Draw a semi-transparent highlight rectangle
-    const overlay = document.getElementById('pdf-ann-overlay');
-    if (!overlay) return;
-    const hl = document.createElement('div');
-    hl.style.cssText = `position:absolute;left:${x-60}px;top:${y-10}px;width:120px;height:20px;
-      background:rgba(250,204,21,0.45);border-radius:2px;cursor:move;z-index:15;
-      border:1px dashed #eab308;box-sizing:border-box`;
-    // Allow drag to reposition
-    let dragging=false,ox=0,oy=0;
-    hl.addEventListener('mousedown',ev=>{dragging=true;ox=ev.offsetX;oy=ev.offsetY;ev.stopPropagation();});
-    document.addEventListener('mousemove',ev=>{if(!dragging)return;hl.style.left=(ev.clientX-overlay.getBoundingClientRect().left-ox)+'px';hl.style.top=(ev.clientY-overlay.getBoundingClientRect().top-oy)+'px';});
-    document.addEventListener('mouseup',()=>dragging=false);
-    overlay.appendChild(hl);
-    pdfAnnotations.push({ type:'highlight', el:hl, scaleX, scaleY });
-    updateAnnCount();
-  }
-});
-
 async function loadPdfLib() {
   if (window.PDFLib) return window.PDFLib;
   return new Promise((resolve, reject) => {
@@ -5406,7 +5349,81 @@ function syncWPFsToAudit(ref, fsSet) {
     return null;
   }
 
-  // On copy, build TSV from all rows × all columns if no specific range,
+  // Wire annotation clicks directly on the overlay element (set up once on load)
+document.addEventListener('DOMContentLoaded', () => { setupAnnOverlay(); });
+setTimeout(setupAnnOverlay, 500); // fallback if DOMContentLoaded already fired
+
+function setupAnnOverlay() {
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (!overlay || overlay._annBound) return;
+  overlay._annBound = true;
+
+  overlay.addEventListener('click', function(e) {
+    if (!currentAnnTool) return;
+    // Don't trigger if clicking an existing annotation element
+    if (e.target !== overlay) return;
+
+    const rect = overlay.getBoundingClientRect();
+    const x = e.clientX - rect.left + overlay.scrollLeft;
+    const y = e.clientY - rect.top  + overlay.scrollTop;
+
+    if (currentAnnTool === 'text') {
+      const input = document.createElement('textarea');
+      input.placeholder = 'Type annotation…';
+      input.style.cssText = `position:absolute;left:${x}px;top:${y}px;min-width:160px;max-width:280px;min-height:32px;
+        background:rgba(255,255,199,0.95);border:1.5px solid #eab308;border-radius:4px;padding:5px 7px;font-size:12px;
+        font-family:inherit;resize:both;outline:none;z-index:30;box-shadow:0 2px 10px rgba(0,0,0,0.25);
+        cursor:text;pointer-events:all`;
+      overlay.appendChild(input);
+      // Small delay so the click doesn't immediately blur
+      setTimeout(() => input.focus(), 10);
+
+      const annIdx = pdfAnnotations.length;
+      pdfAnnotations.push({ type:'text', x, y, text:'', el: input });
+
+      input.addEventListener('input', () => { pdfAnnotations[annIdx].text = input.value; });
+      input.addEventListener('blur', () => {
+        if (!input.value.trim()) { pdfAnnotations.splice(annIdx, 1); input.remove(); }
+        else { pdfAnnotations[annIdx].text = input.value.trim(); updateAnnCount(); }
+      });
+      input.addEventListener('mousedown', ev => ev.stopPropagation());
+      input.addEventListener('click',     ev => ev.stopPropagation());
+
+    } else if (currentAnnTool === 'highlight') {
+      const hl = document.createElement('div');
+      hl.style.cssText = `position:absolute;left:${x - 70}px;top:${y - 12}px;width:140px;height:22px;
+        background:rgba(250,204,21,0.45);border:1.5px dashed #ca8a04;border-radius:2px;
+        cursor:move;z-index:20;box-sizing:border-box;pointer-events:all`;
+
+      // Resize handle
+      const rh = document.createElement('div');
+      rh.style.cssText = 'position:absolute;right:0;bottom:0;width:10px;height:10px;cursor:se-resize;background:rgba(202,138,4,0.5);border-radius:1px';
+      hl.appendChild(rh);
+
+      overlay.appendChild(hl);
+      pdfAnnotations.push({ type:'highlight', el: hl });
+      updateAnnCount();
+
+      // Drag to move
+      let mode=null,startX=0,startY=0,origL=0,origT=0,origW=0,origH=0;
+      hl.addEventListener('mousedown', ev => {
+        ev.stopPropagation();
+        const isResize = ev.target === rh;
+        mode = isResize ? 'resize' : 'move';
+        startX = ev.clientX; startY = ev.clientY;
+        origL = parseInt(hl.style.left)||0; origT = parseInt(hl.style.top)||0;
+        origW = hl.offsetWidth;             origH = hl.offsetHeight;
+      });
+      document.addEventListener('mousemove', ev => {
+        if (!mode) return;
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        if (mode === 'move')   { hl.style.left = (origL+dx)+'px'; hl.style.top = (origT+dy)+'px'; }
+        if (mode === 'resize') { hl.style.width = Math.max(40,origW+dx)+'px'; hl.style.height = Math.max(14,origH+dy)+'px'; }
+      });
+      document.addEventListener('mouseup', () => { mode = null; });
+    }
+  });
+}
   // or from the focused cell only if nothing is explicitly ranged
   document.addEventListener('copy', (e) => {
     const active = document.activeElement;
@@ -7570,10 +7587,14 @@ async function analyzeWithClaude() {
     }
   }, TIMEOUT_MS);
 
-  logEntry('START', 'Analysis started', { ref, totalFiles, attributes: attributes.length, options: opts });
+  logEntry('START', 'Analysis started', { ref, totalFiles, attributes: attributes.length });
 
   analysisResults = [];
   let processed = 0;
+
+  // Gather sample field extraction fields and options — must be before analyzeOneFile is defined
+  const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
+  const opts = _analysisOptions || {};
 
   // Helper to update progress bar
   function setProgress(pct, statusText) {
@@ -7622,10 +7643,6 @@ async function analyzeWithClaude() {
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${fileName}</span>
     </div>${errorLine}${retryBtn}`;
   }
-
-  // Gather sample field extraction fields
-  const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
-  const opts = _analysisOptions || {};
 
   // Build attribute prompt text — conditionally include desc, addl info, criteria based on options
   const attrPrompt = attributes.map((a, i) => {
@@ -8546,6 +8563,7 @@ async function previewMemFile(ref, bucket, idx) {
     clearAnnotations(true);
     window._previewFile = entry.file;
     await renderPDFPreview(entry.file);
+    setupAnnOverlay();
   } else {
     const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
     if (toolbarEl2) toolbarEl2.style.display = 'none';
