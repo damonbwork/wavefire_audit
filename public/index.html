@@ -9567,6 +9567,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       continue;
     }
 
+    // Skip already-annotated files to prevent _annotated_annotated.pdf
+    if (fileName.toLowerCase().endsWith('_annotated.pdf')) {
+      console.log('[Annotate] Skipping already-annotated file:', fileName);
+      continue;
+    }
+
     // Look up in sample files — match original name OR already-annotated name
     const sampleFiles = inMemoryFiles[ref]?.sample || [];
     console.log('[Annotate] Sample files in store:', sampleFiles.map(f => f.name));
@@ -9788,7 +9794,6 @@ async function previewMemFile(ref, bucket, idx) {
       );
       if (fileResult) {
         const fi = analysisResults.indexOf(fileResult);
-        // Build exMap for this file
         const exMapLocal = {};
         let exNum = 0;
         analysisResults.forEach((fr, fii) => {
@@ -9800,10 +9805,16 @@ async function previewMemFile(ref, bucket, idx) {
             }
           });
         });
-        setTimeout(() => {
-          placeLegendOverlay(fileResult, (wpTestAttributes[ref]||[]).filter(a=>a.title), exMapLocal, fi);
-          placeInteractiveAnnotations(fileResult, (wpTestAttributes[ref]||[]).filter(a=>a.title), exMapLocal, fi);
-        }, 400);
+        // Wait for PDF canvas to fully render before placing overlays
+        const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
+        const _doPlace = () => {
+          console.log('[Viewer] Placing interactive annotations, overlay=', document.getElementById('pdf-ann-overlay'));
+          placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
+          placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
+        };
+        // Try after 1s, and again after 3s in case PDF is slow to render
+        setTimeout(_doPlace, 1000);
+        setTimeout(_doPlace, 3000);
       }
     }
   } else {
