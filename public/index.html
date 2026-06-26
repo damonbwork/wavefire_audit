@@ -4,6 +4,42 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavefire</title>
+<!-- Preconnect to CDNs for faster loading -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://unpkg.com">
+<!-- Eagerly load PDF.js with blob worker to avoid CORS/origin issues on Railway -->
+<script>
+(function() {
+  function setPDFWorker(lib) {
+    var cdnWorker = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    try {
+      var blob = new Blob(['importScripts("' + cdnWorker + '");'], { type:'application/javascript' });
+      lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+    } catch(e) {
+      try { lib.GlobalWorkerOptions.workerSrc = cdnWorker; } catch(e2) {}
+    }
+  }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  s.async = true;
+  s.onload = function() { if (window.pdfjsLib) setPDFWorker(window.pdfjsLib); };
+  s.onerror = function() {
+    var s2 = document.createElement('script');
+    s2.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s2.async = true;
+    s2.onload = function() {
+      if (window.pdfjsLib) {
+        try {
+          var blob = new Blob(['importScripts("https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js");'], { type:'application/javascript' });
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+        } catch(e) {}
+      }
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+})();
+</script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -7858,7 +7894,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           headers,
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
-            max_tokens: 2000,
+            max_tokens: 1200,
             system: systemPrompt,
             messages: [{
               role: 'user',
@@ -7915,53 +7951,122 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     }
   }
 
-  // Analyze each uploaded (real) file
-  logEntry('INFO', `Starting analysis of ${memFiles.length} uploaded files`);
+  // ── Pre-convert all files to base64 in parallel (fast, CPU-bound) ──
+  logEntry('INFO', `Pre-converting ${memFiles.length} files to base64`);
+  setProgress(5, `Preparing ${memFiles.length} file${memFiles.length!==1?'s':''}…`);
 
-  for (let fi = 0; fi < memFiles.length; fi++) {
-    if (_cancelled) { logEntry('CANCEL', `Cancelled before processing file ${fi+1}`); break; }
-    const entry = memFiles[fi];
-    logEntry('FILE_START', `Processing file ${fi+1}/${memFiles.length}: ${entry.name}`);
-    const row = addResultRow(entry.name, 'loading');
-    setProgress(Math.round((processed / totalFiles) * 80), `Analyzing ${entry.name} (${fi+1} of ${memFiles.length})…`);
+  const base64Cache = {};
+  await Promise.all(memFiles.map(async (entry) => {
+    try { base64Cache[entry.name] = await fileToBase64(entry.file); }
+    catch(e) { base64Cache[entry.name] = null; }
+  }));
 
-    let outcome;
+  logEntry('INFO', 'Base64 conversion complete, starting parallel analysis');
+
+  // ── Analyze files in parallel — max 3 concurrent API calls ──
+  const CONCURRENCY = 3;
+  const rows = memFiles.map(entry => addResultRow(entry.name, 'loading'));
+
+  // Inject base64 from cache into analyzeOneFile
+  const _origAnalyzeOneFile = analyzeOneFile;
+  async function analyzeOneFileFast(entry, row, fi) {
+    const b64 = base64Cache[entry.name];
+    if (!b64) return { ok: false, error: 'Failed to read file', commentary: '' };
+
+    logEntry('FILE_START', `Sending ${entry.name} to Claude`);
+    setProgress(Math.round(5 + (processed / totalFiles) * 75), `Sending ${entry.name} to Claude…`);
+
     try {
-      outcome = await analyzeOneFile(entry, row);
-      logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', `Result for ${entry.name}`, { ok: outcome.ok, error: outcome.error });
-    } catch(e) {
-      logEntry('FILE_EXCEPTION', `Exception processing ${entry.name}: ${e.message}`);
-      outcome = { ok: false, error: e.message, commentary: '' };
-    }
+      const host = window.location.hostname;
+      const proto = window.location.protocol;
+      const isArtifactViewer = host.includes('claude.ai') || proto === 'blob:' || host === '';
+      const apiUrl = isArtifactViewer ? 'https://api.anthropic.com/v1/messages' : '/api/claude';
+      const headers = { 'Content-Type': 'application/json' };
+      if (isArtifactViewer) headers['anthropic-version'] = '2023-06-01';
 
+      const controller = new AbortController();
+      const reqTimeout = setTimeout(() => controller.abort(), 60000);
+      let response;
+      try {
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          signal: controller.signal,
+          headers,
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1200,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+              { type: 'text', text: userText }
+            ]}]
+          })
+        });
+      } finally { clearTimeout(reqTimeout); }
+
+      logEntry('API_RESPONSE', `HTTP ${response.status} for ${entry.name}`);
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody?.error?.message || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || 'API error');
+
+      const textBlock = data.content?.find(b => b.type === 'text');
+      if (!textBlock) throw new Error('No text in response');
+      const raw = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
+      const parsed = JSON.parse(raw);
+      if (!parsed.results?.length) throw new Error('No results in response');
+      return { ok: true, results: parsed.results, fields: parsed.fields || [], commentary: '' };
+    } catch(err) {
+      return { ok: false, error: err.message || String(err), commentary: '' };
+    }
+  }
+
+  // Process in chunks of CONCURRENCY
+  for (let i = 0; i < memFiles.length; i += CONCURRENCY) {
     if (_cancelled) break;
+    const chunk = memFiles.slice(i, Math.min(i + CONCURRENCY, memFiles.length));
+    const chunkRows = rows.slice(i, i + chunk.length);
 
-    if (outcome.ok) {
-      analysisResults.push({ fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: outcome.commentary || '' });
-      updateResultRow(row, 'done', null, null);
-    } else {
-      const errMsg = outcome.error;
-      failedEntries.push({ entry, row, fi });
-      analysisResults.push({ fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed — see error.' })), fields: [] });
-      const retryCallbackName = `_retryFile_${Date.now()}_${fi}`;
-      window[retryCallbackName] = async () => {
-        updateResultRow(row, 'loading', 'Retrying…', null);
-        const retry = await analyzeOneFile(entry, row);
-        if (retry.ok) {
-          const idx = analysisResults.findIndex(r => r.fileName === entry.name);
-          if (idx >= 0) analysisResults[idx].results = retry.results;
-          updateResultRow(row, 'done', null, null);
-          const anyError = analysisResults.some(r => r.results.some(x => x.result === 'error'));
-          if (!anyError) (document.getElementById('export-xlsx-btn')||{}).textContent = '⬇ Download .xlsx';
-        } else {
-          updateResultRow(row, 'error', retry.error, `${retryCallbackName}()`);
-        }
-      };
-      updateResultRow(row, 'error', errMsg, `${retryCallbackName}()`);
-    }
+    await Promise.all(chunk.map(async (entry, ci) => {
+      const fi  = i + ci;
+      const row = chunkRows[ci];
+      if (_cancelled) return;
 
-    processed++;
-    setProgress(Math.round((processed / totalFiles) * 90), `Processed ${processed} of ${totalFiles}…`);
+      let outcome;
+      try {
+        outcome = await analyzeOneFileFast(entry, row, fi);
+        logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', entry.name, { ok: outcome.ok });
+      } catch(e) {
+        logEntry('FILE_EXCEPTION', `${entry.name}: ${e.message}`);
+        outcome = { ok: false, error: e.message, commentary: '' };
+      }
+
+      if (outcome.ok) {
+        analysisResults[fi] = { fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: '' };
+        updateResultRow(row, 'done', null, null);
+      } else {
+        analysisResults[fi] = { fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
+        failedEntries.push({ entry, row, fi });
+        const retryName = `_retry_${Date.now()}_${fi}`;
+        window[retryName] = async () => {
+          updateResultRow(row, 'loading', 'Retrying…', null);
+          const retry = await analyzeOneFileFast(entry, row, fi);
+          if (retry.ok) { analysisResults[fi] = { fileName: entry.name, results: retry.results, fields: retry.fields || [], commentary: '' }; updateResultRow(row, 'done', null, null); }
+          else updateResultRow(row, 'error', retry.error, `${retryName}()`);
+        };
+        updateResultRow(row, 'error', outcome.error, `${retryName}()`);
+      }
+
+      processed++;
+      setProgress(Math.round(5 + (processed / totalFiles) * 75), `${processed} of ${totalFiles} complete…`);
+    }));
+  }
+
+  // Ensure analysisResults array is dense (fill any gaps)
+  for (let i = 0; i < memFiles.length; i++) {
+    if (!analysisResults[i]) analysisResults[i] = { fileName: memFiles[i].name, results: [], fields: [] };
   }
 
   // For static (demo) sample files — generate plausible mock results
@@ -9435,36 +9540,43 @@ const pdfBookmarkCache = {};
 async function loadPDFJS() {
   if (window.pdfjsLib) return window.pdfjsLib;
   return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    // Use unpkg as primary — more reliable cross-origin than cdnjs
-    script.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
-    script.crossOrigin = 'anonymous';
-    script.onload = () => {
+    const PDFJS_CDN  = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    const WORKER_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const PDFJS_CDN2  = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+    const WORKER_CDN2 = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+    function setWorker(lib, workerUrl) {
       try {
-        // Set worker from same CDN to avoid CORS issues
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        // Try creating a blob worker that imports from CDN — avoids same-origin issues
+        const workerBlob = new Blob(
+          [`importScripts('${workerUrl}');`],
+          { type: 'application/javascript' }
+        );
+        const blobUrl = URL.createObjectURL(workerBlob);
+        lib.GlobalWorkerOptions.workerSrc = blobUrl;
       } catch(e) {
-        // Fallback: disable worker (runs in main thread, slower but works)
-        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e2) {}
+        // Direct fallback
+        try { lib.GlobalWorkerOptions.workerSrc = workerUrl; } catch(e2) {}
       }
-      resolve(window.pdfjsLib);
-    };
-    script.onerror = () => {
-      // Fallback to cdnjs
-      const script2 = document.createElement('script');
-      script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script2.onload = () => {
-        try {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        } catch(e) {}
+    }
+
+    function tryLoad(src, workerSrc, onFail) {
+      const s = document.createElement('script');
+      s.src = src;
+      s.crossOrigin = 'anonymous';
+      s.onload = () => {
+        setWorker(window.pdfjsLib, workerSrc);
         resolve(window.pdfjsLib);
       };
-      script2.onerror = () => reject(new Error('Could not load PDF.js — check your network connection.'));
-      document.head.appendChild(script2);
-    };
-    document.head.appendChild(script);
+      s.onerror = onFail;
+      document.head.appendChild(s);
+    }
+
+    tryLoad(PDFJS_CDN, WORKER_CDN, () => {
+      tryLoad(PDFJS_CDN2, WORKER_CDN2, () => {
+        reject(new Error('Could not load PDF.js. Check internet connection on the server.'));
+      });
+    });
   });
 }
 
@@ -10191,10 +10303,40 @@ function processUploadedFiles(files, bucket) {
   if (!ref) return;
   ensureFileStore(ref);
 
-  // All file types accepted for both buckets
-  const toAdd = files;
+  const MAX_SIZE   = 50 * 1024 * 1024;  // 50 MB hard limit
+  const WARN_SIZE  = 20 * 1024 * 1024;  // 20 MB warning threshold
 
-  toAdd.forEach(file => {
+  // Split files into buckets
+  const tooLarge  = files.filter(f => f.size > MAX_SIZE);
+  const large     = files.filter(f => f.size > WARN_SIZE && f.size <= MAX_SIZE);
+  const normal    = files.filter(f => f.size <= WARN_SIZE);
+
+  // Reject files over 50 MB immediately
+  if (tooLarge.length) {
+    const names = tooLarge.map(f => `  • ${f.name} (${formatFileSize(f.size)})`).join('\n');
+    showUploadError(
+      `The following file${tooLarge.length > 1 ? 's exceed' : ' exceeds'} the 50 MB maximum and cannot be uploaded:\n\n${names}`
+    );
+  }
+
+  // If any files are between 20–50 MB, ask the user
+  if (large.length) {
+    const names = large.map(f => `  • ${f.name} (${formatFileSize(f.size)})`).join('\n');
+    const msg = `${large.length} file${large.length > 1 ? 's are' : ' is'} larger than 20 MB:\n\n${names}\n\nLarge files may slow down analysis. Continue uploading ${large.length > 1 ? 'these files' : 'this file'}?`;
+    if (!confirm(msg)) {
+      // User declined — only add normal-sized files
+      _addFilesToStore(normal, bucket, ref);
+      return;
+    }
+  }
+
+  // Add normal + accepted large files
+  _addFilesToStore([...normal, ...large], bucket, ref);
+}
+
+function _addFilesToStore(files, bucket, ref) {
+  if (!files.length) return;
+  files.forEach(file => {
     const entry = {
       file,
       name: file.name,
@@ -10211,7 +10353,6 @@ function processUploadedFiles(files, bucket) {
     inMemoryFiles[ref][bucket].push(entry);
     logEvent(ref, `File added to ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${file.name} (${formatFileSize(file.size)})`);
   });
-
   refreshFileList(ref, bucket);
 }
 
