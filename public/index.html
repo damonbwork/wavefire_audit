@@ -4149,18 +4149,8 @@ function setAnnotationTool(tool) {
   });
   const overlay = document.getElementById('pdf-ann-overlay');
   const body    = document.getElementById('file-preview-body');
-  const embed   = body?.querySelector('embed');
-  if (currentAnnTool) {
-    // Tool active: overlay intercepts all clicks, embed gets nothing
-    if (overlay) overlay.style.pointerEvents = 'all';
-    if (embed)   embed.style.pointerEvents   = 'none';
-    if (body)    body.style.cursor           = currentAnnTool === 'text' ? 'text' : 'crosshair';
-  } else {
-    // No tool: overlay transparent to mouse, embed scrollable/zoomable again
-    if (overlay) overlay.style.pointerEvents = 'none';
-    if (embed)   embed.style.pointerEvents   = 'auto';
-    if (body)    body.style.cursor           = '';
-  }
+  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
+  if (body)    body.style.cursor = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
 }
 
 const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', na:'N/A' };
@@ -6117,8 +6107,7 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
       <td style="padding:2px 4px;font-weight:900;color:${r.color};font-size:13px">${r.tick}</td>
       <td style="padding:2px 4px;font-size:10px;color:#1e293b;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}${r.exRef}</td>
       <td style="padding:2px 4px;font-size:10px;color:#475569;text-align:center">${r.pageNum}</td>
-      <td style="padding:2px 4px;font-size:10px;color:#475569">${r.ref}</td>
-      <td style="padding:2px 4px;font-size:10px;color:#64748b;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.loc}</td>
+      <td style="padding:2px 4px;font-size:10px;color:#64748b;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.loc}</td>
     </tr>`).join('');
 
   const legend = document.createElement('div');
@@ -6141,7 +6130,6 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
             <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left"></th>
             <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Attribute</th>
             <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:center">Pg</th>
-            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Ref</th>
             <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Section / Para</th>
           </tr>
         </thead>
@@ -9607,9 +9595,8 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       let col1W  = 18;
       let col2W  = 110;
       let col3W  = 16;
-      let col4W  = 30;
-      let col5W  = 80;
-      let blockW = padX * 2 + col1W + col2W + col3W + col4W + col5W + 10;
+      let col4W  = 110; // Section / Para (was col5W, now promoted)
+      let blockW = padX * 2 + col1W + col2W + col3W + col4W + 10;
       let lines  = [];
 
       attributes.forEach((attr, ai) => {
@@ -9645,13 +9632,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       page.drawLine({ start: { x: bx, y: by + blockH - headerH }, end: { x: bx + blockW, y: by + blockH - headerH }, thickness: 0.5, color: PDFLib.rgb(0.6, 0.6, 0.4) });
 
       const chY = by + blockH - headerH + 4;
-      page.drawText('Tick',            { x: bx + padX,                                  y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Attribute',       { x: bx + padX + col1W,                          y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Pg',              { x: bx + padX + col1W + col2W,                  y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Ref',             { x: bx + padX + col1W + col2W + col3W,          y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Section / Para',  { x: bx + padX + col1W + col2W + col3W + col4W, y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Tick',            { x: bx + padX,                    y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Attribute',       { x: bx + padX + col1W,            y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Pg',              { x: bx + padX + col1W + col2W,    y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Section / Para',  { x: bx + padX + col1W + col2W + col3W, y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
 
-      [col1W, col1W+col2W, col1W+col2W+col3W, col1W+col2W+col3W+col4W].forEach(offset => {
+      [col1W, col1W+col2W, col1W+col2W+col3W].forEach(offset => {
         page.drawLine({ start: { x: bx + padX + offset - 2, y: by }, end: { x: bx + padX + offset - 2, y: by + blockH - headerH }, thickness: 0.3, color: PDFLib.rgb(0.75, 0.75, 0.6) });
       });
 
@@ -9659,13 +9645,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
         const ly  = by + blockH - headerH - padY - (i + 1) * lineH + 4;
         const col = COLOR[ln.result] || COLOR.error;
         const rgb = PDFLib.rgb(col.r, col.g, col.b);
-        const x1 = bx + padX, x2 = x1 + col1W, x3 = x2 + col2W, x4 = x3 + col3W, x5 = x4 + col4W;
+        const x1 = bx + padX, x2 = x1 + col1W, x3 = x2 + col2W, x4 = x3 + col3W;
         if (i % 2 === 1) page.drawRectangle({ x: bx + 1, y: ly - 3, width: blockW - 2, height: lineH, color: PDFLib.rgb(0.93, 0.93, 0.86), opacity: 0.6 });
         page.drawText(ln.tick,               { x: x1, y: ly, size: 9, font,       color: rgb });
         page.drawText(ln.attrLbl + ln.exRef, { x: x2, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.1,0.1,0.1) });
         page.drawText(ln.pageNum,            { x: x3, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.3,0.3,0.3) });
-        page.drawText(ln.ref,                { x: x4, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.3,0.3,0.3) });
-        if (ln.locStr) page.drawText(ln.locStr, { x: x5, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.35,0.35,0.35) });
+        if (ln.locStr) page.drawText(ln.locStr, { x: x4, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.35,0.35,0.35) });
       });
 
       // ── Inline tick marks at evidence locations ──────────────────────
@@ -9873,52 +9858,95 @@ async function renderPDFPreview(file) {
   // Preserve annotation overlay
   const overlay = document.getElementById('pdf-ann-overlay');
   if (overlay && overlay.parentNode === body) body.removeChild(overlay);
-
-  // Clear body
   Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
+
+  // Loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.style.cssText = 'color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px';
+  loadingDiv.innerHTML = '<i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span style="font-size:13px">Loading PDF…</span>';
+  body.insertBefore(loadingDiv, overlay);
   if (overlay) body.appendChild(overlay);
 
   try {
-    const blobUrl = URL.createObjectURL(file);
-    if (window._currentPDFBlobUrl) URL.revokeObjectURL(window._currentPDFBlobUrl);
-    window._currentPDFBlobUrl = blobUrl;
-
-    // Wrapper holds the embed so we can layer overlay on top
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;width:100%;min-height:700px;flex:1';
-
-    // <embed> for native PDF rendering — pointer-events:none so overlay receives mouse events
-    const embed = document.createElement('embed');
-    embed.src   = blobUrl;
-    embed.type  = 'application/pdf';
-    embed.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;min-height:700px;border:none;display:block;pointer-events:none';
-
-    wrapper.appendChild(embed);
-    body.insertBefore(wrapper, overlay);
-
-    document.getElementById('file-preview-nav').style.display = 'none';
-
-    // Size and re-bind overlay after render
-    setTimeout(() => {
-      const h = Math.max(body.clientHeight, wrapper.clientHeight, 700);
-      const w = body.clientWidth;
-      if (overlay) {
-        overlay.style.width   = w + 'px';
-        overlay.style.height  = h + 'px';
-        overlay.style.zIndex  = '30';
-        overlay.style.pointerEvents = 'none'; // controlled by setAnnotationTool
-      }
-      wrapper.style.height = h + 'px';
-      setupAnnOverlay();
-    }, 300);
-
-    previewPDFDoc      = true;
-    previewTotalPages  = 1;
+    const pdfjsLib = await loadPDFJS();
+    const arrayBuffer = await file.arrayBuffer();
+    previewPDFDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    previewTotalPages  = previewPDFDoc.numPages;
     currentPreviewPage = 1;
+
+    // Update nav
+    const _ptp = document.getElementById('preview-total-pages');
+    if (_ptp) _ptp.textContent = previewTotalPages;
+    const _pip = document.getElementById('preview-page-input');
+    if (_pip) { _pip.value = 1; _pip.max = previewTotalPages; }
+    document.getElementById('file-preview-nav').style.display = previewTotalPages > 1 ? 'flex' : 'none';
+
+    // Remove loading indicator
+    loadingDiv.remove();
+
+    // Render all pages as canvases stacked vertically
+    const zoom = parseFloat(document.getElementById('preview-zoom')?.value || '1');
+    for (let p = 1; p <= previewTotalPages; p++) {
+      const page = await previewPDFDoc.getPage(p);
+      const vp   = page.getViewport({ scale: zoom });
+
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;margin-bottom:8px';
+      wrapper.setAttribute('data-page', p);
+
+      const label = document.createElement('div');
+      label.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:4px';
+      label.textContent = `Page ${p} of ${previewTotalPages}`;
+      wrapper.appendChild(label);
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'preview-page-canvas';
+      canvas.width  = vp.width;
+      canvas.height = vp.height;
+      canvas.style.cssText = 'display:block;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
+      wrapper.appendChild(canvas);
+
+      // Insert before overlay so overlay stays on top
+      body.insertBefore(wrapper, overlay);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    }
+
+    // Size overlay to cover all rendered content
+    requestAnimationFrame(() => {
+      if (overlay) {
+        overlay.style.position   = 'absolute';
+        overlay.style.top        = '0';
+        overlay.style.left       = '0';
+        overlay.style.width      = body.scrollWidth  + 'px';
+        overlay.style.height     = body.scrollHeight + 'px';
+        overlay.style.zIndex     = '30';
+        overlay.style.pointerEvents = 'none'; // controlled per-element
+      }
+      setupAnnOverlay();
+    });
+
+    // Page scroll tracking
+    body.addEventListener('scroll', () => {
+      const pages = body.querySelectorAll('[data-page]');
+      for (const pg of pages) {
+        const rect = pg.getBoundingClientRect();
+        const bodyRect = body.getBoundingClientRect();
+        if (rect.top >= bodyRect.top - rect.height / 2) {
+          const pNum = parseInt(pg.getAttribute('data-page'), 10);
+          if (pNum !== currentPreviewPage) {
+            currentPreviewPage = pNum;
+            const _pip2 = document.getElementById('preview-page-input');
+            if (_pip2) _pip2.value = pNum;
+          }
+          break;
+        }
+      }
+    });
 
   } catch(err) {
     const ann2 = document.getElementById('pdf-ann-overlay');
     if (ann2 && ann2.parentNode === body) body.removeChild(ann2);
+    loadingDiv.remove();
     body.innerHTML = `
       <div style="color:#f87171;text-align:center;padding:40px 20px">
         <i class="ti ti-alert-triangle" style="font-size:36px;display:block;margin-bottom:10px"></i>
@@ -9931,12 +9959,12 @@ async function renderPDFPreview(file) {
 }
 
 async function renderPreviewPage(pageNum) {
-  // Scroll to the requested page instead of re-rendering
   if (!previewPDFDoc) return;
   currentPreviewPage = Math.max(1, Math.min(pageNum, previewTotalPages));
-  document.getElementById('preview-page-input').value = currentPreviewPage;
+  const _pip = document.getElementById('preview-page-input');
+  if (_pip) _pip.value = currentPreviewPage;
   const body = document.getElementById('file-preview-body');
-  const target = body.querySelector(`[data-page="${currentPreviewPage}"]`);
+  const target = body?.querySelector(`[data-page="${currentPreviewPage}"]`);
   if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
