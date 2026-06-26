@@ -24,12 +24,6 @@ app.get('/pdfjs/pdf.min.js', (req, res) => {
   res.sendFile(require.resolve('pdfjs-dist/build/pdf.min.js'));
 });
 
-app.get('/pdfjs/pdf.worker.min.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
-  res.sendFile(require.resolve('pdfjs-dist/build/pdf.worker.min.js'));
-});
-
 // ── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
