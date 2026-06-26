@@ -9603,92 +9603,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     }
 
     try {
-      console.log('[Annotate] Loading PDF bytes for:', sfEntry.name);
-      let origBytes = await sfEntry.file.arrayBuffer();
-      let pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
-      let font      = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-      let fontReg   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-      let page      = pdfDoc.getPages()[0];
-      let pageSize  = page.getSize();
-      let pw = pageSize.width, ph = pageSize.height;
-      console.log('[Annotate] PDF loaded, pages:', pdfDoc.getPageCount(), 'size:', pw, 'x', ph);
-
-      // ── Legend block (top-right of page 1) ─────────────────────────
-      let lineH  = 15;
-      let padX   = 6;
-      let padY   = 6;
-      let col1W  = 18;
-      let col2W  = 110;
-      let col3W  = 16;
-      let col4W  = 110; // Section / Para (was col5W, now promoted)
-      let blockW = padX * 2 + col1W + col2W + col3W + col4W + 10;
-      let lines  = [];
-
-      attributes.forEach((attr, ai) => {
-        let match = fileResult.results.find(r => r.title === attr.title);
-        if (!match) {
-          const al = attr.title.toLowerCase();
-          match = fileResult.results.find(r =>
-            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-          );
-        }
-        const result  = match?.result || 'error';
-        const tick    = TICK[result] || '-';
-        const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
-        const rawLbl  = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
-        const attrLbl = rawLbl.length > 22 ? rawLbl.slice(0,21) + '.' : rawLbl;
-        const pageNum = (match?.page  && match.page  > 0) ? String(match.page)  : '';
-        const ref2    = (attr.attrRef || attr.num || String(ai+1));
-        const section = (match?.section || '').slice(0, 14);
-        const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph : '';
-        const locStr  = [section, para].filter(Boolean).join(' ');
-        lines.push({ tick, result, attrLbl, exRef, pageNum, ref: ref2, locStr, match, ai, attr });
-      });
-
-      const headerH = 20;
-      const blockH  = lines.length * lineH + padY * 2 + headerH;
-      const bx = Math.max(10, pw - blockW - 10);
-      const by = Math.max(10, ph - blockH - 10);
-
-      page.drawRectangle({ x: bx, y: by, width: blockW, height: blockH, color: PDFLib.rgb(0.97, 0.97, 0.90), opacity: 0.95 });
-      page.drawRectangle({ x: bx, y: by, width: blockW, height: blockH, borderColor: PDFLib.rgb(0.5, 0.5, 0.3), borderWidth: 0.75, color: PDFLib.rgb(0.97, 0.97, 0.90), opacity: 0 });
-
-      page.drawText('Testwork Summary', { x: bx + padX, y: by + blockH - 12, size: 8, font, color: PDFLib.rgb(0.22, 0.38, 0.55) });
-      page.drawLine({ start: { x: bx, y: by + blockH - headerH }, end: { x: bx + blockW, y: by + blockH - headerH }, thickness: 0.5, color: PDFLib.rgb(0.6, 0.6, 0.4) });
-
-      const chY = by + blockH - headerH + 4;
-      page.drawText('Tick',            { x: bx + padX,                    y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Attribute',       { x: bx + padX + col1W,            y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Pg',              { x: bx + padX + col1W + col2W,    y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-      page.drawText('Section / Para',  { x: bx + padX + col1W + col2W + col3W, y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
-
-      [col1W, col1W+col2W, col1W+col2W+col3W].forEach(offset => {
-        page.drawLine({ start: { x: bx + padX + offset - 2, y: by }, end: { x: bx + padX + offset - 2, y: by + blockH - headerH }, thickness: 0.3, color: PDFLib.rgb(0.75, 0.75, 0.6) });
-      });
-
-      lines.forEach((ln, i) => {
-        const ly  = by + blockH - headerH - padY - (i + 1) * lineH + 4;
-        const col = COLOR[ln.result] || COLOR.error;
-        const rgb = PDFLib.rgb(col.r, col.g, col.b);
-        const x1 = bx + padX, x2 = x1 + col1W, x3 = x2 + col2W, x4 = x3 + col3W;
-        if (i % 2 === 1) page.drawRectangle({ x: bx + 1, y: ly - 3, width: blockW - 2, height: lineH, color: PDFLib.rgb(0.93, 0.93, 0.86), opacity: 0.6 });
-        page.drawText(ln.tick,               { x: x1, y: ly, size: 9, font,       color: rgb });
-        page.drawText(ln.attrLbl + ln.exRef, { x: x2, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.1,0.1,0.1) });
-        page.drawText(ln.pageNum,            { x: x3, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.3,0.3,0.3) });
-        if (ln.locStr) page.drawText(ln.locStr, { x: x4, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.35,0.35,0.35) });
-      });
-
-      // Inline tick marks are NOT burned into the PDF here.
-      // They are placed as interactive overlay elements in the viewer
-      // (via placeInteractiveAnnotations) and only burned in when the
-      // user clicks "Save annotated PDF" from the annotation toolbar.
-
-      console.log('[Annotate] Drawing complete, saving PDF...');
-      const pdfBytes = await pdfDoc.save();
-      const annBlob  = new Blob([pdfBytes], { type: 'application/pdf' });
+      console.log('[Annotate] Renaming to annotated version (overlay-only annotations)');
+      // No pdf-lib processing needed — annotations are overlay-only and saved by user
+      const annBlob  = sfEntry.file;
       const annFile  = new File([annBlob], annName, { type: 'application/pdf' });
       const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-      console.log('[Annotate] Saved, blob size:', annBlob.size, 'annName:', annName);
+      console.log('[Annotate] Ready, annName:', annName);
 
       // Replace original AND any existing annotated version in sample files
       const sfArr = inMemoryFiles[ref].sample;
