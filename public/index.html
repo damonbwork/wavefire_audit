@@ -9678,30 +9678,10 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
         if (ln.locStr) page.drawText(ln.locStr, { x: x4, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.35,0.35,0.35) });
       });
 
-      // ── Inline tick marks at evidence locations ──────────────────────
-      const pages = pdfDoc.getPages();
-      lines.forEach((ln) => {
-        const match = ln.match;
-        if (!match || match.result === 'error') return;
-        const targetPageNum = (match.page && match.page > 0) ? match.page : 1;
-        const targetPage    = pages[Math.min(targetPageNum - 1, pages.length - 1)];
-        if (!targetPage) return;
-        const _tps = targetPage.getSize(); const tpw = _tps.width, tph = _tps.height;
-        const col = COLOR[match.result] || COLOR.error;
-        const rgb = PDFLib.rgb(col.r, col.g, col.b);
-        const tick = TICK[match.result] || '-';
-        const exRef = exMap[`${fi}-${ln.ai}`] ? ' [' + exMap[`${fi}-${ln.ai}`] + ']' : '';
-        const label = (ln.attr.attrRef || String(ln.ai+1)) + exRef;
-        const paraNum    = (match.paragraph && match.paragraph > 0) ? match.paragraph : 1;
-        const topMargin  = 40;
-        const paraHeight = Math.min(14, (tph - topMargin * 2) / Math.max(paraNum + 2, 10));
-        const estimatedY = tph - topMargin - (paraNum * paraHeight) - 4;
-        const clampedY   = Math.max(20, Math.min(tph - 20, estimatedY));
-        const bgColor = match.result === 'pass' ? PDFLib.rgb(0.9, 1.0, 0.9) : match.result === 'pass_exception' ? PDFLib.rgb(1.0, 0.95, 0.88) : PDFLib.rgb(1.0, 0.9, 0.9);
-        targetPage.drawRectangle({ x: 5, y: clampedY - 3, width: 30, height: 12, color: bgColor, opacity: 0.7 });
-        targetPage.drawText(tick,  { x: 6,  y: clampedY, size: 9, font,       color: rgb });
-        targetPage.drawText(label, { x: 16, y: clampedY, size: 6, font: fontReg, color: rgb });
-      });
+      // Inline tick marks are NOT burned into the PDF here.
+      // They are placed as interactive overlay elements in the viewer
+      // (via placeInteractiveAnnotations) and only burned in when the
+      // user clicks "Save annotated PDF" from the annotation toolbar.
 
       console.log('[Annotate] Drawing complete, saving PDF...');
       const pdfBytes = await pdfDoc.save();
