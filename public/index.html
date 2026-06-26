@@ -2059,7 +2059,7 @@
 
   <!-- Claude Analysis Progress Modal -->
   <div id="analysis-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10001;align-items:center;justify-content:center">
-    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:440px;max-width:92vw;padding:28px 24px;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+    <div id="analysis-modal" style="background:var(--bg-primary);border-radius:var(--radius-lg);width:440px;max-width:92vw;padding:28px 24px;box-shadow:0 20px 48px rgba(0,0,0,0.22);transition:width 0.25s ease">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
         <div style="width:36px;height:36px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <i class="ti ti-sparkles" style="font-size:18px;color:#7c3aed"></i>
@@ -2073,6 +2073,8 @@
       <div id="analysis-status" style="font-size:12px;color:var(--text-secondary);min-height:18px;margin-bottom:18px"></div>
       <!-- File results list -->
       <div id="analysis-results-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-bottom:12px"></div>
+      <!-- Background annotation status -->
+      <div id="analysis-ann-status" style="display:none;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);padding:6px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);border:0.5px solid var(--border-light);margin-bottom:10px"></div>
       <!-- Claude narrative commentary (shown after analysis completes) -->
       <div id="analysis-commentary" style="display:none;background:var(--bg-secondary);border-radius:var(--radius-md);border:0.5px solid var(--border-light);padding:12px 14px;margin-bottom:14px;max-height:200px;overflow-y:auto">
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">
@@ -2081,15 +2083,22 @@
         <div id="analysis-commentary-text" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"></div>
       </div>
       <!-- Buttons -->
-      <div style="display:flex;justify-content:flex-end;gap:8px" id="analysis-btn-row">
-        <button class="btn-s" id="dl-guidance-btn" style="display:none;margin-right:auto" onclick="downloadTestGuidance()">
-          <i class="ti ti-file-description"></i> Download Provided Test Guidance
+      <div id="analysis-btn-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px">
+        <!-- Left: guidance download -->
+        <button class="btn-s" id="dl-guidance-btn" style="display:none" onclick="downloadTestGuidance()">
+          <i class="ti ti-file-description"></i>Test Guidance
         </button>
-        <button class="btn-s" onclick="closeAnalysis()">Cancel</button>
+        <button class="btn-s" id="dl-log-btn" style="display:none;font-size:10px;color:var(--text-tertiary)" onclick="downloadActivityLog()">
+          <i class="ti ti-file-text"></i>Activity Log
+        </button>
+        <!-- Spacer pushes right-side buttons to the right -->
+        <div style="flex:1"></div>
+        <!-- Right: action buttons -->
+        <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Cancel</button>
         <button class="btn-s" id="download-commentary-btn" style="display:none" onclick="downloadCommentary()">
-          <i class="ti ti-file-text"></i>Download commentary
+          <i class="ti ti-file-text"></i>Commentary
         </button>
-        <button class="btn-p" id="export-xlsx-btn" style="display:none" onclick="exportToXlsx(false)">
+        <button class="btn-s" id="export-xlsx-btn" style="display:none" onclick="exportToXlsx(false)">
           <i class="ti ti-download"></i>Download .xlsx
         </button>
         <button class="btn-s" id="attach-xlsx-btn" style="display:none" onclick="exportToXlsx(true)">
@@ -7997,6 +8006,8 @@ async function analyzeWithClaude() {
   const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
   const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
   const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
+  const _annSt = document.getElementById('analysis-ann-status'); if(_annSt) { _annSt.style.display='none'; _annSt.innerHTML=''; }
+  const _modalReset = document.getElementById('analysis-modal'); if(_modalReset) _modalReset.style.width = '440px';
   const _eb = document.getElementById('export-xlsx-btn'); if(_eb) _eb.style.display = 'none';
   const _ab = document.getElementById('attach-xlsx-btn'); if(_ab) _ab.style.display = 'none';
   const _gb = document.getElementById('dl-guidance-btn'); if(_gb) _gb.style.display = 'none';
@@ -8006,7 +8017,7 @@ async function analyzeWithClaude() {
   if (_commentaryEl) _commentaryEl.style.display = 'none';
 
   // Safe cancel button wiring
-  const _cancelBtn = document.querySelector('#analysis-btn-row .btn-s');
+  const _cancelBtn = document.getElementById('analysis-close-btn');
   if (_cancelBtn) {
     _cancelBtn.textContent = 'Cancel';
     _cancelBtn._origOnclick = _cancelBtn.onclick;
@@ -8448,9 +8459,19 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   if (_attachBtn) _attachBtn.style.display = 'inline-flex';
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
+  const _logBtn = document.getElementById('dl-log-btn');
+  if (_logBtn) _logBtn.style.display = 'inline-flex';
 
-  // ── Auto-annotate sample PDF files with tick marks immediately after analysis ──
-  // Build exMap here so it's available for annotation
+  // Widen dialog to fit all buttons comfortably
+  const _modal = document.getElementById('analysis-modal');
+  if (_modal) _modal.style.width = '680px';
+
+  // Update Cancel → Close
+  const _closeBtn = document.getElementById('analysis-close-btn');
+  if (_closeBtn) { _closeBtn.textContent = 'Close'; _closeBtn.onclick = closeAnalysis; }
+
+  // ── Auto-annotate sample PDF files — independent background process ──
+  // Fires immediately, before buttons appear, non-blocking
   const _exMapForAnnotation = {};
   let _exNumForAnnotation = 0;
   analysisResults.forEach((fileResult, fi) => {
@@ -8468,14 +8489,30 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       }
     });
   });
-  setTimeout(() => {
-    annotateSampleFilesWithTicks(ref, analysisResults, attributes, _exMapForAnnotation).catch(e => {
+
+  // Show annotation status independently below the results list
+  const _annStatusEl = document.getElementById('analysis-ann-status');
+  if (_annStatusEl) {
+    _annStatusEl.style.display = 'flex';
+    _annStatusEl.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:13px"></i> Annotating sample files…';
+  }
+
+  // Run immediately as background promise — does not block UI
+  annotateSampleFilesWithTicks(ref, analysisResults, attributes, _exMapForAnnotation)
+    .then(() => {
+      if (_annStatusEl) {
+        _annStatusEl.innerHTML = '<i class="ti ti-check" style="color:#16a34a;font-size:13px"></i> Sample files annotated and updated.';
+      }
+    })
+    .catch(e => {
       console.warn('Sample file annotation skipped:', e.message);
+      if (_annStatusEl) {
+        _annStatusEl.innerHTML = '<i class="ti ti-alert-triangle" style="color:#ea580c;font-size:13px"></i> Annotation skipped: ' + e.message;
+      }
     });
-  }, 300);
 
   // Restore cancel button to Close
-  const _closeBtnFinal = document.querySelector('#analysis-btn-row .btn-s');
+  const _closeBtnFinal = document.getElementById('analysis-close-btn');
   if (_closeBtnFinal) {
     _closeBtnFinal.textContent = 'Close';
     _closeBtnFinal.onclick = closeAnalysis;
