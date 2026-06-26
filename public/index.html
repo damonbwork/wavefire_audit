@@ -7,30 +7,35 @@
 <!-- Preconnect to CDNs for faster loading -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://unpkg.com">
-<!-- Eagerly load PDF.js — uses Railway proxy when deployed, CDN when on claude.ai -->
+<!-- Eagerly load PDF.js — worker disabled to avoid version/CORS issues -->
 <script>
 (function() {
-  var host = window.location.hostname;
+  var host     = window.location.hostname;
   var isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
   var isClaude = host.includes('claude.ai');
-  var pdfSrc    = (isLocal || isClaude) ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'        : '/pdfjs/pdf.min.js';
-  var workerSrc = (isLocal || isClaude) ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js' : '/pdfjs/pdf.worker.min.js';
-
-  function apply(lib, src) {
-    try { lib.GlobalWorkerOptions.workerSrc = src; } catch(e) {
-      try { lib.GlobalWorkerOptions.workerSrc = ''; } catch(e2) {}
-    }
-  }
+  var pdfSrc   = (isLocal || isClaude)
+    ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    : '/pdfjs/pdf.min.js';
 
   var s = document.createElement('script');
   s.src = pdfSrc;
   s.async = true;
-  s.onload = function() { if (window.pdfjsLib) apply(window.pdfjsLib, workerSrc); };
+  s.onload = function() {
+    if (window.pdfjsLib) {
+      // Disable worker — main thread mode, no worker loading issues
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
+    }
+  };
   s.onerror = function() {
+    // Fallback to CDN if proxy fails
     var s2 = document.createElement('script');
     s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
     s2.async = true;
-    s2.onload = function() { if (window.pdfjsLib) apply(window.pdfjsLib, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'); };
+    s2.onload = function() {
+      if (window.pdfjsLib) {
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
+      }
+    };
     document.head.appendChild(s2);
   };
   document.head.appendChild(s);
@@ -9585,59 +9590,43 @@ const pdfObjectURLs = {};
 const pdfBookmarkCache = {};
 
 async function loadPDFJS() {
-  // If already loaded and worker is set, return immediately
-  if (window.pdfjsLib?.GlobalWorkerOptions?.workerSrc) return window.pdfjsLib;
-  // If loaded but worker not set, try to set it
   if (window.pdfjsLib) {
-    const host = window.location.hostname;
-    const isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
-    const isClaude = host.includes('claude.ai');
-    const workerSrc = (isLocal || isClaude)
-      ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-      : '/pdfjs/pdf.worker.min.js';
-    try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc; } catch(e) {}
+    // Ensure worker is disabled (main thread mode — avoids all worker loading issues)
+    try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
     return window.pdfjsLib;
   }
 
-  // Not loaded yet — load it now
   return new Promise((resolve, reject) => {
-    const host = window.location.hostname;
+    const host     = window.location.hostname;
     const isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
     const isClaude = host.includes('claude.ai');
 
-    const pdfSrc    = (isLocal || isClaude)
+    // Use Railway proxy when deployed, CDN when on claude.ai or local
+    const pdfSrc = (isLocal || isClaude)
       ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
       : '/pdfjs/pdf.min.js';
-    const workerSrc = (isLocal || isClaude)
-      ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-      : '/pdfjs/pdf.worker.min.js';
 
-    function applyWorker(lib) {
-      try { lib.GlobalWorkerOptions.workerSrc = workerSrc; } catch(e) {}
-    }
-
-    function tryLoad(src, fallbackSrc) {
+    function tryLoad(src, fallback) {
       const s = document.createElement('script');
       s.src = src;
       s.onload = () => {
-        if (!window.pdfjsLib) { reject(new Error('PDF.js script loaded but pdfjsLib not found')); return; }
-        applyWorker(window.pdfjsLib);
+        if (!window.pdfjsLib) {
+          if (fallback) { tryLoad(fallback, null); return; }
+          reject(new Error('PDF.js loaded but pdfjsLib not available'));
+          return;
+        }
+        // Disable worker — run in main thread, no version mismatch possible
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
         resolve(window.pdfjsLib);
       };
       s.onerror = () => {
-        if (fallbackSrc) {
-          tryLoad(fallbackSrc, null);
-        } else {
-          reject(new Error('Could not load PDF.js — check that /pdfjs/pdf.min.js is accessible on the server'));
-        }
+        if (fallback) tryLoad(fallback, null);
+        else reject(new Error('Could not load PDF.js. Check /pdfjs/pdf.min.js on the server.'));
       };
       document.head.appendChild(s);
     }
 
-    // Primary: Railway proxy or CDN; fallback: the other one
-    const fallback = (isLocal || isClaude)
-      ? null  // no fallback for CDN on claude.ai
-      : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    const fallback = (isLocal || isClaude) ? null : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
     tryLoad(pdfSrc, fallback);
   });
 }
