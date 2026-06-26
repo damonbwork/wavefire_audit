@@ -9436,15 +9436,34 @@ async function loadPDFJS() {
   if (window.pdfjsLib) return window.pdfjsLib;
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    // Use unpkg as primary — more reliable cross-origin than cdnjs
+    script.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+    script.crossOrigin = 'anonymous';
     script.onload = () => {
       try {
+        // Set worker from same CDN to avoid CORS issues
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      } catch(e) {}
+          'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      } catch(e) {
+        // Fallback: disable worker (runs in main thread, slower but works)
+        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e2) {}
+      }
       resolve(window.pdfjsLib);
     };
-    script.onerror = () => reject(new Error('Failed to load PDF.js from CDN. Check your network connection.'));
+    script.onerror = () => {
+      // Fallback to cdnjs
+      const script2 = document.createElement('script');
+      script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script2.onload = () => {
+        try {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        } catch(e) {}
+        resolve(window.pdfjsLib);
+      };
+      script2.onerror = () => reject(new Error('Could not load PDF.js — check your network connection.'));
+      document.head.appendChild(script2);
+    };
     document.head.appendChild(script);
   });
 }
