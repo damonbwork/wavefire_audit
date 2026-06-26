@@ -8279,6 +8279,7 @@ function populateAuditInfoCard(audit) {
 ══════════════════════════════════════ */
 
 let analysisResults = []; // [{fileName, results:[{attrTitle, result, note},...]}]
+const _wpAnalysisResults = {}; // persisted per ref: { ref: analysisResults[] }
 
 function downloadCommentary() {
   const ref = getWPRef();
@@ -8773,6 +8774,8 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const successCount = analysisResults.length - errorCount;
 
   if (_timeoutHandle) clearTimeout(_timeoutHandle);
+  // Persist results for this workpaper so viewer can use them after navigation
+  _wpAnalysisResults[ref] = analysisResults.slice();
   logEntry('COMPLETE', `Analysis finished. ${successCount} ok, ${errorCount} errors`);
 
   setProgress(100, errorCount > 0
@@ -9785,36 +9788,45 @@ async function previewMemFile(ref, bucket, idx) {
     setupAnnOverlay();
 
     // If this is a sample file and we have analysis results, place the legend overlay
-    if (bucket === 'sample' && analysisResults.length) {
-      // Match by name (strip _annotated suffix for matching)
-      const baseName = name.replace(/_annotated\.pdf$/i, '');
-      const fileResult = analysisResults.find(r =>
-        r.fileName === name || r.fileName === baseName ||
-        r.fileName.replace(/_annotated\.pdf$/i, '') === baseName
-      );
-      if (fileResult) {
-        const fi = analysisResults.indexOf(fileResult);
-        const exMapLocal = {};
-        let exNum = 0;
-        analysisResults.forEach((fr, fii) => {
-          (wpTestAttributes[ref] || []).filter(a => a.title).forEach((attr, ai) => {
-            let m = fr.results.find(r => r.title === attr.title);
-            if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
-              exNum++;
-              exMapLocal[`${fii}-${ai}`] = `E${exNum}`;
-            }
+    if (bucket === 'sample') {
+      // Use persisted results for this workpaper (survives navigation/refresh)
+      const wpResults = (_wpAnalysisResults[ref] || []).length
+        ? _wpAnalysisResults[ref]
+        : analysisResults;
+
+      if (wpResults.length) {
+        const baseName = name.replace(/_annotated\.pdf$/i, '');
+        const fileResult = wpResults.find(r =>
+          r.fileName === name || r.fileName === baseName ||
+          r.fileName.replace(/_annotated\.pdf$/i, '') === baseName
+        );
+        if (fileResult) {
+          console.log('[Viewer] Found analysis results for', name, '— placing overlays');
+          const fi = wpResults.indexOf(fileResult);
+          const exMapLocal = {};
+          let exNum = 0;
+          wpResults.forEach((fr, fii) => {
+            (wpTestAttributes[ref] || []).filter(a => a.title).forEach((attr, ai) => {
+              let m = fr.results.find(r => r.title === attr.title);
+              if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
+                exNum++;
+                exMapLocal[`${fii}-${ai}`] = `E${exNum}`;
+              }
+            });
           });
-        });
-        // Wait for PDF canvas to fully render before placing overlays
-        const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
-        const _doPlace = () => {
-          console.log('[Viewer] Placing interactive annotations, overlay=', document.getElementById('pdf-ann-overlay'));
-          placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
-          placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
-        };
-        // Try after 1s, and again after 3s in case PDF is slow to render
-        setTimeout(_doPlace, 1000);
-        setTimeout(_doPlace, 3000);
+          const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
+          const _doPlace = () => {
+            console.log('[Viewer] Placing interactive annotations, overlay=', document.getElementById('pdf-ann-overlay'));
+            placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
+            placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
+          };
+          setTimeout(_doPlace, 1000);
+          setTimeout(_doPlace, 3000);
+        } else {
+          console.log('[Viewer] No matching analysis result for', name, '— results:', wpResults.map(r=>r.fileName));
+        }
+      } else {
+        console.log('[Viewer] No analysis results available for ref', ref);
       }
     }
   } else {
