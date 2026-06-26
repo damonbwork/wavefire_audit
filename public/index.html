@@ -2082,12 +2082,18 @@
       </div>
       <!-- Buttons -->
       <div style="display:flex;justify-content:flex-end;gap:8px" id="analysis-btn-row">
+        <button class="btn-s" id="dl-guidance-btn" style="display:none;margin-right:auto" onclick="downloadTestGuidance()">
+          <i class="ti ti-file-description"></i> Download Provided Test Guidance
+        </button>
         <button class="btn-s" onclick="closeAnalysis()">Cancel</button>
         <button class="btn-s" id="download-commentary-btn" style="display:none" onclick="downloadCommentary()">
           <i class="ti ti-file-text"></i>Download commentary
         </button>
-        <button class="btn-p" id="export-xlsx-btn" style="display:none" onclick="exportToXlsx()">
+        <button class="btn-p" id="export-xlsx-btn" style="display:none" onclick="exportToXlsx(false)">
           <i class="ti ti-download"></i>Download .xlsx
+        </button>
+        <button class="btn-s" id="attach-xlsx-btn" style="display:none" onclick="exportToXlsx(true)">
+          <i class="ti ti-paperclip"></i>Add to Workpaper Files
         </button>
       </div>
     </div>
@@ -2173,11 +2179,16 @@
         </button>
         <!-- Right side -->
         <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
-        <span id="ann-count-label" style="font-size:11px;color:rgba(255,255,255,0.5)">0 annotations</span>
-        <button onclick="clearAnnotations()" title="Clear all annotations"
-          style="font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.15);cursor:pointer;background:transparent;color:rgba(255,255,255,0.5)">
-          Clear
+        <button onclick="undoAnnotation()" title="Undo last annotation (Ctrl+Z)"
+          style="font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff">
+          <i class="ti ti-arrow-back-up"></i>
         </button>
+        <button onclick="redoAnnotation()" title="Redo (Ctrl+Shift+Z)"
+          style="font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff">
+          <i class="ti ti-arrow-forward-up"></i>
+        </button>
+        <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
+        <span id="ann-count-label" style="font-size:11px;color:rgba(255,255,255,0.5)">0 annotations</span>
         <div style="margin-left:auto">
           <button onclick="saveAnnotatedPDF()" id="ann-save-btn"
             style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;background:#ea580c;color:#fff;font-weight:600;display:flex;align-items:center;gap:6px">
@@ -3952,6 +3963,147 @@ let currentAnnTool = null;
 let pdfAnnotations = []; // { page, x, y, w, h, type, text, color }
 let _annFileEntry  = null; // the current file entry being annotated
 
+let _annUndoStack = [];
+let _annRedoStack = [];
+
+function _annPushUndo() {
+  // Snapshot current annotations (store element references and positions)
+  _annUndoStack.push(pdfAnnotations.map(a => ({ ...a })));
+  _annRedoStack = []; // clear redo on new action
+  if (_annUndoStack.length > 50) _annUndoStack.shift(); // cap stack
+}
+
+function undoAnnotation() {
+  if (!_annUndoStack.length) return;
+  // Save current state to redo stack
+  _annRedoStack.push(pdfAnnotations.map(a => ({ ...a })));
+  // Restore previous state
+  const prev = _annUndoStack.pop();
+  _applyAnnotationSnapshot(prev);
+}
+
+function redoAnnotation() {
+  if (!_annRedoStack.length) return;
+  _annUndoStack.push(pdfAnnotations.map(a => ({ ...a })));
+  const next = _annRedoStack.pop();
+  _applyAnnotationSnapshot(next);
+}
+
+function _applyAnnotationSnapshot(snapshot) {
+  // Remove all current annotation elements from overlay
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (overlay) {
+    Array.from(overlay.querySelectorAll('.ann-item')).forEach(el => el.remove());
+  }
+  // Restore snapshot — re-add elements that still exist in the DOM snapshot
+  pdfAnnotations = [];
+  snapshot.forEach(ann => {
+    if (ann.el && overlay) {
+      // Only re-add if the element was part of the overlay
+      try { overlay.appendChild(ann.el); } catch(e) {}
+      pdfAnnotations.push(ann);
+    }
+  });
+  updateAnnCount();
+}
+
+// Keyboard shortcuts: Ctrl+Z / Ctrl+Shift+Z
+document.addEventListener('keydown', (e) => {
+  const overlay = document.getElementById('file-preview-overlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undoAnnotation();
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redoAnnotation();
+  }
+});
+
+// ── Annotation Selection System ──────────────────────────────────
+let _selectedAnn = null;
+
+function _selectAnnotation(el) {
+  // Deselect previous
+  if (_selectedAnn && _selectedAnn !== el) _deselectAnnotation(_selectedAnn);
+  _selectedAnn = el;
+  el.style.outline = '2px solid #3b82f6';
+  el.style.outlineOffset = '2px';
+  // Show delete button if not already there
+  if (!el.querySelector('.ann-delete-btn')) {
+    const del = document.createElement('button');
+    del.className = 'ann-delete-btn';
+    del.innerHTML = '×';
+    del.title = 'Delete annotation (Del)';
+    del.style.cssText = 'position:absolute;top:-10px;right:-10px;width:18px;height:18px;border-radius:50%;' +
+      'background:#ef4444;color:#fff;border:none;cursor:pointer;font-size:13px;line-height:1;' +
+      'display:flex;align-items:center;justify-content:center;z-index:70;padding:0;font-weight:700';
+    del.onmousedown = ev => ev.stopPropagation();
+    del.onclick = ev => { ev.stopPropagation(); _deleteAnnotation(el); };
+    el.appendChild(del);
+  }
+}
+
+function _deselectAnnotation(el) {
+  if (!el) return;
+  el.style.outline = '';
+  el.style.outlineOffset = '';
+  el.querySelector('.ann-delete-btn')?.remove();
+  if (_selectedAnn === el) _selectedAnn = null;
+}
+
+function _deleteAnnotation(el) {
+  _annPushUndo();
+  const idx = pdfAnnotations.findIndex(a => a.el === el);
+  if (idx >= 0) pdfAnnotations.splice(idx, 1);
+  el.remove();
+  _selectedAnn = null;
+  updateAnnCount();
+}
+
+// Click on overlay background → deselect
+document.addEventListener('click', (e) => {
+  if (_selectedAnn && !_selectedAnn.contains(e.target)) {
+    _deselectAnnotation(_selectedAnn);
+  }
+});
+
+// Delete/Backspace key removes selected annotation
+document.addEventListener('keydown', (e) => {
+  if (!_selectedAnn) return;
+  // Don't intercept if user is typing in a textarea annotation
+  if (document.activeElement?.tagName === 'TEXTAREA' && document.activeElement !== _selectedAnn) return;
+  if (document.activeElement?.tagName === 'TEXTAREA' && _selectedAnn.tagName === 'TEXTAREA') return;
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    _deleteAnnotation(_selectedAnn);
+  }
+}, true);
+
+function _makeDraggable(el, onStart) {
+  let dm = false, sx = 0, sy = 0, ol = 0, ot = 0;
+  el.addEventListener('mousedown', ev => {
+    // Don't drag if clicking delete button or resizing
+    if (ev.target.classList.contains('ann-delete-btn')) return;
+    if (ev.target.style?.cursor === 'se-resize') return;
+    _selectAnnotation(el);
+    if (onStart) onStart(ev);
+    dm = true;
+    sx = ev.clientX; sy = ev.clientY;
+    ol = parseInt(el.style.left) || 0;
+    ot = parseInt(el.style.top)  || 0;
+    ev.stopPropagation();
+    ev.preventDefault();
+  });
+  document.addEventListener('mousemove', ev => {
+    if (!dm) return;
+    el.style.left = (ol + ev.clientX - sx) + 'px';
+    el.style.top  = (ot + ev.clientY - sy) + 'px';
+  });
+  document.addEventListener('mouseup', () => { dm = false; });
+}
+
 function setAnnotationTool(tool) {
   currentAnnTool = currentAnnTool === tool ? null : tool;
   ['text','highlight'].forEach(t => {
@@ -3985,53 +4137,76 @@ function placeTickMark(type) {
 }
 
 function _addTickToOverlay(overlay, type, x, y) {
+  _annPushUndo();
   const sym = TICK_SYMBOLS[type] || '?';
   const col = TICK_COLORS[type]  || '#374151';
   const bg  = TICK_BG[type]      || 'rgba(55,65,81,0.1)';
 
-  const tick = document.createElement('div');
-  tick.className = 'ann-item';
-  tick.dataset.tickType = type;
-  tick.style.cssText = `position:absolute;left:${x}px;top:${y}px;
+  // Wrapper holds tick symbol + optional text input
+  const wrap = document.createElement('div');
+  wrap.className = 'ann-item';
+  wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;
+    z-index:55;pointer-events:all;display:flex;flex-direction:column;
+    align-items:flex-start;gap:2px`;
+
+  // Tick symbol row
+  const tickRow = document.createElement('div');
+  tickRow.style.cssText = `display:flex;align-items:center;gap:4px;
     font-size:22px;font-weight:900;color:${col};
     background:${bg};border:1.5px solid ${col};
     border-radius:6px;padding:2px 8px;cursor:move;
-    z-index:55;pointer-events:all;user-select:none;
-    line-height:1.3;white-space:nowrap;
+    user-select:none;white-space:nowrap;
     box-shadow:0 2px 8px rgba(0,0,0,0.2)`;
-  tick.textContent = sym;
-  overlay.appendChild(tick);
+  tickRow.textContent = sym;
+
+  // Small "add note" toggle button
+  const addNoteBtn = document.createElement('button');
+  addNoteBtn.title = 'Add note to this tick mark';
+  addNoteBtn.style.cssText = 'font-size:9px;padding:1px 5px;border-radius:3px;border:0.5px solid ' + col +
+    ';background:transparent;color:' + col + ';cursor:pointer;opacity:0.7;pointer-events:all;white-space:nowrap';
+  addNoteBtn.textContent = '+ note';
+
+  // Optional text input (hidden initially)
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text';
+  noteInput.placeholder = 'Add note…';
+  noteInput.style.cssText = `display:none;font-size:11px;padding:2px 6px;border:1.5px solid ${col};
+    border-radius:4px;background:rgba(255,255,255,0.95);color:#1e293b;
+    outline:none;min-width:120px;max-width:220px;pointer-events:all;margin-top:2px`;
+
+  addNoteBtn.onclick = ev => {
+    ev.stopPropagation();
+    noteInput.style.display = noteInput.style.display === 'none' ? 'block' : 'none';
+    if (noteInput.style.display === 'block') {
+      addNoteBtn.textContent = '− note';
+      setTimeout(() => noteInput.focus(), 10);
+    } else {
+      addNoteBtn.textContent = '+ note';
+    }
+  };
+
+  tickRow.appendChild(addNoteBtn);
+  wrap.appendChild(tickRow);
+  wrap.appendChild(noteInput);
+  overlay.appendChild(wrap);
 
   const annIdx = pdfAnnotations.length;
-  pdfAnnotations.push({ type:'tick', tickType: type, symbol: sym, x, y, el: tick });
+  pdfAnnotations.push({ type:'tick', tickType: type, symbol: sym, x, y, text:'', el: wrap });
   updateAnnCount();
 
-  // Draggable
-  let dm=false, mx=0, my=0, ox=0, oy=0;
-  tick.addEventListener('mousedown', ev => {
-    dm=true; mx=ev.clientX; my=ev.clientY;
-    ox=parseInt(tick.style.left)||0; oy=parseInt(tick.style.top)||0;
-    ev.stopPropagation(); ev.preventDefault();
-  });
-  document.addEventListener('mousemove', ev => {
-    if (!dm) return;
-    tick.style.left = (ox + ev.clientX - mx) + 'px';
-    tick.style.top  = (oy + ev.clientY - my) + 'px';
-  });
-  document.addEventListener('mouseup', () => { dm = false; });
+  noteInput.addEventListener('input', () => { pdfAnnotations[annIdx].text = noteInput.value; });
+  noteInput.addEventListener('mousedown', ev => ev.stopPropagation());
+  noteInput.addEventListener('click', ev => ev.stopPropagation());
 
-  // Double-click to remove
-  tick.addEventListener('dblclick', ev => {
-    ev.stopPropagation();
-    const idx = pdfAnnotations.findIndex(a => a.el === tick);
-    if (idx >= 0) pdfAnnotations.splice(idx, 1);
-    tick.remove();
-    updateAnnCount();
-  });
-  return tick;
+  // Make draggable via tick row
+  _makeDraggable(wrap, null);
+
+  return wrap;
 }
 
 function clearAnnotations(silent) {
+  _annUndoStack = [];
+  _annRedoStack = [];
   pdfAnnotations = [];
   const overlay = document.getElementById('pdf-ann-overlay');
   if (overlay) overlay.innerHTML = '';
@@ -4087,7 +4262,7 @@ async function saveAnnotatedPDF() {
 
     // Scale: canvas CSS pixels → PDF units
     const page0 = pages[0];
-    const { width: pw0, height: ph0 } = page0.getSize();
+    const _ps0 = page0.getSize(); const pw0 = _ps0.width, ph0 = _ps0.height;
     const scaleX = pw0 / canvasRect.width;
     const scaleY = ph0 / canvasRect.height;
 
@@ -4106,7 +4281,7 @@ async function saveAnnotatedPDF() {
       }
       const page = pages[Math.min(targetPageIdx, pages.length - 1)];
       if (!page) continue;
-      const { width: pw, height: ph } = page.getSize();
+      const _ps = page.getSize(); const pw = _ps.width, ph = _ps.height;
 
       // Offset within the target page
       let pageOffsetY = 0;
@@ -4119,8 +4294,11 @@ async function saveAnnotatedPDF() {
       const pdfX = ann.x * scaleX;
       const pdfY = ph - (localY * scaleY);
 
-      if (ann.type === 'text' && ann.el?.value?.trim()) {
-        const text = ann.el.value.trim();
+      if (ann.type === 'text') {
+        // text is in textarea inside wrapper div
+        const ta   = ann.el?.querySelector?.('textarea') || ann.el;
+        const text = (ta?.value || ann.text || '').trim();
+        if (!text) continue;
         const textW = Math.min(text.length * 6.5 + 12, pw * 0.4);
         page.drawRectangle({ x: pdfX - 2, y: pdfY - 14, width: textW, height: 18, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.9 });
         page.drawText(text, { x: pdfX + 2, y: pdfY - 10, size: 10, font, color: PDFLib.rgb(0.05, 0.05, 0.05), maxWidth: pw * 0.4 });
@@ -4129,8 +4307,12 @@ async function saveAnnotatedPDF() {
       if (ann.type === 'tick' && ann.symbol) {
         const tColors = { pass:[0.09,0.47,0.24], pass_exception:[0.93,0.35,0.00], fail:[0.75,0.07,0.22], na:[0.42,0.45,0.50] };
         const tc = tColors[ann.tickType] || tColors.na;
-        const tickFontSize = 14;
-        page.drawText(ann.symbol, { x: pdfX, y: pdfY, size: tickFontSize, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
+        page.drawText(ann.symbol, { x: pdfX, y: pdfY, size: 14, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
+        // Draw note text if present
+        const noteText = (ann.text || '').trim();
+        if (noteText) {
+          page.drawText(noteText, { x: pdfX + 18, y: pdfY, size: 8, font: fontReg, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
+        }
       }
 
       if (ann.type === 'highlight' && ann.el) {
@@ -5487,6 +5669,108 @@ function syncWPFsToAudit(ref, fsSet) {
 document.addEventListener('DOMContentLoaded', setupAnnOverlay);
 setTimeout(setupAnnOverlay, 800);
 
+function placeLegendOverlay(fileResult, attributes, exMap, fi) {
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (!overlay) return;
+
+  // Remove any existing legend
+  overlay.querySelector('.ann-legend')?.remove();
+
+  const TICK_SYM = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–', na:'N/A' };
+  const TICK_COL = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280' };
+
+  const rows = attributes.map((attr, ai) => {
+    let match = (fileResult?.results || []).find(r => r.title === attr.title);
+    if (!match) {
+      const al = attr.title.toLowerCase();
+      match = (fileResult?.results || []).find(r =>
+        r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+      );
+    }
+    const result  = match?.result || 'error';
+    const tick    = TICK_SYM[result] || '–';
+    const color   = TICK_COL[result] || '#6b7280';
+    const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
+    const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
+    const pageNum = (match?.page && match.page > 0)           ? String(match.page)      : '';
+    const ref     = (attr.attrRef || attr.num || String(ai+1));
+    const section = (match?.section || '').slice(0, 18);
+    const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph   : '';
+    const loc     = [section, para].filter(Boolean).join(' ');
+    return { tick, color, label, exRef, pageNum, ref, loc };
+  });
+
+  // Build table HTML
+  const rowsHtml = rows.map((r, i) => `
+    <tr style="background:${i%2===0?'transparent':'rgba(0,0,0,0.04)'}">
+      <td style="padding:2px 4px;font-weight:900;color:${r.color};font-size:13px">${r.tick}</td>
+      <td style="padding:2px 4px;font-size:10px;color:#1e293b;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}${r.exRef}</td>
+      <td style="padding:2px 4px;font-size:10px;color:#475569;text-align:center">${r.pageNum}</td>
+      <td style="padding:2px 4px;font-size:10px;color:#475569">${r.ref}</td>
+      <td style="padding:2px 4px;font-size:10px;color:#64748b;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.loc}</td>
+    </tr>`).join('');
+
+  const legend = document.createElement('div');
+  legend.className = 'ann-item ann-legend';
+  legend.style.cssText = `position:absolute;right:12px;top:12px;z-index:55;pointer-events:all;
+    background:rgba(252,252,238,0.97);border:1.5px solid rgba(180,170,100,0.7);
+    border-radius:5px;box-shadow:0 3px 12px rgba(0,0,0,0.2);min-width:340px;
+    font-family:inherit;user-select:none`;
+
+  legend.innerHTML = `
+    <div class="ann-legend-handle" style="background:#39618b;color:#fff;padding:5px 10px;border-radius:3px 3px 0 0;
+      cursor:move;display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.3px">Testwork Summary</span>
+      <span style="font-size:9px;opacity:0.7">drag to move</span>
+    </div>
+    <div style="overflow:auto;max-height:260px">
+      <table style="border-collapse:collapse;width:100%;font-family:inherit">
+        <thead>
+          <tr style="background:rgba(0,0,0,0.06);border-bottom:1px solid rgba(0,0,0,0.1)">
+            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left"></th>
+            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Attribute</th>
+            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:center">Pg</th>
+            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Ref</th>
+            <th style="padding:3px 4px;font-size:9px;font-weight:600;color:#64748b;text-align:left">Section / Para</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+
+  overlay.appendChild(legend);
+
+  // Make draggable via header handle
+  const handle = legend.querySelector('.ann-legend-handle');
+  let dm=false, mx=0, my=0, sx=0, sy=0;
+  handle.addEventListener('mousedown', ev => {
+    _selectAnnotation(legend);
+    dm=true;
+    mx=ev.clientX; my=ev.clientY;
+    sx=parseInt(legend.style.right)||0;
+    sy=parseInt(legend.style.top)||0;
+    ev.stopPropagation(); ev.preventDefault();
+  });
+  document.addEventListener('mousemove', ev => {
+    if (!dm) return;
+    // Switch from right-anchored to left-anchored on first drag
+    if (legend.style.right !== undefined && legend.style.left === '') {
+      const overlayRect = overlay.getBoundingClientRect();
+      const legRect = legend.getBoundingClientRect();
+      legend.style.left = (legRect.left - overlayRect.left) + 'px';
+      legend.style.right = '';
+    }
+    legend.style.left = (parseInt(legend.style.left)||0) + (ev.clientX - mx) + 'px';
+    legend.style.top  = (parseInt(legend.style.top)||0)  + (ev.clientY - my) + 'px';
+    mx = ev.clientX; my = ev.clientY;
+  });
+  document.addEventListener('mouseup', () => { dm = false; });
+
+  // Track in pdfAnnotations so it's included in undo/redo
+  pdfAnnotations.push({ type:'legend', el: legend });
+  updateAnnCount();
+}
+
 function setupAnnOverlay() {
   const overlay = document.getElementById('pdf-ann-overlay');
   if (!overlay) return;
@@ -5504,39 +5788,57 @@ function setupAnnOverlay() {
     const y = e.clientY - rect.top   + (body ? body.scrollTop  : 0);
 
     if (currentAnnTool === 'text') {
+      _annPushUndo();
+
+      // Wrapper div with drag handle at top
+      const wrap = document.createElement('div');
+      wrap.className = 'ann-item';
+      wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;z-index:60;pointer-events:all;
+        display:flex;flex-direction:column;border-radius:4px;
+        box-shadow:0 3px 12px rgba(0,0,0,0.25);min-width:180px;max-width:320px`;
+
+      // Drag handle bar
+      const handle = document.createElement('div');
+      handle.title = 'Drag to move';
+      handle.style.cssText = 'background:#eab308;height:14px;border-radius:4px 4px 0 0;cursor:move;' +
+        'display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none';
+      handle.innerHTML = '<i style="font-size:9px;color:rgba(0,0,0,0.4);letter-spacing:2px">• • •</i>';
+
       const ta = document.createElement('textarea');
-      ta.className = 'ann-item';
       ta.placeholder = 'Type note here…';
-      ta.style.cssText = 'position:absolute;left:' + x + 'px;top:' + y + 'px;' +
-        'min-width:180px;max-width:320px;min-height:40px;height:40px;' +
-        'background:rgba(255,255,199,0.97);border:2px solid #eab308;border-radius:4px;' +
+      ta.style.cssText = 'min-width:180px;max-width:320px;min-height:40px;height:40px;' +
+        'background:rgba(255,255,199,0.97);border:2px solid #eab308;border-top:none;border-radius:0 0 4px 4px;' +
         'padding:5px 8px;font-size:12px;font-family:inherit;resize:both;' +
-        'outline:none;box-shadow:0 3px 12px rgba(0,0,0,0.25);' +
-        'z-index:60;pointer-events:all;cursor:text';
-      overlay.appendChild(ta);
-      // Double rAF ensures focus after all click event handlers finish
+        'outline:none;display:block;cursor:text;pointer-events:all;box-sizing:border-box;width:100%';
+
+      wrap.appendChild(handle);
+      wrap.appendChild(ta);
+      overlay.appendChild(wrap);
       requestAnimationFrame(() => requestAnimationFrame(() => ta.focus()));
 
       const annIdx = pdfAnnotations.length;
-      pdfAnnotations.push({ type:'text', x, y, text:'', el: ta });
-      ta.addEventListener('input',     () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
-      ta.addEventListener('mousedown', ev => ev.stopPropagation());
-      ta.addEventListener('click',     ev => ev.stopPropagation());
+      pdfAnnotations.push({ type:'text', x, y, text:'', el: wrap });
+      ta.addEventListener('input', () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
+      ta.addEventListener('click', ev => ev.stopPropagation());
+      ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
 
-      // Simple drag
-      let dm=false,mx=0,my=0,il=0,it=0;
-      ta.addEventListener('mousedown', ev => {
+      // Drag via handle
+      let dm=false, mx=0, my=0, wl=0, wt=0;
+      handle.addEventListener('mousedown', ev => {
+        _selectAnnotation(wrap);
         dm=true; mx=ev.clientX; my=ev.clientY;
-        il=parseInt(ta.style.left)||0; it=parseInt(ta.style.top)||0;
+        wl=parseInt(wrap.style.left)||0; wt=parseInt(wrap.style.top)||0;
+        ev.stopPropagation(); ev.preventDefault();
       });
       document.addEventListener('mousemove', ev => {
         if (!dm) return;
-        ta.style.left = (il + ev.clientX - mx) + 'px';
-        ta.style.top  = (it + ev.clientY - my) + 'px';
+        wrap.style.left = (wl + ev.clientX - mx) + 'px';
+        wrap.style.top  = (wt + ev.clientY - my) + 'px';
       });
       document.addEventListener('mouseup', () => { dm = false; });
 
     } else if (currentAnnTool === 'highlight') {
+      _annPushUndo();
       const hl = document.createElement('div');
       hl.className = 'ann-item';
       hl.style.cssText = 'position:absolute;left:' + (x-80) + 'px;top:' + (y-14) + 'px;width:180px;height:28px;' +
@@ -5548,22 +5850,21 @@ function setupAnnOverlay() {
       overlay.appendChild(hl);
       pdfAnnotations.push({ type:'highlight', el: hl });
       updateAnnCount();
+      _makeDraggable(hl);
 
-      let mode=null,sx=0,sy=0,ol=0,ot=0,ow=0,oh=0;
-      hl.addEventListener('mousedown', ev => {
+      // Resize handle
+      let rm=false, rsx=0, rsy=0, row=0, roh=0;
+      rh.addEventListener('mousedown', ev => {
+        rm=true; rsx=ev.clientX; rsy=ev.clientY;
+        row=hl.offsetWidth; roh=hl.offsetHeight;
         ev.stopPropagation(); ev.preventDefault();
-        mode = ev.target === rh ? 'resize' : 'move';
-        sx=ev.clientX; sy=ev.clientY;
-        ol=parseInt(hl.style.left)||0; ot=parseInt(hl.style.top)||0;
-        ow=hl.offsetWidth; oh=hl.offsetHeight;
       });
       document.addEventListener('mousemove', ev => {
-        if (!mode) return;
-        var dx=ev.clientX-sx, dy=ev.clientY-sy;
-        if (mode==='move')   { hl.style.left=(ol+dx)+'px'; hl.style.top=(ot+dy)+'px'; }
-        if (mode==='resize') { hl.style.width=Math.max(40,ow+dx)+'px'; hl.style.height=Math.max(14,oh+dy)+'px'; }
+        if (!rm) return;
+        hl.style.width  = Math.max(40, row + ev.clientX - rsx) + 'px';
+        hl.style.height = Math.max(14, roh + ev.clientY - rsy) + 'px';
       });
-      document.addEventListener('mouseup', () => { mode = null; });
+      document.addEventListener('mouseup', () => { rm = false; });
     }
   };
 
@@ -7697,6 +7998,8 @@ async function analyzeWithClaude() {
   const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
   const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
   const _eb = document.getElementById('export-xlsx-btn'); if(_eb) _eb.style.display = 'none';
+  const _ab = document.getElementById('attach-xlsx-btn'); if(_ab) _ab.style.display = 'none';
+  const _gb = document.getElementById('dl-guidance-btn'); if(_gb) _gb.style.display = 'none';
   const _commentaryBtn = document.getElementById('download-commentary-btn');
   if (_commentaryBtn) _commentaryBtn.style.display = 'none';
   const _commentaryEl = document.getElementById('analysis-commentary');
@@ -7726,6 +8029,8 @@ async function analyzeWithClaude() {
       const _as3 = document.getElementById('analysis-status');
       if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
+      const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
+      const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
       if (confirm('Analysis timed out. Download activity log?')) downloadActivityLog();
     }
   }, TIMEOUT_MS);
@@ -7814,10 +8119,11 @@ async function analyzeWithClaude() {
     : '';
 
   // ── Build systemPrompt and userText once — shared by both analyzeOneFile and analyzeOneFileFast ──
-  const locationInstructions = `For each result also include:
-- "page": the page number (integer) where you found the evidence supporting your evaluation (use 0 if not determinable)
-- "section": the section heading, numbered heading, or paragraph label nearest to where you found the evidence (empty string if not determinable)
-- "paragraph": the paragraph count on that page where the evidence appears (integer, count from 1 at top of page; use 0 if not determinable)`;
+  const locationInstructions = `For each result also include the location where you found the supporting evidence:
+- "page": the page number (integer, 1-based) where the evidence was found
+- "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
+- "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
+Be as precise as possible — these coordinates are used to place tick marks directly on the document.`;
 
   const systemPrompt = sampleFields.length
     ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
@@ -8138,6 +8444,10 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     : 'Analysis complete';
 
   document.getElementById('export-xlsx-btn').style.display = 'inline-flex';
+  const _attachBtn = document.getElementById('attach-xlsx-btn');
+  if (_attachBtn) _attachBtn.style.display = 'inline-flex';
+  const _guidanceBtn = document.getElementById('dl-guidance-btn');
+  if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
 
   // ── Auto-annotate sample PDF files with tick marks immediately after analysis ──
   // Build exMap here so it's available for annotation
@@ -8210,6 +8520,138 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     };
     btnRow.insertBefore(retryAllBtn, document.getElementById('export-xlsx-btn'));
   }
+}
+
+function downloadTestGuidance() {
+  const ref  = getWPRef();
+  const wp   = WORKPAPERS[currentWPIndex];
+  const opts = _analysisOptions || {};
+  const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const sampleFields = (wpSampleFields[ref]  || []).filter(f => f.name);
+  const now  = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const lines = [];
+  const HR  = '═'.repeat(70);
+  const hr  = '─'.repeat(70);
+
+  lines.push(HR);
+  lines.push('  WAVEFIRE — TEST GUIDANCE PROVIDED TO CLAUDE');
+  lines.push(`  Generated: ${dateStr} at ${timeStr}`);
+  lines.push(`  Workpaper: ${wp?.name || ref} (${ref})`);
+  lines.push(HR);
+  lines.push('');
+  lines.push('This file documents all guidance and context sent to Claude as part of');
+  lines.push('the Analyze & Create Workpaper API call.');
+  lines.push('');
+
+  // ── Checkboxes selected ───────────────────────────────────────────
+  lines.push(hr);
+  lines.push('ANALYSIS OPTIONS SELECTED');
+  lines.push(hr);
+  const optLabels = [
+    [opts.narrative,     'Process / Control Narrative (text)'],
+    [opts.narrativeFile, 'Process / Control Narrative (attached file)'],
+    [opts.testDesc,      'Test Description'],
+    [opts.attrDesc,      'Test Attribute Descriptions'],
+    [opts.attrAddl,      'Test Attribute Additional Information'],
+    [opts.success,       'Pass / Success Criteria'],
+    [opts.failure,       'Failure Criteria'],
+  ];
+  optLabels.forEach(([checked, label]) => {
+    lines.push(`  [${checked ? 'X' : ' '}]  ${label}`);
+  });
+  lines.push('');
+
+  // ── Process / Control Narrative ───────────────────────────────────
+  if (opts.narrative && wp?.narrative?.trim()) {
+    lines.push(hr);
+    lines.push('PROCESS / CONTROL NARRATIVE');
+    lines.push(hr);
+    lines.push(wp.narrative.trim());
+    lines.push('');
+  }
+
+  // ── Narrative attached file (name only, not contents) ─────────────
+  if (opts.narrativeFile) {
+    const refFiles = wpNarrativeRefFiles[ref];
+    const fileNames = refFiles ? Array.from(refFiles) : [];
+    lines.push(hr);
+    lines.push('PROCESS / CONTROL NARRATIVE — ATTACHED FILE(S)');
+    lines.push(hr);
+    if (fileNames.length) {
+      lines.push('The following file(s) were attached and sent to Claude (contents not reproduced here):');
+      fileNames.forEach(fn => lines.push(`  • ${fn}`));
+    } else {
+      lines.push('  (No narrative attachment was selected)');
+    }
+    lines.push('');
+  }
+
+  // ── Test Description ──────────────────────────────────────────────
+  if (opts.testDesc && wp?.testDesc?.trim()) {
+    lines.push(hr);
+    lines.push('TEST DESCRIPTION');
+    lines.push(hr);
+    lines.push(wp.testDesc.trim());
+    lines.push('');
+  }
+
+  // ── Test Attributes ───────────────────────────────────────────────
+  if (attributes.length) {
+    lines.push(hr);
+    lines.push('TEST ATTRIBUTES');
+    lines.push(hr);
+    attributes.forEach((a, i) => {
+      const ref2 = a.attrRef || a.num || String(i+1);
+      lines.push(`${i+1}. [${ref2}] ${a.title}`);
+      if (opts.attrDesc !== false && a.desc)           lines.push(`   Description:       ${a.desc}`);
+      if (opts.attrAddl  && a.additionalInfo)          lines.push(`   Additional Info:   ${a.additionalInfo}`);
+      if (opts.success   && a.successCriteria)         lines.push(`   Pass Criteria:     ${a.successCriteria}`);
+      if (opts.failure   && a.failureCriteria)         lines.push(`   Failure Criteria:  ${a.failureCriteria}`);
+      lines.push('');
+    });
+  }
+
+  // ── Sample Field Extraction ───────────────────────────────────────
+  if (sampleFields.length) {
+    lines.push(hr);
+    lines.push('SAMPLE FIELD EXTRACTION FIELDS');
+    lines.push(hr);
+    sampleFields.forEach((f, i) => {
+      lines.push(`${i+1}. ${f.name}${f.desc ? ': ' + f.desc : ''}`);
+    });
+    lines.push('');
+  }
+
+  // ── Sample files analyzed ─────────────────────────────────────────
+  const memFiles = (inMemoryFiles[ref]?.sample || []);
+  if (memFiles.length) {
+    lines.push(hr);
+    lines.push('SAMPLE FILES ANALYZED');
+    lines.push(hr);
+    memFiles.forEach((f, i) => {
+      lines.push(`${i+1}. ${f.name} (${f.size})`);
+    });
+    lines.push('');
+  }
+
+  lines.push(HR);
+  lines.push('END OF TEST GUIDANCE REPORT');
+  lines.push(HR);
+
+  const txt  = lines.join('\n');
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const ts   = String(now.getFullYear())
+    + String(now.getMonth()+1).padStart(2,'0')
+    + String(now.getDate()).padStart(2,'0');
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${ref || 'WP'}_TestGuidance_${ts}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function closeAnalysis() {
@@ -8396,7 +8838,7 @@ function _doExportWorkpaperXLSX() {
   const safeName = (w.name || ref).replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
   const filename = `wp_export-${safeName}_${ds}_${ts}.xlsx`;
 
-  // Write to array and force browser download
+  // Write to array
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
   const blob  = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url   = URL.createObjectURL(blob);
@@ -8409,7 +8851,7 @@ function _doExportWorkpaperXLSX() {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-async function exportToXlsx() {
+async function exportToXlsx(attachOnly = false) {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -8629,7 +9071,23 @@ async function exportToXlsx() {
   const timeStr = String(now.getHours()).padStart(2, '0')
     + String(now.getMinutes()).padStart(2, '0');
   const filename = `WP-${auditYear}-${seqNum}_TestResults_${dateStr}_${timeStr}.xlsx`;
-  XLSX.writeFile(wb, filename, { cellStyles: true });
+
+  // ── Build the blob once — used for either download or attach ──
+  const xlsxBlob = new Blob(
+    [XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true })],
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+  );
+
+  if (!attachOnly) {
+    // Download only — do NOT attach to workpaper files
+    const url = URL.createObjectURL(xlsxBlob);
+    const a   = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    const _as3 = document.getElementById('analysis-status');
+    if (_as3) _as3.textContent = 'Download started.';
+  }
 
   // ── Also auto-download commentary .txt if any commentary exists ──
   const commentaryEntries = analysisResults
@@ -8656,11 +9114,8 @@ async function exportToXlsx() {
     setTimeout(() => URL.revokeObjectURL(txtUrl), 2000);
   }
 
-  // ── Add the exported file to Attached Workpaper Files ──
-  const xlsxBlob = new Blob(
-    [XLSX.write(wb, { bookType: 'xlsx', type: 'array' })],
-    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
-  );
+  // ── Add the exported file to Attached Workpaper Files (only when user clicks "Add to Workpaper Files") ──
+  if (attachOnly) {
   const xlsxFile = new File([xlsxBlob], filename, { type: xlsxBlob.type });
   ensureFileStore(ref);
   inMemoryFiles[ref].workpaper.push({
@@ -8680,7 +9135,12 @@ async function exportToXlsx() {
 
   // Show a brief confirmation in the modal status
   const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
-    `Download started — file also added to Attached Workpaper Files.`;
+    'Added to Attached Workpaper Files.';
+
+  // Update button to confirm
+  const _ab = document.getElementById('attach-xlsx-btn');
+  if (_ab) { _ab.innerHTML = '<i class="ti ti-check"></i> Added!'; _ab.disabled = true; }
+  }
 }
 
 async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, exMap) {
@@ -8706,18 +9166,30 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     if (!sfEntry?.file || !fileName.toLowerCase().endsWith('.pdf')) continue;
 
     try {
-      const origBytes = await sfEntry.file.arrayBuffer();
-      const pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
-      const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
-      const fontReg   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-      const page      = pdfDoc.getPages()[0];
-      const { width: pw, height: ph } = page.getSize();
+      let origBytes = await sfEntry.file.arrayBuffer();
+      let pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
+      let font      = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+      let fontReg   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      let page      = pdfDoc.getPages()[0];
+      let pageSize  = page.getSize();
+      let pw = pageSize.width, ph = pageSize.height;
 
-      const lineH  = 16;
-      const padX   = 8;
-      const padY   = 8;
-      const blockW = 260;
-      const lines  = [];
+
+
+      // ── Legend block (top-right of page 1) ─────────────────────────
+      let lineH  = 15;
+      let padX   = 6;
+      let padY   = 6;
+
+      // Column widths
+      let col1W = 18;  // tick
+      let col2W = 110; // attr label + ex ref
+      let col3W = 16;  // page #
+      let col4W = 30;  // ref
+      let col5W = 80;  // section / para
+      let blockW = padX * 2 + col1W + col2W + col3W + col4W + col5W + 10;
+
+      let lines  = [];
 
       attributes.forEach((attr, ai) => {
         let match = fileResult.results.find(r => r.title === attr.title);
@@ -8731,60 +9203,140 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
         const tick    = TICK[result] || '-';
         const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
         const rawLbl  = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
-        const attrLbl = rawLbl.length > 32 ? rawLbl.slice(0,31) + '.' : rawLbl;
-        const note    = (match?.note || '').slice(0, 45);
-        lines.push({ tick, result, attrLbl, exRef, note });
+        const attrLbl = rawLbl.length > 22 ? rawLbl.slice(0,21) + '.' : rawLbl;
+        const pageNum = (match?.page  && match.page  > 0) ? String(match.page)  : '';
+        const ref     = (attr.attrRef || attr.num    || String(ai+1));
+        const section = (match?.section || '').slice(0, 14);
+        const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph : '';
+        const locStr  = [section, para].filter(Boolean).join(' ');
+        lines.push({ tick, result, attrLbl, exRef, pageNum, ref, locStr, match, ai, attr });
       });
 
-      const blockH = lines.length * lineH + padY * 2 + 18;
-      const bx     = pw - blockW - 12;
-      const by     = ph - blockH - 12;
+      const headerH = 20; // header + divider
+      const blockH  = lines.length * lineH + padY * 2 + headerH;
+      // Position top-right, but leave room so it doesn't overlap page edge
+      const bx = pw - blockW - 10;
+      const by = ph - blockH - 10;
 
       // Background fill
-      page.drawRectangle({
-        x: bx, y: by, width: blockW, height: blockH,
-        color: PDFLib.rgb(0.97, 0.97, 0.90),
-        opacity: 0.95,
-      });
-      // Border — separate call
-      page.drawRectangle({
-        x: bx, y: by, width: blockW, height: blockH,
-        borderColor: PDFLib.rgb(0.5, 0.5, 0.3),
-        borderWidth: 0.75,
-        color: PDFLib.rgb(0.97, 0.97, 0.90),
-        opacity: 0,
-      });
+      page.drawRectangle({ x: bx, y: by, width: blockW, height: blockH,
+        color: PDFLib.rgb(0.97, 0.97, 0.90), opacity: 0.95 });
+      // Border
+      page.drawRectangle({ x: bx, y: by, width: blockW, height: blockH,
+        borderColor: PDFLib.rgb(0.5, 0.5, 0.3), borderWidth: 0.75,
+        color: PDFLib.rgb(0.97, 0.97, 0.90), opacity: 0 });
 
-      // Header line
-      page.drawText('Wavefire Audit Testwork', {
-        x: bx + padX, y: by + blockH - 13,
-        size: 7, font: fontReg,
-        color: PDFLib.rgb(0.35, 0.35, 0.35),
+      // Header text
+      page.drawText('Testwork Summary', {
+        x: bx + padX, y: by + blockH - 12,
+        size: 8, font,
+        color: PDFLib.rgb(0.22, 0.38, 0.55),
       });
-      // Divider
+      // Header divider
       page.drawLine({
-        start: { x: bx, y: by + blockH - 16 },
-        end:   { x: bx + blockW, y: by + blockH - 16 },
-        thickness: 0.5,
-        color: PDFLib.rgb(0.7, 0.7, 0.5),
+        start: { x: bx, y: by + blockH - headerH },
+        end:   { x: bx + blockW, y: by + blockH - headerH },
+        thickness: 0.5, color: PDFLib.rgb(0.6, 0.6, 0.4),
       });
 
-      // Tick rows
+      // Column headers
+      const chY = by + blockH - headerH + 4;
+      page.drawText('Tick', { x: bx + padX, y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Attribute',        { x: bx + padX + col1W,                        y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Pg',               { x: bx + padX + col1W + col2W,                y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Ref',              { x: bx + padX + col1W + col2W + col3W,        y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+      page.drawText('Section / Para',   { x: bx + padX + col1W + col2W + col3W + col4W, y: chY, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+
+      // Column dividers
+      [col1W, col1W+col2W, col1W+col2W+col3W, col1W+col2W+col3W+col4W].forEach(offset => {
+        page.drawLine({
+          start: { x: bx + padX + offset - 2, y: by },
+          end:   { x: bx + padX + offset - 2, y: by + blockH - headerH },
+          thickness: 0.3, color: PDFLib.rgb(0.75, 0.75, 0.6),
+        });
+      });
+
+      // Data rows
       lines.forEach((ln, i) => {
-        const lx  = bx + padX;
-        const ly  = by + blockH - 18 - padY - i * lineH;
+        const ly  = by + blockH - headerH - padY - (i + 1) * lineH + 4;
         const col = COLOR[ln.result] || COLOR.error;
         const rgb = PDFLib.rgb(col.r, col.g, col.b);
+        const x1  = bx + padX;
+        const x2  = x1 + col1W;
+        const x3  = x2 + col2W;
+        const x4  = x3 + col3W;
+        const x5  = x4 + col4W;
 
-        // Tick mark (bold, colored)
-        page.drawText(ln.tick, { x: lx, y: ly, size: 8, font, color: rgb });
-        // Attr label + exception ref
-        const label = ln.attrLbl + ln.exRef;
-        page.drawText(label, { x: lx + 22, y: ly, size: 7, font: fontReg, color: PDFLib.rgb(0.1, 0.1, 0.1) });
-        // Note in grey beneath
-        if (ln.note) {
-          page.drawText(ln.note, { x: lx + 22, y: ly - 7, size: 6, font: fontReg, color: PDFLib.rgb(0.45, 0.45, 0.45) });
+        // Alternate row shading
+        if (i % 2 === 1) {
+          page.drawRectangle({ x: bx + 1, y: ly - 3, width: blockW - 2, height: lineH,
+            color: PDFLib.rgb(0.93, 0.93, 0.86), opacity: 0.6 });
         }
+
+        page.drawText(ln.tick,            { x: x1, y: ly, size: 9, font,       color: rgb });
+        page.drawText(ln.attrLbl + ln.exRef, { x: x2, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.1,0.1,0.1) });
+        page.drawText(ln.pageNum,         { x: x3, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.3,0.3,0.3) });
+        page.drawText(ln.ref,             { x: x4, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.3,0.3,0.3) });
+        if (ln.locStr) {
+          page.drawText(ln.locStr,        { x: x5, y: ly, size: 6, font: fontReg, color: PDFLib.rgb(0.35,0.35,0.35) });
+        }
+      });
+
+      // ── Inline tick marks at evidence locations ──────────────────────
+      lines.forEach((ln, i) => {
+        const match = ln.match;
+        if (!match || match.result === 'error') return;
+
+        // Determine which page to annotate
+        const targetPageNum = (match.page && match.page > 0) ? match.page : 1;
+        const targetPage    = pages[Math.min(targetPageNum - 1, pages.length - 1)];
+        if (!targetPage) return;
+
+        const _tps = targetPage.getSize(); const tpw = _tps.width, tph = _tps.height;
+        const col = COLOR[match.result] || COLOR.error;
+        const rgb = PDFLib.rgb(col.r, col.g, col.b);
+        const tick = TICK[match.result] || '-';
+        const exRef = exMap[`${fi}-${ln.ai}`] ? ' [' + exMap[`${fi}-${ln.ai}`] + ']' : '';
+        const label = (ln.attr.attrRef || String(ln.ai+1)) + exRef;
+
+        // Estimate Y position from paragraph count
+        // PDF Y origin is bottom-left; paragraphs counted from top
+        // Assume ~720pt usable page height, ~14pt per paragraph
+        const paraNum  = (match.paragraph && match.paragraph > 0) ? match.paragraph : 1;
+        const topMargin = 40; // points from top
+        const paraHeight = Math.min(14, (tph - topMargin * 2) / Math.max(paraNum + 2, 10));
+        const estimatedY = tph - topMargin - (paraNum * paraHeight) - 4;
+        const clampedY   = Math.max(20, Math.min(tph - 20, estimatedY));
+
+        // Place tick mark in left margin
+        const tickX = 6;
+
+        // Small highlight bar in margin
+        const bgColor = match.result === 'pass'
+          ? PDFLib.rgb(0.9, 1.0, 0.9)
+          : match.result === 'pass_exception'
+          ? PDFLib.rgb(1.0, 0.95, 0.88)
+          : PDFLib.rgb(1.0, 0.9, 0.9);
+
+        targetPage.drawRectangle({
+          x: tickX - 1, y: clampedY - 3,
+          width: 30, height: 12,
+          color: bgColor, opacity: 0.7,
+        });
+
+        // Tick symbol
+        targetPage.drawText(tick, {
+          x: tickX, y: clampedY,
+          size: 9, font,
+          color: rgb,
+        });
+
+        // Attr ref label
+        targetPage.drawText(label, {
+          x: tickX + 10, y: clampedY,
+          size: 6, font: fontReg,
+          color: rgb,
+        });
       });
 
       const pdfBytes = await pdfDoc.save();
@@ -8867,6 +9419,32 @@ async function previewMemFile(ref, bucket, idx) {
     window._previewFile = entry.file;
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
+
+    // If this is a sample file and we have analysis results, place the legend overlay
+    if (bucket === 'sample' && analysisResults.length) {
+      // Match by name (strip _annotated suffix for matching)
+      const baseName = name.replace(/_annotated\.pdf$/i, '');
+      const fileResult = analysisResults.find(r =>
+        r.fileName === name || r.fileName === baseName ||
+        r.fileName.replace(/_annotated\.pdf$/i, '') === baseName
+      );
+      if (fileResult) {
+        const fi = analysisResults.indexOf(fileResult);
+        // Build exMap for this file
+        const exMapLocal = {};
+        let exNum = 0;
+        analysisResults.forEach((fr, fii) => {
+          (wpTestAttributes[ref] || []).filter(a => a.title).forEach((attr, ai) => {
+            let m = fr.results.find(r => r.title === attr.title);
+            if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
+              exNum++;
+              exMapLocal[`${fii}-${ai}`] = `E${exNum}`;
+            }
+          });
+        });
+        setTimeout(() => placeLegendOverlay(fileResult, (wpTestAttributes[ref]||[]).filter(a=>a.title), exMapLocal, fi), 400);
+      }
+    }
   } else {
     const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
     if (toolbarEl2) toolbarEl2.style.display = 'none';
