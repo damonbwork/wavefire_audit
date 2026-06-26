@@ -4233,11 +4233,33 @@ function updateAnnCount() {
 async function loadPdfLib() {
   if (window.PDFLib) return window.PDFLib;
   return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
-    s.onload  = () => resolve(window.PDFLib);
-    s.onerror = () => reject(new Error('Failed to load pdf-lib'));
-    document.head.appendChild(s);
+    const host     = window.location.hostname;
+    const isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
+    const isClaude = host.includes('claude.ai');
+    // On Railway use self-hosted proxy; on claude.ai/local use CDN
+    const src = (isLocal || isClaude)
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
+      : '/pdflib/pdf-lib.min.js';
+
+    function tryLoad(url, fallback) {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = () => {
+        if (window.PDFLib) resolve(window.PDFLib);
+        else if (fallback) tryLoad(fallback, null);
+        else reject(new Error('pdf-lib loaded but PDFLib not found'));
+      };
+      s.onerror = () => {
+        if (fallback) tryLoad(fallback, null);
+        else reject(new Error('Failed to load pdf-lib from all sources'));
+      };
+      document.head.appendChild(s);
+    }
+
+    const fallback = (isLocal || isClaude)
+      ? null
+      : 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+    tryLoad(src, fallback);
   });
 }
 
@@ -9193,7 +9215,10 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
   };
 
   let PDFLib;
-  try { PDFLib = await loadPdfLib(); } catch(e) { console.warn('pdf-lib load failed:', e.message); return; }
+  try { PDFLib = await loadPdfLib(); } catch(e) {
+    console.warn('pdf-lib load failed:', e.message);
+    throw new Error('pdf-lib unavailable: ' + e.message);
+  }
 
   for (let fi = 0; fi < analysisResults.length; fi++) {
     const fileResult = analysisResults[fi];
