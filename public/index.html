@@ -5948,8 +5948,10 @@ document.addEventListener('DOMContentLoaded', setupAnnOverlay);
 setTimeout(setupAnnOverlay, 800);
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
+  console.log('[IAnn] START fi=', fi, 'attrs=', attributes.length, 'results=', fileResult?.results?.length);
   const overlay = document.getElementById('pdf-ann-overlay');
-  if (!overlay) return;
+  console.log('[IAnn] overlay=', overlay, 'overlay pointerEvents=', overlay?.style?.pointerEvents);
+  if (!overlay) { console.warn('[IAnn] No overlay found!'); return; }
 
   // Remove previously placed auto-annotations
   overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
@@ -5957,6 +5959,7 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
 
   const body   = document.getElementById('file-preview-body');
   const bodyH  = body ? (body.scrollHeight || 800) : 800;
+  console.log('[IAnn] body scrollHeight=', bodyH, 'previewTotalPages=', previewTotalPages);
   const pageCount = Math.max(1, previewTotalPages || 1);
   const pageH     = bodyH / pageCount;
 
@@ -6005,6 +6008,7 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
       'box-shadow:0 2px 6px rgba(0,0,0,0.18)';
     tickEl.textContent = sym;
     overlay.appendChild(tickEl);
+    console.log('[IAnn] Tick placed at', tickX, tickY, 'sym=', sym, 'result=', result, 'el in DOM=', overlay.contains(tickEl));
 
     const annIdxTick = pdfAnnotations.length;
     pdfAnnotations.push({ type:'tick', tickType:result, symbol:sym, x:tickX, y:tickY, text:label, el:tickEl, auto:true });
@@ -6051,6 +6055,8 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
     wrap.appendChild(handle);
     wrap.appendChild(ta);
     overlay.appendChild(wrap);
+    console.log('[IAnn] Note placed at', noteX, noteY, 'el in DOM=', overlay.contains(wrap));
+    console.log('[IAnn] wrap computed style left=', wrap.style.left, 'top=', wrap.style.top, 'zIndex=', wrap.style.zIndex);
 
     const annIdxNote = pdfAnnotations.length;
     pdfAnnotations.push({ type:'text', x:noteX, y:noteY, text:ta.value, el:wrap, auto:true });
