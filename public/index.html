@@ -253,7 +253,7 @@
 
   /* SECTION CARDS */
   .sect-card { background: var(--bg-primary); border: 0.5px solid var(--border-light); border-radius: var(--radius-lg); overflow: hidden; position: relative; }
-  .sect-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 0.5px solid var(--border-light); background: var(--bg-secondary); }
+  .sect-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 0.5px solid var(--border-light); background: var(--bg-secondary); gap: 8px; flex-wrap: wrap; }
   .sect-hdr-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
   .sect-hdr-title i { font-size: 14px; }
   .sect-body { padding: 16px; }
@@ -428,7 +428,10 @@
   }
   .attr-input:focus { color: var(--wf-navy); }
   .attr-input::placeholder { color: var(--text-tertiary); }
-  .attr-col-resize {
+  .analysis-opt-row { display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background 0.12s; }
+  .analysis-opt-row:hover { background:var(--bg-secondary); }
+  .analysis-opt-cb { width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer;flex-shrink:0; }
+  .analysis-opt-label { font-size:13px;color:var(--text-primary);line-height:1.4; }
     position: absolute;
     right: 0; top: 0; bottom: 0;
     width: 5px;
@@ -1579,11 +1582,13 @@
         </div>
 
         <!-- Section 5: Test Attributes -->
-        <div class="sect-card" id="sect-test-attributes">
+        <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><i class="ti ti-list-details"></i>Test attributes</div>
-            <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addTestAttributeRow()">
-              <i class="ti ti-plus"></i>Add attribute
+            <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-list-details"></i>Test attributes</div>
+            <button id="attr-criteria-toggle" onclick="toggleAttrCriteria()" title="Show/hide Pass/Fail Criteria columns"
+              class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0">
+              <i class="ti ti-circle-check" style="font-size:11px"></i> Pass/Fail Criteria
+              <span id="attr-criteria-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:#3b82f6;vertical-align:middle;margin-left:3px"></span>
             </button>
           </div>
           <div class="sect-body" style="padding:0">
@@ -1594,11 +1599,31 @@
               <div class="attr-col-hdr-cell" data-col="title"   style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
               <div class="attr-col-hdr-cell" data-col="desc"    style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
               <div class="attr-col-hdr-cell" data-col="addl"    style="flex:1.5;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
+              <div class="attr-col-hdr-cell attr-criteria-col" data-col="success" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default"
+                onmouseenter="document.getElementById('criteria-tooltip').style.display='block'"
+                onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
+                Success Criteria
+                <div id="criteria-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 6px);width:280px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;text-transform:none;letter-spacing:normal;pointer-events:none">
+                  Optionally describe the criteria which determine whether the sample should be considered a pass or fail for each attribute.
+                  <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
+                </div>
+              </div>
+              <div class="attr-col-hdr-cell attr-criteria-col" data-col="failure" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default"
+                onmouseenter="document.getElementById('criteria-tooltip').style.display='block'"
+                onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
+                Failure Criteria
+              </div>
               <div style="width:36px;flex-shrink:0"></div>
             </div>
             <!-- Attribute rows -->
             <div id="test-attr-rows">
               <!-- First blank row rendered by JS on page load / workpaper open -->
+            </div>
+            <!-- Add attribute button — bottom right -->
+            <div style="display:flex;justify-content:flex-end;padding:8px 12px;border-top:0.5px solid var(--border-light)">
+              <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addTestAttributeRow()">
+                <i class="ti ti-plus"></i>Add attribute
+              </button>
             </div>
           </div>
         </div>
@@ -1615,9 +1640,6 @@
                 <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
               </div>
             </div>
-            <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addSampleFieldRow()">
-              <i class="ti ti-plus"></i>Add sample field
-            </button>
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Column headers -->
@@ -1630,6 +1652,12 @@
             <!-- Sample field rows -->
             <div id="sample-field-rows">
               <!-- Rendered by JS -->
+            </div>
+            <!-- Add sample field button — bottom right -->
+            <div style="display:flex;justify-content:flex-end;padding:8px 12px;border-top:0.5px solid var(--border-light)">
+              <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addSampleFieldRow()">
+                <i class="ti ti-plus"></i>Add sample field
+              </button>
             </div>
           </div>
         </div>
@@ -1673,7 +1701,7 @@
           </div>
           <!-- Analyze & Create Workpaper — below upload zone -->
           <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
-            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="analyzeWithClaude()" id="analyze-btn">
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
               <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
             </button>
             <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
@@ -2105,12 +2133,40 @@
           </select>
         </div>
       </div>
+      <!-- Annotation toolbar (PDF only) -->
+      <div id="pdf-annotation-toolbar" style="display:none;align-items:center;gap:8px;padding:6px 14px;background:#1e293b;border-bottom:0.5px solid rgba(255,255,255,0.1)">
+        <span style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Annotate:</span>
+        <button id="ann-tool-text" onclick="setAnnotationTool('text')" title="Add text annotation"
+          style="font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff;transition:background 0.15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.18)'" onmouseout="if(currentAnnTool!=='text')this.style.background='rgba(255,255,255,0.08)'">
+          <i class="ti ti-cursor-text" style="margin-right:4px"></i>Text
+        </button>
+        <button id="ann-tool-highlight" onclick="setAnnotationTool('highlight')" title="Highlight"
+          style="font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.2);cursor:pointer;background:rgba(255,255,255,0.08);color:#fff;transition:background 0.15s"
+          onmouseover="this.style.background='rgba(255,255,255,0.18)'" onmouseout="if(currentAnnTool!=='highlight')this.style.background='rgba(255,255,255,0.08)'">
+          <i class="ti ti-highlight" style="margin-right:4px"></i>Highlight
+        </button>
+        <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
+        <span id="ann-count-label" style="font-size:11px;color:rgba(255,255,255,0.5)">0 annotations</span>
+        <button onclick="clearAnnotations()" title="Clear all annotations"
+          style="font-size:11px;padding:3px 8px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.15);cursor:pointer;background:transparent;color:rgba(255,255,255,0.5)">
+          Clear
+        </button>
+        <div style="margin-left:auto">
+          <button onclick="saveAnnotatedPDF()" id="ann-save-btn"
+            style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;background:#ea580c;color:#fff;font-weight:600;display:flex;align-items:center;gap:6px">
+            <i class="ti ti-device-floppy"></i>Save annotated PDF
+          </button>
+        </div>
+      </div>
       <!-- Body -->
-      <div id="file-preview-body">
+      <div id="file-preview-body" style="position:relative">
         <div id="file-preview-placeholder">
           <i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i>
           <span>Loading preview…</span>
         </div>
+        <!-- Annotation overlay — sits above the PDF canvas -->
+        <div id="pdf-ann-overlay" style="position:absolute;inset:0;pointer-events:none;z-index:10;overflow:auto"></div>
       </div>
     </div>
   </div>
@@ -2385,6 +2441,33 @@
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:var(--bg-primary)">
         <button class="btn-s" onclick="closeNewAudit()">Cancel</button>
         <button class="btn-p" onclick="createNewAudit()"><i class="ti ti-check"></i>Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Options Dialog -->
+  <div id="analysis-options-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:11000;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(480px,95vw);box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
+      <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div style="font-size:14px;font-weight:600"><i class="ti ti-sparkles" style="margin-right:8px"></i>Analyze &amp; Create Workpaper</div>
+        <button onclick="document.getElementById('analysis-options-overlay').style.display='none'"
+          style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="padding:20px">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.5">Select the data to include in the analysis:</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative"    checked class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc"     checked class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdesc"     checked class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Description</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-attraddl"     checked class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Additional Information</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-success"      class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Pass Criteria</span></label>
+          <label class="analysis-opt-row"><input type="checkbox" id="aopt-failure"      class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Failure Criteria</span></label>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+        <button class="btn-s" onclick="document.getElementById('analysis-options-overlay').style.display='none'">Cancel</button>
+        <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="runAnalysisWithOptions()"><i class="ti ti-sparkles"></i>Run Analysis</button>
       </div>
     </div>
   </div>
@@ -3471,6 +3554,8 @@ function openWP(i) {
   const tdEl = document.getElementById('wpd-test-desc');
   if (tdEl) tdEl.value = w.testDesc || '';
   renderNarrativeRefFiles(w.ref);
+  if (_attrCriteriaVisible) restoreAttrCriteriaValues();
+  updateAttrCriteriaDot();
 
   // ── Financial Statement Accounts & Footnotes (Scope section) ──
   currentFsSelection = new Set(wpFsAccounts[w.ref] || []);
@@ -3831,6 +3916,195 @@ function loadWPReviewLog(ref) {
    POPULATION REFERENCE FILE PICKER
 ══════════════════════════════════════ */
 const wpPopRefFiles = {}; // { ref: Set of file names }
+
+/* ══════════════════════════════════════
+   PDF ANNOTATIONS
+══════════════════════════════════════ */
+let currentAnnTool = null;
+let pdfAnnotations = []; // { page, x, y, w, h, type, text, color }
+let _annFileEntry  = null; // the current file entry being annotated
+
+function setAnnotationTool(tool) {
+  currentAnnTool = currentAnnTool === tool ? null : tool;
+  ['text','highlight'].forEach(t => {
+    const btn = document.getElementById('ann-tool-' + t);
+    if (!btn) return;
+    btn.style.background = currentAnnTool === t ? 'rgba(234,88,12,0.7)' : 'rgba(255,255,255,0.08)';
+    btn.style.borderColor = currentAnnTool === t ? '#ea580c' : 'rgba(255,255,255,0.2)';
+  });
+  const body = document.getElementById('file-preview-body');
+  if (body) body.style.cursor = currentAnnTool ? 'crosshair' : '';
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
+}
+
+function clearAnnotations(silent) {
+  pdfAnnotations = [];
+  const overlay = document.getElementById('pdf-ann-overlay');
+  if (overlay) overlay.innerHTML = '';
+  const lbl = document.getElementById('ann-count-label');
+  if (lbl) lbl.textContent = '0 annotations';
+  if (!silent) { currentAnnTool = null; setAnnotationTool(null); }
+}
+
+function updateAnnCount() {
+  const lbl = document.getElementById('ann-count-label');
+  if (lbl) lbl.textContent = `${pdfAnnotations.length} annotation${pdfAnnotations.length!==1?'s':''}`;
+}
+
+// Wire up clicks on the PDF body to place annotations
+document.addEventListener('click', function(e) {
+  if (!currentAnnTool) return;
+  const body   = document.getElementById('file-preview-body');
+  const canvas = body?.querySelector('canvas');
+  if (!canvas || !body.contains(e.target)) return;
+
+  const bodyRect   = body.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const x = e.clientX - canvasRect.left;
+  const y = e.clientY - canvasRect.top;
+  const scaleX = canvas.width  / canvasRect.width;
+  const scaleY = canvas.height / canvasRect.height;
+
+  if (currentAnnTool === 'text') {
+    // Place an editable text input on the overlay
+    const overlay = document.getElementById('pdf-ann-overlay');
+    if (!overlay) return;
+    const input = document.createElement('textarea');
+    input.placeholder = 'Type annotation…';
+    input.style.cssText = `position:absolute;left:${x}px;top:${y}px;min-width:140px;max-width:260px;min-height:28px;
+      background:rgba(255,255,199,0.92);border:1.5px solid #eab308;border-radius:4px;padding:4px 6px;font-size:12px;
+      font-family:inherit;resize:both;outline:none;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,0.2)`;
+    overlay.appendChild(input);
+    input.focus();
+
+    const annIdx = pdfAnnotations.length;
+    pdfAnnotations.push({ type:'text', x, y, text:'', scaleX, scaleY, pageEl: canvas });
+
+    input.addEventListener('blur', () => {
+      if (input.value.trim()) {
+        pdfAnnotations[annIdx].text = input.value.trim();
+        updateAnnCount();
+      } else {
+        pdfAnnotations.splice(annIdx, 1);
+        input.remove();
+      }
+    });
+    input.addEventListener('input', () => { pdfAnnotations[annIdx].text = input.value; });
+
+  } else if (currentAnnTool === 'highlight') {
+    // Draw a semi-transparent highlight rectangle
+    const overlay = document.getElementById('pdf-ann-overlay');
+    if (!overlay) return;
+    const hl = document.createElement('div');
+    hl.style.cssText = `position:absolute;left:${x-60}px;top:${y-10}px;width:120px;height:20px;
+      background:rgba(250,204,21,0.45);border-radius:2px;cursor:move;z-index:15;
+      border:1px dashed #eab308;box-sizing:border-box`;
+    // Allow drag to reposition
+    let dragging=false,ox=0,oy=0;
+    hl.addEventListener('mousedown',ev=>{dragging=true;ox=ev.offsetX;oy=ev.offsetY;ev.stopPropagation();});
+    document.addEventListener('mousemove',ev=>{if(!dragging)return;hl.style.left=(ev.clientX-overlay.getBoundingClientRect().left-ox)+'px';hl.style.top=(ev.clientY-overlay.getBoundingClientRect().top-oy)+'px';});
+    document.addEventListener('mouseup',()=>dragging=false);
+    overlay.appendChild(hl);
+    pdfAnnotations.push({ type:'highlight', el:hl, scaleX, scaleY });
+    updateAnnCount();
+  }
+});
+
+async function loadPdfLib() {
+  if (window.PDFLib) return window.PDFLib;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+    s.onload  = () => resolve(window.PDFLib);
+    s.onerror = () => reject(new Error('Failed to load pdf-lib'));
+    document.head.appendChild(s);
+  });
+}
+
+async function saveAnnotatedPDF() {
+  const btn = document.getElementById('ann-save-btn');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+  try {
+    const entry = inMemoryFiles[_fpRef]?.[_fpBucket]?.[_fpIdx];
+    if (!entry?.file) throw new Error('Source file not found');
+
+    const PDFLib    = await loadPdfLib();
+    const origBytes = await entry.file.arrayBuffer();
+    const pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
+    const pages     = pdfDoc.getPages();
+    const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+    const canvas = document.querySelector('#file-preview-body canvas');
+    const canvasRect = canvas?.getBoundingClientRect();
+
+    // Apply each annotation to the PDF
+    for (const ann of pdfAnnotations) {
+      // Determine which PDF page (use page 0 for now; future: multi-page tracking)
+      const page = pages[previewPDFDoc ? (previewCurrentPage - 1) : 0];
+      if (!page) continue;
+      const { width: pw, height: ph } = page.getSize();
+
+      if (ann.type === 'text' && ann.text) {
+        // Convert overlay px coords to PDF coords (PDF origin is bottom-left)
+        const scaleX = pw / (canvasRect?.width || pw);
+        const scaleY = ph / (canvasRect?.height || ph);
+        const pdfX  = ann.x * scaleX;
+        const pdfY  = ph - (ann.y * scaleY) - 14; // flip Y axis
+
+        page.drawRectangle({ x: pdfX - 2, y: pdfY - 4, width: ann.text.length * 7 + 8, height: 20, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.85 });
+        page.drawText(ann.text, { x: pdfX, y: pdfY, size: 11, font, color: PDFLib.rgb(0.1, 0.1, 0.1) });
+      }
+
+      if (ann.type === 'highlight' && ann.el) {
+        const r    = ann.el.getBoundingClientRect();
+        const obr  = document.getElementById('pdf-ann-overlay').getBoundingClientRect();
+        const relX = r.left - obr.left;
+        const relY = r.top  - obr.top;
+        const scaleX = pw / (canvasRect?.width || pw);
+        const scaleY = ph / (canvasRect?.height || ph);
+        const pdfX  = relX * scaleX;
+        const pdfW  = r.width  * scaleX;
+        const pdfH  = r.height * scaleY;
+        const pdfY  = ph - (relY * scaleY) - pdfH;
+        page.drawRectangle({ x: pdfX, y: pdfY, width: pdfW, height: pdfH, color: PDFLib.rgb(0.98, 0.8, 0.08), opacity: 0.4 });
+      }
+    }
+
+    const pdfBytes  = await pdfDoc.save();
+    const blob      = new Blob([pdfBytes], { type: 'application/pdf' });
+
+    // Build annotated filename
+    const origName  = entry.name.replace(/\.pdf$/i, '');
+    const annName   = `${origName}_annotated.pdf`;
+
+    // Trigger download
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a'); a.href = url; a.download = annName;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+    // Auto-attach to workpaper files
+    const annFile = new File([blob], annName, { type: 'application/pdf' });
+    if (!inMemoryFiles[_fpRef]) inMemoryFiles[_fpRef] = { workpaper: [], sample: [] };
+    const now  = new Date();
+    const meta = `PDF · ${(blob.size/1024).toFixed(0)} KB · jdavis · ${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+    inMemoryFiles[_fpRef].workpaper.push({ name: annName, file: annFile, size: `${(blob.size/1024).toFixed(0)} KB`, uploadedBy:'jdavis', uploadedOn: now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) });
+    logEvent(_fpRef, `Annotated PDF created: ${annName}`);
+    refreshFileList(_fpRef, 'workpaper');
+
+    // Show success
+    if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved & attached!'; btn.style.background='#16a34a'; }
+    setTimeout(() => {
+      if (btn) { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save annotated PDF'; btn.style.background='#ea580c'; btn.disabled = false; }
+    }, 3000);
+
+  } catch (err) {
+    if (btn) { btn.textContent = 'Error — try again'; btn.style.background='#dc2626'; btn.disabled = false; }
+    console.error('Annotation save error:', err);
+  }
+}
 
 /* ══════════════════════════════════════
    NARRATIVE REFERENCE FILE PICKER
@@ -5069,6 +5343,128 @@ function syncWPFsToAudit(ref, fsSet) {
 }
 
 /* ══════════════════════════════════════
+   GRID COPY — Test Attributes & Sample Fields
+   Ctrl+C / Cmd+C while focused in a grid cell copies
+   the selected range of cells as TSV to the clipboard.
+══════════════════════════════════════ */
+(function initGridCopy() {
+  // Track which cells the user has "selected" by clicking with Shift held
+  let _copyAnchor = null; // { gridId, rowIdx, colKey }
+
+  function getCellValue(rowEl, colKey, gridId) {
+    if (gridId === 'test-attr-rows') {
+      switch (colKey) {
+        case 'num':             return String(Array.from(rowEl.parentElement?.children||[]).indexOf(rowEl)+1);
+        case 'attrRef':        return rowEl.querySelector('.attr-ref-input')?.value || '';
+        case 'title':          return rowEl.querySelector('.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)')?.value || '';
+        case 'desc':           return rowEl.querySelector('.attr-desc')?.value || '';
+        case 'additionalInfo': return rowEl.querySelector('.attr-additional')?.value || '';
+        case 'successCriteria':return rowEl.querySelector('.attr-success')?.value || '';
+        case 'failureCriteria':return rowEl.querySelector('.attr-failure')?.value || '';
+      }
+    } else {
+      switch (colKey) {
+        case 'num':  return String(Array.from(rowEl.parentElement?.children||[]).indexOf(rowEl)+1);
+        case 'name': return rowEl.querySelector('.sf-name-input')?.value || '';
+        case 'desc': return rowEl.querySelector('.sf-desc-input')?.value || '';
+      }
+    }
+    return '';
+  }
+
+  function getAttrCols() {
+    const cols = ['num','attrRef','title','desc','additionalInfo'];
+    if (_attrCriteriaVisible) cols.push('successCriteria','failureCriteria');
+    return cols;
+  }
+
+  function getSFCols() { return ['num','name','desc']; }
+
+  function getActiveCell(el) {
+    const attrRow = el.closest('#test-attr-rows .attr-row');
+    if (attrRow) {
+      const rows = Array.from(document.querySelectorAll('#test-attr-rows .attr-row'));
+      const rowIdx = rows.indexOf(attrRow);
+      let colKey = '';
+      if (el.classList.contains('attr-ref-input')) colKey = 'attrRef';
+      else if (el.classList.contains('attr-input') && !el.classList.contains('attr-desc') && !el.classList.contains('attr-additional') && !el.classList.contains('attr-success') && !el.classList.contains('attr-failure')) colKey = 'title';
+      else if (el.classList.contains('attr-desc')) colKey = 'desc';
+      else if (el.classList.contains('attr-additional')) colKey = 'additionalInfo';
+      else if (el.classList.contains('attr-success')) colKey = 'successCriteria';
+      else if (el.classList.contains('attr-failure')) colKey = 'failureCriteria';
+      return colKey ? { gridId:'test-attr-rows', rowIdx, colKey, rowEl: attrRow } : null;
+    }
+    const sfRow = el.closest('.attr-row[id^="sf-row-"]');
+    if (sfRow) {
+      const rows = Array.from(document.querySelectorAll('.attr-row[id^="sf-row-"]'));
+      const rowIdx = rows.indexOf(sfRow);
+      let colKey = '';
+      if (el.classList.contains('sf-name-input')) colKey = 'name';
+      else if (el.classList.contains('sf-desc-input')) colKey = 'desc';
+      return colKey ? { gridId:'sf-rows', rowIdx, colKey, rowEl: sfRow } : null;
+    }
+    return null;
+  }
+
+  // On copy, build TSV from all rows × all columns if no specific range,
+  // or from the focused cell only if nothing is explicitly ranged
+  document.addEventListener('copy', (e) => {
+    const active = document.activeElement;
+    if (!active) return;
+
+    const cell = getActiveCell(active);
+    if (!cell) return;
+
+    // If the input has a text selection, let the browser handle it naturally
+    const selLen = (active.selectionEnd || 0) - (active.selectionStart || 0);
+    if (selLen > 0) return; // user is copying text within a single cell — don't interfere
+
+    e.preventDefault();
+
+    const { gridId, rowIdx, colKey } = cell;
+    const cols = gridId === 'test-attr-rows' ? getAttrCols() : getSFCols();
+    const rows = Array.from(document.querySelectorAll(
+      gridId === 'test-attr-rows' ? '#test-attr-rows .attr-row' : '.attr-row[id^="sf-row-"]'
+    ));
+
+    // If anchor is set on the same grid, copy the range; otherwise copy just this row
+    let r1 = rowIdx, r2 = rowIdx;
+    let c1 = cols.indexOf(colKey), c2 = cols.indexOf(colKey);
+
+    if (_copyAnchor && _copyAnchor.gridId === gridId) {
+      r1 = Math.min(rowIdx, _copyAnchor.rowIdx);
+      r2 = Math.max(rowIdx, _copyAnchor.rowIdx);
+      const ac = cols.indexOf(_copyAnchor.colKey);
+      c1 = Math.min(c1, ac);
+      c2 = Math.max(c2, ac);
+    }
+
+    const tsv = rows.slice(r1, r2+1).map(rowEl =>
+      cols.slice(c1, c2+1).map(ck => getCellValue(rowEl, ck, gridId)).join('\t')
+    ).join('\n');
+
+    e.clipboardData.setData('text/plain', tsv);
+
+    // Flash cells to confirm copy
+    rows.slice(r1, r2+1).forEach(rowEl => {
+      rowEl.style.background = '#dbeafe';
+      setTimeout(() => rowEl.style.background = '', 600);
+    });
+  });
+
+  // Set anchor on Shift+Click in a grid cell
+  document.addEventListener('mousedown', (e) => {
+    if (e.shiftKey) {
+      const cell = getActiveCell(e.target);
+      if (cell) { _copyAnchor = cell; }
+    } else {
+      const cell = getActiveCell(e.target);
+      if (cell) _copyAnchor = cell; else _copyAnchor = null;
+    }
+  });
+})();
+
+/* ══════════════════════════════════════
    TEST ATTRIBUTES — PASTE FROM EXCEL
 ══════════════════════════════════════ */
 function initSFGridPaste() {
@@ -5168,19 +5564,25 @@ function initAttrGridPaste() {
       existing.push({
         num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
         attrRef:        row.querySelector('.attr-ref-input')?.value || '',
-        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
+        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)')?.value || '',
         desc:           row.querySelector('.attr-desc')?.value || '',
         additionalInfo: row.querySelector('.attr-additional')?.value || '',
+        successCriteria:row.querySelector('.attr-success')?.value || '',
+        failureCriteria:row.querySelector('.attr-failure')?.value || '',
       });
     });
 
-    // Determine which column the cursor is in (to know where to start pasting)
-    const colMap = ['attrRef', 'title', 'desc', 'additionalInfo'];
+    // Determine which column the cursor is in — include criteria cols if visible
+    const colMap = _attrCriteriaVisible
+      ? ['attrRef', 'title', 'desc', 'additionalInfo', 'successCriteria', 'failureCriteria']
+      : ['attrRef', 'title', 'desc', 'additionalInfo'];
     let startColIdx = 0;
-    if (active.classList.contains('attr-ref-input'))   startColIdx = 0;
-    if (active.classList.contains('attr-input') && !active.classList.contains('attr-desc') && !active.classList.contains('attr-additional')) startColIdx = 1;
-    if (active.classList.contains('attr-desc'))        startColIdx = 2;
-    if (active.classList.contains('attr-additional'))  startColIdx = 3;
+    if (active.classList.contains('attr-ref-input'))                                                                                              startColIdx = 0;
+    if (active.classList.contains('attr-input') && !active.classList.contains('attr-desc') && !active.classList.contains('attr-additional') && !active.classList.contains('attr-success') && !active.classList.contains('attr-failure')) startColIdx = 1;
+    if (active.classList.contains('attr-desc'))         startColIdx = 2;
+    if (active.classList.contains('attr-additional'))   startColIdx = 3;
+    if (active.classList.contains('attr-success'))      startColIdx = 4;
+    if (active.classList.contains('attr-failure'))      startColIdx = 5;
 
     // Determine which row the cursor is in
     const activeRow = active.closest('.attr-row');
@@ -5193,7 +5595,7 @@ function initAttrGridPaste() {
       const targetRowIdx = startRowIdx + ri;
       // Ensure target row exists
       while (existing.length <= targetRowIdx) {
-        existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '' });
+        existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
       }
       pastedRow.forEach((cell, ci) => {
         const colIdx = startColIdx + ci;
@@ -5225,6 +5627,44 @@ function initAttrGridPaste() {
    TEST ATTRIBUTES — RESIZABLE COLUMNS
 ══════════════════════════════════════ */
 const _attrColWidths = { num: 52, attrRef: 72, title: 180 }; // fixed cols only
+
+let _attrCriteriaVisible = false;
+
+function toggleAttrCriteria() {
+  _attrCriteriaVisible = !_attrCriteriaVisible;
+  const btn = document.getElementById('attr-criteria-toggle');
+  if (btn) {
+    btn.style.background  = _attrCriteriaVisible ? 'var(--wf-navy)'    : '';
+    btn.style.color       = _attrCriteriaVisible ? '#fff'               : '';
+    btn.style.borderColor = _attrCriteriaVisible ? 'var(--wf-navy)'    : '';
+  }
+  document.querySelectorAll('.attr-criteria-col').forEach(el => {
+    el.style.display = _attrCriteriaVisible ? (el.classList.contains('attr-col-hdr-cell') ? 'flex' : '') : 'none';
+  });
+  // Restore saved values if showing
+  if (_attrCriteriaVisible) restoreAttrCriteriaValues();
+}
+
+function restoreAttrCriteriaValues() {
+  if (!currentAttrWPRef) return;
+  const rows = wpTestAttributes[currentAttrWPRef] || [];
+  document.querySelectorAll('#test-attr-rows .attr-row').forEach((rowEl, i) => {
+    const data = rows[i];
+    if (!data) return;
+    const sc = rowEl.querySelector('.attr-success');
+    const fc = rowEl.querySelector('.attr-failure');
+    if (sc) { sc.value = data.successCriteria || ''; autoResizeTA(sc); }
+    if (fc) { fc.value = data.failureCriteria || ''; autoResizeTA(fc); }
+  });
+}
+
+function updateAttrCriteriaDot() {
+  const dot = document.getElementById('attr-criteria-dot');
+  if (!dot) return;
+  const hasData = Array.from(document.querySelectorAll('#test-attr-rows .attr-success, #test-attr-rows .attr-failure'))
+    .some(ta => ta.value.trim().length > 0);
+  dot.style.display = hasData ? 'inline-block' : 'none';
+}
 
 function startAttrColResize(e, col) {
   e.preventDefault();
@@ -5732,6 +6172,33 @@ function positionAuditTooltip(e) {
 /* ══════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════ */
+function openAnalysisOptionsDialog() {
+  // Auto-check success/failure criteria if there's data in those columns
+  const hasCriteria = (wpTestAttributes[getWPRef()] || []).some(a => a.successCriteria || a.failureCriteria);
+  const sucEl = document.getElementById('aopt-success');
+  const failEl = document.getElementById('aopt-failure');
+  if (sucEl && hasCriteria) sucEl.checked = true;
+  if (failEl && hasCriteria) failEl.checked = true;
+  document.getElementById('analysis-options-overlay').style.display = 'flex';
+}
+
+// Store selected options for use in the API call
+let _analysisOptions = {};
+
+function runAnalysisWithOptions() {
+  _analysisOptions = {
+    narrative:     document.getElementById('aopt-narrative')?.checked,
+    narrativeFile: document.getElementById('aopt-narrative-file')?.checked,
+    testDesc:      document.getElementById('aopt-testdesc')?.checked,
+    attrDesc:      document.getElementById('aopt-attrdesc')?.checked,
+    attrAddl:      document.getElementById('aopt-attraddl')?.checked,
+    success:       document.getElementById('aopt-success')?.checked,
+    failure:       document.getElementById('aopt-failure')?.checked,
+  };
+  document.getElementById('analysis-options-overlay').style.display = 'none';
+  analyzeWithClaude();
+}
+
 function openAuditAnalysis() {
   const now = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
@@ -7107,11 +7574,27 @@ async function analyzeWithClaude() {
 
   // Gather sample field extraction fields
   const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
+  const opts = _analysisOptions || {};
 
-  // Build attribute prompt text
-  const attrPrompt = attributes.map((a, i) =>
-    `${i+1}. "${a.title}": ${a.desc || 'No description provided.'}`
-  ).join('\n');
+  // Build attribute prompt text — conditionally include desc, addl info, criteria based on options
+  const attrPrompt = attributes.map((a, i) => {
+    let parts = [`${i+1}. "${a.title}"`];
+    if (opts.attrDesc !== false && a.desc) parts.push(`\n   Test Attribute Description: ${a.desc}`);
+    if (opts.attrAddl && a.additionalInfo) parts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
+    if (opts.success && a.successCriteria) parts.push(`\n   Test Attribute Pass Criteria: ${a.successCriteria}`);
+    if (opts.failure && a.failureCriteria) parts.push(`\n   Test Attribute Failure Criteria: ${a.failureCriteria}`);
+    return parts.join('');
+  }).join('\n\n');
+
+  // Build context section — workpaper-level data prepended to the user message
+  const contextParts = [];
+  if (opts.narrative && wp?.narrative?.trim()) {
+    contextParts.push(`PROCESS / CONTROL NARRATIVE:\n${wp.narrative.trim()}`);
+  }
+  if (opts.testDesc && wp?.testDesc?.trim()) {
+    contextParts.push(`TEST DESCRIPTION:\n${wp.testDesc.trim()}`);
+  }
+  const contextBlock = contextParts.length ? contextParts.join('\n\n') + '\n\n' : '';
 
   // Build sample field prompt text
   const fieldPrompt = sampleFields.length
@@ -7138,18 +7621,25 @@ async function analyzeWithClaude() {
         headers['anthropic-version'] = '2023-06-01';
       }
 
+      const locationInstructions = `For each result also include:
+- "page": the page number (integer) where you found the evidence supporting your evaluation (use 0 if not determinable)
+- "section": the section heading, numbered heading, or paragraph label nearest to where you found the evidence (empty string if not determinable)
+- "paragraph": the paragraph count on that page where the evidence appears (integer, count from 1 at top of page; use 0 if not determinable)`;
+
       const systemPrompt = sampleFields.length
         ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
 For each test attribute, evaluate the document. Also extract the requested fields from the document.
 Respond ONLY with valid JSON — no markdown, no explanation.
 CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.
-Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>"}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or N/A if not found>"}]}`
+${locationInstructions}
+Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`
         : `You are an internal audit assistant evaluating sample files against test attributes.
 For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
 CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>"}]}`;
+${locationInstructions}
+Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
 
-      const userText = `Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
+      const userText = `${contextBlock}Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -7702,14 +8192,26 @@ async function exportToXlsx() {
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
   // ── Detailed Notes sheet ──
-  const noteRows = [['Sample File', 'Attribute', 'Result', 'Notes']];
+  const noteRows = [['Sample File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
   for (const fileResult of analysisResults) {
     for (const r of fileResult.results) {
-      noteRows.push([fileResult.fileName, r.title, TICK_LABEL[r.result] || r.result, r.note || '']);
+      const attrMatch = attributes.find(a => a.title === r.title) ||
+        attributes.find(a => a.title.toLowerCase().includes((r.title||'').toLowerCase()) || (r.title||'').toLowerCase().includes(a.title.toLowerCase()));
+      const attrRef = attrMatch?.attrRef || attrMatch?.num || '';
+      noteRows.push([
+        fileResult.fileName,
+        attrRef,
+        r.title,
+        TICK_LABEL[r.result] || r.result,
+        r.note || '',
+        r.page || '',
+        r.section || '',
+        r.paragraph || '',
+      ]);
     }
   }
   const wsNotes = XLSX.utils.aoa_to_sheet(noteRows);
-  wsNotes['!cols'] = [{ wch: 36 }, { wch: 28 }, { wch: 26 }, { wch: 60 }];
+  wsNotes['!cols'] = [{ wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsNotes, 'Detailed Notes');
 
   // ── Metadata sheet ──
@@ -7790,9 +8292,125 @@ async function exportToXlsx() {
   });
   refreshFileList(ref, 'workpaper');
 
+  // ── Auto-annotate sample PDF files with tick marks ──────────────────
+  annotateSampleFilesWithTicks(ref, analysisResults, attributes, exMap).catch(e => {
+    console.warn('Sample file annotation skipped:', e.message);
+  });
+
   // Show a brief confirmation in the modal status
   const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
     `Download started — file also added to Attached Workpaper Files.`;
+}
+
+async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, exMap) {
+  if (!analysisResults.length) return;
+
+  const TICK = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+  const COLOR = {
+    pass:            { r:0.09, g:0.47, b:0.24 },
+    pass_exception:  { r:0.93, g:0.35, b:0.00 },
+    fail:            { r:0.75, g:0.07, b:0.22 },
+    error:           { r:0.40, g:0.40, b:0.40 },
+  };
+
+  const PDFLib = await loadPdfLib();
+
+  for (let fi = 0; fi < analysisResults.length; fi++) {
+    const fileResult = analysisResults[fi];
+    const fileName   = fileResult.fileName;
+
+    // Find this file in inMemoryFiles[ref].sample
+    const sampleFiles = inMemoryFiles[ref]?.sample || [];
+    const sfEntry     = sampleFiles.find(f => f.name === fileName);
+    if (!sfEntry?.file || !fileName.toLowerCase().endsWith('.pdf')) continue;
+
+    try {
+      const origBytes = await sfEntry.file.arrayBuffer();
+      const pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
+      const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+      const fontReg   = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const pages     = pdfDoc.getPages();
+      const page      = pages[0];
+      const { width: pw, height: ph } = page.getSize();
+
+      // Build the tick-mark stamp block
+      const lineH   = 14;
+      const padX    = 8;
+      const padY    = 6;
+      const maxAttrLabelW = 180;
+      const blockW  = maxAttrLabelW + 80;
+      const lines   = [];
+
+      attributes.forEach((attr, ai) => {
+        let match = fileResult.results.find(r => r.title === attr.title);
+        if (!match) {
+          const al = attr.title.toLowerCase();
+          match = fileResult.results.find(r =>
+            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+          );
+        }
+        const result  = match?.result || 'error';
+        const tick    = TICK[result] || '–';
+        const exRef   = exMap[`${fi}-${ai}`] ? ` [${exMap[`${fi}-${ai}`]}]` : '';
+        const attrLbl = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
+        const note    = match?.note || '';
+        lines.push({ tick, result, attrLbl, exRef, note });
+      });
+
+      const blockH = lines.length * lineH + padY * 2 + 16; // +16 for header
+      const bx     = pw - blockW - 10;
+      const by     = ph - blockH - 10;
+
+      // Background
+      page.drawRectangle({ x:bx, y:by, width:blockW, height:blockH, color:PDFLib.rgb(0.98,0.98,0.92), opacity:0.92 });
+      page.drawRectangle({ x:bx, y:by, width:blockW, height:blockH, color:PDFLib.rgb(0.87,0.87,0.70), opacity:1, borderColor:PDFLib.rgb(0.5,0.5,0.3), borderWidth:0.5 });
+
+      // Header
+      page.drawText('Wavefire Audit Testwork', {
+        x: bx + padX, y: by + blockH - 14, size: 8, font: fontReg,
+        color: PDFLib.rgb(0.3, 0.3, 0.3),
+      });
+
+      // Tick lines
+      lines.forEach((ln, i) => {
+        const lx = bx + padX;
+        const ly = by + blockH - 16 - padY - (i + 1) * lineH;
+        const col = COLOR[ln.result] || COLOR.error;
+        const rgb = PDFLib.rgb(col.r, col.g, col.b);
+
+        // Tick mark
+        page.drawText(ln.tick, { x: lx, y: ly, size: 10, font, color: rgb });
+        // Attr label (truncated)
+        const label = (ln.attrLbl.length > 30 ? ln.attrLbl.slice(0,29)+'…' : ln.attrLbl) + ln.exRef;
+        page.drawText(label, { x: lx + 14, y: ly, size: 7, font: fontReg, color: PDFLib.rgb(0.15,0.15,0.15) });
+        // Note (if any)
+        if (ln.note) {
+          const noteText = ln.note.length > 40 ? ln.note.slice(0,39)+'…' : ln.note;
+          page.drawText(noteText, { x: lx + 14, y: ly - 7, size: 6, font: fontReg, color: PDFLib.rgb(0.4,0.4,0.4) });
+        }
+      });
+
+      const pdfBytes   = await pdfDoc.save();
+      const annBlob    = new Blob([pdfBytes], { type: 'application/pdf' });
+      const annName    = fileName.replace(/\.pdf$/i, '_annotated.pdf');
+      const annFile    = new File([annBlob], annName, { type: 'application/pdf' });
+      const nowStr     = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+      // Auto-attach to workpaper files
+      ensureFileStore(ref);
+      inMemoryFiles[ref].workpaper.push({
+        file: annFile, name: annName,
+        size: formatFileSize(annBlob.size),
+        type: 'application/pdf',
+        uploadedBy: 'Wavefire',
+        uploadedOn: nowStr,
+      });
+      refreshFileList(ref, 'workpaper');
+
+    } catch(err) {
+      console.warn(`Could not annotate ${fileName}:`, err.message);
+    }
+  }
 }
 
 /* ══════════════════════════════════════
@@ -7837,10 +8455,16 @@ async function previewMemFile(ref, bucket, idx) {
   _updateFileNavButtons();
 
   const isPDF = name.toLowerCase().endsWith('.pdf') || entry.file.type === 'application/pdf';
+  const toolbarEl = document.getElementById('pdf-annotation-toolbar');
+  if (toolbarEl) toolbarEl.style.display = isPDF ? 'flex' : 'none';
+  if (isPDF) { clearAnnotations(true); } // reset annotations on new file
   if (isPDF) {
+    clearAnnotations(true);
     window._previewFile = entry.file;
     await renderPDFPreview(entry.file);
   } else {
+    const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
+    if (toolbarEl2) toolbarEl2.style.display = 'none';
     renderNonPDFPreview(entry.file, name);
   }
 }
@@ -9583,6 +10207,16 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
         tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px">${escAttr(additionalInfo)}</textarea>
     </div>
+    <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…"
+        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx})"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
+    </div>
+    <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…"
+        tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx})"
+        style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
+    </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
         tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
@@ -9614,8 +10248,10 @@ function saveAttrRow(idx) {
   const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
   const desc           = row.querySelector('.attr-desc')?.value || '';
   const additionalInfo = row.querySelector('.attr-additional')?.value || '';
-  while (rows.length <= idx) rows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '' });
-  rows[idx] = { num, attrRef, title, desc, additionalInfo };
+  const successCriteria = row.querySelector('.attr-success')?.value || '';
+  const failureCriteria = row.querySelector('.attr-failure')?.value || '';
+  while (rows.length <= idx) rows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
+  rows[idx] = { num, attrRef, title, desc, additionalInfo, successCriteria, failureCriteria };
   wpTestAttributes[currentAttrWPRef] = rows;
 }
 
