@@ -7839,6 +7839,27 @@ async function analyzeWithClaude() {
       sampleFields.map((f, i) => `${i+1}. "${f.name}"${f.desc ? ': ' + f.desc : ''}`).join('\n')
     : '';
 
+  // ── Build systemPrompt and userText once — shared by both analyzeOneFile and analyzeOneFileFast ──
+  const locationInstructions = `For each result also include:
+- "page": the page number (integer) where you found the evidence supporting your evaluation (use 0 if not determinable)
+- "section": the section heading, numbered heading, or paragraph label nearest to where you found the evidence (empty string if not determinable)
+- "paragraph": the paragraph count on that page where the evidence appears (integer, count from 1 at top of page; use 0 if not determinable)`;
+
+  const systemPrompt = sampleFields.length
+    ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
+For each test attribute, evaluate the document. Also extract the requested fields from the document.
+Respond ONLY with valid JSON — no markdown, no explanation.
+CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.
+${locationInstructions}
+Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`
+    : `You are an internal audit assistant evaluating sample files against test attributes.
+For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
+CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
+${locationInstructions}
+Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
+
+  const userText = `${contextBlock}Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
+
   async function analyzeOneFile(entry, rowEl) {
     try {
       logEntry('API_START', `Converting ${entry.name} to base64`);
@@ -7858,26 +7879,6 @@ async function analyzeWithClaude() {
       if (isArtifactViewer) {
         headers['anthropic-version'] = '2023-06-01';
       }
-
-      const locationInstructions = `For each result also include:
-- "page": the page number (integer) where you found the evidence supporting your evaluation (use 0 if not determinable)
-- "section": the section heading, numbered heading, or paragraph label nearest to where you found the evidence (empty string if not determinable)
-- "paragraph": the paragraph count on that page where the evidence appears (integer, count from 1 at top of page; use 0 if not determinable)`;
-
-      const systemPrompt = sampleFields.length
-        ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
-For each test attribute, evaluate the document. Also extract the requested fields from the document.
-Respond ONLY with valid JSON — no markdown, no explanation.
-CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.
-${locationInstructions}
-Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`
-        : `You are an internal audit assistant evaluating sample files against test attributes.
-For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
-CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
-${locationInstructions}
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
-
-      const userText = `${contextBlock}Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
 
       logEntry('API_FETCH', `Sending request to Claude for ${entry.name}`);
       const controller = new AbortController();
