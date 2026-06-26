@@ -4351,15 +4351,23 @@ async function saveAnnotatedPDF() {
     const scaleY = ph0 / canvasRect.height;
 
     for (const ann of pdfAnnotations) {
-      // Find which page this annotation is on by its Y position
+      if (!ann.el) continue;
+
       const pageWrappers = Array.from(body.querySelectorAll('[data-page]'));
+
+      // Get element position from its actual DOM rect (works for right/left/top anchored elements)
+      const elRect = ann.el.getBoundingClientRect();
+      const bodyRect2 = body.getBoundingClientRect();
+      const elX = elRect.left - bodyRect2.left + (body.scrollLeft || 0);
+      const elY = elRect.top  - bodyRect2.top  + (body.scrollTop  || 0);
+
+      // Find which page
       let targetPageIdx = 0;
-      if (pageWrappers.length > 1 && overlayRect) {
-        // ann.x/y are relative to the overlay top-left (which is same as body top-left)
+      if (pageWrappers.length > 1) {
         let cumH = 0;
         for (let pi = 0; pi < pageWrappers.length; pi++) {
           cumH += pageWrappers[pi].offsetHeight;
-          if (ann.y < cumH) { targetPageIdx = pi; break; }
+          if (elY < cumH) { targetPageIdx = pi; break; }
           targetPageIdx = pi;
         }
       }
@@ -4372,11 +4380,18 @@ async function saveAnnotatedPDF() {
       for (let pi = 0; pi < targetPageIdx; pi++) {
         pageOffsetY += pageWrappers[pi]?.offsetHeight || 0;
       }
-      const localY = ann.y - pageOffsetY;
+      const localX = elX;
+      const localY = elY - pageOffsetY;
 
       // Map to PDF coords (PDF Y is bottom-up)
-      const pdfX = ann.x * scaleX;
+      const pdfX = localX * scaleX;
       const pdfY = ph - (localY * scaleY);
+
+      // Guard against NaN
+      if (!isFinite(pdfX) || !isFinite(pdfY)) {
+        console.warn('Skipping annotation with NaN coords:', ann.type, 'x=', localX, 'y=', localY, 'scaleX=', scaleX, 'scaleY=', scaleY);
+        continue;
+      }
 
       if (ann.type === 'legend' && ann.el) {
         const ta      = ann.el.querySelector('textarea');
@@ -4440,14 +4455,13 @@ async function saveAnnotatedPDF() {
 
       if (ann.type === 'highlight' && ann.el) {
         const hlRect = ann.el.getBoundingClientRect();
-        if (!overlayRect) continue;
-        // Convert from viewport coords to overlay-relative coords
-        const hx = hlRect.left - overlayRect.left + (body?.scrollLeft || 0);
-        const hy = hlRect.top  - overlayRect.top  + (body?.scrollTop  || 0) - pageOffsetY;
+        const hx = hlRect.left - bodyRect2.left + (body?.scrollLeft || 0);
+        const hy = hlRect.top  - bodyRect2.top  + (body?.scrollTop  || 0) - pageOffsetY;
         const hpdfX = hx * scaleX;
         const hpdfY = ph - (hy * scaleY) - (hlRect.height * scaleY);
         const hpdfW = hlRect.width  * scaleX;
         const hpdfH = hlRect.height * scaleY;
+        if (!isFinite(hpdfX) || !isFinite(hpdfY)) continue;
         page.drawRectangle({ x: hpdfX, y: hpdfY, width: Math.max(hpdfW, 10), height: Math.max(hpdfH, 4), color: PDFLib.rgb(0.98, 0.8, 0.08), opacity: 0.4 });
       }
     }
