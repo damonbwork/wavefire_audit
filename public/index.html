@@ -9892,17 +9892,30 @@ function setPreviewIcon(name) {
 async function renderPDFPreview(file) {
   const body = document.getElementById('file-preview-body');
 
-  // Preserve annotation overlay
+  // Pull overlay out temporarily
   const overlay = document.getElementById('pdf-ann-overlay');
-  if (overlay && overlay.parentNode === body) body.removeChild(overlay);
-  Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
+  if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 
-  // Loading indicator
+  // Clear body
+  body.innerHTML = '';
+
+  // Create a canvas container that sits in normal flow
+  const canvasContainer = document.createElement('div');
+  canvasContainer.id = 'pdf-canvas-container';
+  canvasContainer.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;padding:16px 0;box-sizing:border-box;min-height:200px';
+  body.appendChild(canvasContainer);
+
+  // Re-attach overlay on top of canvas container, absolutely positioned within body
+  if (overlay) {
+    overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:30;pointer-events:none';
+    body.appendChild(overlay);
+  }
+
+  // Show loading spinner inside canvas container
   const loadingDiv = document.createElement('div');
-  loadingDiv.style.cssText = 'color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px;padding:40px';
-  loadingDiv.innerHTML = '<i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span style="font-size:13px">Loading PDF…</span>';
-  body.insertBefore(loadingDiv, overlay);
-  if (overlay) body.appendChild(overlay);
+  loadingDiv.style.cssText = 'color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px;padding:60px';
+  loadingDiv.innerHTML = '<i class="ti ti-loader-2" style="font-size:36px;animation:spin 1s linear infinite"></i><span style="font-size:13px">Loading PDF…</span>';
+  canvasContainer.appendChild(loadingDiv);
 
   try {
     const pdfjsLib = await loadPDFJS();
@@ -9918,21 +9931,20 @@ async function renderPDFPreview(file) {
     if (_pip) { _pip.value = 1; _pip.max = previewTotalPages; }
     document.getElementById('file-preview-nav').style.display = previewTotalPages > 1 ? 'flex' : 'none';
 
-    // Remove loading indicator
+    // Remove loading spinner
     loadingDiv.remove();
 
-    // Render all pages as canvases stacked vertically
     const zoom = parseFloat(document.getElementById('preview-zoom')?.value || '1');
     for (let p = 1; p <= previewTotalPages; p++) {
       const page = await previewPDFDoc.getPage(p);
       const vp   = page.getViewport({ scale: zoom });
 
       const wrapper = document.createElement('div');
-      wrapper.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;margin-bottom:8px';
       wrapper.setAttribute('data-page', p);
+      wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px';
 
       const label = document.createElement('div');
-      label.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:4px';
+      label.style.cssText = 'font-size:10px;color:#aaa';
       label.textContent = `Page ${p} of ${previewTotalPages}`;
       wrapper.appendChild(label);
 
@@ -9940,31 +9952,23 @@ async function renderPDFPreview(file) {
       canvas.className = 'preview-page-canvas';
       canvas.width  = vp.width;
       canvas.height = vp.height;
-      canvas.style.cssText = 'display:block;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
       wrapper.appendChild(canvas);
+      canvasContainer.appendChild(wrapper);
 
-      // Insert before overlay so overlay stays on top
-      body.insertBefore(wrapper, overlay);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     }
 
-    // Size overlay to cover all rendered content
+    // After all pages rendered, size overlay to match canvas container
     requestAnimationFrame(() => {
       if (overlay) {
-        overlay.style.position   = 'absolute';
-        overlay.style.top        = '0';
-        overlay.style.left       = '0';
-        overlay.style.width      = body.scrollWidth  + 'px';
-        overlay.style.height     = body.scrollHeight + 'px';
-        overlay.style.zIndex     = '30';
-        overlay.style.pointerEvents = 'none'; // controlled per-element
+        overlay.style.height = canvasContainer.scrollHeight + 'px';
       }
       setupAnnOverlay();
     });
 
-    // Page scroll tracking
+    // Scroll tracking
     body.addEventListener('scroll', () => {
-      const pages = body.querySelectorAll('[data-page]');
+      const pages = canvasContainer.querySelectorAll('[data-page]');
       for (const pg of pages) {
         const rect = pg.getBoundingClientRect();
         const bodyRect = body.getBoundingClientRect();
@@ -9972,8 +9976,7 @@ async function renderPDFPreview(file) {
           const pNum = parseInt(pg.getAttribute('data-page'), 10);
           if (pNum !== currentPreviewPage) {
             currentPreviewPage = pNum;
-            const _pip2 = document.getElementById('preview-page-input');
-            if (_pip2) _pip2.value = pNum;
+            if (_pip) _pip.value = pNum;
           }
           break;
         }
@@ -9981,16 +9984,13 @@ async function renderPDFPreview(file) {
     });
 
   } catch(err) {
-    const ann2 = document.getElementById('pdf-ann-overlay');
-    if (ann2 && ann2.parentNode === body) body.removeChild(ann2);
-    loadingDiv.remove();
-    body.innerHTML = `
+    canvasContainer.innerHTML = `
       <div style="color:#f87171;text-align:center;padding:40px 20px">
         <i class="ti ti-alert-triangle" style="font-size:36px;display:block;margin-bottom:10px"></i>
         <div style="font-size:14px;font-weight:500">Could not render PDF</div>
         <div style="font-size:12px;margin-top:6px;opacity:0.8">${err.message}</div>
       </div>`;
-    if (ann2) body.appendChild(ann2);
+    console.error('renderPDFPreview error:', err);
   }
   setupAnnOverlay();
 }
