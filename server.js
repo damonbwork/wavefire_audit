@@ -35,6 +35,21 @@ app.use(express.json({ limit: '50mb' })); // PDFs can be large when base64-encod
 // ── Serve the frontend HTML ─────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── PDF.js proxy routes — serves worker from Railway to avoid CDN blocking ──
+app.get('/pdfjs/pdf.min.js', (req, res) => {
+  const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  https.get(url, (upstream) => upstream.pipe(res)).on('error', () => res.status(502).send('// proxy error'));
+});
+
+app.get('/pdfjs/pdf.worker.min.js', (req, res) => {
+  const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  https.get(url, (upstream) => upstream.pipe(res)).on('error', () => res.status(502).send('// proxy error'));
+});
+
 // ── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
