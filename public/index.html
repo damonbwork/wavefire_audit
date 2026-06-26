@@ -9042,15 +9042,16 @@ async function renderPDFPreview(file) {
     // Preserve overlay even on error
     const ann2 = document.getElementById('pdf-ann-overlay');
     if (ann2 && ann2.parentNode === body) body.removeChild(ann2);
+    const isLoadErr = err.message?.includes('PDF.js') || err.message?.includes('pdfjsLib') || err.message?.includes('pdfjs');
     body.innerHTML = `
       <div style="color:#f87171;text-align:center;padding:40px 20px">
         <i class="ti ti-alert-triangle" style="font-size:36px;display:block;margin-bottom:10px"></i>
         <div style="font-size:14px;font-weight:500">Could not render PDF</div>
         <div style="font-size:12px;margin-top:6px;opacity:0.8">${err.message}</div>
+        ${isLoadErr ? '<div style="font-size:11px;margin-top:8px;color:#fca5a5">Check that /pdfjs routes are working: visit <a href="/pdfjs/pdf.min.js" target="_blank" style="color:#fca5a5">/pdfjs/pdf.min.js</a> in your browser.</div>' : ''}
       </div>`;
     if (ann2) body.appendChild(ann2);
   }
-  // Re-bind annotation handler after every render
   setupAnnOverlay();
 }
 
@@ -9584,52 +9585,60 @@ const pdfObjectURLs = {};
 const pdfBookmarkCache = {};
 
 async function loadPDFJS() {
-  if (window.pdfjsLib) return window.pdfjsLib;
+  // If already loaded and worker is set, return immediately
+  if (window.pdfjsLib?.GlobalWorkerOptions?.workerSrc) return window.pdfjsLib;
+  // If loaded but worker not set, try to set it
+  if (window.pdfjsLib) {
+    const host = window.location.hostname;
+    const isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
+    const isClaude = host.includes('claude.ai');
+    const workerSrc = (isLocal || isClaude)
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+      : '/pdfjs/pdf.worker.min.js';
+    try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc; } catch(e) {}
+    return window.pdfjsLib;
+  }
+
+  // Not loaded yet — load it now
   return new Promise((resolve, reject) => {
     const host = window.location.hostname;
-    const isLocal = host === '' || host === 'localhost' || host === '127.0.0.1';
+    const isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
     const isClaude = host.includes('claude.ai');
 
-    // Determine worker URL
-    let workerSrc;
-    if (isLocal || isClaude) {
-      workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    } else {
-      // Railway or other deployment — use self-hosted proxy
-      workerSrc = '/pdfjs/pdf.worker.min.js';
-    }
-
-    const pdfSrc = (isLocal || isClaude)
+    const pdfSrc    = (isLocal || isClaude)
       ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
       : '/pdfjs/pdf.min.js';
+    const workerSrc = (isLocal || isClaude)
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+      : '/pdfjs/pdf.worker.min.js';
 
-    function applyWorker(lib, src) {
-      try {
-        lib.GlobalWorkerOptions.workerSrc = src;
-      } catch(e) {
-        // If setting worker fails, disable it (runs in main thread — slower but works)
-        try { lib.GlobalWorkerOptions.workerSrc = ''; } catch(e2) {}
-      }
+    function applyWorker(lib) {
+      try { lib.GlobalWorkerOptions.workerSrc = workerSrc; } catch(e) {}
     }
 
-    const s = document.createElement('script');
-    s.src = pdfSrc;
-    s.onload = () => {
-      applyWorker(window.pdfjsLib, workerSrc);
-      resolve(window.pdfjsLib);
-    };
-    s.onerror = () => {
-      // Fallback: try CDN regardless of environment
-      const s2 = document.createElement('script');
-      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      s2.onload = () => {
-        applyWorker(window.pdfjsLib, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');
+    function tryLoad(src, fallbackSrc) {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => {
+        if (!window.pdfjsLib) { reject(new Error('PDF.js script loaded but pdfjsLib not found')); return; }
+        applyWorker(window.pdfjsLib);
         resolve(window.pdfjsLib);
       };
-      s2.onerror = () => reject(new Error('Could not load PDF.js from any source.'));
-      document.head.appendChild(s2);
-    };
-    document.head.appendChild(s);
+      s.onerror = () => {
+        if (fallbackSrc) {
+          tryLoad(fallbackSrc, null);
+        } else {
+          reject(new Error('Could not load PDF.js — check that /pdfjs/pdf.min.js is accessible on the server'));
+        }
+      };
+      document.head.appendChild(s);
+    }
+
+    // Primary: Railway proxy or CDN; fallback: the other one
+    const fallback = (isLocal || isClaude)
+      ? null  // no fallback for CDN on claude.ai
+      : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    tryLoad(pdfSrc, fallback);
   });
 }
 
