@@ -24,6 +24,12 @@ app.get('/pdfjs/pdf.min.js', (req, res) => {
   res.sendFile(require.resolve('pdfjs-dist/build/pdf.min.js'));
 });
 
+app.get('/pdfjs/pdf.worker.min.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(require.resolve('pdfjs-dist/build/pdf.worker.min.js'));
+});
+
 // ── pdf-lib — served from npm package (no CDN needed) ──────────────────────
 app.get('/pdflib/pdf-lib.min.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
