@@ -4149,9 +4149,18 @@ function setAnnotationTool(tool) {
   });
   const overlay = document.getElementById('pdf-ann-overlay');
   const body    = document.getElementById('file-preview-body');
-  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
-  if (overlay) overlay.style.cursor        = currentAnnTool === 'text' ? 'text' : currentAnnTool === 'highlight' ? 'crosshair' : '';
-  if (body)    body.style.cursor           = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
+  const embed   = body?.querySelector('embed');
+  if (currentAnnTool) {
+    // Tool active: overlay intercepts all clicks, embed gets nothing
+    if (overlay) overlay.style.pointerEvents = 'all';
+    if (embed)   embed.style.pointerEvents   = 'none';
+    if (body)    body.style.cursor           = currentAnnTool === 'text' ? 'text' : 'crosshair';
+  } else {
+    // No tool: overlay transparent to mouse, embed scrollable/zoomable again
+    if (overlay) overlay.style.pointerEvents = 'none';
+    if (embed)   embed.style.pointerEvents   = 'auto';
+    if (body)    body.style.cursor           = '';
+  }
 }
 
 const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', na:'N/A' };
@@ -5930,9 +5939,13 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
   overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
   pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
 
+  // Always keep overlay pointer-events:none globally;
+  // individual ann-auto children have pointer-events:all themselves
+  // This ensures the embed below is still scrollable when no tool is active
+
   const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
   const TICK_COLORS  = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280' };
-  const TICK_BG      = { pass:'rgba(22,163,74,0.12)', pass_exception:'rgba(234,88,12,0.12)', fail:'rgba(220,38,38,0.12)', error:'rgba(107,114,128,0.1)' };
+  const TICK_BG      = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
 
   // Body dimensions for positioning
   const bodyH = body.scrollHeight || body.clientHeight || 800;
@@ -9870,22 +9883,34 @@ async function renderPDFPreview(file) {
     if (window._currentPDFBlobUrl) URL.revokeObjectURL(window._currentPDFBlobUrl);
     window._currentPDFBlobUrl = blobUrl;
 
-    // <embed> renders in-browser on Chrome/Edge/Firefox without triggering OS handlers
+    // Wrapper holds the embed so we can layer overlay on top
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;width:100%;min-height:700px;flex:1';
+
+    // <embed> for native PDF rendering — pointer-events:none so overlay receives mouse events
     const embed = document.createElement('embed');
     embed.src   = blobUrl;
     embed.type  = 'application/pdf';
-    embed.style.cssText = 'width:100%;height:100%;min-height:700px;border:none;display:block';
+    embed.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;min-height:700px;border:none;display:block;pointer-events:none';
 
-    body.insertBefore(embed, overlay);
+    wrapper.appendChild(embed);
+    body.insertBefore(wrapper, overlay);
+
     document.getElementById('file-preview-nav').style.display = 'none';
 
-    if (overlay) {
-      setTimeout(() => {
-        overlay.style.width  = body.clientWidth  + 'px';
-        overlay.style.height = Math.max(body.clientHeight, 700) + 'px';
-        setupAnnOverlay();
-      }, 300);
-    }
+    // Size and re-bind overlay after render
+    setTimeout(() => {
+      const h = Math.max(body.clientHeight, wrapper.clientHeight, 700);
+      const w = body.clientWidth;
+      if (overlay) {
+        overlay.style.width   = w + 'px';
+        overlay.style.height  = h + 'px';
+        overlay.style.zIndex  = '30';
+        overlay.style.pointerEvents = 'none'; // controlled by setAnnotationTool
+      }
+      wrapper.style.height = h + 'px';
+      setupAnnOverlay();
+    }, 300);
 
     previewPDFDoc      = true;
     previewTotalPages  = 1;
