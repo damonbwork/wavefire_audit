@@ -4334,22 +4334,28 @@ async function saveAnnotatedPDF() {
     const pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
     const pages     = pdfDoc.getPages();
     const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const fontReg   = font;
 
-    // Get the first canvas to establish scale
-    const body      = document.getElementById('file-preview-body');
-    const overlay   = document.getElementById('pdf-ann-overlay');
+    const body    = document.getElementById('file-preview-body');
+    const overlay = document.getElementById('pdf-ann-overlay');
+
+    // Compute scale from overlay/body dimensions vs PDF page size
+    // Use the canvas if available, otherwise fall back to overlay width
     const firstCanvas = body?.querySelector('canvas');
-    if (!firstCanvas) throw new Error('PDF canvas not found — is the PDF still open?');
+    const canvasRect  = firstCanvas?.getBoundingClientRect();
+    const page0       = pages[0];
+    const _ps0        = page0.getSize();
+    const pw0 = _ps0.width, ph0 = _ps0.height;
 
-    const overlayRect = overlay?.getBoundingClientRect();
-    const canvasRect  = firstCanvas.getBoundingClientRect();
+    // Reference width: canvas width if available and non-zero, else overlay/body clientWidth
+    const refW = (canvasRect && canvasRect.width > 0) ? canvasRect.width : (overlay?.clientWidth || body?.clientWidth || pw0);
+    const refH = (canvasRect && canvasRect.height > 0) ? canvasRect.height : (body?.clientHeight || ph0);
 
-    console.log('[Save] canvasRect:', canvasRect.width, 'x', canvasRect.height);
-    console.log('[Save] page0 size:', pw0, 'x', ph0);
+    const scaleX = pw0 / refW;
+    const scaleY = ph0 / refH;
+    console.log('[Save] refW:', refW, 'refH:', refH, 'scaleX:', scaleX, 'scaleY:', scaleY, 'pw0:', pw0, 'ph0:', ph0);
 
-    const scaleX = canvasRect.width  > 0 ? pw0 / canvasRect.width  : 1;
-    const scaleY = canvasRect.height > 0 ? ph0 / canvasRect.height : 1;
-    console.log('[Save] scaleX:', scaleX, 'scaleY:', scaleY);
+    const bodyRect2 = body?.getBoundingClientRect() || { left:0, top:0 };
 
     for (const ann of pdfAnnotations) {
       if (!ann.el) continue;
@@ -8828,6 +8834,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   if (_timeoutHandle) clearTimeout(_timeoutHandle);
   // Persist results for this workpaper so viewer can use them after navigation
   _wpAnalysisResults[ref] = analysisResults.slice();
+  // Also store on the workpaper object itself for deeper persistence
+  const _wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
   logEntry('COMPLETE', `Analysis finished. ${successCount} ok, ${errorCount} errors`);
 
   setProgress(100, errorCount > 0
@@ -9742,9 +9751,12 @@ async function previewMemFile(ref, bucket, idx) {
     // If this is a sample file and we have analysis results, place the legend overlay
     if (bucket === 'sample') {
       // Use persisted results for this workpaper (survives navigation/refresh)
+      const _wpObj2 = WORKPAPERS.find(w => w.ref === ref);
       const wpResults = (_wpAnalysisResults[ref] || []).length
         ? _wpAnalysisResults[ref]
-        : analysisResults;
+        : (_wpObj2?._analysisResults || []).length
+          ? _wpObj2._analysisResults
+          : analysisResults;
 
       if (wpResults.length) {
         // Strip _annotated suffix to get the original filename for matching
