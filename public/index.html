@@ -4173,10 +4173,11 @@ function setAnnotationTool(tool) {
     btn.style.background  = currentAnnTool === t ? 'rgba(234,88,12,0.8)' : 'rgba(255,255,255,0.08)';
     btn.style.borderColor = currentAnnTool === t ? '#ea580c' : 'rgba(255,255,255,0.2)';
   });
+  // Overlay stays pointer-events:all always so ann-items are always interactive
   const overlay = document.getElementById('pdf-ann-overlay');
-  const body    = document.getElementById('file-preview-body');
-  if (overlay) overlay.style.pointerEvents = currentAnnTool ? 'all' : 'none';
-  if (body)    body.style.cursor = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
+  if (overlay) overlay.style.pointerEvents = 'all';
+  const body = document.getElementById('file-preview-body');
+  if (body) body.style.cursor = currentAnnTool ? (currentAnnTool === 'text' ? 'text' : 'crosshair') : '';
 }
 
 const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', na:'N/A' };
@@ -5948,28 +5949,20 @@ setTimeout(setupAnnOverlay, 800);
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
   const overlay = document.getElementById('pdf-ann-overlay');
-  const body    = document.getElementById('file-preview-body');
-  if (!overlay || !body) return;
+  if (!overlay) return;
 
-  // Remove any previously placed auto-annotations for this file
+  // Remove previously placed auto-annotations
   overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
   pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
 
-  // Always keep overlay pointer-events:none globally;
-  // individual ann-auto children have pointer-events:all themselves
-  // This ensures the embed below is still scrollable when no tool is active
-
-  const TICK_SYMBOLS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
-  const TICK_COLORS  = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280' };
-  const TICK_BG      = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
-
-  // Body dimensions for positioning
-  const bodyH = body.scrollHeight || body.clientHeight || 800;
-  const bodyW = body.scrollWidth  || body.clientWidth  || 600;
-
-  // Estimate page height (assume single page fills body, multi-page = divide)
-  const pageCount = Math.max(1, Math.round(bodyH / 900));
+  const body   = document.getElementById('file-preview-body');
+  const bodyH  = body ? (body.scrollHeight || 800) : 800;
+  const pageCount = Math.max(1, previewTotalPages || 1);
   const pageH     = bodyH / pageCount;
+
+  const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+  const TICK_COLS = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280' };
+  const TICK_BG   = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
 
   attributes.forEach((attr, ai) => {
     let match = (fileResult.results || []).find(r => r.title === attr.title);
@@ -5981,120 +5974,111 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
     }
     if (!match) return;
 
-    const result  = match.result || 'error';
-    const sym     = TICK_SYMBOLS[result] || '–';
-    const col     = TICK_COLORS[result]  || '#6b7280';
-    const bg      = TICK_BG[result]      || 'rgba(107,114,128,0.1)';
-    const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
-    const label   = (attr.attrRef || attr.num || String(ai+1)) + exRef;
+    const result = match.result || 'error';
+    const sym    = TICK_SYMS[result] || '–';
+    const col    = TICK_COLS[result] || '#6b7280';
+    const bg     = TICK_BG[result]  || 'rgba(107,114,128,0.1)';
+    const exRef  = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
+    const label  = (attr.attrRef || attr.num || String(ai+1)) + exRef;
+    const noteText = (match.note || '').slice(0, 60);
 
-    // ── Tick mark at evidence location ───────────────────────────
-    const targetPage = (match.page && match.page > 0) ? match.page - 1 : 0;
-    const paraNum    = (match.paragraph && match.paragraph > 0) ? match.paragraph : ai + 1;
+    // Position: left margin, estimated Y from paragraph
+    const targetPage = Math.max(0, (match.page || 1) - 1);
+    const paraNum    = Math.max(1, match.paragraph || (ai + 1));
     const paraH      = Math.min(40, (pageH - 80) / Math.max(paraNum + 2, 10));
-    const estimY     = targetPage * pageH + 40 + paraNum * paraH;
-    const clampedY   = Math.max(targetPage * pageH + 20, Math.min((targetPage + 1) * pageH - 20, estimY));
+    const rawY       = targetPage * pageH + 40 + paraNum * paraH;
+    const tickY      = Math.max(targetPage * pageH + 20, Math.min((targetPage + 1) * pageH - 40, rawY));
+    const tickX      = 10;
+    const noteX      = 46;
+    const noteY      = tickY - 4;
 
-    // Tick element — positioned in left margin area
-    const tickX = 14;
-    const tickY = clampedY;
+    // ── Tick element ──────────────────────────────────────────────
+    const tickEl = document.createElement('div');
+    tickEl.className = 'ann-item ann-auto';
+    tickEl.style.cssText =
+      'position:absolute;left:' + tickX + 'px;top:' + tickY + 'px;' +
+      'font-size:18px;font-weight:900;color:' + col + ';' +
+      'background:' + bg + ';border:1.5px solid ' + col + ';' +
+      'border-radius:5px;padding:1px 6px;cursor:move;' +
+      'user-select:none;white-space:nowrap;z-index:55;' +
+      'pointer-events:all !important;' +
+      'box-shadow:0 2px 6px rgba(0,0,0,0.18)';
+    tickEl.textContent = sym;
+    overlay.appendChild(tickEl);
 
-    const tickWrap = document.createElement('div');
-    tickWrap.className = 'ann-item ann-auto';
-    tickWrap.dataset.tickType = result;
-    tickWrap.style.cssText = `position:absolute;left:${tickX}px;top:${tickY}px;
-      z-index:55;pointer-events:all;display:flex;flex-direction:column;align-items:flex-start;gap:2px`;
+    const annIdxTick = pdfAnnotations.length;
+    pdfAnnotations.push({ type:'tick', tickType:result, symbol:sym, x:tickX, y:tickY, text:label, el:tickEl, auto:true });
+    updateAnnCount();
 
-    const tickRow = document.createElement('div');
-    tickRow.style.cssText = `display:flex;align-items:center;gap:4px;
-      font-size:18px;font-weight:900;color:${col};
-      background:${bg};border:1.5px solid ${col};
-      border-radius:5px;padding:2px 6px;cursor:move;
-      user-select:none;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15)`;
-    tickRow.textContent = sym;
+    // Drag tick
+    let dt=false,dtx=0,dty=0,dtl=0,dtt=0;
+    tickEl.addEventListener('mousedown', ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      _selectAnnotation(tickEl);
+      _annPushUndo();
+      dt=true; dtx=ev.clientX; dty=ev.clientY;
+      dtl=parseInt(tickEl.style.left)||0; dtt=parseInt(tickEl.style.top)||0;
+    });
+    document.addEventListener('mousemove', ev => {
+      if (!dt) return;
+      tickEl.style.left = (dtl + ev.clientX - dtx) + 'px';
+      tickEl.style.top  = (dtt + ev.clientY - dty) + 'px';
+    });
+    document.addEventListener('mouseup', () => { dt = false; });
 
-    // Note toggle button
-    const noteBtn = document.createElement('button');
-    noteBtn.style.cssText = `font-size:9px;padding:1px 5px;border-radius:3px;border:0.5px solid ${col};
-      background:transparent;color:${col};cursor:pointer;opacity:0.7;pointer-events:all;white-space:nowrap`;
-    noteBtn.textContent = '+ note';
+    // ── Text note element ─────────────────────────────────────────
+    const wrap = document.createElement('div');
+    wrap.className = 'ann-item ann-auto';
+    wrap.style.cssText =
+      'position:absolute;left:' + noteX + 'px;top:' + noteY + 'px;' +
+      'z-index:56;pointer-events:all !important;display:flex;flex-direction:column;' +
+      'border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);min-width:160px;max-width:260px';
 
-    // Note input (pre-populated with attr label)
-    const noteInput = document.createElement('input');
-    noteInput.type  = 'text';
-    noteInput.value = label + (match.note ? ': ' + match.note.slice(0, 40) : '');
-    noteInput.style.cssText = `font-size:11px;padding:2px 6px;border:1.5px solid ${col};
-      border-radius:4px;background:rgba(255,255,255,0.95);color:#1e293b;
-      outline:none;min-width:120px;max-width:220px;pointer-events:all;margin-top:2px`;
+    const handle = document.createElement('div');
+    handle.style.cssText =
+      'background:' + col + ';height:13px;border-radius:4px 4px 0 0;cursor:move;' +
+      'display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none';
+    handle.innerHTML = '<span style="font-size:8px;color:rgba(255,255,255,0.8);letter-spacing:1.5px">• • •</span>';
 
-    noteBtn.onclick = ev => {
-      ev.stopPropagation();
-      const showing = noteInput.style.display !== 'none';
-      noteInput.style.display = showing ? 'none' : 'block';
-      noteBtn.textContent = showing ? '+ note' : '− note';
-      if (!showing) setTimeout(() => noteInput.focus(), 10);
-    };
+    const ta = document.createElement('textarea');
+    ta.value = '[' + label + '] ' + noteText;
+    ta.style.cssText =
+      'min-width:160px;max-width:260px;min-height:32px;height:32px;' +
+      'background:rgba(255,255,255,0.97);border:1.5px solid ' + col + ';border-top:none;' +
+      'border-radius:0 0 4px 4px;padding:4px 7px;font-size:10px;font-family:inherit;' +
+      'resize:both;outline:none;cursor:text;pointer-events:all;box-sizing:border-box;width:100%';
 
-    tickRow.appendChild(noteBtn);
-    tickWrap.appendChild(tickRow);
-    tickWrap.appendChild(noteInput);
-    overlay.appendChild(tickWrap);
+    wrap.appendChild(handle);
+    wrap.appendChild(ta);
+    overlay.appendChild(wrap);
 
-    const annIdx = pdfAnnotations.length;
-    pdfAnnotations.push({ type:'tick', tickType: result, symbol: sym, x: tickX, y: tickY, text: noteInput.value, el: tickWrap, auto: true });
-    noteInput.addEventListener('input',     () => { pdfAnnotations[annIdx].text = noteInput.value; updateAnnCount(); });
-    noteInput.addEventListener('mousedown', ev => ev.stopPropagation());
-    noteInput.addEventListener('click',     ev => ev.stopPropagation());
-    _makeDraggable(tickWrap);
+    const annIdxNote = pdfAnnotations.length;
+    pdfAnnotations.push({ type:'text', x:noteX, y:noteY, text:ta.value, el:wrap, auto:true });
 
-    // ── Editable text note at evidence location ───────────────────
-    if (match.note) {
-      const noteX = 50;
-      const noteY = clampedY - 2;
+    ta.addEventListener('input',     () => { pdfAnnotations[annIdxNote].text = ta.value; updateAnnCount(); });
+    ta.addEventListener('click',     ev => ev.stopPropagation());
+    ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
 
-      const wrap = document.createElement('div');
-      wrap.className = 'ann-item ann-auto';
-      wrap.style.cssText = `position:absolute;left:${noteX}px;top:${noteY}px;z-index:60;pointer-events:all;
-        display:flex;flex-direction:column;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);
-        min-width:160px;max-width:260px`;
-
-      const handle = document.createElement('div');
-      handle.style.cssText = `background:${col};height:12px;border-radius:4px 4px 0 0;cursor:move;
-        display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;opacity:0.8`;
-      handle.innerHTML = `<span style="font-size:8px;color:#fff;letter-spacing:1px">• • •</span>`;
-
-      const ta = document.createElement('textarea');
-      ta.value = `[${label}] ${match.note}`;
-      ta.style.cssText = `min-width:160px;max-width:260px;min-height:32px;height:32px;
-        background:rgba(255,255,255,0.95);border:1.5px solid ${col};border-top:none;
-        border-radius:0 0 4px 4px;padding:4px 7px;font-size:10px;font-family:inherit;
-        resize:both;outline:none;display:block;cursor:text;pointer-events:all;box-sizing:border-box;width:100%`;
-
-      wrap.appendChild(handle);
-      wrap.appendChild(ta);
-      overlay.appendChild(wrap);
-
-      const annIdx2 = pdfAnnotations.length;
-      pdfAnnotations.push({ type:'text', x: noteX, y: noteY, text: ta.value, el: wrap, auto: true });
-      ta.addEventListener('input',     () => { pdfAnnotations[annIdx2].text = ta.value; updateAnnCount(); });
-      ta.addEventListener('click',     ev => ev.stopPropagation());
-      ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
-
-      // Drag via handle
-      let dm=false, mx=0, my=0, wl=0, wt=0;
-      handle.addEventListener('mousedown', ev => {
-        _selectAnnotation(wrap);
-        dm=true; mx=ev.clientX; my=ev.clientY;
-        wl=parseInt(wrap.style.left)||0; wt=parseInt(wrap.style.top)||0;
-        ev.stopPropagation(); ev.preventDefault();
-      });
-      document.addEventListener('mousemove', ev => { if(!dm)return; wrap.style.left=(wl+ev.clientX-mx)+'px'; wrap.style.top=(wt+ev.clientY-my)+'px'; });
-      document.addEventListener('mouseup',   () => { dm=false; });
-    }
+    // Drag note via handle
+    let dn=false,dnx=0,dny=0,dnl=0,dnt=0;
+    handle.addEventListener('mousedown', ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      _selectAnnotation(wrap);
+      _annPushUndo();
+      dn=true; dnx=ev.clientX; dny=ev.clientY;
+      dnl=parseInt(wrap.style.left)||0; dnt=parseInt(wrap.style.top)||0;
+    });
+    document.addEventListener('mousemove', ev => {
+      if (!dn) return;
+      wrap.style.left = (dnl + ev.clientX - dnx) + 'px';
+      wrap.style.top  = (dnt + ev.clientY - dny) + 'px';
+    });
+    document.addEventListener('mouseup', () => { dn = false; });
   });
 
   updateAnnCount();
 }
+
 
 function placeLegendOverlay(fileResult, attributes, exMap, fi) {
   const overlay = document.getElementById('pdf-ann-overlay');
@@ -6204,8 +6188,8 @@ function setupAnnOverlay() {
   }
 
   overlay._annClickHandler = function(e) {
-    if (!currentAnnTool) return;
-    if (e.target !== overlay) return;  // only blank overlay area
+    if (!currentAnnTool) return;  // no tool active — ignore clicks on blank overlay
+    if (e.target !== overlay) return;  // clicked on existing annotation, not blank area
 
     const rect = overlay.getBoundingClientRect();
     const body = document.getElementById('file-preview-body');
@@ -9954,7 +9938,10 @@ async function renderPDFPreview(file) {
     // After all pages rendered, size overlay to match canvas container
     requestAnimationFrame(() => {
       if (overlay) {
+        // Always pointer-events:all — individual tool clicks handled by checking currentAnnTool
+        // Canvas below receives events only when overlay has no ann-item at that position
         overlay.style.height = canvasContainer.scrollHeight + 'px';
+        overlay.style.pointerEvents = 'all';
       }
       setupAnnOverlay();
     });
