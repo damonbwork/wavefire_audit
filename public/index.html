@@ -17,25 +17,21 @@
     ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
     : '/pdfjs/pdf.min.js';
 
+  function disableWorker(lib) {
+    // Must set workerSrc BEFORE any getDocument() call
+    try { lib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
+  }
+
   var s = document.createElement('script');
   s.src = pdfSrc;
-  s.async = true;
+  // Use defer so it runs after DOM but before user interaction
   s.onload = function() {
-    if (window.pdfjsLib) {
-      // Disable worker — main thread mode, no worker loading issues
-      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
-    }
+    if (window.pdfjsLib) disableWorker(window.pdfjsLib);
   };
   s.onerror = function() {
-    // Fallback to CDN if proxy fails
     var s2 = document.createElement('script');
     s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    s2.async = true;
-    s2.onload = function() {
-      if (window.pdfjsLib) {
-        try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
-      }
-    };
+    s2.onload = function() { if (window.pdfjsLib) disableWorker(window.pdfjsLib); };
     document.head.appendChild(s2);
   };
   document.head.appendChild(s);
@@ -8979,7 +8975,8 @@ async function renderPDFPreview(file) {
   try {
     const pdfjsLib = await loadPDFJS();
     const arrayBuffer = await file.arrayBuffer();
-    previewPDFDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    // disableWorker:true forces main-thread rendering even if workerSrc somehow got set
+    previewPDFDoc = await pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true }).promise;
     previewTotalPages  = previewPDFDoc.numPages;
     currentPreviewPage = 1;
 
