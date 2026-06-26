@@ -7,33 +7,9 @@
 <!-- Preconnect to CDNs for faster loading -->
 <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 <link rel="preconnect" href="https://unpkg.com">
-<!-- Eagerly load PDF.js 2.x — more stable for main-thread rendering -->
-<script>
-(function() {
-  var host     = window.location.hostname;
-  var isLocal  = host === '' || host === 'localhost' || host === '127.0.0.1';
-  var isClaude = host.includes('claude.ai');
-  // Use 2.16.105 — well-tested, stable main-thread support
-  var pdfSrc   = (isLocal || isClaude)
-    ? 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js'
-    : '/pdfjs/pdf.min.js';
-
-  var s = document.createElement('script');
-  s.src = pdfSrc;
-  s.onload = function() {
-    if (window.pdfjsLib) {
-      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {}
-    }
-  };
-  s.onerror = function() {
-    var s2 = document.createElement('script');
-    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
-    s2.onload = function() { if (window.pdfjsLib) { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = ''; } catch(e) {} } };
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s);
-})();
-</script>
+<!-- Preconnect hints -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -8956,98 +8932,55 @@ function setPreviewIcon(name) {
 async function renderPDFPreview(file) {
   const body = document.getElementById('file-preview-body');
 
-  // Preserve the annotation overlay — remove it before clearing, re-add after
+  // Preserve annotation overlay
   const overlay = document.getElementById('pdf-ann-overlay');
   if (overlay && overlay.parentNode === body) body.removeChild(overlay);
 
-  body.innerHTML =
-    `<div id="file-preview-placeholder" style="color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px">
-      <i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i>
-      <span style="font-size:13px">Loading PDF…</span>
-    </div>`;
-
-  // Re-add the overlay on top
+  body.innerHTML = `<div style="color:#ccc;display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px">
+    <i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i>
+    <span style="font-size:13px">Loading PDF…</span>
+  </div>`;
   if (overlay) body.appendChild(overlay);
 
   try {
-    const pdfjsLib = await loadPDFJS();
-    const arrayBuffer = await file.arrayBuffer();
-    // disableWorker:true forces main-thread rendering even if workerSrc somehow got set
-    previewPDFDoc = await pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true }).promise;
-    previewTotalPages  = previewPDFDoc.numPages;
+    // Create a blob URL for the file
+    const blobUrl = URL.createObjectURL(file);
+    window._currentPDFBlobUrl = blobUrl; // store for cleanup
+
+    // Use native browser PDF rendering via iframe - works on all browsers, zero deps
+    const iframe = document.createElement('iframe');
+    iframe.src = blobUrl + '#toolbar=1&navpanes=0&scrollbar=1&view=FitH';
+    iframe.style.cssText = 'width:100%;height:100%;min-height:600px;border:none;display:block;background:#525659';
+    iframe.title = file.name;
+
+    // Clear body content (keep overlay)
+    Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
+    body.insertBefore(iframe, overlay);
+
+    // Hide PDF nav bar (not applicable for iframe)
+    document.getElementById('file-preview-nav').style.display = 'none';
+
+    // Update overlay size after iframe loads
+    iframe.onload = () => {
+      if (overlay) {
+        overlay.style.width  = (iframe.offsetWidth  || body.clientWidth)  + 'px';
+        overlay.style.height = (iframe.offsetHeight || body.clientHeight || 600) + 'px';
+      }
+      setupAnnOverlay();
+    };
+
+    previewPDFDoc      = true; // signal that a PDF is open
+    previewTotalPages  = 1;
     currentPreviewPage = 1;
 
-    const _ptp = document.getElementById('preview-total-pages'); if(_ptp) _ptp.textContent = previewTotalPages;
-    document.getElementById('preview-page-input').value = 1;
-    document.getElementById('preview-page-input').max   = previewTotalPages;
-    document.getElementById('file-preview-nav').style.display = 'flex';
-
-    // Clear everything except the overlay
-    Array.from(body.children).forEach(c => { if (c.id !== 'pdf-ann-overlay') c.remove(); });
-
-    // Render all pages stacked
-    const zoom = parseFloat(document.getElementById('preview-zoom')?.value || '1');
-    for (let p = 1; p <= previewTotalPages; p++) {
-      const page = await previewPDFDoc.getPage(p);
-      const vp   = page.getViewport({ scale: zoom });
-      const wrapper = document.createElement('div');
-      wrapper.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center';
-      wrapper.setAttribute('data-page', p);
-      const label = document.createElement('div');
-      label.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:4px';
-      label.textContent = `Page ${p} of ${previewTotalPages}`;
-      wrapper.appendChild(label);
-      const canvas = document.createElement('canvas');
-      canvas.className = 'preview-page-canvas';
-      canvas.width  = vp.width;
-      canvas.height = vp.height;
-      wrapper.appendChild(canvas);
-      // Insert before overlay so overlay stays on top
-      body.insertBefore(wrapper, document.getElementById('pdf-ann-overlay'));
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport: vp }).promise;
-    }
-
-    // Size overlay to match total rendered content so it covers all pages
-    requestAnimationFrame(() => {
-      const annOverlay = document.getElementById('pdf-ann-overlay');
-      if (annOverlay) {
-        annOverlay.style.width  = body.scrollWidth  + 'px';
-        annOverlay.style.height = body.scrollHeight + 'px';
-      }
-    });
-
-    // Re-bind annotation handler
-    setupAnnOverlay();
-
-    // Scroll page tracking
-    body.addEventListener('scroll', () => {
-      const pages = body.querySelectorAll('[data-page]');
-      for (const pg of pages) {
-        const rect = pg.getBoundingClientRect();
-        const bodyRect = body.getBoundingClientRect();
-        if (rect.top >= bodyRect.top - rect.height / 2) {
-          const pNum = parseInt(pg.getAttribute('data-page'), 10);
-          if (pNum !== currentPreviewPage) {
-            currentPreviewPage = pNum;
-            document.getElementById('preview-page-input').value = pNum;
-          }
-          break;
-        }
-      }
-    });
-
   } catch(err) {
-    // Preserve overlay even on error
     const ann2 = document.getElementById('pdf-ann-overlay');
     if (ann2 && ann2.parentNode === body) body.removeChild(ann2);
-    const isLoadErr = err.message?.includes('PDF.js') || err.message?.includes('pdfjsLib') || err.message?.includes('pdfjs');
     body.innerHTML = `
       <div style="color:#f87171;text-align:center;padding:40px 20px">
         <i class="ti ti-alert-triangle" style="font-size:36px;display:block;margin-bottom:10px"></i>
         <div style="font-size:14px;font-weight:500">Could not render PDF</div>
         <div style="font-size:12px;margin-top:6px;opacity:0.8">${err.message}</div>
-        ${isLoadErr ? '<div style="font-size:11px;margin-top:8px;color:#fca5a5">Check that /pdfjs routes are working: visit <a href="/pdfjs/pdf.min.js" target="_blank" style="color:#fca5a5">/pdfjs/pdf.min.js</a> in your browser.</div>' : ''}
       </div>`;
     if (ann2) body.appendChild(ann2);
   }
