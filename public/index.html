@@ -9848,15 +9848,18 @@ async function previewMemFile(ref, bucket, idx) {
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
 
-    // Fallback: if RAF didn't consume _pendingAnnotations, place them now
-    if (window._pendingAnnotations?.length) {
-      const ov = document.getElementById('pdf-ann-overlay');
-      if (ov) {
-        console.log('[Viewer] Fallback restore of', window._pendingAnnotations.length, 'annotations');
-        _restoreAnnotationsToOverlay(window._pendingAnnotations, ov);
-        window._pendingAnnotations = null;
+    // Fallback: RAF runs synchronously during renderPDFPreview page loop.
+    // If overlay wasn't connected during RAF (second open scenario), place annotations now.
+    setTimeout(() => {
+      if (window._pendingAnnotations?.length) {
+        const ov = document.getElementById('pdf-ann-overlay');
+        if (ov) {
+          console.log('[Viewer] Fallback restore of', window._pendingAnnotations.length, 'annotations');
+          _restoreAnnotationsToOverlay(window._pendingAnnotations, ov);
+          window._pendingAnnotations = null;
+        }
       }
-    }
+    }, 100);
 
     // If this is a sample file and we have analysis results OR stored annotations, place overlays
     if (bucket === 'sample') {
@@ -10054,7 +10057,6 @@ async function renderPDFPreview(file) {
 
     // After all pages rendered, size overlay to match canvas container
     requestAnimationFrame(() => {
-      // Always re-fetch overlay — the closure variable may be stale if previewMemFile ran twice
       const liveOverlay = document.getElementById('pdf-ann-overlay');
       if (liveOverlay) {
         liveOverlay.style.height = canvasContainer.scrollHeight + 'px';
@@ -10062,7 +10064,8 @@ async function renderPDFPreview(file) {
       }
       setupAnnOverlay();
       console.log('[RAF] _pendingAnnotations:', window._pendingAnnotations?.length ?? 'null', 'overlay in DOM:', !!liveOverlay?.isConnected);
-      if (window._pendingAnnotations?.length && liveOverlay) {
+      // Only consume if overlay is actually connected — otherwise leave for fallback
+      if (window._pendingAnnotations?.length && liveOverlay?.isConnected) {
         console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
         _restoreAnnotationsToOverlay(window._pendingAnnotations, liveOverlay);
         window._pendingAnnotations = null;
