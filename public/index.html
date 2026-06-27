@@ -4455,38 +4455,18 @@ async function saveAnnotatedPDF() {
     // Mutate in place so _fpIdx still points to the right object
     console.log('[Save] Storing', serialized.length, 'annotations on entry', entry.name);
 
-    // Determine annotated filename
-    const origName = entry.name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/\.pdf$/i, '');
-    const _ts = (() => {
-      const n = new Date();
-      return String(n.getFullYear()) +
-        String(n.getMonth()+1).padStart(2,'0') +
-        String(n.getDate()).padStart(2,'0') + '_' +
-        String(n.getHours()).padStart(2,'0') +
-        String(n.getMinutes()).padStart(2,'0');
-    })();
-    const annName = entry.name.match(/_annotated_\d{8}_\d{4}\.pdf$/i)
-      ? entry.name
-      : `${origName}_annotated_${_ts}.pdf`;
+    const now    = new Date();
+    const nowStr = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                 + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
 
-    const now     = new Date();
-    const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
-                  + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-
-    // Update the entry directly — rename if needed and store annotations
+    // Store annotations directly on the entry — never rename the file
     entry._annotations = serialized;
     entry.updatedBy    = 'jdavis';
     entry.updatedOn    = nowStr;
 
-    if (entry.name !== annName) {
-      // Rename: create new File with new name, same bytes
-      entry.file = new File([entry.file], annName, { type: 'application/pdf' });
-      entry.name = annName;
-    }
-
     console.log('[Save] Done. entry._annotations:', entry._annotations.length, 'name:', entry.name);
     refreshFileList(_fpRef, 'sample');
-    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotations saved: ${annName}`);
+    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotations saved: ${entry.name}`);
 
     if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
     setTimeout(() => {
@@ -9645,39 +9625,14 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     }
 
     // Skip already-annotated files to prevent double-annotation
-    if (/_annotated_\d{8}_\d{4}\.pdf$/i.test(fileName) || fileName.toLowerCase().endsWith('_annotated.pdf')) {
-      console.log('[Annotate] Skipping already-annotated file:', fileName);
-      continue;
-    }
+    // Skip already-annotated entries to avoid double processing
+    // (check _annotations already set — no filename check needed since we don't rename)
 
-    // Look up in sample files — match original name OR already-annotated name
+    // Look up in sample files — match by exact original name
     const sampleFiles = inMemoryFiles[ref]?.sample || [];
     console.log('[Annotate] Sample files in store:', sampleFiles.map(f => f.name));
 
-    const _annTs = (() => {
-      const n = new Date();
-      return String(n.getFullYear()) +
-        String(n.getMonth()+1).padStart(2,'0') +
-        String(n.getDate()).padStart(2,'0') + '_' +
-        String(n.getHours()).padStart(2,'0') +
-        String(n.getMinutes()).padStart(2,'0');
-    })();
-    const annName = fileName.replace(/\.pdf$/i, `_annotated_${_annTs}.pdf`);
-    let sfEntry = sampleFiles.find(f => f.name === fileName);
-    if (!sfEntry) {
-      // Try matching the _annotated version (previous run replaced original)
-      sfEntry = sampleFiles.find(f => f.name === annName);
-      if (sfEntry) console.log('[Annotate] Found previous annotated version:', sfEntry.name);
-    }
-    if (!sfEntry) {
-      // Fuzzy match — strip _annotated suffix and compare basenames
-      const base = fileName.replace(/\.pdf$/i, '').toLowerCase();
-      sfEntry = sampleFiles.find(f => {
-        const fb = f.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
-        return fb === base;
-      });
-      if (sfEntry) console.log('[Annotate] Fuzzy matched:', sfEntry.name);
-    }
+    const sfEntry = sampleFiles.find(f => f.name === fileName);
 
     if (!sfEntry?.file) {
       console.warn('[Annotate] Could not find file in sample store:', fileName);
@@ -9685,10 +9640,8 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     }
 
     try {
-      console.log('[Annotate] Creating annotated entry with overlay annotations');
-      const annBlob  = sfEntry.file;
-      const annFile  = new File([annBlob], annName, { type: 'application/pdf' });
-      const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+      console.log('[Annotate] Creating annotations for:', fileName);
+      const nowStr = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
       // Build serialized annotation data from analysis results so they
       // reload as interactive overlays when the file is reopened
@@ -9764,26 +9717,11 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
 
       console.log('[Annotate] Built', serializedAnnotations.length, 'annotations for entry');
 
-      // Replace original AND any existing annotated version in sample files
-      const sfArr = inMemoryFiles[ref].sample;
-      const _origBase = fileName.replace(/\.pdf$/i, '').toLowerCase();
-      for (let i = sfArr.length - 1; i >= 0; i--) {
-        const n = sfArr[i].name;
-        const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
-        if (n === fileName || n === annName || nBase === _origBase) sfArr.splice(i, 1);
-      }
-      const annEntry = {
-        file: annFile, name: annName,
-        size: formatFileSize(annBlob.size),
-        type: 'application/pdf',
-        uploadedBy: 'Wavefire',
-        uploadedOn: nowStr,
-        _annotations: serializedAnnotations,  // ← stored for reloading
-      };
-      sfArr.unshift(annEntry);
-      console.log('[Annotate] annEntry._annotations count:', annEntry._annotations?.length, 'name:', annEntry.name);
-      console.log('[Annotate] inMemoryFiles[ref].sample[0]._annotations:', inMemoryFiles[ref].sample[0]?._annotations?.length);
-      console.log('[Annotate] Stored in sample files. Current sample files:', sfArr.map(f => f.name));
+      // Store annotations directly on the original entry — no renaming
+      sfEntry._annotations = serializedAnnotations;
+      sfEntry.updatedBy    = 'Wavefire';
+      sfEntry.updatedOn    = nowStr;
+      console.log('[Annotate] Stored', serializedAnnotations.length, 'annotations on:', sfEntry.name);
       refreshFileList(ref, 'sample');
 
     } catch(err) {
@@ -9927,14 +9865,8 @@ async function previewMemFile(ref, bucket, idx) {
           : analysisResults;
 
       if (wpResults.length) {
-        // Strip _annotated_YYYYMMDD_HHMM suffix to get original filename for matching
-        const baseName = name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
-                             .replace(/_annotated\.pdf$/i, '.pdf');
-        const fileResult = wpResults.find(r => {
-          const rBase = r.fileName.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
-                                  .replace(/_annotated\.pdf$/i, '.pdf');
-          return r.fileName === name || r.fileName === baseName || rBase === baseName || rBase === name;
-        });
+        // Match analysis results by exact filename
+        const fileResult = wpResults.find(r => r.fileName === name);
         if (fileResult) {
           console.log('[Viewer] Found analysis results for', name, '— will place overlays after PDF renders');
           const fi = wpResults.indexOf(fileResult);
