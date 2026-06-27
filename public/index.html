@@ -9840,32 +9840,17 @@ async function previewMemFile(ref, bucket, idx) {
 
     // Set pending annotations BEFORE renderPDFPreview so the RAF inside it picks them up
     window._pendingAnnotations = null;
-    if (bucket === 'sample' && entry._annotations?.length) {
-      console.log('[Viewer] Pre-queuing', entry._annotations.length, 'annotations before PDF render');
-      window._pendingAnnotations = entry._annotations;
-    }
 
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
 
-    // Restore annotations — poll until overlay is in the DOM and connected
-    if (window._pendingAnnotations?.length) {
-      const _annsToRestore = window._pendingAnnotations;
-      window._pendingAnnotations = null;
-      let _attempts = 0;
-      const _poll = () => {
-        _attempts++;
-        const ov = document.getElementById('pdf-ann-overlay');
-        if (ov && ov.isConnected) {
-          console.log('[Viewer] Restoring', _annsToRestore.length, 'annotations (attempt', _attempts + ')');
-          _restoreAnnotationsToOverlay(_annsToRestore, ov);
-        } else if (_attempts < 20) {
-          setTimeout(_poll, 200);
-        } else {
-          console.warn('[Viewer] Gave up waiting for overlay after', _attempts, 'attempts');
-        }
-      };
-      setTimeout(_poll, 200);
+    // Restore stored annotations synchronously — overlay is guaranteed in DOM after renderPDFPreview
+    if (bucket === 'sample' && entry._annotations?.length) {
+      const ov = document.getElementById('pdf-ann-overlay');
+      console.log('[Viewer] Restoring annotations, overlay:', !!ov, 'connected:', ov?.isConnected);
+      if (ov) {
+        _restoreAnnotationsToOverlay(entry._annotations, ov);
+      }
     }
 
     // If this is a sample file and we have analysis results OR stored annotations, place overlays
