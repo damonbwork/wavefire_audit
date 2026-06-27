@@ -4407,8 +4407,6 @@ async function saveAnnotatedPDF() {
     if (!entry?.file) throw new Error('Source file not available in memory.');
     if (!entry.name.toLowerCase().endsWith('.pdf')) throw new Error('Only PDF files can be annotated and saved.');
 
-    if (pdfAnnotations.length === 0) throw new Error('No annotations to save — add text or highlights first.');
-
     // ── Serialize annotation data (positions, text, types) ──────────────
     // We store annotation data alongside the file entry so it can be
     // reloaded as editable overlays next time the file is opened.
@@ -6149,6 +6147,16 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
   });
 
   updateAnnCount();
+
+  // Scroll body to show the first annotation
+  const _firstAuto = pdfAnnotations.find(a => a.auto && a.el);
+  if (_firstAuto) {
+    const _body2 = document.getElementById('file-preview-body');
+    if (_body2) {
+      const _topY = parseInt(_firstAuto.el.style.top) || 0;
+      setTimeout(() => { _body2.scrollTop = Math.max(0, _topY - 100); }, 100);
+    }
+  }
 }
 
 
@@ -9818,7 +9826,17 @@ async function previewMemFile(ref, bucket, idx) {
             }
           });
           updateAnnCount();
-          console.log('[Viewer] Annotations reloaded:', pdfAnnotations.length);
+          console.log('[IAnn] All annotations placed:', pdfAnnotations.filter(a=>a.auto).length);
+
+          // Scroll to first annotation so user can see it
+          const firstAnn = pdfAnnotations.find(a => a.auto && a.el);
+          if (firstAnn) {
+            const body2 = document.getElementById('file-preview-body');
+            if (body2) {
+              const topY = parseInt(firstAnn.el.style.top) || 0;
+              body2.scrollTop = Math.max(0, topY - 100);
+            }
+          }
         };
         setTimeout(_reloadAnns, 500);
       }
