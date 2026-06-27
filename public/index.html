@@ -9848,6 +9848,16 @@ async function previewMemFile(ref, bucket, idx) {
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
 
+    // Fallback: if RAF didn't consume _pendingAnnotations, place them now
+    if (window._pendingAnnotations?.length) {
+      const ov = document.getElementById('pdf-ann-overlay');
+      if (ov) {
+        console.log('[Viewer] Fallback restore of', window._pendingAnnotations.length, 'annotations');
+        _restoreAnnotationsToOverlay(window._pendingAnnotations, ov);
+        window._pendingAnnotations = null;
+      }
+    }
+
     // If this is a sample file and we have analysis results OR stored annotations, place overlays
     if (bucket === 'sample') {
       console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
