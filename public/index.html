@@ -9899,6 +9899,14 @@ async function previewMemFile(ref, bucket, idx) {
   if (isPDF) {
     clearAnnotations(true);
     window._previewFile = entry.file;
+
+    // Set pending annotations BEFORE renderPDFPreview so the RAF inside it picks them up
+    window._pendingAnnotations = null;
+    if (bucket === 'sample' && entry._annotations?.length) {
+      console.log('[Viewer] Pre-queuing', entry._annotations.length, 'annotations before PDF render');
+      window._pendingAnnotations = entry._annotations;
+    }
+
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
 
@@ -9906,21 +9914,8 @@ async function previewMemFile(ref, bucket, idx) {
     if (bucket === 'sample') {
       console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
       // Reload stored user annotations if present on this file entry
-      if (entry._annotations?.length) {
-        console.log('[Viewer] Queuing', entry._annotations.length, 'stored annotations for after PDF renders');
-        window._pendingAnnotations = entry._annotations;
-        // Fallback: if PDF already rendered, place immediately
-        setTimeout(() => {
-          if (window._pendingAnnotations) {
-            const ov = document.getElementById('pdf-ann-overlay');
-            if (ov) {
-              console.log('[Viewer] Fallback placement of annotations');
-              _restoreAnnotationsToOverlay(window._pendingAnnotations, ov);
-              window._pendingAnnotations = null;
-            }
-          }
-        }, 3000);
-      }
+      // If no stored annotations, check analysis results for auto-placement
+      if (!entry._annotations?.length) {
 
 
       // Use persisted results for this workpaper (survives navigation/refresh)
@@ -9978,6 +9973,7 @@ async function previewMemFile(ref, bucket, idx) {
       } else {
         console.log('[Viewer] No analysis results available for ref', ref);
       }
+      } // end if (!entry._annotations?.length)
     }
   } else {
     const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
