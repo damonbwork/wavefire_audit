@@ -10111,13 +10111,13 @@ async function renderPDFPreview(file) {
     }
 
     // After all pages rendered, size overlay to match canvas container
-     requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
        if (overlay) {
          overlay.style.height = canvasContainer.scrollHeight + 'px';
          overlay.style.pointerEvents = 'all';
        }
        setupAnnOverlay();
-       // Restore any annotations queued before PDF finished rendering
+       console.log('[RAF] _pendingAnnotations:', window._pendingAnnotations?.length ?? 'null/undefined', 'overlay in DOM:', !!overlay?.isConnected);
        if (window._pendingAnnotations?.length) {
          console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
          _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
@@ -11685,9 +11685,77 @@ function escHtml(str) {
 }
 
 // Download a real in-memory File object
-function downloadMemFile(ref, bucket, idx) {
+async function downloadMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   if (!entry?.file) return;
+
+  // If this file has stored annotations, burn them into the PDF before downloading
+  if (entry._annotations?.length && entry.name.toLowerCase().endsWith('.pdf')) {
+    try {
+      const PDFLib   = await loadPdfLib();
+      const bytes    = await entry.file.arrayBuffer();
+      const pdfDoc   = await PDFLib.PDFDocument.load(bytes);
+      const pages    = pdfDoc.getPages();
+      const font     = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const page0    = pages[0];
+      const { width: pw0, height: ph0 } = page0.getSize();
+
+      // Estimate scale: assume viewer renders at ~816px wide per page
+      const viewerPageW = 816;
+      const viewerPageH = ph0 * (viewerPageW / pw0);
+      const scaleX = pw0 / viewerPageW;
+      const scaleY = ph0 / viewerPageH;
+
+      entry._annotations.forEach(ann => {
+        // Determine which page based on Y position
+        const pageIdx = Math.min(Math.floor(ann.y / viewerPageH), pages.length - 1);
+        const page    = pages[Math.max(0, pageIdx)];
+        const { height: ph } = page.getSize();
+        const localY  = ann.y - pageIdx * viewerPageH;
+        const pdfX    = ann.x * scaleX;
+        const pdfY    = ph - localY * scaleY;
+
+        if (!isFinite(pdfX) || !isFinite(pdfY)) return;
+
+        const safeText = t => (t || '').replace(/[^\x00-\x7F]/g, c =>
+          ({'✓':'P','⚠':'!','✗':'F','–':'-','—':'-'}[c] || ''));
+
+        if (ann.type === 'tick') {
+          const colors = { pass:[0.09,0.47,0.24], pass_exception:[0.85,0.33,0.0], fail:[0.75,0.07,0.22] };
+          const [r,g,b] = colors[ann.tickType] || [0.42,0.45,0.50];
+          const sym = safeText(ann.symbol) || 'P';
+          try { page.drawText(sym, { x: pdfX, y: pdfY, size: 14, font, color: PDFLib.rgb(r,g,b) }); } catch(e) {}
+        } else if (ann.type === 'text' || ann.type === 'legend') {
+          const lines = (ann.text || '').split('\n').filter(l => l.trim());
+          const boxH  = lines.length * 10 + 10;
+          page.drawRectangle({ x: pdfX-2, y: pdfY-boxH+4, width: Math.min((ann.width||200)*scaleX, 280), height: boxH,
+            color: PDFLib.rgb(1,1,0.88), opacity: 0.9 });
+          lines.forEach((line, li) => {
+            const safe = safeText(line).slice(0, 60);
+            if (!safe.trim()) return;
+            try { page.drawText(safe, { x: pdfX, y: pdfY - li*10, size: 7, font, color: PDFLib.rgb(0.1,0.1,0.1) }); } catch(e) {}
+          });
+        } else if (ann.type === 'highlight') {
+          page.drawRectangle({ x: pdfX, y: pdfY-(ann.height||20)*scaleY,
+            width: (ann.width||180)*scaleX, height: (ann.height||20)*scaleY,
+            color: PDFLib.rgb(0.98,0.9,0.1), opacity: 0.35 });
+        }
+      });
+
+      const outBytes = await pdfDoc.save();
+      const blob = new Blob([outBytes], { type: 'application/pdf' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a'); a.href = url; a.download = entry.name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      return;
+    } catch(err) {
+      console.error('downloadMemFile annotation burn error:', err);
+      // Fall through to plain download
+    }
+  }
+
+  // Plain download (no annotations or burn failed)
   const url = URL.createObjectURL(entry.file);
   const a = document.createElement('a');
   a.href = url; a.download = entry.name;
