@@ -9755,13 +9755,16 @@ async function previewMemFile(ref, bucket, idx) {
 
     // If this is a sample file and we have analysis results OR stored annotations, place overlays
     if (bucket === 'sample') {
+      console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
       // Reload stored user annotations if present on this file entry
       if (entry._annotations?.length) {
         console.log('[Viewer] Reloading', entry._annotations.length, 'stored annotations');
         const _reloadAnns = () => {
           const overlay = document.getElementById('pdf-ann-overlay');
           const body    = document.getElementById('file-preview-body');
-          if (!overlay || !body?.querySelector('canvas')) { setTimeout(_reloadAnns, 500); return; }
+          const canvas  = body?.querySelector('canvas');
+          console.log('[Viewer] _reloadAnns check — overlay:', !!overlay, 'canvas:', !!canvas);
+          if (!overlay || !canvas) { setTimeout(_reloadAnns, 500); return; }
 
           // Clear existing auto annotations
           overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
