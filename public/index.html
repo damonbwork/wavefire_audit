@@ -3999,83 +3999,168 @@ let currentAnnTool = null;
 let pdfAnnotations = []; // { page, x, y, w, h, type, text, color }
 let _annFileEntry  = null; // the current file entry being annotated
 
-let _annUndoStack = [];
+// ══════════════════════════════════════════════════════════════
+//  GLOBAL UNDO / REDO
+//  Works across the entire app: workpaper fields, attributes,
+//  sample fields, exceptions, AND PDF annotations.
+// ══════════════════════════════════════════════════════════════
+let _annUndoStack = [];  // kept as alias for PDF annotation pushes
 let _annRedoStack = [];
 
-function _syncUndoRedoBtns() {
-  const undoBtn = document.getElementById('ann-undo-btn');
-  const redoBtn = document.getElementById('ann-redo-btn');
-  const hasUndo = _annUndoStack.length > 0;
-  const hasRedo = _annRedoStack.length > 0;
+let _globalUndoStack = [];
+let _globalRedoStack = [];
+const UNDO_MAX = 50;
 
-  if (undoBtn) {
-    undoBtn.disabled = !hasUndo;
-    undoBtn.style.cursor     = hasUndo ? 'pointer'     : 'not-allowed';
-    undoBtn.style.color      = hasUndo ? '#fff'        : 'rgba(255,255,255,0.25)';
-    undoBtn.style.background = hasUndo ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
-    undoBtn.style.borderColor= hasUndo ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)';
-    undoBtn.title = hasUndo ? `Undo (${_annUndoStack.length} action${_annUndoStack.length!==1?'s':''} available) — Ctrl+Z` : 'Nothing to undo';
-  }
-  if (redoBtn) {
-    redoBtn.disabled = !hasRedo;
-    redoBtn.style.cursor     = hasRedo ? 'pointer'     : 'not-allowed';
-    redoBtn.style.color      = hasRedo ? '#fff'        : 'rgba(255,255,255,0.25)';
-    redoBtn.style.background = hasRedo ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
-    redoBtn.style.borderColor= hasRedo ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)';
-    redoBtn.title = hasRedo ? `Redo (${_annRedoStack.length} action${_annRedoStack.length!==1?'s':''} available) — Ctrl+Shift+Z` : 'Nothing to redo';
-  }
+function _snapshotAppState(ref) {
+  // Deep-snapshot all mutable workpaper data for the current ref
+  return {
+    ref,
+    attrs:       JSON.parse(JSON.stringify(wpTestAttributes[ref] || [])),
+    sf:          JSON.parse(JSON.stringify(wpSampleFields[ref]   || [])),
+    exc:         JSON.parse(JSON.stringify(wpExceptions[ref]     || [])),
+    reviewLog:   JSON.parse(JSON.stringify(wpReviewLog[ref]      || [])),
+    wpData:      JSON.parse(JSON.stringify(WORKPAPERS.find(w => w.ref === ref) || {})),
+    // PDF annotations (element references — just positions/text)
+    pdfAnns:     pdfAnnotations.map(a => ({
+      type: a.type, tickType: a.tickType, symbol: a.symbol,
+      x: a.x, y: a.y, text: a.text, auto: a.auto,
+      // Store element position from style
+      styleLeft: a.el?.style?.left,
+      styleTop:  a.el?.style?.top,
+      el: a.el,  // keep ref so we can restore position
+    })),
+  };
 }
 
-function _annPushUndo() {
-  _annUndoStack.push(pdfAnnotations.map(a => ({ ...a })));
-  _annRedoStack = [];
-  if (_annUndoStack.length > 50) _annUndoStack.shift();
+function _getUndoRef() {
+  // Use current workpaper ref if on workpaper page, else annotation viewer context
+  return getWPRef?.() || _fpRef || null;
+}
+
+function pushUndo(ref) {
+  ref = ref || _getUndoRef();
+  if (!ref) return;
+  const snap = _snapshotAppState(ref);
+  _globalUndoStack.push(snap);
+  _globalRedoStack = [];
+  if (_globalUndoStack.length > UNDO_MAX) _globalUndoStack.shift();
   _syncUndoRedoBtns();
 }
 
+// Alias for annotation code
+function _annPushUndo() { pushUndo(); }
+
 function undoAnnotation() {
-  if (!_annUndoStack.length) return;
-  _annRedoStack.push(pdfAnnotations.map(a => ({ ...a })));
-  const prev = _annUndoStack.pop();
-  _applyAnnotationSnapshot(prev);
+  if (!_globalUndoStack.length) return;
+  const ref = _getUndoRef();
+  if (!ref) return;
+  const current = _snapshotAppState(ref);
+  _globalRedoStack.push(current);
+  const prev = _globalUndoStack.pop();
+  _restoreSnapshot(prev);
   _syncUndoRedoBtns();
 }
 
 function redoAnnotation() {
-  if (!_annRedoStack.length) return;
-  _annUndoStack.push(pdfAnnotations.map(a => ({ ...a })));
-  const next = _annRedoStack.pop();
-  _applyAnnotationSnapshot(next);
+  if (!_globalRedoStack.length) return;
+  const ref = _getUndoRef();
+  if (!ref) return;
+  const current = _snapshotAppState(ref);
+  _globalUndoStack.push(current);
+  const next = _globalRedoStack.pop();
+  _restoreSnapshot(next);
   _syncUndoRedoBtns();
 }
 
-function _applyAnnotationSnapshot(snapshot) {
-  const overlay = document.getElementById('pdf-ann-overlay');
-  if (overlay) {
-    Array.from(overlay.querySelectorAll('.ann-item')).forEach(el => el.remove());
+function _restoreSnapshot(snap) {
+  if (!snap?.ref) return;
+  const ref = snap.ref;
+
+  // Restore workpaper data stores
+  wpTestAttributes[ref] = snap.attrs;
+  wpSampleFields[ref]   = snap.sf;
+  wpExceptions[ref]     = snap.exc;
+  wpReviewLog[ref]      = snap.reviewLog;
+
+  // Restore workpaper header fields
+  const wp = WORKPAPERS.find(w => w.ref === ref);
+  if (wp && snap.wpData) {
+    const keys = ['narrative','testDesc','status','results','preparer','reviewer','dateStarted','population','sampleMethod','sampleSize'];
+    keys.forEach(k => { if (snap.wpData[k] !== undefined) wp[k] = snap.wpData[k]; });
   }
-  pdfAnnotations = [];
-  snapshot.forEach(ann => {
-    if (ann.el && overlay) {
-      try { overlay.appendChild(ann.el); } catch(e) {}
-      pdfAnnotations.push(ann);
+
+  // Restore PDF annotation element positions/text
+  snap.pdfAnns.forEach(a => {
+    if (a.el) {
+      if (a.styleLeft !== undefined) a.el.style.left = a.styleLeft;
+      if (a.styleTop  !== undefined) a.el.style.top  = a.styleTop;
+      // Restore textarea text
+      const ta = a.el.querySelector?.('textarea') || (a.el.tagName === 'TEXTAREA' ? a.el : null);
+      if (ta && a.text !== undefined) ta.value = a.text;
     }
   });
+
+  // Re-render affected UI sections
+  renderTestAttributes(ref);
+  renderSampleFields(ref);
+  renderExceptions(ref);
+
+  // Restore workpaper header field values in DOM
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('wpd-narrative', wpObj.narrative);
+    setVal('wpd-test-desc', wpObj.testDesc);
+    const resEl = document.getElementById('wpd-results');
+    if (resEl) resEl.value = wpObj.results || '';
+  }
+
   updateAnnCount();
 }
 
-// Keyboard shortcuts: Ctrl+Z / Ctrl+Shift+Z
+function _syncUndoRedoBtns() {
+  const undoBtn = document.getElementById('ann-undo-btn');
+  const redoBtn = document.getElementById('ann-redo-btn');
+  const hasUndo = _globalUndoStack.length > 0;
+  const hasRedo = _globalRedoStack.length > 0;
+
+  if (undoBtn) {
+    undoBtn.disabled     = !hasUndo;
+    undoBtn.style.cursor = hasUndo ? 'pointer' : 'not-allowed';
+    undoBtn.style.color  = hasUndo ? '#fff' : 'rgba(255,255,255,0.25)';
+    undoBtn.style.background  = hasUndo ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
+    undoBtn.style.borderColor = hasUndo ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)';
+    undoBtn.title = hasUndo ? `Undo (${_globalUndoStack.length} action${_globalUndoStack.length!==1?'s':''}) — Ctrl+Z` : 'Nothing to undo';
+  }
+  if (redoBtn) {
+    redoBtn.disabled     = !hasRedo;
+    redoBtn.style.cursor = hasRedo ? 'pointer' : 'not-allowed';
+    redoBtn.style.color  = hasRedo ? '#fff' : 'rgba(255,255,255,0.25)';
+    redoBtn.style.background  = hasRedo ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.03)';
+    redoBtn.style.borderColor = hasRedo ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)';
+    redoBtn.title = hasRedo ? `Redo (${_globalRedoStack.length} action${_globalRedoStack.length!==1?'s':''}) — Ctrl+Shift+Z` : 'Nothing to redo';
+  }
+}
+
+// Global Ctrl+Z / Ctrl+Shift+Z — works everywhere in the app
 document.addEventListener('DOMContentLoaded', _syncUndoRedoBtns);
 document.addEventListener('keydown', (e) => {
-  const overlay = document.getElementById('file-preview-overlay');
-  if (!overlay || overlay.style.display === 'none') return;
+  // Don't intercept if user is typing in a regular input or textarea on the workpaper
+  // (let the browser handle native text undo there) — only intercept if NOT in a text field
+  const tag = document.activeElement?.tagName;
+  const inTextField = (tag === 'INPUT' || tag === 'TEXTAREA') && !document.activeElement?.classList?.contains('ann-item');
+
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-    e.preventDefault();
-    undoAnnotation();
+    if (!inTextField) {
+      e.preventDefault();
+      undoAnnotation();
+    }
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-    e.preventDefault();
-    redoAnnotation();
+    if (!inTextField) {
+      e.preventDefault();
+      redoAnnotation();
+    }
   }
 });
 
@@ -4476,7 +4561,8 @@ async function saveAnnotatedPDF() {
 
     const pdfBytes = await pdfDoc.save();
     const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
-    const origName = entry.name.replace(/\.pdf$/i, '');
+    // Determine the annotated filename — strip any existing _annotated suffix first
+    const origName = entry.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '');
     const annName  = `${origName}_annotated.pdf`;
 
     // Download
@@ -4485,16 +4571,36 @@ async function saveAnnotatedPDF() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    // Auto-attach to workpaper files
+    // Update sample files only — replace original or any existing _annotated version
     if (!inMemoryFiles[_fpRef]) inMemoryFiles[_fpRef] = { workpaper: [], sample: [] };
     const annFile = new File([blob], annName, { type: 'application/pdf' });
-    const nowStr  = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    const wpFiles = inMemoryFiles[_fpRef].workpaper;
-    const existIdx = wpFiles.findIndex(f => f.name === annName);
-    const fileEntry = { name: annName, file: annFile, size: `${(blob.size/1024).toFixed(0)} KB`, uploadedBy:'jdavis', uploadedOn: nowStr };
-    if (existIdx >= 0) wpFiles[existIdx] = fileEntry; else wpFiles.push(fileEntry);
+    const now     = new Date();
+    const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                  + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+    const currentUser = 'jdavis'; // use logged-in user
+
+    const sfFiles = inMemoryFiles[_fpRef].sample;
+    // Find existing entry to preserve uploadedBy/uploadedOn
+    const existingSF = sfFiles.find(f => f.name === annName || f.name === entry.name);
+    const fileEntry = {
+      name:        annName,
+      file:        annFile,
+      size:        `${(blob.size/1024).toFixed(0)} KB`,
+      uploadedBy:  existingSF?.uploadedBy || currentUser,
+      uploadedOn:  existingSF?.uploadedOn || nowStr,
+      updatedBy:   currentUser,
+      updatedOn:   nowStr,
+    };
+
+    // Remove original and any previous annotated version
+    for (let i = sfFiles.length - 1; i >= 0; i--) {
+      const n = sfFiles[i].name;
+      if (n === annName || n === entry.name) sfFiles.splice(i, 1);
+    }
+    sfFiles.unshift(fileEntry);
+    refreshFileList(_fpRef, 'sample');
+
     if (typeof logEvent === 'function') logEvent(_fpRef, `Annotated PDF saved: ${annName}`);
-    refreshFileList(_fpRef, 'workpaper');
 
     if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
     setTimeout(() => {
@@ -4677,6 +4783,7 @@ function renderPopRefFiles(ref) {
 const wpExceptions = {}; // { ref: [{num, name, desc, owner, mgmtResponse, resolutionDate, retested}] }
 
 function addException() {
+  pushUndo();
   const ref = getWPRef();
   if (!ref) return;
   if (!wpExceptions[ref]) wpExceptions[ref] = [];
@@ -4848,6 +4955,7 @@ function confirmDeleteException(ref, idx) {
 }
 
 function deleteException(ref, idx) {
+  pushUndo();
   if (!wpExceptions[ref]) return;
   const ex   = wpExceptions[ref][idx];
   const label = ex?.name ? `Exception #${ex.num} "${ex.name}"` : `Exception #${ex?.num || idx + 1}`;
@@ -6641,6 +6749,7 @@ function makeSampleFieldRowHtml(idx, num, name, desc) {
 }
 
 function saveSFRow(idx) {
+  pushUndo();
   if (!currentSFWPRef) return;
   const rows = wpSampleFields[currentSFWPRef] || [];
   const row = document.getElementById('sf-row-' + idx);
@@ -8886,11 +8995,20 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const _closeBtn = document.getElementById('analysis-close-btn');
   if (_closeBtn) { _closeBtn.textContent = 'Close'; _closeBtn.onclick = closeAnalysis; }
 
-  // ── Auto-annotate sample PDF files — independent background process ──
-  // Fires immediately, before buttons appear, non-blocking
+  // ── Auto-populate Exceptions section from analysis results ──────
+  if (!wpExceptions[ref]) wpExceptions[ref] = [];
+
+  // Get next available exception number in the workpaper exceptions section
+  const _getNextExNum = () => {
+    const existing = wpExceptions[ref] || [];
+    return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
+  };
+
+  // Build exMap AND populate exceptions simultaneously
   const _exMapForAnnotation = {};
   let _exNumForAnnotation = 0;
   analysisResults.forEach((fileResult, fi) => {
+    const sampleFileName = fileResult.fileName;
     attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
       if (!match) {
@@ -8901,10 +9019,39 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       }
       if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
         _exNumForAnnotation++;
-        _exMapForAnnotation[`${fi}-${ai}`] = `E${_exNumForAnnotation}`;
+        const xlsxExRef = `E${_exNumForAnnotation}`; // reference used in .xlsx / annotated PDF
+        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef;
+
+        // Add to workpaper Exceptions section
+        const wpExNum = _getNextExNum();
+        const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+        const exName = `${xlsxExRef} - ${attrLabel}: ${attr.title}`;
+        const exDesc = match.note || '';
+
+        // Only add if not already present (avoid duplicates on re-run)
+        const alreadyExists = (wpExceptions[ref] || []).some(e =>
+          e.name === exName && e.linkedFiles?.includes(sampleFileName)
+        );
+
+        if (!alreadyExists) {
+          wpExceptions[ref].push({
+            num:            wpExNum,
+            name:           exName,
+            desc:           exDesc,
+            owner:          '',
+            mgmtResponse:   '',
+            resolutionDate: '',
+            retested:       false,
+            linkedFiles:    [sampleFileName],
+          });
+          logEvent(ref, `Exception #${wpExNum} auto-created from analysis: ${exName}`);
+        }
       }
     });
   });
+
+  // Re-render exceptions section with the new entries
+  renderExceptions(ref);
 
   // Show annotation status independently below the results list
   const _annStatusEl = document.getElementById('analysis-ann-status');
@@ -11375,7 +11522,9 @@ function refreshFileList(ref, bucket) {
     if (sfl) {
       const staticRows = wpSF.map(f => fileRowHtml(f.icon, f.name, f.meta, false, null, '#dc2626', null)).join('');
       const dynRows = memFiles.map((f,i) => {
-        const meta = `${f.name.split('.').pop().toUpperCase()} · ${f.size} · Uploaded by ${f.uploadedBy} on ${f.uploadedOn}`;
+        const uploadLine  = `${f.name.split('.').pop().toUpperCase()} · ${f.size} · Uploaded by ${f.uploadedBy} on ${f.uploadedOn}`;
+        const updateLine  = f.updatedBy ? `Updated by ${f.updatedBy} on ${f.updatedOn}` : '';
+        const meta = updateLine ? `${uploadLine}<br><span style="color:var(--text-tertiary);font-style:italic">${updateLine}</span>` : uploadLine;
       const fileId = 'sf_' + ref.replace(/[^a-z0-9]/gi, '_') + '_' + i;
       const safeName = f.name.replace(/'/g, "\\'");
       const safeRef  = ref.replace(/'/g, "\\'");
@@ -11384,7 +11533,7 @@ function refreshFileList(ref, bucket) {
             <div class="file-icon" style="color:${getSampleFileColor(f.name)};margin-top:2px"><i class="ti ${getFileIcon(f.file)}"></i></div>
             <div style="min-width:0;margin-right:6px">
               <div class="file-name">${f.name}</div>
-              <div class="file-meta">${meta}</div>
+              <div class="file-meta" style="line-height:1.4">${meta}</div>
             </div>
             <button onclick="previewMemFile('${safeRef}','sample',${i})" title="Preview file"
               style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);
@@ -11443,7 +11592,7 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
     ? `<button class="icon-btn" title="Download" onclick="${dlCall}"><i class="ti ti-download"></i></button>`
     : `<button class="icon-btn" title="Download" onclick="downloadPlaceholder('${escHtml(name)}')"><i class="ti ti-download"></i></button>`;
   const delBtn = isDynamic
-    ? `<button class="icon-btn" title="Delete" style="color:var(--red-700)" onclick="${escHtml(deleteCall)}"><i class="ti ti-trash"></i></button>`
+    ? `<button class="icon-btn" title="Delete" style="color:var(--red-700)" onclick="${deleteCall}"><i class="ti ti-trash"></i></button>`
     : `<button class="icon-btn" title="Delete" style="opacity:0.4" disabled><i class="ti ti-trash"></i></button>`;
   const prevCall = previewCall || `previewStaticFile('${escHtml(name)}')`;
   const prevBtn = `<button onclick="${prevCall}" title="Preview file"
@@ -11665,6 +11814,7 @@ function autoResizeAllTAs() {
 }
 
 function saveAttrRow(idx) {
+  pushUndo();
   if (!currentAttrWPRef) return;
   const rows = wpTestAttributes[currentAttrWPRef] || [];
   const row = document.getElementById('attr-row-' + idx);
