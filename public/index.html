@@ -9817,6 +9817,62 @@ let _fpRef    = null;
 let _fpBucket = null;
 let _fpIdx    = 0;
 
+// ── _restoreAnnotationsToOverlay — restores serialized annotations to the overlay ──
+function _restoreAnnotationsToOverlay(annotations, overlay) {
+  if (!overlay || !annotations?.length) return;
+  overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
+  pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
+
+  annotations.forEach(ann => {
+    if (ann.type === 'tick') {
+      const col = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280', na:'#6b7280' }[ann.tickType] || '#6b7280';
+      const bg  = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)' }[ann.tickType] || 'rgba(107,114,128,0.1)';
+      const tickEl = document.createElement('div');
+      tickEl.className = 'ann-item ann-auto';
+      tickEl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;font-size:18px;font-weight:900;color:${col};background:${bg};border:1.5px solid ${col};border-radius:5px;padding:1px 6px;cursor:move;user-select:none;z-index:55;pointer-events:all;box-shadow:0 2px 6px rgba(0,0,0,0.18)`;
+      tickEl.textContent = ann.symbol || '?';
+      overlay.appendChild(tickEl);
+      const ai = pdfAnnotations.length;
+      pdfAnnotations.push({ type:'tick', tickType:ann.tickType, symbol:ann.symbol, x:ann.x, y:ann.y, text:ann.text, el:tickEl, auto:true });
+      let dt=false,dtx=0,dty=0,dtl=0,dtt=0;
+      tickEl.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(tickEl); _annPushUndo(); dt=true; dtx=ev.clientX; dty=ev.clientY; dtl=parseInt(tickEl.style.left)||0; dtt=parseInt(tickEl.style.top)||0; });
+      document.addEventListener('mousemove', ev => { if(!dt)return; tickEl.style.left=(dtl+ev.clientX-dtx)+'px'; tickEl.style.top=(dtt+ev.clientY-dty)+'px'; });
+      document.addEventListener('mouseup', ()=>{dt=false;});
+    } else if (ann.type === 'text' || ann.type === 'legend') {
+      const wrap = document.createElement('div');
+      wrap.className = 'ann-item ann-auto';
+      wrap.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;z-index:56;pointer-events:all;display:flex;flex-direction:column;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);min-width:160px;max-width:${ann.type==='legend'?'400px':'320px'}`;
+      if (ann.width) wrap.style.width = ann.width + 'px';
+      const handle = document.createElement('div');
+      handle.style.cssText = 'background:#39618b;height:13px;border-radius:4px 4px 0 0;cursor:move;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none';
+      handle.innerHTML = '<span style="font-size:8px;color:rgba(255,255,255,0.8);letter-spacing:1.5px">• • •</span>';
+      const ta = document.createElement('textarea');
+      ta.value = ann.text || '';
+      ta.style.cssText = `min-width:160px;min-height:40px;height:${Math.max(40,ann.height||40)}px;background:rgba(255,255,199,0.97);border:2px solid #eab308;border-top:none;border-radius:0 0 4px 4px;padding:5px 8px;font-size:${ann.type==='legend'?'11px':'12px'};font-family:${ann.type==='legend'?'monospace':'inherit'};resize:both;outline:none;cursor:text;pointer-events:all;box-sizing:border-box;width:100%`;
+      wrap.appendChild(handle); wrap.appendChild(ta);
+      overlay.appendChild(wrap);
+      const ai2 = pdfAnnotations.length;
+      pdfAnnotations.push({ type:ann.type, x:ann.x, y:ann.y, text:ta.value, el:wrap, auto:true });
+      ta.addEventListener('input', () => { pdfAnnotations[ai2].text = ta.value; updateAnnCount(); });
+      ta.addEventListener('click', ev => ev.stopPropagation());
+      ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
+      let dn=false,dnx=0,dny=0,dnl=0,dnt=0;
+      handle.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(wrap); _annPushUndo(); dn=true; dnx=ev.clientX; dny=ev.clientY; dnl=parseInt(wrap.style.left)||0; dnt=parseInt(wrap.style.top)||0; });
+      document.addEventListener('mousemove', ev => { if(!dn)return; wrap.style.left=(dnl+ev.clientX-dnx)+'px'; wrap.style.top=(dnt+ev.clientY-dny)+'px'; });
+      document.addEventListener('mouseup', ()=>{dn=false;});
+    } else if (ann.type === 'highlight') {
+      const hl = document.createElement('div');
+      hl.className = 'ann-item ann-auto';
+      hl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;width:${ann.width||180}px;height:${ann.height||28}px;background:rgba(250,204,21,0.35);border:2px dashed #ca8a04;border-radius:2px;box-sizing:border-box;z-index:50;pointer-events:all;cursor:move`;
+      overlay.appendChild(hl);
+      pdfAnnotations.push({ type:'highlight', x:ann.x, y:ann.y, el:hl, auto:true });
+      _makeDraggable(hl);
+    }
+  });
+  updateAnnCount();
+  console.log('[Restore] Placed', pdfAnnotations.filter(a=>a.auto).length, 'annotations on overlay');
+}
+
 async function previewMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   console.log('[Preview] previewMemFile called ref=', ref, 'bucket=', bucket, 'idx=', idx);
@@ -9851,73 +9907,22 @@ async function previewMemFile(ref, bucket, idx) {
       console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
       // Reload stored user annotations if present on this file entry
       if (entry._annotations?.length) {
-        console.log('[Viewer] Reloading', entry._annotations.length, 'stored annotations');
-        let _reloadAttempts = 0;
-        const _reloadAnns = () => {
-          const overlay = document.getElementById('pdf-ann-overlay');
-          const body    = document.getElementById('file-preview-body');
-          const canvas  = body?.querySelector('canvas');
-          _reloadAttempts++;
-          console.log('[Viewer] _reloadAnns check — overlay:', !!overlay, 'canvas:', !!canvas, 'attempt:', _reloadAttempts);
-          // Proceed if canvas exists OR after 10 attempts (5s) even without canvas
-          if (!overlay || (!canvas && _reloadAttempts < 10)) { setTimeout(_reloadAnns, 500); return; }
-
-          // Clear existing auto annotations
-          overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
-          pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
-
-          entry._annotations.forEach(ann => {
-            if (ann.type === 'tick') {
-              const tickEl = document.createElement('div');
-              const col = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280', na:'#6b7280' }[ann.tickType] || '#6b7280';
-              const bg  = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)' }[ann.tickType] || 'rgba(107,114,128,0.1)';
-              tickEl.className = 'ann-item ann-auto';
-              tickEl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;font-size:18px;font-weight:900;color:${col};background:${bg};border:1.5px solid ${col};border-radius:5px;padding:1px 6px;cursor:move;user-select:none;z-index:55;pointer-events:all;box-shadow:0 2px 6px rgba(0,0,0,0.18)`;
-              tickEl.textContent = ann.symbol || '?';
-              overlay.appendChild(tickEl);
-              const annIdx = pdfAnnotations.length;
-              pdfAnnotations.push({ type:'tick', tickType:ann.tickType, symbol:ann.symbol, x:ann.x, y:ann.y, text:ann.text, el:tickEl, auto:true });
-              // Drag
-              let dt=false,dtx=0,dty=0,dtl=0,dtt=0;
-              tickEl.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(tickEl); _annPushUndo(); dt=true; dtx=ev.clientX; dty=ev.clientY; dtl=parseInt(tickEl.style.left)||0; dtt=parseInt(tickEl.style.top)||0; });
-              document.addEventListener('mousemove', ev => { if(!dt)return; tickEl.style.left=(dtl+ev.clientX-dtx)+'px'; tickEl.style.top=(dtt+ev.clientY-dty)+'px'; });
-              document.addEventListener('mouseup', ()=>{dt=false;});
-            } else if (ann.type === 'text' || ann.type === 'legend') {
-              const wrap = document.createElement('div');
-              wrap.className = 'ann-item ann-auto';
-              wrap.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;z-index:56;pointer-events:all;display:flex;flex-direction:column;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);min-width:160px;max-width:320px`;
-              const handle = document.createElement('div');
-              handle.style.cssText = 'background:#39618b;height:13px;border-radius:4px 4px 0 0;cursor:move;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none';
-              handle.innerHTML = '<span style="font-size:8px;color:rgba(255,255,255,0.8);letter-spacing:1.5px">• • •</span>';
-              const ta = document.createElement('textarea');
-              ta.value = ann.text || '';
-              ta.style.cssText = `min-width:160px;max-width:320px;min-height:40px;height:${Math.max(40,ann.height||40)}px;background:rgba(255,255,199,0.97);border:2px solid #eab308;border-top:none;border-radius:0 0 4px 4px;padding:5px 8px;font-size:${ann.type==='legend'?'11px':'12px'};font-family:${ann.type==='legend'?'monospace':'inherit'};resize:both;outline:none;cursor:text;pointer-events:all;box-sizing:border-box;width:100%`;
-              if (ann.width) wrap.style.width = ann.width + 'px';
-              wrap.appendChild(handle); wrap.appendChild(ta);
-              overlay.appendChild(wrap);
-              const annIdx = pdfAnnotations.length;
-              pdfAnnotations.push({ type:ann.type, x:ann.x, y:ann.y, text:ta.value, el:wrap, auto:true });
-              ta.addEventListener('input', () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
-              ta.addEventListener('click', ev => ev.stopPropagation());
-              ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
-              let dn=false,dnx=0,dny=0,dnl=0,dnt=0;
-              handle.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(wrap); _annPushUndo(); dn=true; dnx=ev.clientX; dny=ev.clientY; dnl=parseInt(wrap.style.left)||0; dnt=parseInt(wrap.style.top)||0; });
-              document.addEventListener('mousemove', ev => { if(!dn)return; wrap.style.left=(dnl+ev.clientX-dnx)+'px'; wrap.style.top=(dnt+ev.clientY-dny)+'px'; });
-              document.addEventListener('mouseup', ()=>{dn=false;});
-            } else if (ann.type === 'highlight') {
-              const hl = document.createElement('div');
-              hl.className = 'ann-item ann-auto';
-              hl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;width:${ann.width||180}px;height:${ann.height||28}px;background:rgba(250,204,21,0.35);border:2px dashed #ca8a04;border-radius:2px;box-sizing:border-box;z-index:50;pointer-events:all;cursor:move`;
-              overlay.appendChild(hl);
-              pdfAnnotations.push({ type:'highlight', x:ann.x, y:ann.y, el:hl, auto:true });
-              _makeDraggable(hl);
+        console.log('[Viewer] Queuing', entry._annotations.length, 'stored annotations for after PDF renders');
+        window._pendingAnnotations = entry._annotations;
+        // Fallback: if PDF already rendered, place immediately
+        setTimeout(() => {
+          if (window._pendingAnnotations) {
+            const ov = document.getElementById('pdf-ann-overlay');
+            if (ov) {
+              console.log('[Viewer] Fallback placement of annotations');
+              _restoreAnnotationsToOverlay(window._pendingAnnotations, ov);
+              window._pendingAnnotations = null;
             }
-          });
-          updateAnnCount();
-          console.log('[IAnn] All annotations placed:', pdfAnnotations.filter(a=>a.auto).length);
-        };
-        setTimeout(_reloadAnns, 500);
+          }
+        }, 3000);
       }
+
+
       // Use persisted results for this workpaper (survives navigation/refresh)
       const _wpObj2 = WORKPAPERS.find(w => w.ref === ref);
       const wpResults = (_wpAnalysisResults[ref] || []).length
@@ -10110,15 +10115,19 @@ async function renderPDFPreview(file) {
     }
 
     // After all pages rendered, size overlay to match canvas container
-    requestAnimationFrame(() => {
-      if (overlay) {
-        // Always pointer-events:all — individual tool clicks handled by checking currentAnnTool
-        // Canvas below receives events only when overlay has no ann-item at that position
-        overlay.style.height = canvasContainer.scrollHeight + 'px';
-        overlay.style.pointerEvents = 'all';
-      }
-      setupAnnOverlay();
-    });
+     requestAnimationFrame(() => {
+       if (overlay) {
+         overlay.style.height = canvasContainer.scrollHeight + 'px';
+         overlay.style.pointerEvents = 'all';
+       }
+       setupAnnOverlay();
+       // Restore any annotations queued before PDF finished rendering
+       if (window._pendingAnnotations?.length) {
+         console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
+         _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
+         window._pendingAnnotations = null;
+       }
+     });
 
     // Scroll tracking
     body.addEventListener('scroll', () => {
