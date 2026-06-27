@@ -9695,29 +9695,100 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     }
 
     try {
-      console.log('[Annotate] Renaming to annotated version (overlay-only annotations)');
-      // No pdf-lib processing needed — annotations are overlay-only and saved by user
+      console.log('[Annotate] Creating annotated entry with overlay annotations');
       const annBlob  = sfEntry.file;
       const annFile  = new File([annBlob], annName, { type: 'application/pdf' });
       const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-      console.log('[Annotate] Ready, annName:', annName);
+
+      // Build serialized annotation data from analysis results so they
+      // reload as interactive overlays when the file is reopened
+      const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+      const serializedAnnotations = [];
+      const bodyH   = 15477; // estimated total body height for 19 pages at 815px each
+      const pageH   = 792;   // standard PDF page height in PDF points mapped to ~815px
+
+      attributes.forEach((attr, ai) => {
+        let match = fileResult.results.find(r => r.title === attr.title);
+        if (!match) {
+          const al = attr.title.toLowerCase();
+          match = fileResult.results.find(r =>
+            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+          );
+        }
+        if (!match) return;
+
+        const result  = match.result || 'error';
+        const sym     = TICK_SYMS[result] || '–';
+        const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
+        const label   = (attr.attrRef || attr.num || String(ai+1)) + exRef;
+        const noteText = (match.note || '').slice(0, 60);
+
+        const targetPage = Math.max(0, (match.page || 1) - 1);
+        const paraNum    = Math.max(1, match.paragraph || (ai + 1));
+        const estPageH   = 815; // px per page in viewer
+        const paraH      = Math.min(40, (estPageH - 80) / Math.max(paraNum + 2, 10));
+        const rawY       = targetPage * estPageH + 40 + paraNum * paraH;
+        const tickY      = Math.max(targetPage * estPageH + 20, Math.min((targetPage + 1) * estPageH - 40, rawY));
+
+        // Tick mark annotation
+        serializedAnnotations.push({
+          type: 'tick', tickType: result, symbol: sym,
+          x: 10, y: tickY, text: label, auto: true,
+          width: 40, height: 30,
+        });
+
+        // Text note annotation
+        if (noteText) {
+          serializedAnnotations.push({
+            type: 'text',
+            x: 46, y: tickY - 4, text: '[' + label + '] ' + noteText,
+            auto: true, width: 200, height: 32,
+          });
+        }
+      });
+
+      // Also add Testwork Summary legend
+      const TICK_FULL = { pass:'P', pass_exception:'PE', fail:'F', error:'-' };
+      const legendLines = ['Testwork Summary', '-'.repeat(40)];
+      attributes.forEach((attr, ai) => {
+        let match = fileResult.results.find(r => r.title === attr.title);
+        if (!match) {
+          const al = attr.title.toLowerCase();
+          match = fileResult.results.find(r =>
+            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+          );
+        }
+        const result  = match?.result || 'error';
+        const tick    = TICK_SYMS[result] || '-';
+        const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
+        const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
+        const pageNum = (match?.page && match.page > 0) ? '  Pg ' + match.page : '';
+        legendLines.push(tick + '  ' + label + exRef + pageNum);
+        if (match?.note) legendLines.push('     ' + match.note.slice(0, 60));
+      });
+      serializedAnnotations.push({
+        type: 'legend', x: 10, y: 20,
+        text: legendLines.join('\n'),
+        auto: true, width: 360, height: 200,
+      });
+
+      console.log('[Annotate] Built', serializedAnnotations.length, 'annotations for entry');
 
       // Replace original AND any existing annotated version in sample files
       const sfArr = inMemoryFiles[ref].sample;
-      // Remove both original and any previous annotated version (any timestamp)
       const _origBase = fileName.replace(/\.pdf$/i, '').toLowerCase();
       for (let i = sfArr.length - 1; i >= 0; i--) {
         const n = sfArr[i].name;
         const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
         if (n === fileName || n === annName || nBase === _origBase) sfArr.splice(i, 1);
       }
-      // Insert annotated file at beginning so it's easy to find
       const annEntry = {
         file: annFile, name: annName,
         size: formatFileSize(annBlob.size),
         type: 'application/pdf',
         uploadedBy: 'Wavefire',
         uploadedOn: nowStr,
+        _annotations: serializedAnnotations,  // ← stored for reloading
       };
       sfArr.unshift(annEntry);
       console.log('[Annotate] Stored in sample files. Current sample files:', sfArr.map(f => f.name));
@@ -9787,12 +9858,15 @@ async function previewMemFile(ref, bucket, idx) {
       // Reload stored user annotations if present on this file entry
       if (entry._annotations?.length) {
         console.log('[Viewer] Reloading', entry._annotations.length, 'stored annotations');
+        let _reloadAttempts = 0;
         const _reloadAnns = () => {
           const overlay = document.getElementById('pdf-ann-overlay');
           const body    = document.getElementById('file-preview-body');
           const canvas  = body?.querySelector('canvas');
-          console.log('[Viewer] _reloadAnns check — overlay:', !!overlay, 'canvas:', !!canvas);
-          if (!overlay || !canvas) { setTimeout(_reloadAnns, 500); return; }
+          _reloadAttempts++;
+          console.log('[Viewer] _reloadAnns check — overlay:', !!overlay, 'canvas:', !!canvas, 'attempt:', _reloadAttempts);
+          // Proceed if canvas exists OR after 10 attempts (5s) even without canvas
+          if (!overlay || (!canvas && _reloadAttempts < 10)) { setTimeout(_reloadAnns, 500); return; }
 
           // Clear existing auto annotations
           overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
