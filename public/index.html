@@ -6167,16 +6167,6 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
   });
 
   updateAnnCount();
-
-  // Scroll body to show the first annotation
-  const _firstAuto = pdfAnnotations.find(a => a.auto && a.el);
-  if (_firstAuto) {
-    const _body2 = document.getElementById('file-preview-body');
-    if (_body2) {
-      const _topY = parseInt(_firstAuto.el.style.top) || 0;
-      setTimeout(() => { _body2.scrollTop = Math.max(0, _topY - 100); }, 100);
-    }
-  }
 }
 
 
@@ -9791,6 +9781,8 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
         _annotations: serializedAnnotations,  // ← stored for reloading
       };
       sfArr.unshift(annEntry);
+      console.log('[Annotate] annEntry._annotations count:', annEntry._annotations?.length, 'name:', annEntry.name);
+      console.log('[Annotate] inMemoryFiles[ref].sample[0]._annotations:', inMemoryFiles[ref].sample[0]?._annotations?.length);
       console.log('[Annotate] Stored in sample files. Current sample files:', sfArr.map(f => f.name));
       refreshFileList(ref, 'sample');
 
@@ -9827,6 +9819,8 @@ let _fpIdx    = 0;
 
 async function previewMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
+  console.log('[Preview] previewMemFile called ref=', ref, 'bucket=', bucket, 'idx=', idx);
+  console.log('[Preview] entry name=', entry?.name, '_annotations=', entry?._annotations?.length ?? 'NONE');
   if (!entry?.file) { alert('File not available — try uploading it again.'); return; }
 
   // Store context for prev/next navigation
@@ -9921,16 +9915,6 @@ async function previewMemFile(ref, bucket, idx) {
           });
           updateAnnCount();
           console.log('[IAnn] All annotations placed:', pdfAnnotations.filter(a=>a.auto).length);
-
-          // Scroll to first annotation so user can see it
-          const firstAnn = pdfAnnotations.find(a => a.auto && a.el);
-          if (firstAnn) {
-            const body2 = document.getElementById('file-preview-body');
-            if (body2) {
-              const topY = parseInt(firstAnn.el.style.top) || 0;
-              body2.scrollTop = Math.max(0, topY - 100);
-            }
-          }
         };
         setTimeout(_reloadAnns, 500);
       }
