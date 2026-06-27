@@ -2113,11 +2113,7 @@
         <!-- Left: secondary utility buttons -->
         <button class="btn-s" id="dl-guidance-btn" style="display:none" onclick="downloadTestGuidance()">
           <i class="ti ti-file-description"></i>Test Guidance
-        </button>
-        <button class="btn-s" id="dl-log-btn" style="display:none;font-size:10px;color:var(--text-tertiary)" onclick="downloadActivityLog()">
-          <i class="ti ti-file-text"></i>Activity Log
-        </button>
-        <!-- Spacer -->
+        </button>        <!-- Spacer -->
         <div style="flex:1"></div>
         <!-- Right: three action buttons (darker blue) + Close at far right -->
         <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
@@ -4562,8 +4558,16 @@ async function saveAnnotatedPDF() {
     const pdfBytes = await pdfDoc.save();
     const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
     // Determine the annotated filename — strip any existing _annotated suffix first
-    const origName = entry.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '');
-    const annName  = `${origName}_annotated.pdf`;
+    const origName = entry.name.replace(/_annotated.*\.pdf$/i, '').replace(/\.pdf$/i, '');
+    const _ts = (() => {
+      const n = new Date();
+      return String(n.getFullYear()) +
+        String(n.getMonth()+1).padStart(2,'0') +
+        String(n.getDate()).padStart(2,'0') + '_' +
+        String(n.getHours()).padStart(2,'0') +
+        String(n.getMinutes()).padStart(2,'0');
+    })();
+    const annName  = `${origName}_annotated_${_ts}.pdf`;
 
     // Download
     const url = URL.createObjectURL(blob);
@@ -4592,10 +4596,11 @@ async function saveAnnotatedPDF() {
       updatedOn:   nowStr,
     };
 
-    // Remove original and any previous annotated version
+    // Remove original and any previous annotated version (any timestamp)
     for (let i = sfFiles.length - 1; i >= 0; i--) {
       const n = sfFiles[i].name;
-      if (n === annName || n === entry.name) sfFiles.splice(i, 1);
+      const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf').replace(/_annotated\.pdf$/i, '.pdf');
+      if (n === annName || n === entry.name || nBase === `${origName}.pdf`) sfFiles.splice(i, 1);
     }
     sfFiles.unshift(fileEntry);
     refreshFileList(_fpRef, 'sample');
@@ -8502,20 +8507,6 @@ async function analyzeWithClaude() {
     return;
   }
 
-  // ── Activity log ─────────────────────────────────────────────────
-  const analysisLog = [];
-  const logEntry = (type, msg, data) => {
-    analysisLog.push({ ts: new Date().toISOString(), type, msg, ...(data ? { data } : {}) });
-  };
-  const downloadActivityLog = () => {
-    const lines = analysisLog.map(e => `[${e.ts}] [${e.type}] ${e.msg}${e.data ? ' — ' + JSON.stringify(e.data) : ''}`).join('\n');
-    const blob  = new Blob([lines], { type: 'text/plain' });
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a'); a.href = url; a.download = `wavefire_analysis_log_${Date.now()}.txt`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  };
-
   // ── Cancellation ─────────────────────────────────────────────────
   let _cancelled = false;
   let _timeoutHandle = null;
@@ -8545,11 +8536,9 @@ async function analyzeWithClaude() {
     _cancelBtn.onclick = () => {
       _cancelled = true;
       if (_timeoutHandle) clearTimeout(_timeoutHandle);
-      logEntry('CANCEL', 'User cancelled analysis');
       // Offer log download
       const overlay = document.getElementById('analysis-overlay');
       if (overlay) overlay.style.display = 'none';
-      if (confirm('Analysis cancelled. Download activity log for debugging?')) downloadActivityLog();
     };
   }
 
@@ -8557,17 +8546,13 @@ async function analyzeWithClaude() {
   _timeoutHandle = setTimeout(() => {
     if (!_cancelled) {
       _cancelled = true;
-      logEntry('TIMEOUT', `Analysis timed out after ${TIMEOUT_MS/1000}s`);
       const _as3 = document.getElementById('analysis-status');
       if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
       const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
       const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
-      if (confirm('Analysis timed out. Download activity log?')) downloadActivityLog();
     }
   }, TIMEOUT_MS);
-
-  logEntry('START', 'Analysis started', { ref, totalFiles, attributes: attributes.length });
 
   analysisResults = [];
   let processed = 0;
@@ -8674,9 +8659,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   async function analyzeOneFile(entry, rowEl) {
     try {
-      logEntry('API_START', `Converting ${entry.name} to base64`);
       const base64 = await fileToBase64(entry.file);
-      logEntry('API_BASE64', `Base64 ready, ${Math.round(base64.length/1024)}KB encoded`);
       if (_cancelled) return { ok: false, error: 'Cancelled', commentary: '' };
       setProgress(null, `Sending ${entry.name} to Claude…`);
 
@@ -8685,14 +8668,11 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       const proto = window.location.protocol;
       const isArtifactViewer = host.includes('claude.ai') || proto === 'blob:' || host === '';
       const apiUrl = isArtifactViewer ? 'https://api.anthropic.com/v1/messages' : '/api/claude';
-      logEntry('API_ENDPOINT', `Using endpoint: ${apiUrl}, isArtifactViewer: ${isArtifactViewer}`);
 
       const headers = { 'Content-Type': 'application/json' };
       if (isArtifactViewer) {
         headers['anthropic-version'] = '2023-06-01';
       }
-
-      logEntry('API_FETCH', `Sending request to Claude for ${entry.name}`);
       const controller = new AbortController();
       const reqTimeout = setTimeout(() => controller.abort(), 60000); // 60s per file
       let response;
@@ -8719,7 +8699,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       }
 
       // Check HTTP status first
-      logEntry('API_RESPONSE', `HTTP ${response.status} for ${entry.name}`);
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         const reason  = errBody?.error?.message || `HTTP ${response.status} ${response.statusText}`;
@@ -8761,7 +8740,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   }
 
   // ── Pre-convert all files to base64 in parallel (fast) ──
-  logEntry('INFO', `Pre-converting ${memFiles.length} files to base64`);
   setProgress(5, `Preparing ${memFiles.length} file${memFiles.length!==1?'s':''}…`);
 
   const base64Cache = {};
@@ -8769,8 +8747,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     try { base64Cache[entry.name] = await fileToBase64(entry.file); }
     catch(e) { base64Cache[entry.name] = null; }
   }));
-
-  logEntry('INFO', 'Base64 conversion complete, starting parallel analysis');
 
   // ── Analyze all files with max 5 concurrent API calls ──
   const CONCURRENCY = 5;
@@ -8781,8 +8757,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   async function analyzeOneFileFast(entry, row, fi) {
     const b64 = base64Cache[entry.name];
     if (!b64) return { ok: false, error: 'Failed to read file', commentary: '' };
-
-    logEntry('FILE_START', `Sending ${entry.name} to Claude`);
     setProgress(Math.round(5 + (processed / totalFiles) * 75), `Sending ${entry.name} to Claude…`);
 
     try {
@@ -8812,8 +8786,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           })
         });
       } finally { clearTimeout(reqTimeout); }
-
-      logEntry('API_RESPONSE', `HTTP ${response.status} for ${entry.name}`);
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         throw new Error(errBody?.error?.message || `HTTP ${response.status}`);
@@ -8890,7 +8862,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
             }
             processed++;
             setProgress(Math.round(5 + (processed / totalFiles) * 90), `${processed} of ${totalFiles} complete…`);
-            logEntry(outcome.ok ? 'FILE_OK' : 'FILE_ERR', entry.name);
           }
           inFlight--;
           if (nextIdx >= memFiles.length && inFlight === 0) resolveAll();
@@ -8946,7 +8917,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // Also store on the workpaper object itself for deeper persistence
   const _wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
-  logEntry('COMPLETE', `Analysis finished. ${successCount} ok, ${errorCount} errors`);
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
@@ -8984,8 +8954,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const _attachBtn = document.getElementById('attach-xlsx-btn'); if(_attachBtn){_attachBtn.style.display='inline-flex';_attachBtn.style.background='#1e40af';_attachBtn.style.color='#fff';_attachBtn.style.borderColor='#1e40af';}
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
-  const _logBtn = document.getElementById('dl-log-btn');
-  if (_logBtn) _logBtn.style.display = 'inline-flex';
 
   // Widen dialog to fit all buttons comfortably
   const _modal = document.getElementById('analysis-modal');
@@ -9080,18 +9048,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     _closeBtnFinal.textContent = 'Close';
     _closeBtnFinal.onclick = closeAnalysis;
   }
-  // Add "Download log" button
-  const _btnRow2 = document.getElementById('analysis-btn-row');
-  if (_btnRow2 && !document.getElementById('dl-log-btn')) {
-    const logBtn = document.createElement('button');
-    logBtn.id = 'dl-log-btn';
-    logBtn.className = 'btn-s';
-    logBtn.style.cssText = 'font-size:10px;color:var(--text-tertiary)';
-    logBtn.innerHTML = '<i class="ti ti-file-text"></i> Download log';
-    logBtn.onclick = downloadActivityLog;
-    _btnRow2.insertBefore(logBtn, _btnRow2.firstChild);
-  }
-
   // Show "Retry all failed" button if there were errors
   const btnRow = document.getElementById('analysis-btn-row');
   const existingRetryAll = document.getElementById('retry-all-btn');
@@ -9778,8 +9734,8 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       continue;
     }
 
-    // Skip already-annotated files to prevent _annotated_annotated.pdf
-    if (fileName.toLowerCase().endsWith('_annotated.pdf')) {
+    // Skip already-annotated files to prevent double-annotation
+    if (/_annotated_\d{8}_\d{4}\.pdf$/i.test(fileName) || fileName.toLowerCase().endsWith('_annotated.pdf')) {
       console.log('[Annotate] Skipping already-annotated file:', fileName);
       continue;
     }
@@ -9788,7 +9744,15 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
     const sampleFiles = inMemoryFiles[ref]?.sample || [];
     console.log('[Annotate] Sample files in store:', sampleFiles.map(f => f.name));
 
-    const annName = fileName.replace(/\.pdf$/i, '_annotated.pdf');
+    const _annTs = (() => {
+      const n = new Date();
+      return String(n.getFullYear()) +
+        String(n.getMonth()+1).padStart(2,'0') +
+        String(n.getDate()).padStart(2,'0') + '_' +
+        String(n.getHours()).padStart(2,'0') +
+        String(n.getMinutes()).padStart(2,'0');
+    })();
+    const annName = fileName.replace(/\.pdf$/i, `_annotated_${_annTs}.pdf`);
     let sfEntry = sampleFiles.find(f => f.name === fileName);
     if (!sfEntry) {
       // Try matching the _annotated version (previous run replaced original)
@@ -9820,10 +9784,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
 
       // Replace original AND any existing annotated version in sample files
       const sfArr = inMemoryFiles[ref].sample;
-      // Remove both original and any previous annotated version
+      // Remove both original and any previous annotated version (any timestamp)
+      const _origBase = fileName.replace(/\.pdf$/i, '').toLowerCase();
       for (let i = sfArr.length - 1; i >= 0; i--) {
         const n = sfArr[i].name;
-        if (n === fileName || n === annName) sfArr.splice(i, 1);
+        const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
+        if (n === fileName || n === annName || nBase === _origBase) sfArr.splice(i, 1);
       }
       // Insert annotated file at beginning so it's easy to find
       const annEntry = {
@@ -9906,14 +9872,16 @@ async function previewMemFile(ref, bucket, idx) {
           : analysisResults;
 
       if (wpResults.length) {
-        // Strip _annotated suffix to get the original filename for matching
-        const baseName = name.replace(/_annotated\.pdf$/i, '.pdf');
+        // Strip _annotated_YYYYMMDD_HHMM suffix to get original filename for matching
+        const baseName = name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
+                             .replace(/_annotated\.pdf$/i, '.pdf');
         const fileResult = wpResults.find(r => {
-          const rBase = r.fileName.replace(/_annotated\.pdf$/i, '.pdf');
+          const rBase = r.fileName.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
+                                  .replace(/_annotated\.pdf$/i, '.pdf');
           return r.fileName === name || r.fileName === baseName || rBase === baseName || rBase === name;
         });
         if (fileResult) {
-          console.log('[Viewer] Found analysis results for', name, '— placing overlays');
+          console.log('[Viewer] Found analysis results for', name, '— will place overlays after PDF renders');
           const fi = wpResults.indexOf(fileResult);
           const exMapLocal = {};
           let exNum = 0;
@@ -9927,13 +9895,23 @@ async function previewMemFile(ref, bucket, idx) {
             });
           });
           const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
-          const _doPlace = () => {
-            console.log('[Viewer] Placing interactive annotations, overlay=', document.getElementById('pdf-ann-overlay'));
-            placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
-            placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
+
+          // Poll until canvas exists (PDF has rendered), then place once
+          let _placed = false;
+          const _tryPlace = () => {
+            if (_placed) return;
+            const body = document.getElementById('file-preview-body');
+            const canvas = body?.querySelector('canvas');
+            if (canvas) {
+              _placed = true;
+              console.log('[Viewer] Canvas found, placing overlays');
+              placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
+              placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
+            } else {
+              setTimeout(_tryPlace, 500);
+            }
           };
-          setTimeout(_doPlace, 1000);
-          setTimeout(_doPlace, 3000);
+          setTimeout(_tryPlace, 500);
         } else {
           console.log('[Viewer] No matching analysis result for', name, '— results:', wpResults.map(r=>r.fileName));
         }
