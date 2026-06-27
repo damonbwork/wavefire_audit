@@ -1757,7 +1757,7 @@
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 60px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception name</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception description</div>
@@ -1766,6 +1766,9 @@
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Management response</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Expected resolution</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Retested</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Type</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Status</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Delete</div>
             </div>
             <!-- Exception rows -->
@@ -4448,7 +4451,11 @@ async function saveAnnotatedPDF() {
       };
     });
 
-    // ── Determine annotated filename with timestamp ──────────────────────
+    // ── Store annotation data directly on the current entry ─────────────
+    // Mutate in place so _fpIdx still points to the right object
+    console.log('[Save] Storing', serialized.length, 'annotations on entry', entry.name);
+
+    // Determine annotated filename
     const origName = entry.name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/\.pdf$/i, '');
     const _ts = (() => {
       const n = new Date();
@@ -4459,42 +4466,26 @@ async function saveAnnotatedPDF() {
         String(n.getMinutes()).padStart(2,'0');
     })();
     const annName = entry.name.match(/_annotated_\d{8}_\d{4}\.pdf$/i)
-      ? entry.name  // keep existing timestamped name
+      ? entry.name
       : `${origName}_annotated_${_ts}.pdf`;
 
-    // ── Store annotation data on the file entry — don't modify PDF bytes ─
-    if (!inMemoryFiles[_fpRef]) inMemoryFiles[_fpRef] = { workpaper: [], sample: [] };
-    const sfFiles = inMemoryFiles[_fpRef].sample;
+    const now     = new Date();
+    const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                  + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
 
-    const now    = new Date();
-    const nowStr = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
-                 + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-    const currentUser = 'jdavis';
+    // Update the entry directly — rename if needed and store annotations
+    entry._annotations = serialized;
+    entry.updatedBy    = 'jdavis';
+    entry.updatedOn    = nowStr;
 
-    // Find existing entry to update, or create new one
-    const existingSF = sfFiles.find(f => f.name === annName || f.name === entry.name);
-    const annFile = existingSF?.file || entry.file; // reuse same file bytes
-
-    const fileEntry = {
-      name:            annName,
-      file:            new File([await annFile.arrayBuffer()], annName, { type: 'application/pdf' }),
-      size:            `${(annFile.size/1024).toFixed(0)} KB`,
-      uploadedBy:      existingSF?.uploadedBy || currentUser,
-      uploadedOn:      existingSF?.uploadedOn || nowStr,
-      updatedBy:       currentUser,
-      updatedOn:       nowStr,
-      _annotations:    serialized,  // stored for reloading
-    };
-
-    // Remove original and any previous annotated version
-    for (let i = sfFiles.length - 1; i >= 0; i--) {
-      const n = sfFiles[i].name;
-      const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
-      if (n === annName || n === entry.name || nBase === origName.toLowerCase()) sfFiles.splice(i, 1);
+    if (entry.name !== annName) {
+      // Rename: create new File with new name, same bytes
+      entry.file = new File([entry.file], annName, { type: 'application/pdf' });
+      entry.name = annName;
     }
-    sfFiles.unshift(fileEntry);
-    refreshFileList(_fpRef, 'sample');
 
+    console.log('[Save] Done. entry._annotations:', entry._annotations.length, 'name:', entry.name);
+    refreshFileList(_fpRef, 'sample');
     if (typeof logEvent === 'function') logEvent(_fpRef, `Annotations saved: ${annName}`);
 
     if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
@@ -4683,7 +4674,7 @@ function addException() {
   if (!ref) return;
   if (!wpExceptions[ref]) wpExceptions[ref] = [];
   const num = wpExceptions[ref].length + 1;
-  wpExceptions[ref].push({ num, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [] });
+  wpExceptions[ref].push({ num, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' });
   logEvent(ref, `Exception #${num} added`);
   renderExceptions(ref);
 }
@@ -4784,7 +4775,7 @@ async function exportExceptions() {
     [],                                                 // A5: blank
     // A6: column headers
     ['#', 'Exception Name', 'Exception Description', 'Linked Files', 'Exception Owner',
-     'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date'],
+     'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
   // Data rows
@@ -4800,6 +4791,9 @@ async function exportExceptions() {
       ex.retested ? 'Yes' : 'No',
       ex.retestedBy    || '',
       ex.retestedDate  || '',
+      ex.disposition   || '',
+      ex.dispositionType   || '',
+      ex.dispositionStatus || '',
     ]);
   });
 
@@ -4891,8 +4885,10 @@ function renderExceptions(ref) {
   const cellStyle = 'padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;';
   const inputStyle = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;';
 
+  const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
+
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
@@ -4930,6 +4926,30 @@ function renderExceptions(ref) {
             style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
         </div>
         ${ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary);line-height:1.4;text-align:center;width:100%">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate)}</div>` : ''}
+      </div>
+      <div style="${cellStyle}"><textarea rows="1" placeholder="Disposition…" style="${inputStyle}"
+        oninput="autoResizeTA(this);saveException('${ref}',${i},'disposition',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      >${escHtml(ex.disposition||'')}</textarea></div>
+      <div style="${cellStyle}padding-top:6px">
+        <select style="${dropStyle}" onchange="saveException('${ref}',${i},'dispositionType',this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          <option value="">— Select —</option>
+          <option value="Exception" ${ex.dispositionType==='Exception'?'selected':''}>Exception</option>
+          <option value="Deficiency" ${ex.dispositionType==='Deficiency'?'selected':''}>Deficiency</option>
+          <option value="Significant Deficiency" ${ex.dispositionType==='Significant Deficiency'?'selected':''}>Significant Deficiency</option>
+          <option value="Material Weakness" ${ex.dispositionType==='Material Weakness'?'selected':''}>Material Weakness</option>
+        </select>
+      </div>
+      <div style="${cellStyle}padding-top:6px">
+        <select style="${dropStyle}" onchange="saveException('${ref}',${i},'dispositionStatus',this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          <option value="">— Select —</option>
+          <option value="Open" ${ex.dispositionStatus==='Open'?'selected':''}>Open</option>
+          <option value="Closed" ${ex.dispositionStatus==='Closed'?'selected':''}>Closed</option>
+          <option value="Final" ${ex.dispositionStatus==='Final'?'selected':''}>Final</option>
+          <option value="Remediated" ${ex.dispositionStatus==='Remediated'?'selected':''}>Remediated</option>
+        </select>
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;padding-top:8px">
         <button class="icon-btn" style="color:var(--red-700);width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px" title="Delete exception"
