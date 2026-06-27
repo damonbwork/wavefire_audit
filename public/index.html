@@ -4402,7 +4402,6 @@ async function saveAnnotatedPDF() {
   if (btn) { btn.innerHTML = '<i class="ti ti-loader-2"></i> Saving…'; btn.disabled = true; }
 
   try {
-    // Get source file
     if (!_fpRef || _fpBucket == null || _fpIdx == null) throw new Error('No file context — open a file first.');
     const entry = inMemoryFiles[_fpRef]?.[_fpBucket]?.[_fpIdx];
     if (!entry?.file) throw new Error('Source file not available in memory.');
@@ -4410,155 +4409,49 @@ async function saveAnnotatedPDF() {
 
     if (pdfAnnotations.length === 0) throw new Error('No annotations to save — add text or highlights first.');
 
-    const PDFLib    = await loadPdfLib();
-    const origBytes = await entry.file.arrayBuffer();
-    const pdfDoc    = await PDFLib.PDFDocument.load(origBytes);
-    const pages     = pdfDoc.getPages();
-    const font      = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    const fontReg   = font;
-
+    // ── Serialize annotation data (positions, text, types) ──────────────
+    // We store annotation data alongside the file entry so it can be
+    // reloaded as editable overlays next time the file is opened.
+    // Nothing is burned into the PDF pixels.
     const body    = document.getElementById('file-preview-body');
     const overlay = document.getElementById('pdf-ann-overlay');
 
-    // Compute scale from overlay/body dimensions vs PDF page size
-    // Use the canvas if available, otherwise fall back to overlay width
-    const firstCanvas = body?.querySelector('canvas');
-    const canvasRect  = firstCanvas?.getBoundingClientRect();
-    const page0       = pages[0];
-    const _ps0        = page0.getSize();
-    const pw0 = _ps0.width, ph0 = _ps0.height;
+    const serialized = pdfAnnotations.map(ann => {
+      // Get current element position
+      const el = ann.el;
+      const left = el ? (parseInt(el.style.left) || 0) : (ann.x || 0);
+      const top  = el ? (parseInt(el.style.top)  || 0) : (ann.y || 0);
 
-    // Reference width: canvas width if available and non-zero, else overlay/body clientWidth
-    const refW = (canvasRect && canvasRect.width > 0) ? canvasRect.width : (overlay?.clientWidth || body?.clientWidth || pw0);
-    const refH = (canvasRect && canvasRect.height > 0) ? canvasRect.height : (body?.clientHeight || ph0);
-
-    const scaleX = pw0 / refW;
-    const scaleY = ph0 / refH;
-    console.log('[Save] refW:', refW, 'refH:', refH, 'scaleX:', scaleX, 'scaleY:', scaleY, 'pw0:', pw0, 'ph0:', ph0);
-
-    const bodyRect2 = body?.getBoundingClientRect() || { left:0, top:0 };
-
-    for (const ann of pdfAnnotations) {
-      if (!ann.el) continue;
-
-      const pageWrappers = Array.from(body.querySelectorAll('[data-page]'));
-
-      // Get element position from its actual DOM rect (works for right/left/top anchored elements)
-      const elRect = ann.el.getBoundingClientRect();
-      const bodyRect2 = body.getBoundingClientRect();
-      const elX = elRect.left - bodyRect2.left + (body.scrollLeft || 0);
-      const elY = elRect.top  - bodyRect2.top  + (body.scrollTop  || 0);
-
-      // Find which page
-      let targetPageIdx = 0;
-      if (pageWrappers.length > 1) {
-        let cumH = 0;
-        for (let pi = 0; pi < pageWrappers.length; pi++) {
-          cumH += pageWrappers[pi].offsetHeight;
-          if (elY < cumH) { targetPageIdx = pi; break; }
-          targetPageIdx = pi;
-        }
-      }
-      const page = pages[Math.min(targetPageIdx, pages.length - 1)];
-      if (!page) continue;
-      const _ps = page.getSize(); const pw = _ps.width, ph = _ps.height;
-
-      // Offset within the target page
-      let pageOffsetY = 0;
-      for (let pi = 0; pi < targetPageIdx; pi++) {
-        pageOffsetY += pageWrappers[pi]?.offsetHeight || 0;
-      }
-      const localX = elX;
-      const localY = elY - pageOffsetY;
-
-      // Map to PDF coords (PDF Y is bottom-up)
-      const pdfX = localX * scaleX;
-      const pdfY = ph - (localY * scaleY);
-
-      // Guard against NaN
-      if (!isFinite(pdfX) || !isFinite(pdfY)) {
-        console.warn('[Save] NaN coords for', ann.type, '— elX:', elX, 'elY:', elY, 'localX:', localX, 'localY:', localY, 'scaleX:', scaleX, 'scaleY:', scaleY, 'bodyRect:', bodyRect2.left, bodyRect2.top, 'elRect:', elRect.left, elRect.top);
-        continue;
-      }
-      console.log('[Save] Ann:', ann.type, 'pdfX:', pdfX.toFixed(1), 'pdfY:', pdfY.toFixed(1), 'page:', targetPageIdx);
-
-      if (ann.type === 'legend' && ann.el) {
-        const ta      = ann.el.querySelector('textarea');
-        const text    = ta ? ta.value : (ann.text || '');
-        const lines   = text.split('\n').filter(l => l.trim());
-        const lx      = pdfX;
-        let   ly      = pdfY;
-        const lineH   = 10;
-        // Background box
-        const boxH = lines.length * lineH + 12;
-        const boxW = 260;
-        page.drawRectangle({ x: lx - 4, y: ly - boxH + 4, width: boxW, height: boxH,
-          color: PDFLib.rgb(0.99, 0.99, 0.92), opacity: 0.95 });
-        page.drawRectangle({ x: lx - 4, y: ly - boxH + 4, width: boxW, height: boxH,
-          borderColor: PDFLib.rgb(0.5, 0.5, 0.3), borderWidth: 0.5,
-          color: PDFLib.rgb(0.99, 0.99, 0.92), opacity: 0 });
-        // Draw each line
-        for (const line of lines) {
-          const isHeader = line.startsWith('Testwork') || line.startsWith('-') || line.startsWith('\u2500');
-          // Strip non-ASCII chars that WinAnsi fonts can't encode
-          const safeLine = line.replace(/[^\x00-\x7F]/g, c => {
-            const map = {'✓':'P','⚠':'PE','✗':'F','–':'-','—':'-','…':'...','\u2500':'-'};
-            return map[c] || '';
-          });
-          if (!safeLine.trim()) { ly -= lineH; continue; }
-          try {
-            page.drawText(safeLine.slice(0, 55), {
-              x: lx, y: ly, size: isHeader ? 8 : 7,
-              font: isHeader ? font : fontReg,
-              color: isHeader ? PDFLib.rgb(0.15, 0.35, 0.55) : PDFLib.rgb(0.1, 0.1, 0.1),
-            });
-          } catch(e) {}
-          ly -= lineH;
-        }
-        continue;
-      }
-
+      // Get current text
+      let text = ann.text || '';
       if (ann.type === 'text') {
-        const ta   = ann.el?.querySelector?.('textarea') || ann.el;
-        const text = (ta?.value || ann.text || '').trim().replace(/[^\x00-\x7F]/g, c => {
-          const map = {'✓':'P','⚠':'PE','✗':'F','–':'-','—':'-','…':'...'};
-          return map[c] || '';
-        });
-        if (!text) continue;
-        const textW = Math.min(text.length * 6.5 + 12, pw * 0.4);
-        page.drawRectangle({ x: pdfX - 2, y: pdfY - 14, width: textW, height: 18, color: PDFLib.rgb(1, 1, 0.7), opacity: 0.9 });
-        page.drawText(text, { x: pdfX + 2, y: pdfY - 10, size: 10, font, color: PDFLib.rgb(0.05, 0.05, 0.05), maxWidth: pw * 0.4 });
+        const ta = el?.querySelector?.('textarea') || (el?.tagName === 'TEXTAREA' ? el : null);
+        if (ta) text = ta.value;
+      } else if (ann.type === 'legend') {
+        const ta = el?.querySelector?.('textarea');
+        if (ta) text = ta.value;
+      } else if (ann.type === 'tick') {
+        const noteInput = el?.querySelector?.('input[type="text"]');
+        if (noteInput) text = noteInput.value;
       }
 
-      if (ann.type === 'tick' && ann.symbol) {
-        const tColors = { pass:[0.09,0.47,0.24], pass_exception:[0.93,0.35,0.00], fail:[0.75,0.07,0.22], na:[0.42,0.45,0.50] };
-        const tc = tColors[ann.tickType] || tColors.na;
-        // Map Unicode symbols to ASCII equivalents safe for WinAnsi PDF fonts
-        const pdfSym = { '✓':'P', '⚠':'PE', '✗':'F', '–':'-', 'N/A':'N/A' }[ann.symbol] || ann.symbol.replace(/[^\x00-\x7F]/g, '?');
-        page.drawText(pdfSym, { x: pdfX, y: pdfY, size: 14, font, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
-        const noteText = (ann.text || '').trim().replace(/[^\x00-\x7F]/g, '');
-        if (noteText) {
-          page.drawText(noteText, { x: pdfX + 18, y: pdfY, size: 8, font: fontReg, color: PDFLib.rgb(tc[0], tc[1], tc[2]) });
-        }
-      }
+      // Get highlight size
+      const width  = el ? (el.offsetWidth  || 180) : 180;
+      const height = el ? (el.offsetHeight || 28)  : 28;
 
-      if (ann.type === 'highlight' && ann.el) {
-        const hlRect = ann.el.getBoundingClientRect();
-        const hx = hlRect.left - bodyRect2.left + (body?.scrollLeft || 0);
-        const hy = hlRect.top  - bodyRect2.top  + (body?.scrollTop  || 0) - pageOffsetY;
-        const hpdfX = hx * scaleX;
-        const hpdfY = ph - (hy * scaleY) - (hlRect.height * scaleY);
-        const hpdfW = hlRect.width  * scaleX;
-        const hpdfH = hlRect.height * scaleY;
-        if (!isFinite(hpdfX) || !isFinite(hpdfY)) continue;
-        page.drawRectangle({ x: hpdfX, y: hpdfY, width: Math.max(hpdfW, 10), height: Math.max(hpdfH, 4), color: PDFLib.rgb(0.98, 0.8, 0.08), opacity: 0.4 });
-      }
-    }
+      return {
+        type:     ann.type,
+        tickType: ann.tickType,
+        symbol:   ann.symbol,
+        x: left, y: top,
+        text,
+        width, height,
+        auto: ann.auto || false,
+      };
+    });
 
-    const pdfBytes = await pdfDoc.save();
-    const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
-    // Determine the annotated filename — strip any existing _annotated suffix first
-    const origName = entry.name.replace(/_annotated.*\.pdf$/i, '').replace(/\.pdf$/i, '');
+    // ── Determine annotated filename with timestamp ──────────────────────
+    const origName = entry.name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/\.pdf$/i, '');
     const _ts = (() => {
       const n = new Date();
       return String(n.getFullYear()) +
@@ -4567,45 +4460,44 @@ async function saveAnnotatedPDF() {
         String(n.getHours()).padStart(2,'0') +
         String(n.getMinutes()).padStart(2,'0');
     })();
-    const annName  = `${origName}_annotated_${_ts}.pdf`;
+    const annName = entry.name.match(/_annotated_\d{8}_\d{4}\.pdf$/i)
+      ? entry.name  // keep existing timestamped name
+      : `${origName}_annotated_${_ts}.pdf`;
 
-    // Download
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a'); a.href = url; a.download = annName;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-    // Update sample files only — replace original or any existing _annotated version
+    // ── Store annotation data on the file entry — don't modify PDF bytes ─
     if (!inMemoryFiles[_fpRef]) inMemoryFiles[_fpRef] = { workpaper: [], sample: [] };
-    const annFile = new File([blob], annName, { type: 'application/pdf' });
-    const now     = new Date();
-    const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
-                  + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-    const currentUser = 'jdavis'; // use logged-in user
-
     const sfFiles = inMemoryFiles[_fpRef].sample;
-    // Find existing entry to preserve uploadedBy/uploadedOn
+
+    const now    = new Date();
+    const nowStr = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                 + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+    const currentUser = 'jdavis';
+
+    // Find existing entry to update, or create new one
     const existingSF = sfFiles.find(f => f.name === annName || f.name === entry.name);
+    const annFile = existingSF?.file || entry.file; // reuse same file bytes
+
     const fileEntry = {
-      name:        annName,
-      file:        annFile,
-      size:        `${(blob.size/1024).toFixed(0)} KB`,
-      uploadedBy:  existingSF?.uploadedBy || currentUser,
-      uploadedOn:  existingSF?.uploadedOn || nowStr,
-      updatedBy:   currentUser,
-      updatedOn:   nowStr,
+      name:            annName,
+      file:            new File([await annFile.arrayBuffer()], annName, { type: 'application/pdf' }),
+      size:            `${(annFile.size/1024).toFixed(0)} KB`,
+      uploadedBy:      existingSF?.uploadedBy || currentUser,
+      uploadedOn:      existingSF?.uploadedOn || nowStr,
+      updatedBy:       currentUser,
+      updatedOn:       nowStr,
+      _annotations:    serialized,  // stored for reloading
     };
 
-    // Remove original and any previous annotated version (any timestamp)
+    // Remove original and any previous annotated version
     for (let i = sfFiles.length - 1; i >= 0; i--) {
       const n = sfFiles[i].name;
-      const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf').replace(/_annotated\.pdf$/i, '.pdf');
-      if (n === annName || n === entry.name || nBase === `${origName}.pdf`) sfFiles.splice(i, 1);
+      const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
+      if (n === annName || n === entry.name || nBase === origName.toLowerCase()) sfFiles.splice(i, 1);
     }
     sfFiles.unshift(fileEntry);
     refreshFileList(_fpRef, 'sample');
 
-    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotated PDF saved: ${annName}`);
+    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotations saved: ${annName}`);
 
     if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
     setTimeout(() => {
@@ -9861,8 +9753,72 @@ async function previewMemFile(ref, bucket, idx) {
     await renderPDFPreview(entry.file);
     setupAnnOverlay();
 
-    // If this is a sample file and we have analysis results, place the legend overlay
+    // If this is a sample file and we have analysis results OR stored annotations, place overlays
     if (bucket === 'sample') {
+      // Reload stored user annotations if present on this file entry
+      if (entry._annotations?.length) {
+        console.log('[Viewer] Reloading', entry._annotations.length, 'stored annotations');
+        const _reloadAnns = () => {
+          const overlay = document.getElementById('pdf-ann-overlay');
+          const body    = document.getElementById('file-preview-body');
+          if (!overlay || !body?.querySelector('canvas')) { setTimeout(_reloadAnns, 500); return; }
+
+          // Clear existing auto annotations
+          overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
+          pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
+
+          entry._annotations.forEach(ann => {
+            if (ann.type === 'tick') {
+              const tickEl = document.createElement('div');
+              const col = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280', na:'#6b7280' }[ann.tickType] || '#6b7280';
+              const bg  = { pass:'rgba(22,163,74,0.15)', pass_exception:'rgba(234,88,12,0.15)', fail:'rgba(220,38,38,0.15)' }[ann.tickType] || 'rgba(107,114,128,0.1)';
+              tickEl.className = 'ann-item ann-auto';
+              tickEl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;font-size:18px;font-weight:900;color:${col};background:${bg};border:1.5px solid ${col};border-radius:5px;padding:1px 6px;cursor:move;user-select:none;z-index:55;pointer-events:all;box-shadow:0 2px 6px rgba(0,0,0,0.18)`;
+              tickEl.textContent = ann.symbol || '?';
+              overlay.appendChild(tickEl);
+              const annIdx = pdfAnnotations.length;
+              pdfAnnotations.push({ type:'tick', tickType:ann.tickType, symbol:ann.symbol, x:ann.x, y:ann.y, text:ann.text, el:tickEl, auto:true });
+              // Drag
+              let dt=false,dtx=0,dty=0,dtl=0,dtt=0;
+              tickEl.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(tickEl); _annPushUndo(); dt=true; dtx=ev.clientX; dty=ev.clientY; dtl=parseInt(tickEl.style.left)||0; dtt=parseInt(tickEl.style.top)||0; });
+              document.addEventListener('mousemove', ev => { if(!dt)return; tickEl.style.left=(dtl+ev.clientX-dtx)+'px'; tickEl.style.top=(dtt+ev.clientY-dty)+'px'; });
+              document.addEventListener('mouseup', ()=>{dt=false;});
+            } else if (ann.type === 'text' || ann.type === 'legend') {
+              const wrap = document.createElement('div');
+              wrap.className = 'ann-item ann-auto';
+              wrap.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;z-index:56;pointer-events:all;display:flex;flex-direction:column;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.2);min-width:160px;max-width:320px`;
+              const handle = document.createElement('div');
+              handle.style.cssText = 'background:#39618b;height:13px;border-radius:4px 4px 0 0;cursor:move;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none';
+              handle.innerHTML = '<span style="font-size:8px;color:rgba(255,255,255,0.8);letter-spacing:1.5px">• • •</span>';
+              const ta = document.createElement('textarea');
+              ta.value = ann.text || '';
+              ta.style.cssText = `min-width:160px;max-width:320px;min-height:40px;height:${Math.max(40,ann.height||40)}px;background:rgba(255,255,199,0.97);border:2px solid #eab308;border-top:none;border-radius:0 0 4px 4px;padding:5px 8px;font-size:${ann.type==='legend'?'11px':'12px'};font-family:${ann.type==='legend'?'monospace':'inherit'};resize:both;outline:none;cursor:text;pointer-events:all;box-sizing:border-box;width:100%`;
+              if (ann.width) wrap.style.width = ann.width + 'px';
+              wrap.appendChild(handle); wrap.appendChild(ta);
+              overlay.appendChild(wrap);
+              const annIdx = pdfAnnotations.length;
+              pdfAnnotations.push({ type:ann.type, x:ann.x, y:ann.y, text:ta.value, el:wrap, auto:true });
+              ta.addEventListener('input', () => { pdfAnnotations[annIdx].text = ta.value; updateAnnCount(); });
+              ta.addEventListener('click', ev => ev.stopPropagation());
+              ta.addEventListener('mousedown', ev => { ev.stopPropagation(); _selectAnnotation(wrap); });
+              let dn=false,dnx=0,dny=0,dnl=0,dnt=0;
+              handle.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(wrap); _annPushUndo(); dn=true; dnx=ev.clientX; dny=ev.clientY; dnl=parseInt(wrap.style.left)||0; dnt=parseInt(wrap.style.top)||0; });
+              document.addEventListener('mousemove', ev => { if(!dn)return; wrap.style.left=(dnl+ev.clientX-dnx)+'px'; wrap.style.top=(dnt+ev.clientY-dny)+'px'; });
+              document.addEventListener('mouseup', ()=>{dn=false;});
+            } else if (ann.type === 'highlight') {
+              const hl = document.createElement('div');
+              hl.className = 'ann-item ann-auto';
+              hl.style.cssText = `position:absolute;left:${ann.x}px;top:${ann.y}px;width:${ann.width||180}px;height:${ann.height||28}px;background:rgba(250,204,21,0.35);border:2px dashed #ca8a04;border-radius:2px;box-sizing:border-box;z-index:50;pointer-events:all;cursor:move`;
+              overlay.appendChild(hl);
+              pdfAnnotations.push({ type:'highlight', x:ann.x, y:ann.y, el:hl, auto:true });
+              _makeDraggable(hl);
+            }
+          });
+          updateAnnCount();
+          console.log('[Viewer] Annotations reloaded:', pdfAnnotations.length);
+        };
+        setTimeout(_reloadAnns, 500);
+      }
       // Use persisted results for this workpaper (survives navigation/refresh)
       const _wpObj2 = WORKPAPERS.find(w => w.ref === ref);
       const wpResults = (_wpAnalysisResults[ref] || []).length
