@@ -10112,18 +10112,20 @@ async function renderPDFPreview(file) {
 
     // After all pages rendered, size overlay to match canvas container
     requestAnimationFrame(() => {
-       if (overlay) {
-         overlay.style.height = canvasContainer.scrollHeight + 'px';
-         overlay.style.pointerEvents = 'all';
-       }
-       setupAnnOverlay();
-       console.log('[RAF] _pendingAnnotations:', window._pendingAnnotations?.length ?? 'null/undefined', 'overlay in DOM:', !!overlay?.isConnected);
-       if (window._pendingAnnotations?.length) {
-         console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
-         _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
-         window._pendingAnnotations = null;
-       }
-     });
+      // Always re-fetch overlay — the closure variable may be stale if previewMemFile ran twice
+      const liveOverlay = document.getElementById('pdf-ann-overlay');
+      if (liveOverlay) {
+        liveOverlay.style.height = canvasContainer.scrollHeight + 'px';
+        liveOverlay.style.pointerEvents = 'all';
+      }
+      setupAnnOverlay();
+      console.log('[RAF] _pendingAnnotations:', window._pendingAnnotations?.length ?? 'null', 'overlay in DOM:', !!liveOverlay?.isConnected);
+      if (window._pendingAnnotations?.length && liveOverlay) {
+        console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
+        _restoreAnnotationsToOverlay(window._pendingAnnotations, liveOverlay);
+        window._pendingAnnotations = null;
+      }
+    });
 
     // Scroll tracking
     body.addEventListener('scroll', () => {
