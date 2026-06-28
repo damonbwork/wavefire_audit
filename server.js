@@ -21,6 +21,17 @@ async function initDB() {
   if (!pool) { console.log('No DATABASE_URL — running without database'); return; }
   try {
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS entity_types (
+        name    TEXT PRIMARY KEY,
+        bg      TEXT NOT NULL DEFAULT '#f1f5f9',
+        color   TEXT NOT NULL DEFAULT '#475569',
+        border  TEXT NOT NULL DEFAULT '#cbd5e1',
+        icon    TEXT NOT NULL DEFAULT 'ti-tag',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('DB: entity_types table ready');
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS assessment_entities (
         id                   TEXT PRIMARY KEY,
         name                 TEXT NOT NULL DEFAULT '',
@@ -56,6 +67,29 @@ initDB();
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// ── Entity Types API ────────────────────────────────────────────────────────
+app.get('/api/entity-types', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query('SELECT * FROM entity_types ORDER BY name');
+    res.json(rows);
+  } catch(err) { console.error('GET /api/entity-types:', err.message); res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/entity-types', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { name, bg, color, border, icon } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    await pool.query(`
+      INSERT INTO entity_types (name, bg, color, border, icon)
+      VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (name) DO UPDATE SET bg=EXCLUDED.bg, color=EXCLUDED.color, border=EXCLUDED.border, icon=EXCLUDED.icon
+    `, [name, bg||'#f1f5f9', color||'#475569', border||'#cbd5e1', icon||'ti-tag']);
+    res.json({ ok: true });
+  } catch(err) { console.error('POST /api/entity-types:', err.message); res.status(500).json({ error: err.message }); }
+});
 
 // ── Assessment Entities API ─────────────────────────────────────────────────
 app.get('/api/entities', async (req, res) => {
