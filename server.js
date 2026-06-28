@@ -73,14 +73,16 @@ app.post('/api/entities', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { id, name, type, category, address, city, state, poc, sub, description,
           app_purpose, user_count, txn_volume, txn_dollar, change_volume,
-          change_complexity, admin_users, key_integrations, external_integrations } = req.body;
+          change_complexity, admin_users, key_integrations, external_integrations,
+          custom_fields } = req.body;
   try {
     await pool.query(`
       INSERT INTO assessment_entities
         (id,name,type,category,address,city,state,poc,sub,description,
          app_purpose,user_count,txn_volume,txn_dollar,change_volume,
-         change_complexity,admin_users,key_integrations,external_integrations,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+         change_complexity,admin_users,key_integrations,external_integrations,
+         custom_fields,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name=EXCLUDED.name, type=EXCLUDED.type, category=EXCLUDED.category,
         address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state,
@@ -89,12 +91,14 @@ app.post('/api/entities', async (req, res) => {
         txn_volume=EXCLUDED.txn_volume, txn_dollar=EXCLUDED.txn_dollar,
         change_volume=EXCLUDED.change_volume, change_complexity=EXCLUDED.change_complexity,
         admin_users=EXCLUDED.admin_users, key_integrations=EXCLUDED.key_integrations,
-        external_integrations=EXCLUDED.external_integrations, updated_at=NOW()
+        external_integrations=EXCLUDED.external_integrations,
+        custom_fields=EXCLUDED.custom_fields, updated_at=NOW()
     `, [id, name||'', type||'Facility', category||'facility',
         address||'', city||'', state||'', poc||'', sub||'', description||'',
         app_purpose||'', user_count||'', txn_volume||'', txn_dollar||'',
         change_volume||'', change_complexity||'', admin_users||'',
-        key_integrations||'', external_integrations||'']);
+        key_integrations||'', external_integrations||'',
+        JSON.stringify(custom_fields||[])]);
     res.json({ ok: true });
   } catch(err) {
     console.error('POST /api/entities:', err.message);
