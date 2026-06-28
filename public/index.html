@@ -7149,7 +7149,7 @@ function openEntityDialog(idx) {
     </div>`;
 
   const html = `
-    <div id="entity-dialog-overlay"
+    <div id="fnd-entity-dialog-overlay"
       style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)"
       onclick="if(event.target===this)closeEntityDialog()">
       <div style="background:var(--bg-primary);border-radius:14px;width:min(680px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">
@@ -7197,7 +7197,7 @@ function openEntityDialog(idx) {
     </div>`;
 
   document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(() => document.querySelector('#entity-dialog-overlay input')?.focus(), 60);
+  setTimeout(() => document.querySelector('#fnd-entity-dialog-overlay input')?.focus(), 60);
 }
 
 function renderCustomFieldRows(idx) {
@@ -7279,7 +7279,7 @@ async function saveEntityFromDialog(idx) {
 }
 
 function closeEntityDialog() {
-  document.getElementById('entity-dialog-overlay')?.remove();
+  document.getElementById('fnd-entity-dialog-overlay')?.remove();
 }
 
 
@@ -8202,7 +8202,7 @@ function rcmApplyEntityModal() {
       sumDiv.innerHTML =
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
           '<span style="font-size:11px;color:var(--text-tertiary)">'+c.linked_entities.length+' linked</span>' +
-          '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Entities</button>' +
+          '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Entities</button>' +
         '</div>' +
         (linked.length
           ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
@@ -8390,7 +8390,7 @@ function rcmApplyFSModal() {
     sumDiv.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
         '<span style="font-size:11px;color:var(--text-tertiary)">'+c.linked_accounts.length+' linked</span>' +
-        '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Accounts</button>' +
+        '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Accounts</button>' +
       '</div>' +
       (linked.length
         ? '<div style="display:flex;flex-wrap:wrap;gap:5px">'+linked.map(function(f){
@@ -8400,7 +8400,200 @@ function rcmApplyFSModal() {
   }
 }
 
-// ── RCM dialog side-nav helpers ───────────────────────────────────────────────
+// ── Risk summary builder (read-only chips) ────────────────────────────────────
+function rcmBuildRiskSummaryHtml(idx, c, allRisks) {
+  var linked = (c.linked_risks||[]).map(function(id) {
+    return allRisks.find(function(r){ return r.id===id; });
+  }).filter(Boolean);
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+    '<span style="font-size:11px;color:var(--text-tertiary)">'+(c.linked_risks||[]).length+' linked</span>' +
+    '<button type="button" onclick="openRCMRisksModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Risks</button>' +
+  '</div>' +
+  (linked.length
+    ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
+        linked.map(function(r){
+          return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5">' +
+            '<span style="font-size:9px;font-weight:700;opacity:0.7">'+escHtml(r.id)+'</span> '+escHtml(r.name||r.title||'')+'</span>';
+        }).join('') +
+      '</div>'
+    : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No risks linked. Click Add/Edit Risks to link.</div>');
+}
+
+// ── RCM Risks Link Modal ──────────────────────────────────────────────────────
+var _rcmRiskModalState = { idx:null, sortCol:'id', sortDir:'asc', query:'' };
+
+function openRCMRisksModal(idx) {
+  _rcmRiskModalState.idx   = idx;
+  _rcmRiskModalState.query = '';
+  _rcmRiskModalState.sortCol = 'id';
+  _rcmRiskModalState.sortDir = 'asc';
+  document.getElementById('rcm-risks-modal')?.remove();
+
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id,name:r.title||r.name||'',description:r.description||''}; });
+
+  var html =
+    '<div id="rcm-risks-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\'rcm-risks-modal\').remove()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(700px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-alert-triangle" style="margin-right:8px"></i>Add / Edit Linked Risks</div>' +
+        '<div id="rcm-risk-modal-count" style="font-size:11px;opacity:0.65;margin-top:2px"></div></div>' +
+        '<button onclick="document.getElementById(\'rcm-risks-modal\').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:300;padding:0;flex-shrink:0">&#x00D7;</button>' +
+      '</div>' +
+      '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);flex-shrink:0">' +
+        '<input id="rcm-risk-search" type="text" placeholder="Search by risk ID or name…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:7px 10px;background:var(--bg-primary);outline:none;box-sizing:border-box" oninput="_rcmRiskModalState.query=this.value;rcmRenderRisksModal()">' +
+      '</div>' +
+      '<div style="overflow:hidden;flex:1;display:flex;flex-direction:column"><div style="overflow-x:auto;flex:1;overflow-y:auto">' +
+        '<table id="rcm-risk-table" style="width:100%;border-collapse:collapse">' +
+          '<thead><tr style="background:var(--bg-secondary)">' +
+            '<th style="padding:7px 10px;width:36px"><input type="checkbox" id="rcm-risk-all" onchange="rcmRisksSelectAll(this.checked)" style="cursor:pointer"></th>' +
+            rcmRiskSortTh('id',          'Risk ID') +
+            rcmRiskSortTh('name',        'Risk Name') +
+            rcmRiskSortTh('description', 'Description') +
+          '</tr></thead>' +
+          '<tbody id="rcm-risk-tbody"></tbody>' +
+        '</table>' +
+      '</div></div>' +
+      '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:space-between;align-items:center;background:var(--bg-secondary);flex-shrink:0">' +
+        '<button type="button" onclick="openRCMQuickAddRisk('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Create New Risk</button>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn-s" onclick="document.getElementById(\'rcm-risks-modal\').remove()">Cancel</button>' +
+          '<button class="btn-p" onclick="rcmApplyRisksModal()"><i class="ti ti-check"></i>Apply</button>' +
+        '</div>' +
+      '</div>' +
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  rcmRenderRisksModal();
+  setTimeout(function(){ document.getElementById('rcm-risk-search')?.focus(); }, 60);
+}
+
+function rcmRiskSortTh(col, label) {
+  var s = _rcmRiskModalState;
+  var active = s.sortCol===col;
+  var icon = active?(s.sortDir==='asc'?'↑':'↓'):'';
+  return '<th onclick="rcmRiskSort(\''+col+'\')" style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;white-space:nowrap;color:'+(active?'var(--wf-navy)':'var(--text-tertiary)')+'">'+label+' '+icon+'</th>';
+}
+
+function rcmRiskSort(col) {
+  var s = _rcmRiskModalState;
+  if (s.sortCol===col) s.sortDir=s.sortDir==='asc'?'desc':'asc';
+  else { s.sortCol=col; s.sortDir='asc'; }
+  rcmRenderRisksModal();
+}
+
+function rcmRisksSelectAll(checked) {
+  var s = _rcmRiskModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  document.querySelectorAll('#rcm-risk-tbody input[type=checkbox]').forEach(function(cb) {
+    var rid=cb.value; cb.checked=checked;
+    if (checked && c.linked_risks.indexOf(rid)<0) c.linked_risks.push(rid);
+    else if (!checked) { var i=c.linked_risks.indexOf(rid); if(i>=0) c.linked_risks.splice(i,1); }
+  });
+  rcmUpdateRiskCount();
+}
+
+function rcmUpdateRiskCount() {
+  var s = _rcmRiskModalState;
+  var c = _fndControls[s.idx];
+  var el = document.getElementById('rcm-risk-modal-count');
+  if (el && c) el.textContent = (c.linked_risks||[]).length+' linked · '+document.querySelectorAll('#rcm-risk-tbody tr').length+' shown';
+}
+
+function rcmRenderRisksModal() {
+  var s = _rcmRiskModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  if (!Array.isArray(c.linked_risks)) c.linked_risks=[];
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id,name:r.title||r.name||'',description:r.description||''}; });
+  var q = (s.query||'').toLowerCase();
+
+  var filtered = allRisks.filter(function(r) {
+    if (!q) return true;
+    return (r.id||'').toLowerCase().includes(q) || (r.name||r.title||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q);
+  }).sort(function(a,b) {
+    var av=String(a[s.sortCol]||'').toLowerCase(), bv=String(b[s.sortCol]||'').toLowerCase();
+    return s.sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
+
+  var tbody = document.getElementById('rcm-risk-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = filtered.length ? filtered.map(function(r) {
+    var checked = c.linked_risks.indexOf(r.id)>=0;
+    return '<tr style="border-top:0.5px solid var(--border-light);'+(checked?'background:#fef9f9':'')+'" onmouseenter="if(!this.querySelector(\'input\').checked)this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=this.querySelector(\'input\').checked?\'#fef9f9\':\'\'">' +
+      '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+r.id+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmRiskToggle(\''+r.id+'\',this.checked,this.closest(\'tr\'))"></td>' +
+      '<td style="padding:8px 10px;white-space:nowrap"><span style="font-size:10px;font-weight:700;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:2px 6px">'+escHtml(r.id)+'</span></td>' +
+      '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(r.name||r.title||'')+'</td>' +
+      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(r.description||'')+'">'+escHtml((r.description||'').slice(0,90))+(r.description&&r.description.length>90?'…':'')+'</td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:13px">No risks match.</td></tr>';
+
+  // Refresh sort headers
+  var thead = document.querySelector('#rcm-risk-table thead tr');
+  if (thead) {
+    ['id','name','description'].forEach(function(col,i) {
+      var th = thead.querySelectorAll('th[onclick]')[i];
+      if (!th) return;
+      var active = s.sortCol===col;
+      th.style.color = active?'var(--wf-navy)':'var(--text-tertiary)';
+      var lbl = th.textContent.replace(/[↑↓]/g,'').trim();
+      th.textContent = lbl+(active?(s.sortDir==='asc'?' ↑':' ↓'):'');
+      th.onclick = function(){ rcmRiskSort(col); };
+    });
+  }
+  rcmUpdateRiskCount();
+}
+
+function rcmRiskToggle(id, checked, row) {
+  var c = _fndControls[_rcmRiskModalState.idx];
+  if (!c) return;
+  if (!Array.isArray(c.linked_risks)) c.linked_risks=[];
+  var i=c.linked_risks.indexOf(id);
+  if (checked&&i<0) c.linked_risks.push(id);
+  else if (!checked&&i>=0) c.linked_risks.splice(i,1);
+  if (row) row.style.background = checked?'#fef9f9':'';
+  CTRL_RISKS_MAP[_fndControls[_rcmRiskModalState.idx].id] = c.linked_risks.slice();
+  rcmUpdateRiskCount();
+}
+
+function rcmApplyRisksModal() {
+  var idx = _rcmRiskModalState.idx;
+  document.getElementById('rcm-risks-modal')?.remove();
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id,name:r.title||r.name||'',description:r.description||''}; });
+  var sumDiv = document.getElementById('rcm-risk-summary');
+  if (sumDiv && idx!=null) {
+    sumDiv.innerHTML = rcmBuildRiskSummaryHtml(idx, _fndControls[idx], allRisks);
+  }
+}
+
+function openRCMQuickAddRisk(idx) {
+  var name = window.prompt('Enter new risk name:');
+  if (!name||!name.trim()) return;
+  name = name.trim();
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id,name:r.title||r.name||'',description:r.description||''}; });
+  var existing = allRisks.find(function(r){ return (r.name||r.title||'').toLowerCase()===name.toLowerCase(); });
+  var riskId;
+  if (existing) {
+    riskId = existing.id;
+  } else {
+    var num=1;
+    do { riskId='RSK-USER-'+String(num).padStart(3,'0'); num++; } while (allRisks.find(function(r){return r.id===riskId;}));
+    var newRisk={id:riskId,name:name,title:name,description:''};
+    _fndRisks.push(newRisk); RISKS[riskId]={id:riskId,title:name,description:''};
+    _saveRiskToDB(newRisk);
+  }
+  var c=_fndControls[idx];
+  if (!c||!Array.isArray(c.linked_risks)) return;
+  if (c.linked_risks.indexOf(riskId)<0) { c.linked_risks.push(riskId); CTRL_RISKS_MAP[c.id]=c.linked_risks.slice(); }
+  // Re-render modal if open
+  rcmRenderRisksModal();
+}
+
 function rcmNavBtn(secId, icon, label) {
   return '<button type="button" data-sec="'+secId+'" onclick="rcmDialogScrollTo(\''+secId+'\')" ' +
     'style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-secondary);text-align:left;border-left:3px solid transparent;transition:all 0.12s" ' +
@@ -8418,10 +8611,14 @@ function rcmSecHdr(title, icon) {
 }
 
 function rcmDialogScrollTo(secId) {
-  var sec = document.getElementById(secId);
+  var sec  = document.getElementById(secId);
   var body = document.getElementById('rcm-dialog-body');
   if (!sec || !body) return;
-  body.scrollTo({ top: sec.offsetTop - 16, behavior: 'smooth' });
+  // Use rendered positions so the section header is always fully visible
+  var bodyRect = body.getBoundingClientRect();
+  var secRect  = sec.getBoundingClientRect();
+  var target   = secRect.top - bodyRect.top + body.scrollTop - 12;
+  body.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   rcmDialogNavActivate(secId);
 }
 
@@ -8507,50 +8704,6 @@ function openRCMDialog(idx) {
       '</div>' +
     '</div>';
 
-  // ── Combo-box: Quick-add Risk ─────────────────────────────────────────────
-  var rskDropId  = 'rcm-rsk-drop-'+idx;
-  var rskInputId = 'rcm-rsk-input-'+idx;
-  var riskQuickAdd =
-    '<div style="margin-bottom:8px;padding-bottom:10px;border-bottom:0.5px solid var(--border-light)">' +
-      '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Add risk from list or enter new risk:</div>' +
-      '<div style="display:flex;gap:6px;position:relative">' +
-        '<input type="text" id="'+rskInputId+'" placeholder="Select existing risk or type new risk name…" autocomplete="off" ' +
-          'style="flex:1;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px 0 0 6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
-          'oninput="rcmFilterCombo(\''+rskDropId+'\',this.value)" ' +
-          'onfocus="document.getElementById(\''+rskDropId+'\').style.display=\'block\'" ' +
-          'onblur="setTimeout(function(){var d=document.getElementById(\''+rskDropId+'\');if(d)d.style.display=\'none\';},180)">' +
-        '<button type="button" onclick="rcmToggleCombo(\''+rskDropId+'\')" ' +
-          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 0 0 0;padding:0 8px;background:var(--bg-secondary);cursor:pointer;color:var(--text-tertiary)">' +
-          '<i class="ti ti-chevron-down" style="font-size:12px"></i>' +
-        '</button>' +
-        '<button type="button" onclick="rcmQuickAddRisk('+idx+',\''+rskInputId+'\')" ' +
-          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 6px 6px 0;padding:0 10px;background:var(--wf-navy);color:#fff;cursor:pointer;font-size:11px;white-space:nowrap">' +
-          '<i class="ti ti-plus"></i>Add' +
-        '</button>' +
-        '<div id="'+rskDropId+'" style="display:none;position:absolute;left:0;right:72px;top:calc(100% + 3px);background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;max-height:160px;overflow-y:auto">' +
-          allRisks.map(function(r) {
-            var already = c.linked_risks.indexOf(r.id) >= 0;
-            return '<div class="rcm-combo-opt" data-val="'+escHtml(r.id)+'" data-label="'+escHtml(r.name||r.title||'')+'" ' +
-              'onclick="rcmSelectRisk('+idx+',\''+rskInputId+'\',\''+rskDropId+'\',this.dataset.val,this.dataset.label)" ' +
-              'style="padding:7px 12px;font-size:12px;cursor:pointer;border-bottom:0.5px solid var(--border-light);'+(already?'opacity:0.45;':'')+'color:var(--text-primary)" ' +
-              'onmouseenter="this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=\'\'">' +
-              '<span style="font-size:10px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-right:6px">'+escHtml(r.id)+'</span>' +
-              escHtml(r.name||r.title||'') + (already?' <span style="font-size:10px;color:#16a34a">✓ linked</span>':'') +
-            '</div>';
-          }).join('') +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  // ── Existing risk checkboxes ──────────────────────────────────────────────
-  var riskCheckboxes = allRisks.map(function(r) {
-    var checked = c.linked_risks.indexOf(r.id)>=0;
-    return '<label style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
-      '<input type="checkbox" value="'+r.id+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleRisk('+idx+',\''+r.id+'\',this.checked)">' +
-      '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)"><span style="font-size:10px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-right:5px">'+r.id+'</span>'+escHtml(r.name||r.title||'')+'</div>' +
-      (r.description?'<div style="font-size:11px;color:var(--text-tertiary);margin-top:1px;line-height:1.4">'+escHtml(r.description.slice(0,100))+(r.description.length>100?'…':'')+'</div>':'') +
-      '</div></label>';
-  }).join('');
 
 
   // ── Linked Assessment Entities ────────────────────────────────────────────
@@ -8570,7 +8723,7 @@ function openRCMDialog(idx) {
   var entitySummaryHtml =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
       '<span style="font-size:11px;color:var(--text-tertiary)">' + c.linked_entities.length + ' linked</span>' +
-      '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Entities</button>' +
+      '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Entities</button>' +
     '</div>' +
     (linkedEntityObjs.length
       ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
@@ -8597,7 +8750,7 @@ function openRCMDialog(idx) {
   var fsSummaryHtml =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
       '<span style="font-size:11px;color:var(--text-tertiary)">' + c.linked_accounts.length + ' linked</span>' +
-      '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Accounts</button>' +
+      '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Accounts</button>' +
     '</div>' +
     (linkedFSObjs.length
       ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
@@ -8643,7 +8796,7 @@ function openRCMDialog(idx) {
       '<div style="background:var(--wf-navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:16px;font-weight:700">'+escHtml(c.name||c.title||'New Control')+'</div>' +
         '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'— new control —')+'</div></div>' +
-        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:300;line-height:1;padding:0;flex-shrink:0"><i class="ti ti-x" style="font-size:16px;line-height:1">&#x00D7;</i></button>' +
       '</div>' +
 
       // ── Body: side-nav + scrollable content ──
@@ -8743,9 +8896,8 @@ function openRCMDialog(idx) {
           // ── Section: Risks ──
           '<div id="rcm-sec-risks" class="rcm-dialog-sec">' +
             rcmSecHdr('Linked Risks', 'ti-alert-triangle') +
-            '<div style="border:0.5px solid var(--border-light);border-radius:6px;overflow:hidden;padding:0 12px">' +
-              riskQuickAdd +
-              (riskCheckboxes || '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px">No risks defined yet.</div>') +
+            '<div id="rcm-risk-summary" style="border:0.5px solid var(--border-light);border-radius:6px;padding:12px">' +
+              rcmBuildRiskSummaryHtml(idx, c, allRisks) +
             '</div>' +
           '</div>' +
 
@@ -10783,7 +10935,7 @@ function openNewAuditEntityDialog() {
   });
   renderEntityList('');
   updateEntityCount();
-  const overlay = document.getElementById('entity-dialog-overlay');
+  const overlay = document.getElementById('fnd-entity-dialog-overlay');
   overlay.dataset.mode = 'new-audit';
   overlay.style.display = 'flex';
   setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
@@ -11253,7 +11405,7 @@ function openWPEntityDialog() {
   const ref = WORKPAPERS[currentWPIndex]?.ref;
   if (!ref) return;
   if (!wpScopeEntities[ref]) wpScopeEntities[ref] = new Set();
-  const overlay = document.getElementById('entity-dialog-overlay');
+  const overlay = document.getElementById('fnd-entity-dialog-overlay');
   if (!overlay) return;
   overlay.dataset.mode = 'wp-scope';
   dialogTempEntities = new Set(wpScopeEntities[ref]);
@@ -11276,7 +11428,7 @@ function openWPEntityDialog() {
 }
 
 function applyEntitySelectionRouted() {
-  const overlay = document.getElementById('entity-dialog-overlay');
+  const overlay = document.getElementById('fnd-entity-dialog-overlay');
   if (overlay?.dataset.mode === 'wp-scope') {
     applyWPEntitySelection();
   } else if (overlay?.dataset.mode === 'new-audit') {
@@ -11332,7 +11484,7 @@ function applyWPEntitySelection() {
   });
   renderAuditEntityTags();
 
-  document.getElementById('entity-dialog-overlay').style.display = 'none';
+  document.getElementById('fnd-entity-dialog-overlay').style.display = 'none';
 }
 
 function renderWPScopeEntities(ref) {
@@ -11359,14 +11511,14 @@ function openEntityDialog() {
   if (filterRow) filterRow.style.display = 'none';
   renderEntityList('');
   updateEntityCount();
-  const overlay = document.getElementById('entity-dialog-overlay');
+  const overlay = document.getElementById('fnd-entity-dialog-overlay');
   overlay.dataset.mode = 'audit';
   overlay.style.display = 'flex';
   setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
 }
 
 function closeEntityDialog() {
-  document.getElementById('entity-dialog-overlay').style.display = 'none';
+  document.getElementById('fnd-entity-dialog-overlay').style.display = 'none';
 }
 
 let _entityFilter = 'all'; // 'all' or 'audit'
@@ -11390,7 +11542,7 @@ function filterEntityList() {
 function renderEntityList(query) {
   const container     = document.getElementById('entity-list-container');
   const q             = (query||'').toLowerCase();
-  const overlay       = document.getElementById('entity-dialog-overlay');
+  const overlay       = document.getElementById('fnd-entity-dialog-overlay');
   const isWPScope     = overlay?.dataset.mode === 'wp-scope';
   const auditEntities = currentAuditEntities || new Set();
 
