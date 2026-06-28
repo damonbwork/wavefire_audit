@@ -31,7 +31,18 @@ async function initDB() {
       );
     `);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS risks (
+      CREATE TABLE IF NOT EXISTS control_categories (
+        name       TEXT PRIMARY KEY,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      -- Seed defaults if empty
+      INSERT INTO control_categories (name, sort_order) VALUES
+        ('Access',1),('Change Management',2),('Operations',3),
+        ('Financial Reporting',4),('Compliance',5),('IT General Controls',6),
+        ('Payroll',7),('Vendor Due Diligence',8),('Other',9)
+      ON CONFLICT (name) DO NOTHING;
+
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL DEFAULT '',
         description TEXT DEFAULT '',
@@ -95,6 +106,24 @@ initDB();
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// ── Control Categories API ────────────────────────────────────────────────────
+app.get('/api/control-categories', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT name FROM control_categories ORDER BY sort_order, name'); res.json(rows.map(r=>r.name)); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/control-categories', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    const { rows } = await pool.query('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM control_categories');
+    await pool.query('INSERT INTO control_categories (name, sort_order) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING', [name, rows[0].n]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Risks API ───────────────────────────────────────────────────────────────
 app.get('/api/risks', async (req, res) => {
