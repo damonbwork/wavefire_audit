@@ -792,7 +792,7 @@
   </div>
 
   <!-- FOUNDATIONS PAGE -->
-  <div id="page-foundations" class="page" style="display:none;flex:1;overflow:hidden">
+  <div id="page-foundations" style="display:none;flex:1;overflow:hidden;flex-direction:row">
     <div style="display:flex;height:100%;overflow:hidden">
 
       <!-- Left sidebar -->
@@ -4884,6 +4884,11 @@ function navigateWP(direction) {
 
 function showPage(name) {
   saveCurrentPage();
+  // Hide foundations if visible
+  const fp = document.getElementById('page-foundations');
+  if (fp) fp.style.display = 'none';
+  document.getElementById('wf-subnav-foundations').style.display = 'none';
+
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
@@ -6853,7 +6858,11 @@ async function createNewEntityType() {
   _fndEntityTypes.push(newType);
   await _saveEntityTypeToDB(newType);
   document.getElementById('new-type-overlay')?.remove();
+  // Refresh any open entity dialogs and audit tab entity lists
   renderFoundationsEntities();
+  // Re-render audit entity tags if visible
+  const ref = typeof getWPRef === 'function' ? getWPRef() : null;
+  if (ref) renderWPScopeEntities(ref);
 }
 let _fndSortField = 'name';
 let _fndSortDir   = 'asc';
@@ -6976,6 +6985,8 @@ async function fndDeleteOne(idx) {
   await _deleteEntityFromDB(e.id);
   _fndEntities.splice(idx,1);
   _fndSelected.delete(e.id);
+  const aeIdx = ALL_ENTITIES.findIndex(x => x.id === e.id);
+  if (aeIdx >= 0) ALL_ENTITIES.splice(aeIdx, 1);
   renderFoundationsEntities();
 }
 async function fndDeleteSelected() {
@@ -6984,6 +6995,8 @@ async function fndDeleteSelected() {
     await _deleteEntityFromDB(id);
     const i = _fndEntities.findIndex(e => e.id === id);
     if (i >= 0) _fndEntities.splice(i,1);
+    const ai = ALL_ENTITIES.findIndex(x => x.id === id);
+    if (ai >= 0) ALL_ENTITIES.splice(ai, 1);
   }
   _fndSelected.clear();
   renderFoundationsEntities();
@@ -7219,6 +7232,12 @@ async function saveEntityFromDialog(idx) {
   if (btn) {
     btn.innerHTML = ok ? '<i class="ti ti-check"></i> Saved!' : '<i class="ti ti-alert-triangle"></i> Error';
     btn.style.background = ok ? '#16a34a' : '#dc2626';
+    if (ok) {
+      // Sync to ALL_ENTITIES so audit tab sees the change immediately
+      const aeIdx = ALL_ENTITIES.findIndex(e => e.id === entity.id);
+      if (aeIdx >= 0) Object.assign(ALL_ENTITIES[aeIdx], entity);
+      else ALL_ENTITIES.push({ ...entity });
+    }
     setTimeout(() => { closeEntityDialog(); renderFoundationsEntities(); }, 900);
   }
 }
@@ -8802,8 +8821,8 @@ function showAuditInfoTooltip(e) {
   document.getElementById('ait-entities').innerHTML = entArr.length
     ? entArr.map(name => {
         const entity = ALL_ENTITIES.find(e => e.name === name);
-        const { cls, icon } = entityStyle(entity ? entity.category : 'facility');
-        return `<span class="${cls}" style="font-size:10px;padding:2px 7px"><i class="ti ${icon}"></i>${name}</span>`;
+        const { cls: _cls1, icon: _ico1, style: _sty1 } = entityStyle(entity ? (entity.type || entity.category) : 'facility');
+        return `<span class="${_cls1 || 'entity-tag'}" style="font-size:10px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px;${_sty1}"><i class="ti ${_ico1}"></i>${name}</span>`;
       }).join('')
     : '<span style="font-size:12px;color:var(--text-tertiary)">—</span>';
   positionAuditTooltip(e);
@@ -9226,8 +9245,8 @@ function renderNewAuditEntityTags() {
   container.innerHTML = [..._newAuditEntities].map(id => {
     const e = ALL_ENTITIES.find(x => x.id === id);
     if (!e) return '';
-    const { cls, icon } = entityStyle(e.category || 'facility');
-    return `<span class="${cls}"><i class="ti ${icon}"></i>${e.name}</span>`;
+    const { cls: _cls2, icon: _ico2, style: _sty2 } = entityStyle(e.type || e.category || 'facility');
+    return `<span class="${_cls2 || 'entity-tag'}" style="display:inline-flex;align-items:center;gap:5px;${_sty2}"><i class="ti ${_ico2}"></i>${e.name}</span>`;
   }).join('');
 }
 
@@ -9641,9 +9660,26 @@ let dialogTempEntities = new Set();
 const INFOSEC_CONTROLS = new Set(['IT-CTL-01', 'IT-CTL-02', 'IT-CTL-03']);
 
 function entityStyle(cat) {
-  if (cat === 'app')    return { cls: 'entity-tag-app',    icon: 'ti-device-desktop' };
-  if (cat === 'biomed') return { cls: 'entity-tag-biomed', icon: 'ti-heart-rate-monitor' };
-  return { cls: 'entity-tag', icon: 'ti-building-hospital' };
+  // First try matching by type name (Foundations registry)
+  if (typeof _fndEntityTypes !== 'undefined') {
+    const match = _fndEntityTypes.find(t =>
+      t.name.toLowerCase() === (cat||'').toLowerCase() ||
+      (cat === 'app' && t.name.toLowerCase() === 'application') ||
+      (cat === 'biomed' && t.name.toLowerCase() === 'biomed')
+    );
+    if (match) {
+      // Return inline style string for dynamic colors
+      return {
+        cls: '',
+        icon: match.icon || 'ti-building-hospital',
+        style: `background:${match.bg};color:${match.color};border:0.5px solid ${match.border}`
+      };
+    }
+  }
+  // Fallback to original CSS classes
+  if (cat === 'app')    return { cls: 'entity-tag-app',    icon: 'ti-device-desktop', style: '' };
+  if (cat === 'biomed') return { cls: 'entity-tag-biomed', icon: 'ti-heart-rate-monitor', style: '' };
+  return { cls: 'entity-tag', icon: 'ti-building-hospital', style: '' };
 }
 
 // Returns true if the currently open workpaper has at least one infosec control
@@ -9756,8 +9792,8 @@ function renderWPScopeEntities(ref) {
   container.innerHTML = [...sel].map(id => {
     const e = ALL_ENTITIES.find(x => x.id === id);
     if (!e) return '';
-    const { cls, icon } = entityStyle(e.category || e.type || 'facility');
-    return `<span class="${cls}"><i class="ti ${icon}"></i>${e.name}</span>`;
+    const { cls: _cls3, icon: _ico3, style: _sty3 } = entityStyle(e.type || e.category || 'facility');
+    return `<span class="${_cls3 || 'entity-tag'}" style="display:inline-flex;align-items:center;gap:5px;${_sty3}"><i class="ti ${_ico3}"></i>${e.name}</span>`;
   }).join('');
 }
 
@@ -14364,6 +14400,44 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
 document.querySelectorAll('.wf-nav-item').forEach(n => {
   if (n.textContent.trim() === 'Audits') n.classList.add('active');
 });
+
+// ── Sync ALL_ENTITIES and entity types from Postgres on startup ─────────────
+(async function syncFoundationsFromDB() {
+  try {
+    // Load entity types first so colors are ready
+    const typesRes = await fetch('/api/entity-types');
+    if (typesRes.ok) {
+      const dbTypes = await typesRes.json();
+      if (Array.isArray(dbTypes) && dbTypes.length) {
+        // Merge into _fndEntityTypes if already initialized, else store for lazy init
+        if (typeof _fndEntityTypes !== 'undefined') {
+          dbTypes.forEach(t => {
+            const idx = _fndEntityTypes.findIndex(x => x.name === t.name);
+            if (idx >= 0) _fndEntityTypes[idx] = { ..._fndEntityTypes[idx], ...t };
+            else _fndEntityTypes.push(t);
+          });
+        }
+      }
+    }
+
+    // Load entities and update ALL_ENTITIES so audit tab is always in sync
+    const entRes = await fetch('/api/entities');
+    if (entRes.ok) {
+      const dbEntities = await entRes.json();
+      if (Array.isArray(dbEntities) && dbEntities.length) {
+        // Merge DB entities into ALL_ENTITIES (DB wins, preserve static entries not in DB)
+        dbEntities.forEach(dbE => {
+          const idx = ALL_ENTITIES.findIndex(e => e.id === dbE.id);
+          if (idx >= 0) Object.assign(ALL_ENTITIES[idx], dbE);
+          else ALL_ENTITIES.push(dbE);
+        });
+        console.log('[DB] Loaded', dbEntities.length, 'entities from Postgres');
+      }
+    }
+  } catch(e) {
+    console.log('[DB] Could not sync from Postgres (offline or no DB):', e.message);
+  }
+})();
 </script>
 
 
