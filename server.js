@@ -30,7 +30,35 @@ async function initDB() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
-    console.log('DB: entity_types table ready');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS risks (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL DEFAULT '',
+        description TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS controls (
+        id           TEXT PRIMARY KEY,
+        name         TEXT NOT NULL DEFAULT '',
+        category     TEXT DEFAULT '',
+        objective    TEXT DEFAULT '',
+        description  TEXT DEFAULT '',
+        ctrl_owner   TEXT DEFAULT '',
+        proc_owner   TEXT DEFAULT '',
+        extra_ctrl_owners JSONB DEFAULT '[]',
+        extra_proc_owners JSONB DEFAULT '[]',
+        frequency    TEXT DEFAULT '',
+        control_type TEXT DEFAULT '',
+        additional_info TEXT DEFAULT '',
+        linked_risks     JSONB DEFAULT '[]',
+        linked_entities  JSONB DEFAULT '[]',
+        linked_accounts  JSONB DEFAULT '[]',
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('DB: risks + controls tables ready');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS assessment_entities (
         id                   TEXT PRIMARY KEY,
@@ -67,6 +95,74 @@ initDB();
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// ── Risks API ───────────────────────────────────────────────────────────────
+app.get('/api/risks', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM risks ORDER BY id'); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/risks', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { id, name, description } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await pool.query(`INSERT INTO risks (id,name,description,updated_at) VALUES ($1,$2,$3,NOW())
+      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, updated_at=NOW()`,
+      [id, name||'', description||'']);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/risks/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try { await pool.query('DELETE FROM risks WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Controls API ─────────────────────────────────────────────────────────────
+app.get('/api/controls', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM controls ORDER BY category, id'); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/controls', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { id, name, category, objective, description, additional_info,
+          ctrl_owner, proc_owner, extra_ctrl_owners, extra_proc_owners,
+          frequency, control_type, linked_risks, linked_entities, linked_accounts } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await pool.query(`INSERT INTO controls
+        (id,name,category,objective,description,additional_info,ctrl_owner,proc_owner,extra_ctrl_owners,extra_proc_owners,frequency,control_type,linked_risks,linked_entities,linked_accounts,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        name=EXCLUDED.name, category=EXCLUDED.category, objective=EXCLUDED.objective,
+        description=EXCLUDED.description, additional_info=EXCLUDED.additional_info,
+        ctrl_owner=EXCLUDED.ctrl_owner, proc_owner=EXCLUDED.proc_owner,
+        extra_ctrl_owners=EXCLUDED.extra_ctrl_owners, extra_proc_owners=EXCLUDED.extra_proc_owners,
+        frequency=EXCLUDED.frequency, control_type=EXCLUDED.control_type,
+        linked_risks=EXCLUDED.linked_risks, linked_entities=EXCLUDED.linked_entities,
+        linked_accounts=EXCLUDED.linked_accounts, updated_at=NOW()`,
+      [id, name||'', category||'', objective||'', description||'', additional_info||'',
+       ctrl_owner||'', proc_owner||'',
+       JSON.stringify(extra_ctrl_owners||[]),
+       JSON.stringify(extra_proc_owners||[]),
+       frequency||'', control_type||'',
+       JSON.stringify(linked_risks||[]),
+       JSON.stringify(linked_entities||[]),
+       JSON.stringify(linked_accounts||[])]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/controls/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try { await pool.query('DELETE FROM controls WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Entity Types API ────────────────────────────────────────────────────────
 app.get('/api/entity-types', async (req, res) => {
