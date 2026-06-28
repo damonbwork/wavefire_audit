@@ -7929,6 +7929,63 @@ function rcmUpdateOwner(idx, type, pos, value) {
 // ── RCM combo-box helpers ─────────────────────────────────────────────────────
 window._rcmObjectivePool = window._rcmObjectivePool || [];
 
+function rcmObjOpen(dropId) {
+  var d = document.getElementById(dropId);
+  if (!d) return;
+  d.style.display = 'block';
+  // Focus the search box inside the dropdown
+  var s = d.querySelector('input[type=text]');
+  if (s) { s.value = ''; rcmObjFilter(dropId, s.id, '', 'search'); }
+}
+
+function rcmObjClose(dropId) {
+  var d = document.getElementById(dropId);
+  if (d) d.style.display = 'none';
+}
+
+function rcmObjFilter(dropId, searchId, mainQuery, source) {
+  var d = document.getElementById(dropId);
+  if (!d) return;
+  // Determine the search query
+  var q;
+  if (source === 'search') {
+    var s = document.getElementById(searchId);
+    q = s ? s.value.toLowerCase() : '';
+  } else {
+    q = (mainQuery || '').toLowerCase();
+  }
+  var list = document.getElementById(dropId + '-list');
+  if (!list) return;
+  var opts = list.querySelectorAll('.rcm-combo-opt');
+  var visCount = 0;
+  opts.forEach(function(opt) {
+    var text = (opt.dataset.val || '').toLowerCase();
+    var show = !q || text.includes(q);
+    opt.style.display = show ? '' : 'none';
+    if (show) visCount++;
+  });
+  // Show/hide empty state
+  var empty = list.querySelector('.rcm-obj-empty');
+  if (empty) empty.style.display = (visCount === 0 && opts.length === 0) ? '' : 'none';
+  // If all filtered out but there are opts, show a no-match message
+  var noMatch = list.querySelector('.rcm-obj-nomatch');
+  if (visCount === 0 && opts.length > 0) {
+    if (!noMatch) {
+      var nm = document.createElement('div');
+      nm.className = 'rcm-obj-nomatch';
+      nm.style.cssText = 'padding:10px 12px;font-size:12px;color:var(--text-tertiary);font-style:italic';
+      nm.textContent = 'No objectives match "' + (q || '') + '"';
+      list.appendChild(nm);
+    } else {
+      noMatch.textContent = 'No objectives match "' + (q || '') + '"';
+      noMatch.style.display = '';
+    }
+  } else if (noMatch) {
+    noMatch.style.display = 'none';
+  }
+}
+
+
 function rcmToggleCombo(dropId) {
   var d = document.getElementById(dropId);
   if (!d) return;
@@ -8400,6 +8457,130 @@ function rcmApplyFSModal() {
   }
 }
 
+// ── Objective pool helper ─────────────────────────────────────────────────────
+function rcmGetObjectivePool() {
+  var pool = [];
+  _fndControls.forEach(function(x) {
+    if (x.objective && x.objective.trim() && pool.indexOf(x.objective.trim()) < 0) pool.push(x.objective.trim());
+  });
+  (window._rcmObjectivePool || []).forEach(function(o) {
+    if (o && pool.indexOf(o) < 0) pool.push(o);
+  });
+  pool.sort();
+  return pool;
+}
+
+function rcmBuildObjectiveSummaryHtml(idx, c) {
+  var obj = (c.objective || '').trim();
+  return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+    '<span style="font-size:11px;color:var(--text-tertiary)">' + (obj ? '1 objective set' : 'None set') + '</span>' +
+    '<button type="button" onclick="openRCMObjectiveModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Add/Edit Objective</button>' +
+  '</div>' +
+  (obj
+    ? '<div style="font-size:12px;color:var(--text-primary);line-height:1.5;padding:8px 10px;background:var(--bg-secondary);border-radius:6px;border:0.5px solid var(--border-light)">'+escHtml(obj)+'</div>'
+    : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No objective set. Click Add/Edit Objective to set one.</div>');
+}
+
+// ── RCM Objective Modal ───────────────────────────────────────────────────────
+var _rcmObjModalState = { idx:null, query:'', selected:'' };
+
+function openRCMObjectiveModal(idx) {
+  _rcmObjModalState.idx      = idx;
+  _rcmObjModalState.query    = '';
+  _rcmObjModalState.selected = (_fndControls[idx]||{}).objective || '';
+  document.getElementById('rcm-obj-modal')?.remove();
+
+  var html =
+    '<div id="rcm-obj-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\'rcm-obj-modal\').remove()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-target" style="margin-right:8px"></i>Add / Edit Control Objective</div>' +
+        '<div style="font-size:11px;opacity:0.65;margin-top:2px">Select from saved objectives or type a new one</div></div>' +
+        '<button onclick="document.getElementById(\'rcm-obj-modal\').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;flex-shrink:0">&#x00D7;</button>' +
+      '</div>' +
+
+      // Free-text entry
+      '<div style="padding:14px 18px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);flex-shrink:0">' +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Current / New Objective</div>' +
+        '<textarea id="rcm-obj-textarea" rows="3" placeholder="Type a control objective…" ' +
+          'style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-primary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary);outline:none" ' +
+          'oninput="_rcmObjModalState.selected=this.value">'+escHtml(_rcmObjModalState.selected)+'</textarea>' +
+      '</div>' +
+
+      // Search saved objectives
+      '<div style="padding:10px 18px 6px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">' +
+        '<div style="display:flex;align-items:center;gap:6px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px">' +
+          '<i class="ti ti-search" style="font-size:12px;color:var(--text-tertiary)"></i>' +
+          '<input id="rcm-obj-search" type="text" placeholder="Search saved objectives…" ' +
+            'style="flex:1;border:none;outline:none;font-size:12px;background:transparent;color:var(--text-primary)" ' +
+            'oninput="_rcmObjModalState.query=this.value;rcmRenderObjModal()">' +
+        '</div>' +
+      '</div>' +
+
+      // List of saved objectives
+      '<div style="overflow-y:auto;flex:1">' +
+        '<div id="rcm-obj-list"></div>' +
+      '</div>' +
+
+      '<div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">' +
+        '<button class="btn-s" onclick="document.getElementById(\'rcm-obj-modal\').remove()">Cancel</button>' +
+        '<button class="btn-p" onclick="rcmApplyObjectiveModal()"><i class="ti ti-check"></i>Apply</button>' +
+      '</div>' +
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  rcmRenderObjModal();
+  setTimeout(function(){ document.getElementById('rcm-obj-textarea')?.focus(); }, 60);
+}
+
+function rcmRenderObjModal() {
+  var list = document.getElementById('rcm-obj-list');
+  if (!list) return;
+  var pool = rcmGetObjectivePool();
+  var q    = (_rcmObjModalState.query || '').toLowerCase();
+  var cur  = (_rcmObjModalState.selected || '').trim();
+  var filtered = pool.filter(function(o) { return !q || o.toLowerCase().includes(q); });
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:16px 18px;font-size:12px;color:var(--text-tertiary);font-style:italic">' +
+      (pool.length ? 'No saved objectives match "'+escHtml(q)+'".' : 'No saved objectives yet — type one above.') + '</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(o) {
+    var active = o === cur;
+    return '<div onclick="rcmObjPickSaved(\''+escHtml(o).replace(/'/g,'\\\'')+'\')" ' +
+      'style="display:flex;align-items:flex-start;gap:10px;padding:11px 18px;border-bottom:0.5px solid var(--border-light);cursor:pointer;'+(active?'background:#f0fdf4':'')+'" ' +
+      'onmouseenter="if(!this.dataset.active)this.style.background=\'var(--bg-secondary)\'" onmouseleave="if(!this.dataset.active)this.style.background=\'\'" ' +
+      'data-active="'+(active?'1':'')+'">' +
+      '<div style="width:16px;height:16px;border-radius:50%;border:1.5px solid '+(active?'#16a34a':'var(--border-medium)')+';background:'+(active?'#16a34a':'#fff')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">' +
+        (active?'<i class="ti ti-check" style="font-size:9px;color:#fff"></i>':'') +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-primary);line-height:1.5">'+escHtml(o)+'</div>' +
+    '</div>';
+  }).join('');
+}
+
+function rcmObjPickSaved(value) {
+  _rcmObjModalState.selected = value;
+  var ta = document.getElementById('rcm-obj-textarea');
+  if (ta) ta.value = value;
+  rcmRenderObjModal();
+}
+
+function rcmApplyObjectiveModal() {
+  var idx = _rcmObjModalState.idx;
+  var val = (_rcmObjModalState.selected || '').trim();
+  document.getElementById('rcm-obj-modal')?.remove();
+  if (idx == null) return;
+  if (_fndControls[idx]) _fndControls[idx].objective = val;
+  // Add to pool if new
+  if (val) rcmPersistObjective(val);
+  // Refresh summary in dialog
+  var sumDiv = document.getElementById('rcm-objective-summary');
+  if (sumDiv) sumDiv.innerHTML = rcmBuildObjectiveSummaryHtml(idx, _fndControls[idx]);
+}
+
 // ── Risk summary builder (read-only chips) ────────────────────────────────────
 function rcmBuildRiskSummaryHtml(idx, c, allRisks) {
   var linked = (c.linked_risks||[]).map(function(id) {
@@ -8647,6 +8828,28 @@ function rcmDialogNavSync() {
   if (active) rcmDialogNavActivate(active);
 }
 
+// ── RCM category helper ───────────────────────────────────────────────────────
+function rcmAddCategory(idx) {
+  var name = (window.prompt('Enter new category name:') || '').trim();
+  if (!name) return;
+  // Add to persistent pool if not already there
+  if (!window._rcmCategories) window._rcmCategories = [];
+  if (window._rcmCategories.indexOf(name) < 0) {
+    window._rcmCategories.push(name);
+    window._rcmCategories.sort();
+  }
+  // Update the control's category value
+  if (_fndControls[idx]) _fndControls[idx].category = name;
+  // Rebuild the select inside the open dialog
+  var sel = document.getElementById('rcm-cat-sel-' + idx);
+  if (sel) {
+    sel.innerHTML = window._rcmCategories.map(function(cat) {
+      return '<option value="' + escHtml(cat) + '" ' + (cat === name ? 'selected' : '') + '>' + escHtml(cat) + '</option>';
+    }).join('');
+    sel.value = name;
+  }
+}
+
 function openRCMDialog(idx) {
   var c = _fndControls[idx];
   if (!c) return;
@@ -8654,57 +8857,14 @@ function openRCMDialog(idx) {
   if (!Array.isArray(c.linked_entities)) c.linked_entities = [];
   if (!Array.isArray(c.linked_accounts)) c.linked_accounts = [];
 
-  var CATEGORIES = ['Access','Change Management','Operations','Financial Reporting','Compliance','IT General Controls','Payroll','Vendor Due Diligence','Other'];
+  var CATEGORIES = (window._rcmCategories = window._rcmCategories || ['Access','Change Management','Operations','Financial Reporting','Compliance','IT General Controls','Payroll','Vendor Due Diligence','Other']);
   var FREQUENCIES = ['','Daily','Weekly','Monthly','Quarterly','Semi-Annual','Annual','Ad Hoc','Per Occurrence'];
   var CTRL_TYPES  = ['','Preventive','Detective','Corrective','Directive','Compensating'];
 
   // ── Build objective pool from all controls ────────────────────────────────
-  var objectivePool = [];
-  _fndControls.forEach(function(x) {
-    if (x.objective && x.objective.trim() && objectivePool.indexOf(x.objective.trim()) < 0) {
-      objectivePool.push(x.objective.trim());
-    }
-  });
-  // Add any custom objectives stored separately
-  if (Array.isArray(window._rcmObjectivePool)) {
-    window._rcmObjectivePool.forEach(function(o) {
-      if (o && objectivePool.indexOf(o) < 0) objectivePool.push(o);
-    });
-  }
-  objectivePool.sort();
-
   // ── Build risk list ───────────────────────────────────────────────────────
   var allRisks = _fndRisks.length ? _fndRisks
     : Object.values(RISKS).map(function(r){ return {id:r.id, name:r.title||r.name||'', description:r.description||''}; });
-
-  // ── Combo-box: Control Objective ──────────────────────────────────────────
-  var objDropId  = 'rcm-obj-drop-'+idx;
-  var objInputId = 'rcm-obj-input-'+idx;
-  var objectiveCombo =
-    '<div style="position:relative">' +
-      '<div style="display:flex;gap:6px">' +
-        '<input type="text" id="'+objInputId+'" value="'+escHtml(c.objective||'')+'" placeholder="Type a control objective or select from list…" autocomplete="off" ' +
-          'style="flex:1;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px 0 0 6px;padding:8px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
-          'oninput="rcmDialogUpdate('+idx+',\'objective\',this.value);rcmFilterCombo(\''+objDropId+'\',this.value)" ' +
-          'onfocus="document.getElementById(\''+objDropId+'\').style.display=\'block\'" ' +
-          'onblur="setTimeout(function(){var d=document.getElementById(\''+objDropId+'\');if(d)d.style.display=\'none\';},180)">' +
-        '<button type="button" onclick="rcmToggleCombo(\''+objDropId+'\')" title="Show saved objectives" ' +
-          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 6px 6px 0;padding:0 10px;background:var(--bg-secondary);cursor:pointer;color:var(--text-tertiary)">' +
-          '<i class="ti ti-chevron-down" style="font-size:12px"></i>' +
-        '</button>' +
-      '</div>' +
-      '<div id="'+objDropId+'" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;max-height:180px;overflow-y:auto">' +
-        (objectivePool.length
-          ? objectivePool.map(function(o) {
-              return '<div class="rcm-combo-opt" onclick="rcmSelectObjective('+idx+',\''+objInputId+'\',\''+objDropId+'\',this.dataset.val)" data-val="'+escHtml(o)+'" ' +
-                'style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:0.5px solid var(--border-light);color:var(--text-primary)" ' +
-                'onmouseenter="this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=\'\'">'+escHtml(o)+'</div>';
-            }).join('')
-          : '<div style="padding:10px 12px;font-size:12px;color:var(--text-tertiary);font-style:italic">No saved objectives yet — type below to create one</div>') +
-      '</div>' +
-    '</div>';
-
-
 
   // ── Linked Assessment Entities ────────────────────────────────────────────
   var entityList = (typeof _fndEntities!=='undefined'&&_fndEntities.length) ? _fndEntities : ALL_ENTITIES;
@@ -8808,6 +8968,7 @@ function openRCMDialog(idx) {
           rcmNavBtn('rcm-sec-narrative', 'ti-file-description', 'Description') +
           rcmNavBtn('rcm-sec-owners',    'ti-users',            'Owners') +
           rcmNavBtn('rcm-sec-classify',  'ti-tags',             'Classification') +
+          rcmNavBtn('rcm-sec-objective', 'ti-target',           'Objective') +
           rcmNavBtn('rcm-sec-risks',     'ti-alert-triangle',   'Risks') +
           rcmNavBtn('rcm-sec-entities',  'ti-building-community','Entities') +
           rcmNavBtn('rcm-sec-fs',        'ti-report-money',     'FS Accounts') +
@@ -8825,14 +8986,16 @@ function openRCMDialog(idx) {
                 'style="width:100%;font-size:13px;font-weight:700;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--wf-navy)" ' +
                 'oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
               '<div>'+fld('Category')+
-                '<select tabindex="2" onchange="rcmDialogUpdate('+idx+',\'category\',this.value)" style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-                CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
-                '</select></div>' +
+                '<div style="display:flex;gap:6px">' +
+                  '<select id="rcm-cat-sel-'+idx+'" tabindex="2" onchange="rcmDialogUpdate('+idx+',\'category\',this.value)" style="flex:1;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+                  CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
+                  '</select>' +
+                  '<button type="button" onclick="rcmAddCategory('+idx+')" title="Create new category" class="btn-s" style="font-size:11px;white-space:nowrap;flex-shrink:0"><i class="ti ti-plus"></i>New</button>' +
+                '</div></div>' +
               '<div style="grid-column:1/-1">'+fld('Control Title')+
                 '<input type="text" tabindex="3" value="'+escHtml(c.name||c.title||'')+'" placeholder="Control title" ' +
                 'style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--text-primary)" ' +
                 'oninput="rcmDialogUpdate('+idx+',\'name\',this.value)"></div>' +
-              '<div style="grid-column:1/-1">'+fld('Control Objective')+objectiveCombo+'</div>' +
             '</div>' +
           '</div>' +
 
@@ -8890,6 +9053,14 @@ function openRCMDialog(idx) {
                 '<select tabindex="11" onchange="rcmDialogUpdate('+idx+',\'control_type\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
                 CTRL_TYPES.map(function(t){return '<option value="'+t+'" '+((c.control_type||'')===t?'selected':'')+'>'+( t||'Select type')+'</option>';}).join('')+
                 '</select></div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Risks ──
+          '<div id="rcm-sec-objective" class="rcm-dialog-sec">' +
+            rcmSecHdr('Control Objective', 'ti-target') +
+            '<div id="rcm-objective-summary" style="border:0.5px solid var(--border-light);border-radius:6px;padding:12px">' +
+              rcmBuildObjectiveSummaryHtml(idx, c) +
             '</div>' +
           '</div>' +
 
@@ -10364,7 +10535,116 @@ function applyControlsSelection() {
   // Sync to audit level
   syncWPControlsToAudit(ref, _ctrlDialogTemp);
   closeControlsDialog();
+
+  // ── Suggest entities from newly added controls ────────────────────────────
+  const newlyAdded = [..._ctrlDialogTemp].filter(id => !old.has(id));
+  if (newlyAdded.length) {
+    const wpEntities = wpScopeEntities[ref] || new Set();
+    const suggested  = new Map(); // entityId → entity object
+
+    newlyAdded.forEach(ctrlId => {
+      // Look in _fndControls first (Foundations / Postgres-backed)
+      const fndCtrl = (typeof _fndControls !== 'undefined')
+        ? _fndControls.find(c => c.id === ctrlId) : null;
+      const entityIds = fndCtrl && Array.isArray(fndCtrl.linked_entities)
+        ? fndCtrl.linked_entities : [];
+
+      entityIds.forEach(eid => {
+        if (!wpEntities.has(eid) && !suggested.has(eid)) {
+          const entity = (typeof _fndEntities !== 'undefined' && _fndEntities.find(e => e.id === eid))
+            || ALL_ENTITIES.find(e => e.id === eid);
+          if (entity) suggested.set(eid, entity);
+        }
+      });
+    });
+
+    if (suggested.size) {
+      _showCtrlEntitySuggestion(ref, suggested);
+    }
+  }
 }
+
+// ── Entity suggestion modal after linking a control ───────────────────────────
+function _showCtrlEntitySuggestion(ref, suggestedMap) {
+  document.getElementById('ctrl-entity-suggest-overlay')?.remove();
+
+  var el = document.createElement('div');
+  el.id = 'ctrl-entity-suggest-overlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:15000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
+
+  var entityList = Array.from(suggestedMap.values());
+  var cnt = entityList.length;
+
+  var rowsHtml = entityList.map(function(e) {
+    var ts = (typeof getEntityTypeStyle === 'function')
+      ? getEntityTypeStyle(e.type || e.category || 'Other')
+      : { bg:'#f1f5f9', color:'#475569', border:'#cbd5e1', icon:'ti-tag' };
+    var loc = [e.city, e.state].filter(Boolean).join(', ');
+    return [
+      '<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 18px;',
+      'border-bottom:0.5px solid var(--border-light);cursor:pointer">',
+      '<input type="checkbox" value="' + escHtml(e.id) + '" style="margin-top:3px;flex-shrink:0;cursor:pointer">',
+      '<div style="flex:1;min-width:0">',
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">',
+          '<span style="font-size:13px;font-weight:600;color:var(--text-primary)">' + escHtml(e.name||'') + '</span>',
+          '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:' + ts.bg + ';color:' + ts.color + ';border:0.5px solid ' + ts.border + '">',
+            '<i class="ti ' + (ts.icon||'ti-tag') + '" style="font-size:10px"></i> ' + escHtml(e.type||e.category||'Other'),
+          '</span>',
+        '</div>',
+        (loc ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">' + escHtml(loc) + '</div>' : ''),
+        (e.poc ? '<div style="font-size:11px;color:var(--text-tertiary)">' + escHtml(e.poc) + '</div>' : ''),
+      '</div></label>'
+    ].join('');
+  }).join('');
+
+  el.innerHTML = [
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(540px,96vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.3);overflow:hidden">',
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0">',
+        '<div>',
+          '<div style="font-size:15px;font-weight:700"><i class="ti ti-building-community" style="margin-right:8px"></i>Assessment Entities from Linked Control' + (cnt!==1?'s':'') + '</div>',
+          '<div style="font-size:11px;opacity:0.7;margin-top:3px">' + cnt + ' assessment entit' + (cnt===1?'y':'ies') + ' linked to this control ' + (cnt===1?'is':'are') + ' not yet on this workpaper. Select any to add.</div>',
+        '</div>',
+        '<button id="ces-close-btn" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;flex-shrink:0;margin-left:12px">&#x00D7;</button>',
+      '</div>',
+      '<div style="padding:10px 18px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--bg-secondary)">',
+        '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer">',
+          '<input id="ces-all-cb" type="checkbox" style="cursor:pointer"> Select all',
+        '</label>',
+      '</div>',
+      '<div style="overflow-y:auto;flex:1"><div id="ces-list">' + rowsHtml + '</div></div>',
+      '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">',
+        '<button id="ces-skip-btn" class="btn-s">Skip</button>',
+        '<button id="ces-apply-btn" class="btn-p"><i class="ti ti-plus"></i>Add Selected Entities</button>',
+      '</div>',
+    '</div>'
+  ].join('');
+
+  document.body.appendChild(el);
+
+  document.getElementById('ces-close-btn').onclick = function() { el.remove(); };
+  document.getElementById('ces-skip-btn').onclick  = function() { el.remove(); };
+  document.getElementById('ces-all-cb').onchange   = function() {
+    el.querySelectorAll('#ces-list input[type=checkbox]').forEach(function(cb){ cb.checked = this.checked; }, this);
+  };
+  document.getElementById('ces-apply-btn').onclick = function() {
+    var selected = Array.from(el.querySelectorAll('#ces-list input[type=checkbox]:checked')).map(function(cb){ return cb.value; });
+    el.remove();
+    if (!selected.length) return;
+    if (!wpScopeEntities[ref]) wpScopeEntities[ref] = new Set();
+    selected.forEach(function(id){ wpScopeEntities[ref].add(id); });
+    var w = WORKPAPERS[currentWPIndex];
+    if (w) w.scopeEntities = Array.from(wpScopeEntities[ref]);
+    renderWPScopeEntities(ref);
+    var allEnts = (typeof _fndEntities!=='undefined' ? _fndEntities : []).concat(ALL_ENTITIES||[]);
+    selected.forEach(function(id){
+      var e = allEnts.find(function(x){ return x.id===id; });
+      logEvent(ref, 'Assessment entity added from control link: ' + (e ? e.name : id));
+    });
+  };
+}
+
+
+
 
 function renderRCTable(ref, controlIds, riskIds) {
   const tbody = document.getElementById('risks-tbody');
