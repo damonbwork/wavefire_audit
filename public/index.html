@@ -702,7 +702,8 @@
     background: #ffedd5; color: #9a3412;
     border: 0.5px solid #fdba74;
   }
-  .entity-tag-biomed {
+  .rcm-dialog-sec { padding-bottom: 28px; margin-bottom: 4px; border-bottom: 0.5px solid var(--border-light); }
+  .rcm-dialog-sec:last-child { border-bottom: none; padding-bottom: 12px; }
     display: inline-flex; align-items: center; gap: 5px;
     font-size: 11px; font-weight: 500;
     padding: 3px 9px; border-radius: var(--radius-md);
@@ -4883,26 +4884,35 @@ function navigateWP(direction) {
 }
 
 function showPage(name) {
-  saveCurrentPage();
-  // Hide foundations if visible
+  try { saveCurrentPage(); } catch(e) { console.warn('saveCurrentPage error:', e.message); }
+
+  // Hide foundations
   const fp = document.getElementById('page-foundations');
   if (fp) fp.style.display = 'none';
-  document.getElementById('wf-subnav-foundations').style.display = 'none';
+  const sfn = document.getElementById('wf-subnav-foundations');
+  if (sfn) sfn.style.display = 'none';
 
+  // Show audits subnav
+  const sn = document.getElementById('wf-subnav');
+  if (sn) sn.style.display = 'flex';
+
+  // Switch pages using class
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
   if (pg) pg.classList.add('active');
+
   pushNav(name);
-  // Gray out WP nav controls on non-workpaper-detail pages, but enable on workpapers page
   setWPNavEnabled(name === 'wpdetail' || name === 'workpapers');
   document.querySelectorAll('.wf-nav-item').forEach(n => {
     n.classList.toggle('active', n.textContent.trim() === 'Audits');
   });
-  // Re-render workpaper table so any edits on the detail page are reflected immediately
   if (name === 'workpapers') {
     renderWorkpapers();
     populateWpFilters();
+  }
+  if (name === 'audits') {
+    renderAudits();
   }
   window.scrollTo(0, 0);
 }
@@ -6689,13 +6699,19 @@ function _initFoundationsData() {
 }
 
 function activateFoundations() {
-  _initFoundationsData(); // lazy init — runs once after all data is loaded
-  document.getElementById('wf-subnav').style.display = 'none';
-  document.querySelectorAll('.page').forEach(p => { p.style.display = 'none'; });
-  document.querySelectorAll('.wf-nav-item').forEach(n => n.classList.remove('active'));
+  _initFoundationsData();
+
+  // Hide all audit pages and subnav
+  const sn = document.getElementById('wf-subnav');
+  if (sn) sn.style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+  // Update nav
   document.querySelectorAll('.wf-nav-item').forEach(n => {
-    if (n.textContent.trim() === 'Foundations') n.classList.add('active');
+    n.classList.toggle('active', n.textContent.trim() === 'Foundations');
   });
+
+  // Show foundations
   document.getElementById('wf-subnav-foundations').style.display = 'flex';
   const fp = document.getElementById('page-foundations');
   fp.style.display = 'flex';
@@ -8019,6 +8035,421 @@ function rcmPersistObjective(value) {
   }
 }
 
+// ── RCM Entity Link Modal ─────────────────────────────────────────────────────
+var _rcmEntityModalState = { idx:null, sortCol:'name', sortDir:'asc', query:'', filterType:'' };
+
+function openRCMEntityModal(idx) {
+  _rcmEntityModalState.idx = idx;
+  _rcmEntityModalState.query = '';
+  _rcmEntityModalState.filterType = '';
+  _rcmEntityModalState.sortCol = 'name';
+  _rcmEntityModalState.sortDir = 'asc';
+  document.getElementById('rcm-entity-modal')?.remove();
+
+  var entityList = (typeof _fndEntities!=='undefined'&&_fndEntities.length) ? _fndEntities : ALL_ENTITIES;
+  var types = [...new Set(entityList.map(function(e){ return e.type||e.category||'Other'; }))].sort();
+
+  var typeOpts = '<option value="">All Types</option>' +
+    types.map(function(t){ return '<option value="'+escHtml(t)+'">'+escHtml(t)+'</option>'; }).join('');
+
+  var html =
+    '<div id="rcm-entity-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\'rcm-entity-modal\').remove()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(760px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-building-community" style="margin-right:8px"></i>Link Assessment Entities</div>' +
+        '<div id="rcm-ent-count" style="font-size:11px;opacity:0.65;margin-top:2px"></div></div>' +
+        '<button onclick="document.getElementById(\'rcm-entity-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+      '</div>' +
+      '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--bg-secondary)">' +
+        '<input id="rcm-ent-search" type="text" placeholder="Search name, city, state…" style="flex:1;min-width:160px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmEntityModalState.query=this.value;rcmRenderEntityModal()">' +
+        '<select id="rcm-ent-type" style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary)" onchange="_rcmEntityModalState.filterType=this.value;rcmRenderEntityModal()">'+typeOpts+'</select>' +
+      '</div>' +
+      '<div style="overflow:hidden;flex:1;display:flex;flex-direction:column">' +
+        '<div style="overflow-x:auto;flex:1;overflow-y:auto">' +
+          '<table id="rcm-ent-table" style="width:100%;border-collapse:collapse;min-width:500px">' +
+            '<thead><tr style="background:var(--bg-secondary)">' +
+              '<th style="padding:7px 10px;width:36px"><input type="checkbox" id="rcm-ent-all" onchange="rcmEntitySelectAll(this.checked)" style="cursor:pointer"></th>' +
+              rcmEntitySortTh('name',  'Name') +
+              rcmEntitySortTh('type',  'Type') +
+              rcmEntitySortTh('city',  'City') +
+              rcmEntitySortTh('state', 'State') +
+              rcmEntitySortTh('poc',   'Point of Contact') +
+            '</tr></thead>' +
+            '<tbody id="rcm-ent-tbody"></tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>' +
+      '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">' +
+        '<button class="btn-s" onclick="document.getElementById(\'rcm-entity-modal\').remove()">Cancel</button>' +
+        '<button class="btn-p" onclick="rcmApplyEntityModal()"><i class="ti ti-check"></i>Apply</button>' +
+      '</div>' +
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  rcmRenderEntityModal();
+}
+
+function rcmEntitySortTh(col, label) {
+  var s = _rcmEntityModalState;
+  var active = s.sortCol === col;
+  var icon = active ? (s.sortDir==='asc'?'↑':'↓') : '';
+  return '<th onclick="rcmEntitySort(\''+col+'\')" style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;white-space:nowrap;color:'+(active?'var(--wf-navy)':'var(--text-tertiary)')+'">'+label+' '+icon+'</th>';
+}
+
+function rcmEntitySort(col) {
+  var s = _rcmEntityModalState;
+  if (s.sortCol===col) s.sortDir = s.sortDir==='asc'?'desc':'asc';
+  else { s.sortCol=col; s.sortDir='asc'; }
+  rcmRenderEntityModal();
+}
+
+function rcmEntitySelectAll(checked) {
+  var s = _rcmEntityModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  document.querySelectorAll('#rcm-ent-tbody input[type=checkbox]').forEach(function(cb) {
+    var eid = cb.value;
+    cb.checked = checked;
+    if (checked && c.linked_entities.indexOf(eid)<0) c.linked_entities.push(eid);
+    else if (!checked) { var i=c.linked_entities.indexOf(eid); if(i>=0) c.linked_entities.splice(i,1); }
+  });
+  rcmUpdateEntityCount();
+}
+
+function rcmUpdateEntityCount() {
+  var s = _rcmEntityModalState;
+  var c = _fndControls[s.idx];
+  var el = document.getElementById('rcm-ent-count');
+  if (el && c) el.textContent = c.linked_entities.length + ' linked · ' + (document.querySelectorAll('#rcm-ent-tbody tr').length) + ' shown';
+}
+
+function rcmRenderEntityModal() {
+  var s = _rcmEntityModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  var entityList = (typeof _fndEntities!=='undefined'&&_fndEntities.length) ? _fndEntities : ALL_ENTITIES;
+  var q = (s.query||'').toLowerCase();
+
+  var filtered = entityList.filter(function(e) {
+    if (s.filterType && (e.type||e.category||'Other') !== s.filterType) return false;
+    if (!q) return true;
+    return (e.name||'').toLowerCase().includes(q) ||
+      (e.city||'').toLowerCase().includes(q) ||
+      (e.state||'').toLowerCase().includes(q) ||
+      (e.poc||'').toLowerCase().includes(q) ||
+      (e.type||e.category||'').toLowerCase().includes(q);
+  }).sort(function(a,b) {
+    var av = String(a[s.sortCol]||'').toLowerCase();
+    var bv = String(b[s.sortCol]||'').toLowerCase();
+    return s.sortDir==='asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  var tbody = document.getElementById('rcm-ent-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = filtered.length ? filtered.map(function(e) {
+    var checked = c.linked_entities.indexOf(e.id) >= 0;
+    var ts = (typeof getEntityTypeStyle==='function') ? getEntityTypeStyle(e.type||e.category||'Other') : {bg:'#f1f5f9',color:'#475569',border:'#cbd5e1'};
+    return '<tr style="border-top:0.5px solid var(--border-light);'+(checked?'background:#f0fdf4':'')+'" onmouseenter="if(!this.querySelector(\'input\').checked)this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=this.querySelector(\'input\').checked?\'#f0fdf4\':\'\'">' +
+      '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+e.id+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmEntityToggle(\''+e.id+'\',this.checked,this.closest(\'tr\'))"></td>' +
+      '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(e.name||'—')+'</td>' +
+      '<td style="padding:8px 10px"><span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+ts.bg+';color:'+ts.color+';border:0.5px solid '+ts.border+'">'+escHtml(e.type||e.category||'Other')+'</span></td>' +
+      '<td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">'+escHtml(e.city||'—')+'</td>' +
+      '<td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">'+escHtml(e.state||'—')+'</td>' +
+      '<td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">'+escHtml(e.poc||'—')+'</td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:13px">No entities match.</td></tr>';
+
+  // Update headers with fresh sort indicators
+  var thead = document.querySelector('#rcm-ent-table thead tr');
+  if (thead) {
+    var ths = thead.querySelectorAll('th[onclick]');
+    var cols = ['name','type','city','state','poc'];
+    ths.forEach(function(th,i) {
+      var col = cols[i]; var active = s.sortCol===col;
+      th.style.color = active ? 'var(--wf-navy)' : 'var(--text-tertiary)';
+      var label = th.textContent.replace(/[↑↓]/g,'').trim();
+      th.textContent = label + (active ? (s.sortDir==='asc'?' ↑':' ↓') : '');
+      th.onclick = function(){ rcmEntitySort(col); };
+    });
+  }
+  rcmUpdateEntityCount();
+}
+
+function rcmEntityToggle(id, checked, row) {
+  var c = _fndControls[_rcmEntityModalState.idx];
+  if (!c) return;
+  var i = c.linked_entities.indexOf(id);
+  if (checked && i<0) c.linked_entities.push(id);
+  else if (!checked && i>=0) c.linked_entities.splice(i,1);
+  if (row) row.style.background = checked ? '#f0fdf4' : '';
+  rcmUpdateEntityCount();
+}
+
+function rcmApplyEntityModal() {
+  var idx = _rcmEntityModalState.idx;
+  document.getElementById('rcm-entity-modal')?.remove();
+  // Refresh summary in parent dialog
+  var sumDiv = document.getElementById('rcm-entity-summary');
+  if (sumDiv && idx != null) {
+    var c = _fndControls[idx];
+    var entityList = (typeof _fndEntities!=='undefined'&&_fndEntities.length) ? _fndEntities : ALL_ENTITIES;
+    var linked = c.linked_entities.map(function(id){ return entityList.find(function(e){ return e.id===id; }); }).filter(Boolean);
+    var count = document.querySelector('#rcm-entity-summary .btn-s')?.previousElementSibling;
+    // Re-render summary
+    var parent = sumDiv.parentElement;
+    if (parent) {
+      sumDiv.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+          '<span style="font-size:11px;color:var(--text-tertiary)">'+c.linked_entities.length+' linked</span>' +
+          '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Entities</button>' +
+        '</div>' +
+        (linked.length
+          ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
+              linked.map(function(e){
+                var ts=(typeof getEntityTypeStyle==='function')?getEntityTypeStyle(e.type||e.category||'Other'):{bg:'#f1f5f9',color:'#475569',border:'#cbd5e1',icon:'ti-tag'};
+                return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:'+ts.bg+';color:'+ts.color+';border:0.5px solid '+ts.border+'"><i class="ti '+(ts.icon||'ti-tag')+'" style="font-size:10px"></i>'+escHtml(e.name||'')+'</span>';
+              }).join('') + '</div>'
+          : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked.</div>');
+    }
+  }
+}
+
+// ── RCM FS Account Link Modal ─────────────────────────────────────────────────
+var _rcmFSModalState = { idx:null, sortCol:'label', sortDir:'asc', query:'', filterCat:'', filterRisk:'' };
+
+function openRCMFSModal(idx) {
+  _rcmFSModalState.idx = idx;
+  _rcmFSModalState.query = '';
+  _rcmFSModalState.filterCat = '';
+  _rcmFSModalState.filterRisk = '';
+  _rcmFSModalState.sortCol = 'label';
+  _rcmFSModalState.sortDir = 'asc';
+  document.getElementById('rcm-fs-modal')?.remove();
+
+  var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
+    : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
+  var cats = [...new Set(fsList.map(function(f){ return f.category||f.statement||'Other'; }))].sort();
+  var risks = ['','High','Medium','Low'];
+
+  var catOpts = '<option value="">All Categories</option>' + cats.map(function(c){ return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>'; }).join('');
+  var riskOpts = '<option value="">All Risk Levels</option>' + risks.filter(Boolean).map(function(r){ return '<option value="'+r+'">'+r+'</option>'; }).join('');
+
+  var html =
+    '<div id="rcm-fs-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\'rcm-fs-modal\').remove()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(800px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-report-money" style="margin-right:8px"></i>Link Financial Statement Accounts &amp; Footnotes</div>' +
+        '<div id="rcm-fs-count" style="font-size:11px;opacity:0.65;margin-top:2px"></div></div>' +
+        '<button onclick="document.getElementById(\'rcm-fs-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+      '</div>' +
+      '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--bg-secondary)">' +
+        '<input id="rcm-fs-search" type="text" placeholder="Search account, assertion…" style="flex:1;min-width:140px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmFSModalState.query=this.value;rcmRenderFSModal()">' +
+        '<select style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary)" onchange="_rcmFSModalState.filterCat=this.value;rcmRenderFSModal()">'+catOpts+'</select>' +
+        '<select style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary)" onchange="_rcmFSModalState.filterRisk=this.value;rcmRenderFSModal()">'+riskOpts+'</select>' +
+      '</div>' +
+      '<div style="overflow:hidden;flex:1;display:flex;flex-direction:column">' +
+        '<div style="overflow-x:auto;flex:1;overflow-y:auto">' +
+          '<table id="rcm-fs-table" style="width:100%;border-collapse:collapse;min-width:560px">' +
+            '<thead><tr style="background:var(--bg-secondary)">' +
+              '<th style="padding:7px 10px;width:36px"><input type="checkbox" id="rcm-fs-all" onchange="rcmFSSelectAll(this.checked)" style="cursor:pointer"></th>' +
+              rcmFSSortTh('label',     'Account / Footnote') +
+              rcmFSSortTh('category',  'Category') +
+              rcmFSSortTh('assertion', 'Assertions') +
+              rcmFSSortTh('riskLevel', 'Risk Level') +
+            '</tr></thead>' +
+            '<tbody id="rcm-fs-tbody"></tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>' +
+      '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">' +
+        '<button class="btn-s" onclick="document.getElementById(\'rcm-fs-modal\').remove()">Cancel</button>' +
+        '<button class="btn-p" onclick="rcmApplyFSModal()"><i class="ti ti-check"></i>Apply</button>' +
+      '</div>' +
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  rcmRenderFSModal();
+}
+
+function rcmFSSortTh(col, label) {
+  var s = _rcmFSModalState;
+  var active = s.sortCol===col;
+  var icon = active?(s.sortDir==='asc'?'↑':'↓'):'';
+  return '<th onclick="rcmFSSort(\''+col+'\')" style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;user-select:none;white-space:nowrap;color:'+(active?'var(--wf-navy)':'var(--text-tertiary)')+'">'+label+' '+icon+'</th>';
+}
+
+function rcmFSSort(col) {
+  var s = _rcmFSModalState;
+  if (s.sortCol===col) s.sortDir=s.sortDir==='asc'?'desc':'asc';
+  else { s.sortCol=col; s.sortDir='asc'; }
+  rcmRenderFSModal();
+}
+
+function rcmFSSelectAll(checked) {
+  var s = _rcmFSModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  document.querySelectorAll('#rcm-fs-tbody input[type=checkbox]').forEach(function(cb) {
+    var fid = cb.value;
+    cb.checked = checked;
+    if (checked && c.linked_accounts.indexOf(fid)<0) c.linked_accounts.push(fid);
+    else if (!checked) { var i=c.linked_accounts.indexOf(fid); if(i>=0) c.linked_accounts.splice(i,1); }
+  });
+  rcmUpdateFSCount();
+}
+
+function rcmUpdateFSCount() {
+  var s = _rcmFSModalState;
+  var c = _fndControls[s.idx];
+  var el = document.getElementById('rcm-fs-count');
+  if (el && c) el.textContent = c.linked_accounts.length + ' linked · ' + (document.querySelectorAll('#rcm-fs-tbody tr').length) + ' shown';
+}
+
+function rcmRenderFSModal() {
+  var s = _rcmFSModalState;
+  var c = _fndControls[s.idx];
+  if (!c) return;
+  var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
+    : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
+  var q = (s.query||'').toLowerCase();
+
+  var filtered = fsList.filter(function(f) {
+    var cat = f.category||f.statement||'Other';
+    if (s.filterCat && cat !== s.filterCat) return false;
+    if (s.filterRisk && f.riskLevel !== s.filterRisk) return false;
+    if (!q) return true;
+    return (f.label||f.name||'').toLowerCase().includes(q) ||
+      (f.assertion||'').toLowerCase().includes(q) ||
+      cat.toLowerCase().includes(q) ||
+      (f.id||'').toLowerCase().includes(q);
+  }).sort(function(a,b) {
+    var av = String(a[s.sortCol]||'').toLowerCase();
+    var bv = String(b[s.sortCol]||'').toLowerCase();
+    return s.sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
+
+  var tbody = document.getElementById('rcm-fs-tbody');
+  if (!tbody) return;
+
+  var riskColor = function(r) {
+    if (r==='High')   return {bg:'#fef2f2',color:'#dc2626'};
+    if (r==='Medium') return {bg:'#fff7ed',color:'#ea580c'};
+    if (r==='Low')    return {bg:'#f0fdf4',color:'#16a34a'};
+    return {bg:'#f1f5f9',color:'#475569'};
+  };
+
+  tbody.innerHTML = filtered.length ? filtered.map(function(f) {
+    var fid = f.id||f.account;
+    var checked = c.linked_accounts.indexOf(fid) >= 0;
+    var rc = riskColor(f.riskLevel);
+    return '<tr style="border-top:0.5px solid var(--border-light);'+(checked?'background:#f0f9ff':'')+'" onmouseenter="if(!this.querySelector(\'input\').checked)this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=this.querySelector(\'input\').checked?\'#f0f9ff\':\'\'">' +
+      '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+fid+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmFSToggle(\''+fid+'\',this.checked,this.closest(\'tr\'))"></td>' +
+      '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(f.label||f.name||fid||'')+'</td>' +
+      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">'+escHtml(f.category||f.statement||'—')+'</td>' +
+      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">'+escHtml(f.assertion||'—')+'</td>' +
+      '<td style="padding:8px 10px">'+(f.riskLevel?'<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+rc.bg+';color:'+rc.color+'">'+escHtml(f.riskLevel)+'</span>':'—')+'</td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:13px">No accounts match.</td></tr>';
+
+  // Refresh sort headers
+  var thead = document.querySelector('#rcm-fs-table thead tr');
+  if (thead) {
+    var ths = thead.querySelectorAll('th[onclick]');
+    var cols = ['label','category','assertion','riskLevel'];
+    ths.forEach(function(th,i) {
+      var col=cols[i]; var active=s.sortCol===col;
+      th.style.color = active?'var(--wf-navy)':'var(--text-tertiary)';
+      var label=th.textContent.replace(/[↑↓]/g,'').trim();
+      th.textContent = label+(active?(s.sortDir==='asc'?' ↑':' ↓'):'');
+      th.onclick=function(){rcmFSSort(col);};
+    });
+  }
+  rcmUpdateFSCount();
+}
+
+function rcmFSToggle(id, checked, row) {
+  var c = _fndControls[_rcmFSModalState.idx];
+  if (!c) return;
+  var i = c.linked_accounts.indexOf(id);
+  if (checked && i<0) c.linked_accounts.push(id);
+  else if (!checked && i>=0) c.linked_accounts.splice(i,1);
+  if (row) row.style.background = checked?'#f0f9ff':'';
+  rcmUpdateFSCount();
+}
+
+function rcmApplyFSModal() {
+  var idx = _rcmFSModalState.idx;
+  document.getElementById('rcm-fs-modal')?.remove();
+  var sumDiv = document.getElementById('rcm-fs-summary');
+  if (sumDiv && idx != null) {
+    var c = _fndControls[idx];
+    var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
+      : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
+    var linked = c.linked_accounts.map(function(id){ return fsList.find(function(f){ return (f.id||f.account)===id; }); }).filter(Boolean);
+    sumDiv.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<span style="font-size:11px;color:var(--text-tertiary)">'+c.linked_accounts.length+' linked</span>' +
+        '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Accounts</button>' +
+      '</div>' +
+      (linked.length
+        ? '<div style="display:flex;flex-wrap:wrap;gap:5px">'+linked.map(function(f){
+            return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:#f0f9ff;color:#0369a1;border:0.5px solid #7dd3fc">'+escHtml(f.label||f.name||f.id||'')+'</span>';
+          }).join('')+'</div>'
+        : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked.</div>');
+  }
+}
+
+// ── RCM dialog side-nav helpers ───────────────────────────────────────────────
+function rcmNavBtn(secId, icon, label) {
+  return '<button type="button" data-sec="'+secId+'" onclick="rcmDialogScrollTo(\''+secId+'\')" ' +
+    'style="display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-secondary);text-align:left;border-left:3px solid transparent;transition:all 0.12s" ' +
+    'onmouseenter="if(!this.classList.contains(\'rcm-nav-active\'))this.style.background=\'var(--bg-primary)\'" ' +
+    'onmouseleave="if(!this.classList.contains(\'rcm-nav-active\'))this.style.background=\'transparent\'">' +
+    '<i class="ti '+icon+'" style="font-size:13px;flex-shrink:0"></i>' +
+    '<span>'+label+'</span></button>';
+}
+
+function rcmSecHdr(title, icon) {
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid var(--border-light)">' +
+    '<i class="ti '+icon+'" style="font-size:16px;color:var(--wf-navy)"></i>' +
+    '<span style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--wf-navy)">'+title+'</span>' +
+    '</div>';
+}
+
+function rcmDialogScrollTo(secId) {
+  var sec = document.getElementById(secId);
+  var body = document.getElementById('rcm-dialog-body');
+  if (!sec || !body) return;
+  body.scrollTo({ top: sec.offsetTop - 16, behavior: 'smooth' });
+  rcmDialogNavActivate(secId);
+}
+
+function rcmDialogNavActivate(secId) {
+  var nav = document.getElementById('rcm-dialog-sidenav');
+  if (!nav) return;
+  nav.querySelectorAll('button[data-sec]').forEach(function(btn) {
+    var active = btn.dataset.sec === secId;
+    btn.classList.toggle('rcm-nav-active', active);
+    btn.style.borderLeftColor  = active ? 'var(--wf-navy)' : 'transparent';
+    btn.style.background       = active ? 'var(--bg-primary)' : 'transparent';
+    btn.style.color            = active ? 'var(--wf-navy)'    : 'var(--text-secondary)';
+    btn.style.fontWeight       = active ? '700' : '500';
+  });
+}
+
+function rcmDialogNavSync() {
+  var body = document.getElementById('rcm-dialog-body');
+  if (!body) return;
+  var scrollTop = body.scrollTop;
+  var secs = body.querySelectorAll('.rcm-dialog-sec');
+  var active = null;
+  secs.forEach(function(sec) {
+    if (sec.offsetTop - 30 <= scrollTop) active = sec.id;
+  });
+  if (active) rcmDialogNavActivate(active);
+}
+
 function openRCMDialog(idx) {
   var c = _fndControls[idx];
   if (!c) return;
@@ -8131,23 +8562,25 @@ function openRCMDialog(idx) {
   });
   entityTypes.sort();
 
-  var entityCheckboxes = entityTypes.map(function(type) {
-    var items = entityList.filter(function(e){ return (e.type||e.category||'Other')===type; });
-    var ts = (typeof getEntityTypeStyle==='function') ? getEntityTypeStyle(type) : {bg:'#f1f5f9',color:'#475569',border:'#cbd5e1',icon:'ti-tag'};
-    var header = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;margin-top:4px;color:var(--text-tertiary)">'+
-      '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:'+ts.bg+';color:'+ts.color+';border:0.5px solid '+ts.border+'">'+
-      '<i class="ti '+( ts.icon||'ti-tag')+'" style="font-size:10px"></i>'+type+'</span></div>';
-    var rows = items.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(e) {
-      var checked = c.linked_entities.indexOf(e.id)>=0;
-      var loc = [e.city,e.state].filter(Boolean).join(', ');
-      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
-        '<input type="checkbox" value="'+e.id+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleEntity('+idx+',\''+e.id+'\',this.checked)">' +
-        '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escHtml(e.name||'')+'</div>' +
-        (loc?'<div style="font-size:10px;color:var(--text-tertiary)">'+escHtml(loc)+'</div>':'') +
-        '</div></label>';
-    }).join('');
-    return header+rows;
-  }).join('');
+  // ── Read-only entity summary (chips for linked, button to edit) ───────────
+  var linkedEntityObjs = c.linked_entities.map(function(id) {
+    return entityList.find(function(e){ return e.id===id; });
+  }).filter(Boolean);
+
+  var entitySummaryHtml =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<span style="font-size:11px;color:var(--text-tertiary)">' + c.linked_entities.length + ' linked</span>' +
+      '<button type="button" onclick="openRCMEntityModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Entities</button>' +
+    '</div>' +
+    (linkedEntityObjs.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
+          linkedEntityObjs.map(function(e) {
+            var ts = (typeof getEntityTypeStyle==='function') ? getEntityTypeStyle(e.type||e.category||'Other') : {bg:'#f1f5f9',color:'#475569',border:'#cbd5e1',icon:'ti-tag'};
+            return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:'+ts.bg+';color:'+ts.color+';border:0.5px solid '+ts.border+'">' +
+              '<i class="ti '+(ts.icon||'ti-tag')+'" style="font-size:10px"></i>'+escHtml(e.name||'')+'</span>';
+          }).join('') +
+        '</div>'
+      : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked. Click Edit to link assessment entities.</div>');
 
   // ── Linked FS Accounts ───────────────────────────────────────────────────
   var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
@@ -8156,21 +8589,26 @@ function openRCMDialog(idx) {
   fsList.forEach(function(f){ var cat=f.category||f.statement||'Other'; if(fsCategories.indexOf(cat)<0) fsCategories.push(cat); });
   fsCategories.sort();
 
-  var fsCheckboxes = fsCategories.map(function(cat) {
-    var items = fsList.filter(function(f){ return (f.category||f.statement||'Other')===cat; });
-    var header = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;margin-top:4px;color:var(--wf-navy)">'+escHtml(cat)+'</div>';
-    var rows = items.map(function(f) {
-      var fid = f.id||f.account;
-      var checked = c.linked_accounts.indexOf(fid)>=0;
-      var risk = f.riskLevel ? '<span style="font-size:10px;background:'+(f.riskLevel==='High'?'#fef2f2':f.riskLevel==='Medium'?'#fff7ed':'#f0fdf4')+';color:'+(f.riskLevel==='High'?'#dc2626':f.riskLevel==='Medium'?'#ea580c':'#16a34a')+';border-radius:3px;padding:1px 6px;margin-left:5px">'+f.riskLevel+'</span>' : '';
-      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
-        '<input type="checkbox" value="'+fid+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleAccount('+idx+',\''+fid+'\',this.checked)">' +
-        '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escHtml(f.label||f.name||fid||'')+risk+'</div>' +
-        (f.assertion?'<div style="font-size:10px;color:var(--text-tertiary)">'+escHtml(f.assertion)+'</div>':'') +
-        '</div></label>';
-    }).join('');
-    return header+rows;
-  }).join('');
+  // ── Read-only FS summary (chips for linked, button to edit) ─────────────
+  var linkedFSObjs = c.linked_accounts.map(function(id) {
+    return fsList.find(function(f){ return (f.id||f.account)===id; });
+  }).filter(Boolean);
+
+  var fsSummaryHtml =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<span style="font-size:11px;color:var(--text-tertiary)">' + c.linked_accounts.length + ' linked</span>' +
+      '<button type="button" onclick="openRCMFSModal('+idx+')" class="btn-s" style="font-size:11px"><i class="ti ti-edit"></i>Edit Linked Accounts</button>' +
+    '</div>' +
+    (linkedFSObjs.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:5px">' +
+          linkedFSObjs.map(function(f) {
+            var risk = f.riskLevel ? ' · '+f.riskLevel : '';
+            return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:#f0f9ff;color:#0369a1;border:0.5px solid #7dd3fc">' +
+              escHtml(f.label||f.name||f.id||'')+escHtml(risk)+'</span>';
+          }).join('') +
+        '</div>'
+      : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No accounts linked. Click Edit to link FS accounts.</div>');
+
 
   // ── Section helper ───────────────────────────────────────────────────────
   function sec(title, icon, content, id) {
@@ -8199,89 +8637,158 @@ function openRCMDialog(idx) {
 
   var html =
     '<div id="rcm-dialog-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)closeRCMDialog()">' +
-    '<div style="background:var(--bg-primary);border-radius:14px;width:min(780px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(900px,97vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
 
-      // Header
-      '<div style="background:var(--wf-navy);color:#fff;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+      // ── Header ──
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:16px;font-weight:700">'+escHtml(c.name||c.title||'New Control')+'</div>' +
-        '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'')+'</div></div>' +
+        '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'— new control —')+'</div></div>' +
         '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
       '</div>' +
 
-      // Body
-      '<div style="overflow-y:auto;padding:22px;flex:1">' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">' +
+      // ── Body: side-nav + scrollable content ──
+      '<div style="display:flex;flex:1;overflow:hidden">' +
 
-          // Row 1: ID + Category
-          '<div>'+fld('Control ID')+'<input type="text" value="'+escHtml(c.id||'')+'" placeholder="e.g. IT-CTL-01" style="width:100%;font-size:13px;font-weight:700;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--wf-navy)" oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
-          '<div>'+fld('Category')+sel('category', c.category, CATEGORIES)+'</div>' +
-
-          // Title (full)
-          '<div style="grid-column:1/-1">'+fld('Control Title')+inp('name', c.name||c.title, 'Control title', true)+'</div>' +
-
-          // Objective (full) — combo-box
-          '<div style="grid-column:1/-1">'+fld('Control Objective')+objectiveCombo+'</div>' +
-
-          // Description (full)
-          '<div style="grid-column:1/-1">'+fld('Control Description','sent to Claude when linked')+
-            '<textarea rows="3" placeholder="Detailed description of how the control operates…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" oninput="rcmDialogUpdate('+idx+',\'description\',this.value)">'+escHtml(c.description||'')+'</textarea></div>' +
-
-          '<div style="grid-column:1/-1">'+fld('Additional Information (regarding control operation)')+
-            '<textarea rows="2" placeholder="Additional context about how this control operates in practice, exceptions, known issues, or relevant notes…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" oninput="rcmDialogUpdate('+idx+',\'additional_info\',this.value)">'+escHtml(c.additional_info||'')+'</textarea></div>' +
-
-
-          // Control Owners (primary + additional)
-          '<div style="grid-column:1/-1">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Control Owners</div>' +
-              '<button type="button" onclick="rcmAddOwner('+idx+',\'ctrl\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add Owner</button>' +
-            '</div>' +
-            '<div id="rcm-ctrl-owners">' +
-              rcmOwnerRow(idx, 'ctrl', 0, c.ctrl_owner||'', true) +
-              (Array.isArray(c.extra_ctrl_owners)?c.extra_ctrl_owners.map(function(v,i){return rcmOwnerRow(idx,'ctrl',i+1,v,false);}).join(''):'') +
-            '</div>' +
-          '</div>' +
-
-          // Process Owners (primary + additional)
-          '<div style="grid-column:1/-1">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Process Owners</div>' +
-              '<button type="button" onclick="rcmAddOwner('+idx+',\'proc\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add Owner</button>' +
-            '</div>' +
-            '<div id="rcm-proc-owners">' +
-              rcmOwnerRow(idx, 'proc', 0, c.proc_owner||'', true) +
-              (Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.map(function(v,i){return rcmOwnerRow(idx,'proc',i+1,v,false);}).join(''):'') +
-            '</div>' +
-          '</div>' +
-
-          // Frequency + Control Type
-          '<div>'+fld('Frequency')+sel('frequency', c.frequency, FREQUENCIES)+'</div>' +
-          '<div>'+fld('Control Type')+sel('control_type', c.control_type, CTRL_TYPES)+'</div>' +
-
-          // Linked Risks — quick-add combo + existing checkboxes
-          sec('Linked Risks', 'ti-alert-triangle', riskQuickAdd + (riskCheckboxes || '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px">No risks defined. Type a name above to create one.</div>'), 'rcm-risk-list') +
-
-          // Linked Assessment Entities
-          sec('Linked Assessment Entities', 'ti-building-community', entityCheckboxes||null, 'rcm-entity-list') +
-
-          // Linked FS Accounts
-          sec('Linked Financial Statement Accounts', 'ti-report-money', fsCheckboxes||null, 'rcm-fs-list') +
-
+        // Side nav
+        '<div id="rcm-dialog-sidenav" style="width:160px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);overflow-y:auto;padding:12px 0">' +
+          rcmNavBtn('rcm-sec-identity',  'ti-id',              'Identity') +
+          rcmNavBtn('rcm-sec-narrative', 'ti-file-description', 'Description') +
+          rcmNavBtn('rcm-sec-owners',    'ti-users',            'Owners') +
+          rcmNavBtn('rcm-sec-classify',  'ti-tags',             'Classification') +
+          rcmNavBtn('rcm-sec-risks',     'ti-alert-triangle',   'Risks') +
+          rcmNavBtn('rcm-sec-entities',  'ti-building-community','Entities') +
+          rcmNavBtn('rcm-sec-fs',        'ti-report-money',     'FS Accounts') +
         '</div>' +
-      '</div>' +
 
-      // Footer
-      '<div style="padding:14px 22px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg-secondary)">' +
+        // Scrollable form
+        '<div id="rcm-dialog-body" style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:0" onscroll="rcmDialogNavSync()">' +
+
+          // ── Section: Identity ──
+          '<div id="rcm-sec-identity" class="rcm-dialog-sec">' +
+            rcmSecHdr('Identity', 'ti-id') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+              '<div>'+fld('Control ID')+
+                '<input type="text" tabindex="1" value="'+escHtml(c.id||'')+'" placeholder="e.g. IT-CTL-01" ' +
+                'style="width:100%;font-size:13px;font-weight:700;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--wf-navy)" ' +
+                'oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
+              '<div>'+fld('Category')+
+                '<select tabindex="2" onchange="rcmDialogUpdate('+idx+',\'category\',this.value)" style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+                CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
+                '</select></div>' +
+              '<div style="grid-column:1/-1">'+fld('Control Title')+
+                '<input type="text" tabindex="3" value="'+escHtml(c.name||c.title||'')+'" placeholder="Control title" ' +
+                'style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--text-primary)" ' +
+                'oninput="rcmDialogUpdate('+idx+',\'name\',this.value)"></div>' +
+              '<div style="grid-column:1/-1">'+fld('Control Objective')+objectiveCombo+'</div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Description ──
+          '<div id="rcm-sec-narrative" class="rcm-dialog-sec">' +
+            rcmSecHdr('Description & Additional Information', 'ti-file-description') +
+            '<div style="display:flex;flex-direction:column;gap:14px">' +
+              '<div>'+fld('Control Description','sent to Claude when linked')+
+                '<textarea tabindex="5" rows="4" placeholder="Detailed description of how the control operates…" ' +
+                'style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" ' +
+                'oninput="rcmDialogUpdate('+idx+',\'description\',this.value)">'+escHtml(c.description||'')+'</textarea></div>' +
+              '<div>'+fld('Additional Information (regarding control operation)')+
+                '<textarea tabindex="6" rows="3" placeholder="Additional context, exceptions, known issues, or relevant notes…" ' +
+                'style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" ' +
+                'oninput="rcmDialogUpdate('+idx+',\'additional_info\',this.value)">'+escHtml(c.additional_info||'')+'</textarea></div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Owners ──
+          '<div id="rcm-sec-owners" class="rcm-dialog-sec">' +
+            rcmSecHdr('Owners', 'ti-users') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+              '<div>' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+                  '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Control Owners</div>' +
+                  '<button type="button" onclick="rcmAddOwner('+idx+',\'ctrl\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add</button>' +
+                '</div>' +
+                '<div id="rcm-ctrl-owners">' +
+                  rcmOwnerRow(idx,'ctrl',0,c.ctrl_owner||'',true) +
+                  (Array.isArray(c.extra_ctrl_owners)?c.extra_ctrl_owners.map(function(v,i){return rcmOwnerRow(idx,'ctrl',i+1,v,false);}).join(''):'') +
+                '</div>' +
+              '</div>' +
+              '<div>' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+                  '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Process Owners</div>' +
+                  '<button type="button" onclick="rcmAddOwner('+idx+',\'proc\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add</button>' +
+                '</div>' +
+                '<div id="rcm-proc-owners">' +
+                  rcmOwnerRow(idx,'proc',0,c.proc_owner||'',true) +
+                  (Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.map(function(v,i){return rcmOwnerRow(idx,'proc',i+1,v,false);}).join(''):'') +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Classification ──
+          '<div id="rcm-sec-classify" class="rcm-dialog-sec">' +
+            rcmSecHdr('Classification', 'ti-tags') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+              '<div>'+fld('Frequency')+
+                '<select tabindex="10" onchange="rcmDialogUpdate('+idx+',\'frequency\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+                FREQUENCIES.map(function(f){return '<option value="'+f+'" '+((c.frequency||'')===f?'selected':'')+'>'+( f||'Select frequency')+'</option>';}).join('')+
+                '</select></div>' +
+              '<div>'+fld('Control Type')+
+                '<select tabindex="11" onchange="rcmDialogUpdate('+idx+',\'control_type\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+                CTRL_TYPES.map(function(t){return '<option value="'+t+'" '+((c.control_type||'')===t?'selected':'')+'>'+( t||'Select type')+'</option>';}).join('')+
+                '</select></div>' +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Risks ──
+          '<div id="rcm-sec-risks" class="rcm-dialog-sec">' +
+            rcmSecHdr('Linked Risks', 'ti-alert-triangle') +
+            '<div style="border:0.5px solid var(--border-light);border-radius:6px;overflow:hidden;padding:0 12px">' +
+              riskQuickAdd +
+              (riskCheckboxes || '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px">No risks defined yet.</div>') +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: Entities ──
+          '<div id="rcm-sec-entities" class="rcm-dialog-sec">' +
+            rcmSecHdr('Linked Assessment Entities', 'ti-building-community') +
+            '<div id="rcm-entity-summary" style="border:0.5px solid var(--border-light);border-radius:6px;padding:12px">' +
+              entitySummaryHtml +
+            '</div>' +
+          '</div>' +
+
+          // ── Section: FS Accounts ──
+          '<div id="rcm-sec-fs" class="rcm-dialog-sec">' +
+            rcmSecHdr('Linked Financial Statement Accounts & Footnotes', 'ti-report-money') +
+            '<div id="rcm-fs-summary" style="border:0.5px solid var(--border-light);border-radius:6px;padding:12px">' +
+              fsSummaryHtml +
+            '</div>' +
+          '</div>' +
+
+        '</div>' + // end scrollable body
+      '</div>' + // end body row
+
+      // ── Footer ──
+      '<div style="padding:12px 22px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg-secondary)">' +
         '<button onclick="rcmDeleteOne('+idx+');closeRCMDialog();" class="btn-s" style="color:var(--red-700);border-color:var(--red-700);font-size:11px"><i class="ti ti-trash"></i>Delete</button>' +
         '<div style="display:flex;gap:8px">' +
-          '<button class="btn-s" onclick="closeRCMDialog()">Cancel</button>' +
-          '<button class="btn-p" id="rcm-save-btn" onclick="saveRCMFromDialog('+idx+')"><i class="ti ti-device-floppy"></i>Save</button>' +
+          '<button class="btn-s" tabindex="50" onclick="closeRCMDialog()">Cancel</button>' +
+          '<button class="btn-p" tabindex="51" id="rcm-save-btn" onclick="saveRCMFromDialog('+idx+')"><i class="ti ti-device-floppy"></i>Save</button>' +
         '</div>' +
       '</div>' +
 
     '</div></div>';
 
   document.body.insertAdjacentHTML('beforeend', html);
+
+  // Activate first nav item
+  rcmDialogNavActivate('rcm-sec-identity');
+
+  // Focus first focusable field
+  setTimeout(function() {
+    var first = document.querySelector('#rcm-dialog-body input[tabindex="1"]');
+    if (first) first.focus();
+  }, 60);
 }
 
 function rcmDialogUpdate(idx, field, value) {
