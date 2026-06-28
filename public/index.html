@@ -6714,6 +6714,9 @@ function showFoundationsSection(section) {
 
 // ── Entity Types (user-extensible) ──────────────────────────────────────────
 let _fndEntityTypes = ['Facility', 'Application', 'Business Unit', 'Company', 'Biomed', 'Other'];
+let _fndSortField = 'name';
+let _fndSortDir   = 'asc';
+let _fndSelected  = new Set(); // selected entity IDs for bulk actions
 
 async function _loadEntitiesFromDB() {
   try {
@@ -6724,18 +6727,15 @@ async function _loadEntitiesFromDB() {
     return false;
   } catch(e) { return false; }
 }
-
 async function _saveEntityToDB(entity) {
   try {
     const res = await fetch('/api/entities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entity)
     });
     return res.ok;
   } catch(e) { return false; }
 }
-
 async function _deleteEntityFromDB(id) {
   try {
     const res = await fetch(`/api/entities/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -6743,130 +6743,358 @@ async function _deleteEntityFromDB(id) {
   } catch(e) { return false; }
 }
 
+// ── Table view ───────────────────────────────────────────────────────────────
 function renderFoundationsEntities() {
   const list = document.getElementById('fnd-entities-list');
   if (!list) return;
-  const types = [...new Set([..._fndEntityTypes, ..._fndEntities.map(e => e.type || e.category || 'Other')])];
-  const toolbar = `
+
+  const sorted = [..._fndEntities].sort((a, b) => {
+    const av = (a[_fndSortField] || '').toString().toLowerCase();
+    const bv = (b[_fndSortField] || '').toString().toLowerCase();
+    return _fndSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  const colHdr = (label, field) => {
+    const active = _fndSortField === field;
+    const icon   = active ? (_fndSortDir === 'asc' ? '↑' : '↓') : '';
+    return `<th onclick="fndSort('${field}')" style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${active?'var(--wf-navy)':'var(--text-tertiary)'};cursor:pointer;white-space:nowrap;user-select:none;background:var(--bg-secondary)">${label} ${icon}</th>`;
+  };
+
+  const allChecked = _fndEntities.length > 0 && _fndSelected.size === _fndEntities.length;
+
+  list.innerHTML = `
+    <!-- Toolbar -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <div style="font-size:11px;color:var(--text-tertiary)">${_fndEntities.length} entit${_fndEntities.length===1?'y':'ies'}</div>
+      <span style="font-size:11px;color:var(--text-tertiary)">${_fndEntities.length} entit${_fndEntities.length===1?'y':'ies'}${_fndSelected.size?' · '+_fndSelected.size+' selected':''}</span>
       <div style="flex:1"></div>
+      ${_fndSelected.size ? `<button class="btn-s" onclick="fndDeleteSelected()" style="font-size:11px;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected</button>` : ''}
+      <button class="btn-s" onclick="fndExportCSV()" style="font-size:11px"><i class="ti ti-download"></i>Export CSV</button>
       <button class="btn-s" onclick="showAddEntityTypeDialog()" style="font-size:11px"><i class="ti ti-tag-plus"></i>New Type</button>
+    </div>
+
+    <!-- Table -->
+    <div style="border:0.5px solid var(--border-light);border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="padding:7px 10px;background:var(--bg-secondary);width:32px">
+              <input type="checkbox" ${allChecked?'checked':''} onchange="fndSelectAll(this.checked)" style="cursor:pointer">
+            </th>
+            ${colHdr('Name','name')}
+            ${colHdr('Type','type')}
+            ${colHdr('City','city')}
+            ${colHdr('State','state')}
+            ${colHdr('Point of Contact','poc')}
+            <th style="padding:7px 10px;background:var(--bg-secondary);width:60px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.length ? sorted.map((e, si) => {
+            const idx = _fndEntities.indexOf(e);
+            const checked = _fndSelected.has(e.id);
+            return `
+            <tr style="border-top:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s"
+              onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''"
+              onclick="openEntityDialog(${idx})">
+              <td style="padding:8px 10px" onclick="event.stopPropagation()">
+                <input type="checkbox" ${checked?'checked':''} onchange="fndToggleSelect('${e.id}',this.checked)" style="cursor:pointer">
+              </td>
+              <td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">${escHtml(e.name||'—')}</td>
+              <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">
+                <span style="background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:4px;padding:2px 7px;font-size:11px">${escHtml(e.type||e.category||'—')}</span>
+              </td>
+              <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">${escHtml(e.city||'—')}</td>
+              <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">${escHtml(e.state||'—')}</td>
+              <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">${escHtml(e.poc||'—')}</td>
+              <td style="padding:8px 10px;text-align:center" onclick="event.stopPropagation()">
+                <button onclick="fndDeleteOne(${idx})" class="icon-btn" title="Delete" style="color:var(--red-700);opacity:0.7;font-size:14px"><i class="ti ti-trash"></i></button>
+              </td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No assessment entities yet. Click <strong>Add Entity</strong> to create one.</td></tr>`}
+        </tbody>
+      </table>
     </div>`;
-  if (!_fndEntities.length) {
-    list.innerHTML = toolbar + '<div style="color:var(--text-tertiary);font-size:13px;padding:24px 0;text-align:center">No assessment entities defined.<br>Click <strong>Add Entity</strong> to create one.</div>';
+}
+
+function fndSort(field) {
+  if (_fndSortField === field) _fndSortDir = _fndSortDir === 'asc' ? 'desc' : 'asc';
+  else { _fndSortField = field; _fndSortDir = 'asc'; }
+  renderFoundationsEntities();
+}
+function fndSelectAll(checked) {
+  _fndEntities.forEach(e => checked ? _fndSelected.add(e.id) : _fndSelected.delete(e.id));
+  renderFoundationsEntities();
+}
+function fndToggleSelect(id, checked) {
+  checked ? _fndSelected.add(id) : _fndSelected.delete(id);
+  renderFoundationsEntities();
+}
+async function fndDeleteOne(idx) {
+  const e = _fndEntities[idx];
+  if (!e || !confirm(`Delete "${e.name||'this entity'}"?`)) return;
+  await _deleteEntityFromDB(e.id);
+  _fndEntities.splice(idx,1);
+  _fndSelected.delete(e.id);
+  renderFoundationsEntities();
+}
+async function fndDeleteSelected() {
+  if (!confirm(`Delete ${_fndSelected.size} selected entit${_fndSelected.size===1?'y':'ies'}?`)) return;
+  for (const id of _fndSelected) {
+    await _deleteEntityFromDB(id);
+    const i = _fndEntities.findIndex(e => e.id === id);
+    if (i >= 0) _fndEntities.splice(i,1);
+  }
+  _fndSelected.clear();
+  renderFoundationsEntities();
+}
+function fndExportCSV() {
+  const cols = ['id','name','type','address','city','state','poc','sub','description',
+    'app_purpose','user_count','txn_volume','txn_dollar','change_volume','change_complexity',
+    'admin_users','key_integrations','external_integrations'];
+  const header = cols.join(',');
+  const rows = _fndEntities.map(e =>
+    cols.map(c => '"' + (e[c]||'').toString().replace(/"/g,'""') + '"').join(',')
+  );
+  const csv  = [header,...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href=url; a.download='assessment_entities.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+// ── Entity detail dialog ─────────────────────────────────────────────────────
+function openEntityDialog(idx) {
+  const e = _fndEntities[idx];
+  if (!e) return;
+  if (!e.custom_fields) e.custom_fields = [];
+  const types  = [...new Set([..._fndEntityTypes, ..._fndEntities.map(x => x.type||x.category||'Other')])];
+  const isApp  = (e.type||e.category||'').toLowerCase().includes('application') || (e.type||e.category||'').toLowerCase() === 'app';
+
+  const dropField = (label, field, val) => `
+    <div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">${label}</div>
+      <select onchange="fndDialogUpdate(${idx},'${field}',this.value)"
+        style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);color:var(--text-primary)">
+        ${['High','Medium','Low'].map(v=>`<option value="${v}" ${(val||'Low')===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>`;
+
+  const appFields = isApp ? `
+    <div style="grid-column:1/-1;margin-top:6px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--wf-navy);padding:10px 0 8px;border-top:1px solid var(--border-light)">Application Risk Attributes</div>
+    </div>
+    <div style="grid-column:1/-1">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Application Purpose</div>
+      <textarea rows="2" onchange="fndDialogUpdate(${idx},'app_purpose',this.value)"
+        placeholder="Describe the purpose and function of this application…"
+        style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box">${escHtml(e.app_purpose||'')}</textarea>
+    </div>
+    ${dropField('User Count','user_count',e.user_count)}
+    ${dropField('Transaction Volume','txn_volume',e.txn_volume)}
+    ${dropField('Transaction Dollar Value','txn_dollar',e.txn_dollar)}
+    ${dropField('Volume of Expected Changes','change_volume',e.change_volume)}
+    ${dropField('Complexity of Expected Changes','change_complexity',e.change_complexity)}
+    ${dropField('Users with Admin Rights','admin_users',e.admin_users)}
+    ${dropField('Key Integrations','key_integrations',e.key_integrations)}
+    ${dropField('Integrations with External Systems','external_integrations',e.external_integrations)}` : '';
+
+  const customFieldsHtml = `
+    <div style="grid-column:1/-1;margin-top:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px;border-top:1px solid var(--border-light)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary)">Custom Fields</div>
+        <button onclick="addCustomField(${idx})" class="btn-s" style="font-size:11px">
+          <i class="ti ti-plus"></i>Add Field
+        </button>
+      </div>
+      <div id="custom-fields-container" style="display:flex;flex-direction:column;gap:8px">
+        ${(e.custom_fields||[]).length === 0
+          ? '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">No custom fields yet. Click Add Field to create one.</div>'
+          : (e.custom_fields||[]).map((cf, ci) => `
+            <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center" id="cf-row-${ci}">
+              <input type="text" value="${escHtml(cf.label||'')}" placeholder="Field name"
+                style="font-size:12px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+                oninput="updateCustomField(${idx},${ci},'label',this.value)">
+              <input type="text" value="${escHtml(cf.value||'')}" placeholder="Value"
+                style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+                oninput="updateCustomField(${idx},${ci},'value',this.value)">
+              <button onclick="removeCustomField(${idx},${ci})" class="icon-btn" title="Remove field"
+                style="color:var(--red-700);font-size:14px;opacity:0.7;flex-shrink:0"><i class="ti ti-trash"></i></button>
+            </div>`).join('')}
+      </div>
+    </div>`;
+
+  const html = `
+    <div id="entity-dialog-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)closeEntityDialog()">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(640px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+        <div style="background:var(--wf-navy);color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700">${escHtml(e.name)||'New Entity'}</div>
+          <button onclick="closeEntityDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+        </div>
+        <div style="overflow-y:auto;padding:20px;flex:1">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+            <div style="grid-column:1/-1">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Entity Name *</div>
+              <input type="text" id="entity-name-input" value="${escHtml(e.name||'')}" placeholder="Assessment entity name"
+                style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'name',this.value)">
+            </div>
+
+            <div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Entity Type</div>
+              <select onchange="fndDialogUpdateType(${idx},this.value)"
+                style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary)">
+                ${types.map(t=>`<option value="${t}" ${(e.type||e.category||'Facility')===t?'selected':''}>${t}</option>`).join('')}
+                <option disabled>──────</option>
+                <option value="__new__">+ New type…</option>
+              </select>
+            </div>
+
+            <div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Sub-type</div>
+              <input type="text" value="${escHtml(e.sub||'')}" placeholder="Sub-type or short label"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'sub',this.value)">
+            </div>
+
+            <div style="grid-column:1/-1">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Street Address</div>
+              <input type="text" value="${escHtml(e.address||'')}" placeholder="Street address"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'address',this.value)">
+            </div>
+
+            <div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">City</div>
+              <input type="text" value="${escHtml(e.city||'')}" placeholder="City"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'city',this.value)">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">State</div>
+              <input type="text" value="${escHtml(e.state||'')}" placeholder="State"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'state',this.value)">
+            </div>
+
+            <div style="grid-column:1/-1">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Point of Contact</div>
+              <input type="text" value="${escHtml(e.poc||'')}" placeholder="Name, title"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
+                oninput="fndDialogUpdate(${idx},'poc',this.value)">
+            </div>
+
+            <div style="grid-column:1/-1">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">
+                Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--wf-navy)"><i class="ti ti-sparkles" style="font-size:10px"></i> included in Claude analysis context</span>
+              </div>
+              <textarea rows="3" onchange="fndDialogUpdate(${idx},'description',this.value)"
+                placeholder="Describe this entity — included in Claude analysis context when linked to a workpaper…"
+                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box">${escHtml(e.description||'')}</textarea>
+            </div>
+
+            ${appFields}
+            ${customFieldsHtml}
+
+          </div>
+        </div>
+        <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+          <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
+          <button class="btn-p" id="entity-save-btn" onclick="saveEntityFromDialog(${idx})"><i class="ti ti-device-floppy"></i>Save</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(() => document.getElementById('entity-name-input')?.focus(), 50);
+}
+
+// ── Custom field helpers ─────────────────────────────────────────────────────
+function addCustomField(idx) {
+  if (!_fndEntities[idx]) return;
+  if (!_fndEntities[idx].custom_fields) _fndEntities[idx].custom_fields = [];
+  _fndEntities[idx].custom_fields.push({ label: '', value: '' });
+  // Refresh just the custom fields container without closing dialog
+  _refreshCustomFieldsUI(idx);
+}
+
+function removeCustomField(idx, ci) {
+  if (!_fndEntities[idx]?.custom_fields) return;
+  _fndEntities[idx].custom_fields.splice(ci, 1);
+  _refreshCustomFieldsUI(idx);
+}
+
+function updateCustomField(idx, ci, key, value) {
+  if (!_fndEntities[idx]?.custom_fields?.[ci]) return;
+  _fndEntities[idx].custom_fields[ci][key] = value;
+}
+
+function _refreshCustomFieldsUI(idx) {
+  const container = document.getElementById('custom-fields-container');
+  if (!container) return;
+  const fields = _fndEntities[idx]?.custom_fields || [];
+  if (fields.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">No custom fields yet. Click Add Field to create one.</div>';
     return;
   }
-  const grouped = {};
-  _fndEntities.forEach(e => {
-    const t = e.type || e.category || 'Other';
-    if (!grouped[t]) grouped[t] = [];
-    grouped[t].push(e);
-  });
-  list.innerHTML = toolbar + Object.entries(grouped).map(([type, entities]) => `
-    <div style="margin-bottom:24px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary);padding:6px 0;border-bottom:0.5px solid var(--border-light);margin-bottom:10px">
-        ${type} <span style="font-weight:400;opacity:0.6">(${entities.length})</span>
-      </div>
-      ${entities.map(e => {
-        const idx = _fndEntities.indexOf(e);
-        return `
-        <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:8px;padding:16px;margin-bottom:10px">
-          <div style="display:flex;align-items:flex-start;gap:12px">
-            <div style="flex:1;display:flex;flex-direction:column;gap:10px">
-              <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center">
-                <input type="text" value="${escHtml(e.name||'')}" placeholder="Assessment entity name *"
-                  style="font-size:14px;font-weight:600;color:var(--text-primary);border:none;border-bottom:1.5px solid var(--border-light);background:transparent;outline:none;padding:3px 0;width:100%"
-                  oninput="updateFndEntity(${idx},'name',this.value)">
-                <select style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:4px 8px;background:var(--bg-secondary);color:var(--text-secondary)"
-                  onchange="updateFndEntity(${idx},'type',this.value)">
-                  ${types.map(t => `<option value="${t}" ${(e.type||e.category||'Other')===t?'selected':''}>${t}</option>`).join('')}
-                  <option disabled>──────</option>
-                  <option value="__new__">+ New type…</option>
-                </select>
-              </div>
-              <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">
-                <input type="text" value="${escHtml(e.address||'')}" placeholder="Street address"
-                  style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;padding:5px 8px;background:var(--bg-secondary);outline:none;width:100%;box-sizing:border-box;color:var(--text-secondary)"
-                  oninput="updateFndEntity(${idx},'address',this.value)">
-                <input type="text" value="${escHtml(e.city||'')}" placeholder="City"
-                  style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;padding:5px 8px;background:var(--bg-secondary);outline:none;width:100%;box-sizing:border-box;color:var(--text-secondary)"
-                  oninput="updateFndEntity(${idx},'city',this.value)">
-                <input type="text" value="${escHtml(e.state||'')}" placeholder="State"
-                  style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;padding:5px 8px;background:var(--bg-secondary);outline:none;width:100%;box-sizing:border-box;color:var(--text-secondary)"
-                  oninput="updateFndEntity(${idx},'state',this.value)">
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                <input type="text" value="${escHtml(e.poc||'')}" placeholder="Point of contact (name, title)"
-                  style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;padding:5px 8px;background:var(--bg-secondary);outline:none;width:100%;box-sizing:border-box;color:var(--text-secondary)"
-                  oninput="updateFndEntity(${idx},'poc',this.value)">
-                <input type="text" value="${escHtml(e.sub||'')}" placeholder="Sub-type / short description"
-                  style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;padding:5px 8px;background:var(--bg-secondary);outline:none;width:100%;box-sizing:border-box;color:var(--text-secondary)"
-                  oninput="updateFndEntity(${idx},'sub',this.value)">
-              </div>
-              <textarea rows="2" placeholder="Description for Claude analysis context — included when this entity is linked to a workpaper…"
-                style="font-size:12px;border:0.5px solid var(--border-light);border-radius:4px;background:var(--bg-secondary);padding:6px 8px;resize:vertical;width:100%;box-sizing:border-box;font-family:inherit;line-height:1.5;color:var(--text-primary)"
-                oninput="updateFndEntity(${idx},'description',this.value)">${escHtml(e.description||'')}</textarea>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-              <button onclick="saveFndEntity(${idx})" title="Save to database" class="icon-btn"
-                id="save-entity-btn-${idx}" style="color:var(--wf-navy);background:none;border:none;cursor:pointer;padding:4px;font-size:16px;opacity:0.8">
-                <i class="ti ti-device-floppy"></i>
-              </button>
-              <button onclick="deleteFndEntity(${idx})" title="Delete" class="icon-btn"
-                style="color:var(--red-700);background:none;border:none;cursor:pointer;padding:4px;font-size:16px;opacity:0.7">
-                <i class="ti ti-trash"></i>
-              </button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
+  container.innerHTML = fields.map((cf, ci) => `
+    <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center">
+      <input type="text" value="${escHtml(cf.label||'')}" placeholder="Field name"
+        style="font-size:12px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+        oninput="updateCustomField(${idx},${ci},'label',this.value)">
+      <input type="text" value="${escHtml(cf.value||'')}" placeholder="Value"
+        style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+        oninput="updateCustomField(${idx},${ci},'value',this.value)">
+      <button onclick="removeCustomField(${idx},${ci})" class="icon-btn" title="Remove field"
+        style="color:var(--red-700);font-size:14px;opacity:0.7"><i class="ti ti-trash"></i></button>
     </div>`).join('');
 }
 
-function updateFndEntity(idx, field, value) {
-  if (!_fndEntities[idx]) return;
-  if (field === 'type' && value === '__new__') { showAddEntityTypeDialog(); return; }
-  _fndEntities[idx][field] = value;
-  if (typeof ALL_ENTITIES !== 'undefined') {
-    const ae = ALL_ENTITIES.find(e => e.id === _fndEntities[idx].id);
-    if (ae) ae[field] = value;
-  }
-  const btn = document.getElementById('save-entity-btn-' + idx);
-  if (btn) { btn.style.color = '#ea580c'; btn.title = 'Unsaved changes'; }
+function fndDialogUpdate(idx, field, value) {
+  if (_fndEntities[idx]) _fndEntities[idx][field] = value;
 }
 
-async function saveFndEntity(idx) {
+function fndDialogUpdateType(idx, value) {
+  if (value === '__new__') {
+    const name = prompt('Enter new entity type name:');
+    if (!name?.trim()) return;
+    const clean = name.trim();
+    if (!_fndEntityTypes.includes(clean)) _fndEntityTypes.push(clean);
+    if (_fndEntities[idx]) _fndEntities[idx].type = clean;
+  } else {
+    if (_fndEntities[idx]) _fndEntities[idx].type = value;
+  }
+  closeEntityDialog();
+  openEntityDialog(idx);
+}
+
+async function saveEntityFromDialog(idx) {
   const entity = _fndEntities[idx];
   if (!entity) return;
-  const btn = document.getElementById('save-entity-btn-' + idx);
-  if (btn) btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>';
+  const btn = document.getElementById('entity-save-btn');
+  if (btn) { btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…'; btn.disabled = true; }
   const ok = await _saveEntityToDB(entity);
   if (btn) {
-    btn.innerHTML = '<i class="ti ti-device-floppy"></i>';
-    btn.style.color = ok ? '#16a34a' : '#dc2626';
-    btn.title = ok ? 'Saved' : 'Save failed';
-    setTimeout(() => { if (btn) { btn.style.color = 'var(--wf-navy)'; btn.title = 'Save to database'; } }, 2500);
+    btn.innerHTML = ok ? '<i class="ti ti-check"></i> Saved!' : '<i class="ti ti-alert-triangle"></i> Error';
+    btn.style.background = ok ? '#16a34a' : '#dc2626';
+    setTimeout(() => { closeEntityDialog(); renderFoundationsEntities(); }, 900);
   }
 }
+
+function closeEntityDialog() {
+  document.getElementById('entity-dialog-overlay')?.remove();
+}
+
 
 async function addFoundationsEntity() {
-  const newEntity = { id: 'entity_' + Date.now(), name: '', type: 'Facility', category: 'facility', address: '', city: '', state: '', poc: '', sub: '', description: '' };
+  const newEntity = {
+    id: 'entity_' + Date.now(), name: '', type: 'Facility', category: 'facility',
+    address: '', city: '', state: '', poc: '', sub: '', description: ''
+  };
   _fndEntities.unshift(newEntity);
   renderFoundationsEntities();
-  setTimeout(() => { const f = document.querySelector('#fnd-entities-list input[placeholder*="entity name"]'); if (f) f.focus(); }, 50);
-}
-
-async function deleteFndEntity(idx) {
-  const entity = _fndEntities[idx];
-  if (!entity || !confirm('Delete "' + (entity.name || 'this entity') + '"?')) return;
-  await _deleteEntityFromDB(entity.id);
-  _fndEntities.splice(idx, 1);
-  if (typeof ALL_ENTITIES !== 'undefined') {
-    const ai = ALL_ENTITIES.findIndex(e => e.id === entity.id);
-    if (ai >= 0) ALL_ENTITIES.splice(ai, 1);
-  }
-  renderFoundationsEntities();
+  openEntityDialog(0);
 }
 
 function showAddEntityTypeDialog() {
@@ -6877,9 +7105,9 @@ function showAddEntityTypeDialog() {
   renderFoundationsEntities();
 }
 
-// Keep old aliases for any existing calls
-const updateFoundationsEntity = updateFndEntity;
-const deleteFoundationsEntity = deleteFndEntity;
+// Aliases
+const updateFoundationsEntity = fndDialogUpdate;
+const deleteFoundationsEntity = fndDeleteOne;
 
 
 function renderFoundationsRCM() {
