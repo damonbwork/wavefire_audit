@@ -6667,7 +6667,7 @@ function _initFoundationsData() {
   _fndInitialized = true;
 
   // Try loading from DB first; fall back to static ALL_ENTITIES
-  Promise.all([_loadEntityTypesFromDB(), _loadEntitiesFromDB()]).then(([, loaded]) => {
+  Promise.all([_loadEntityTypesFromDB(), _loadEntitiesFromDB(), _loadRCMFromDB()]).then(([, loaded]) => {
     if (!loaded && typeof ALL_ENTITIES !== 'undefined' && ALL_ENTITIES?.length) {
       _fndEntities = ALL_ENTITIES.map(e => ({ ...e, type: e.type || e.category || 'Facility', description: e.description || '' }));
     }
@@ -7018,158 +7018,193 @@ function fndExportCSV() {
 }
 
 // ── Entity detail dialog ─────────────────────────────────────────────────────
+// ── Entity dialog helpers (outside openEntityDialog to avoid Firefox issues) ──
+function _eLabel(txt, note) {
+  var noteHtml = note ? '<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--wf-navy);margin-left:6px"><i class="ti ti-sparkles" style="font-size:9px"></i>' + note + '</span>' : '';
+  return '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:5px">' + txt + noteHtml + '</div>';
+}
+function _eText(idx, field, val, placeholder, bold) {
+  return '<input type="text" value="' + escHtml(val||'') + '" placeholder="' + escHtml(placeholder) + '" style="width:100%;font-size:' + (bold?'14px':'12px') + ';font-weight:' + (bold?'700':'400') + ';border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;outline:none;color:var(--text-primary)" oninput="fndDialogUpdate(' + idx + ',\'' + field + '\',this.value)">';
+}
+function _eArea(idx, field, val, placeholder, rows) {
+  return '<textarea rows="' + (rows||3) + '" placeholder="' + escHtml(placeholder) + '" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" oninput="fndDialogUpdate(' + idx + ',\'' + field + '\',this.value)">' + escHtml(val||'') + '</textarea>';
+}
+function _eDrop(idx, field, val, lbl) {
+  var opts = ['High','Medium','Low'].map(function(v) {
+    return '<option value="' + v + '"' + ((val||'Low')===v?' selected':'') + '>' + v + '</option>';
+  }).join('');
+  return '<div>' + _eLabel(lbl) + '<select onchange="fndDialogUpdate(' + idx + ',\'' + field + '\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);color:var(--text-primary)">' + opts + '</select></div>';
+}
+function _eSection(title, icon) {
+  var ico = icon ? '<i class="ti ' + icon + '" style="font-size:14px;color:var(--wf-navy)"></i>' : '';
+  return '<div style="grid-column:1/-1;margin-top:8px"><div style="display:flex;align-items:center;gap:8px;padding:10px 0 6px;border-top:1px solid var(--border-light)">' + ico + '<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--wf-navy)">' + title + '</span></div></div>';
+}
+
 function openEntityDialog(idx) {
-  const e = _fndEntities[idx];
+  var e = _fndEntities[idx];
   if (!e) return;
   if (!e.custom_fields) e.custom_fields = [];
-  const types  = _fndEntityTypes.map(t => t.name);
-  const isApp  = (e.type||e.category||'').toLowerCase().includes('application') || (e.type||e.category||'').toLowerCase() === 'app';
 
-  const dropField = (label, field, val) => `
+  var types       = _fndEntityTypes.map(function(t) { return t.name; });
+  var currentType = e.type || e.category || 'Facility';
+  var typeStyle   = getEntityTypeStyle(currentType);
+  var isApp       = currentType.toLowerCase().indexOf('application') >= 0 || currentType.toLowerCase() === 'app';
+
+  // ── Core fields ──────────────────────────────────────────────────
+  const coreFields = `
+    <div style="grid-column:1/-1">
+      ${_eLabel('Entity Name')}
+      ${_eText(idx,'name', e.name, 'Assessment entity name', true)}
+    </div>
+
     <div>
-      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">${label}</div>
-      <select onchange="fndDialogUpdate(${idx},'${field}',this.value)"
-        style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);color:var(--text-primary)">
-        ${['High','Medium','Low'].map(v=>`<option value="${v}" ${(val||'Low')===v?'selected':''}>${v}</option>`).join('')}
+      ${_eLabel('Entity Type')}
+      <select id="entity-type-select" onchange="fndDialogUpdateType(${idx},this.value)"
+        style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">
+        ${types.map(t => {
+          const ts = getEntityTypeStyle(t);
+          return `<option value="${t}" ${currentType===t?'selected':''}>${t}</option>`;
+        }).join('')}
+        <option disabled>──────</option>
+        <option value="__new__">+ New type…</option>
       </select>
+      <div style="margin-top:6px">${entityTypeBadge(currentType)}</div>
+    </div>
+
+    <div>
+      ${_eLabel('Sub-type')}
+      ${_eText(idx,'sub', e.sub, 'Sub-type or short descriptor')}
     </div>`;
 
-  const appFields = isApp ? `
-    <div style="grid-column:1/-1;margin-top:6px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--wf-navy);padding:10px 0 8px;border-top:1px solid var(--border-light)">Application Risk Attributes</div>
+  // ── Location fields ──────────────────────────────────────────────
+  const locationFields = `
+    ${_eSection('Location', 'ti-map-pin')}
+    <div style="grid-column:1/-1">
+      ${_eLabel('Street Address')}
+      ${_eText(idx,'address', e.address, 'Street address')}
+    </div>
+    <div>
+      ${_eLabel('City')}
+      ${_eText(idx,'city', e.city, 'City')}
+    </div>
+    <div>
+      ${_eLabel('State')}
+      ${_eText(idx,'state', e.state, 'State')}
+    </div>`;
+
+  // ── Contact & description ────────────────────────────────────────
+  const contactFields = `
+    ${_eSection('Contact & Context', 'ti-user')}
+    <div style="grid-column:1/-1">
+      ${_eLabel('Point of Contact')}
+      ${_eText(idx,'poc', e.poc, 'Name, title, email…')}
     </div>
     <div style="grid-column:1/-1">
-      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Application Purpose</div>
-      <textarea rows="2" onchange="fndDialogUpdate(${idx},'app_purpose',this.value)"
-        placeholder="Describe the purpose and function of this application…"
-        style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box">${escHtml(e.app_purpose||'')}</textarea>
-    </div>
-    ${dropField('User Count','user_count',e.user_count)}
-    ${dropField('Transaction Volume','txn_volume',e.txn_volume)}
-    ${dropField('Transaction Dollar Value','txn_dollar',e.txn_dollar)}
-    ${dropField('Volume of Expected Changes','change_volume',e.change_volume)}
-    ${dropField('Complexity of Expected Changes','change_complexity',e.change_complexity)}
-    ${dropField('Users with Admin Rights','admin_users',e.admin_users)}
-    ${dropField('Key Integrations','key_integrations',e.key_integrations)}
-    ${dropField('Integrations with External Systems','external_integrations',e.external_integrations)}` : '';
+      ${_eLabel('Description', 'included in Claude analysis context')}
+      ${_eArea(idx,'description', e.description, 'Describe this entity — this text is silently included in Claude analysis context when this entity is linked to a workpaper…')}
+    </div>`;
 
-  const customFieldsHtml = `
-    <div style="grid-column:1/-1;margin-top:6px">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px;border-top:1px solid var(--border-light)">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary)">Custom Fields</div>
-        <button onclick="addCustomField(${idx})" class="btn-s" style="font-size:11px">
-          <i class="ti ti-plus"></i>Add Field
-        </button>
-      </div>
+  // ── Application risk fields ──────────────────────────────────────
+  const appFields = isApp ? `
+    ${_eSection('Application Details', 'ti-device-desktop')}
+    <div style="grid-column:1/-1">
+      ${_eLabel('Application Purpose')}
+      ${_eArea(idx,'app_purpose', e.app_purpose, 'Describe the purpose and function of this application…', 2)}
+    </div>
+    ${_eDrop(idx,'user_count',           e.user_count,           'User Count')}
+    ${_eDrop(idx,'txn_volume',           e.txn_volume,           'Transaction Volume')}
+    ${_eDrop(idx,'txn_dollar',           e.txn_dollar,           'Transaction Dollar Value')}
+    ${_eDrop(idx,'change_volume',        e.change_volume,        'Volume of Expected Changes')}
+    ${_eDrop(idx,'change_complexity',    e.change_complexity,    'Complexity of Expected Changes')}
+    ${_eDrop(idx,'admin_users',          e.admin_users,          'Users with Admin Rights')}
+    ${_eDrop(idx,'key_integrations',     e.key_integrations,     'Key Integrations')}
+    ${_eDrop(idx,'external_integrations',e.external_integrations,'Integrations with External Systems')}` : '';
+
+  // ── Custom fields ────────────────────────────────────────────────
+  const customSection = `
+    ${_eSection('Custom Fields', 'ti-layout-list')}
+    <div style="grid-column:1/-1">
       <div id="custom-fields-container" style="display:flex;flex-direction:column;gap:8px">
-        ${(e.custom_fields||[]).length === 0
-          ? '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">No custom fields yet. Click Add Field to create one.</div>'
-          : (e.custom_fields||[]).map((cf, ci) => `
-            <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center" id="cf-row-${ci}">
-              <input type="text" value="${escHtml(cf.label||'')}" placeholder="Field name"
-                style="font-size:12px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
-                oninput="updateCustomField(${idx},${ci},'label',this.value)">
-              <input type="text" value="${escHtml(cf.value||'')}" placeholder="Value"
-                style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
-                oninput="updateCustomField(${idx},${ci},'value',this.value)">
-              <button onclick="removeCustomField(${idx},${ci})" class="icon-btn" title="Remove field"
-                style="color:var(--red-700);font-size:14px;opacity:0.7;flex-shrink:0"><i class="ti ti-trash"></i></button>
-            </div>`).join('')}
+        ${renderCustomFieldRows(idx)}
       </div>
+      <button onclick="addCustomField(${idx})" class="btn-s" style="margin-top:10px;font-size:11px">
+        <i class="ti ti-plus"></i>Add Field
+      </button>
     </div>`;
 
   const html = `
-    <div id="entity-dialog-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:20000;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)closeEntityDialog()">
-      <div style="background:var(--bg-primary);border-radius:12px;width:min(640px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-        <div style="background:var(--wf-navy);color:#fff;padding:16px 20px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-          <div style="font-size:15px;font-weight:700">${escHtml(e.name)||'New Entity'}</div>
-          <button onclick="closeEntityDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+    <div id="entity-dialog-overlay"
+      style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)"
+      onclick="if(event.target===this)closeEntityDialog()">
+      <div style="background:var(--bg-primary);border-radius:14px;width:min(680px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">
+
+        <!-- Header -->
+        <div style="background:var(--wf-navy);color:#fff;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:12px">
+            <i class="ti ${typeStyle.icon||'ti-building'}" style="font-size:20px;opacity:0.85"></i>
+            <div>
+              <div style="font-size:16px;font-weight:700">${escHtml(e.name)||'New Entity'}</div>
+              <div style="font-size:11px;opacity:0.65;margin-top:1px">${escHtml(currentType)}</div>
+            </div>
+          </div>
+          <button onclick="closeEntityDialog()"
+            style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">
+            <i class="ti ti-x"></i>
+          </button>
         </div>
-        <div style="overflow-y:auto;padding:20px;flex:1">
+
+        <!-- Scrollable body -->
+        <div style="overflow-y:auto;padding:22px;flex:1">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-
-            <div style="grid-column:1/-1">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Entity Name *</div>
-              <input type="text" id="entity-name-input" value="${escHtml(e.name||'')}" placeholder="Assessment entity name"
-                style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'name',this.value)">
-            </div>
-
-            <div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Entity Type</div>
-              <select onchange="fndDialogUpdateType(${idx},this.value)"
-                style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary)">
-                ${types.map(t=>`<option value="${t}" ${(e.type||e.category||'Facility')===t?'selected':''}>${t}</option>`).join('')}
-                <option disabled>──────</option>
-                <option value="__new__">+ New type…</option>
-              </select>
-            </div>
-
-            <div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Sub-type</div>
-              <input type="text" value="${escHtml(e.sub||'')}" placeholder="Sub-type or short label"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'sub',this.value)">
-            </div>
-
-            <div style="grid-column:1/-1">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Street Address</div>
-              <input type="text" value="${escHtml(e.address||'')}" placeholder="Street address"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'address',this.value)">
-            </div>
-
-            <div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">City</div>
-              <input type="text" value="${escHtml(e.city||'')}" placeholder="City"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'city',this.value)">
-            </div>
-            <div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">State</div>
-              <input type="text" value="${escHtml(e.state||'')}" placeholder="State"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'state',this.value)">
-            </div>
-
-            <div style="grid-column:1/-1">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Point of Contact</div>
-              <input type="text" value="${escHtml(e.poc||'')}" placeholder="Name, title"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);box-sizing:border-box"
-                oninput="fndDialogUpdate(${idx},'poc',this.value)">
-            </div>
-
-            <div style="grid-column:1/-1">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">
-                Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--wf-navy)"><i class="ti ti-sparkles" style="font-size:10px"></i> included in Claude analysis context</span>
-              </div>
-              <textarea rows="3" onchange="fndDialogUpdate(${idx},'description',this.value)"
-                placeholder="Describe this entity — included in Claude analysis context when linked to a workpaper…"
-                style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 8px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box">${escHtml(e.description||'')}</textarea>
-            </div>
-
+            ${coreFields}
+            ${locationFields}
+            ${contactFields}
             ${appFields}
-            ${customFieldsHtml}
-
+            ${customSection}
           </div>
         </div>
-        <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
-          <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
-          <button class="btn-p" id="entity-save-btn" onclick="saveEntityFromDialog(${idx})"><i class="ti ti-device-floppy"></i>Save</button>
+
+        <!-- Footer -->
+        <div style="padding:14px 22px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg-secondary)">
+          <button onclick="fndDeleteOne(${idx});closeEntityDialog();" class="btn-s"
+            style="color:var(--red-700);border-color:var(--red-700);font-size:11px">
+            <i class="ti ti-trash"></i>Delete
+          </button>
+          <div style="display:flex;gap:8px">
+            <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
+            <button class="btn-p" id="entity-save-btn" onclick="saveEntityFromDialog(${idx})">
+              <i class="ti ti-device-floppy"></i>Save Changes
+            </button>
+          </div>
         </div>
       </div>
     </div>`;
 
   document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(() => document.getElementById('entity-name-input')?.focus(), 50);
+  setTimeout(() => document.querySelector('#entity-dialog-overlay input')?.focus(), 60);
 }
 
-// ── Custom field helpers ─────────────────────────────────────────────────────
+function renderCustomFieldRows(idx) {
+  const fields = _fndEntities[idx]?.custom_fields || [];
+  if (!fields.length) return '<div style="font-size:12px;color:var(--text-tertiary)">No custom fields yet. Click Add Field to create one.</div>';
+  return fields.map((cf, ci) => `
+    <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center">
+      <input type="text" value="${escHtml(cf.label||'')}" placeholder="Field name"
+        style="font-size:12px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 9px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+        oninput="updateCustomField(${idx},${ci},'label',this.value)">
+      <input type="text" value="${escHtml(cf.value||'')}" placeholder="Value"
+        style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:7px 9px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
+        oninput="updateCustomField(${idx},${ci},'value',this.value)">
+      <button onclick="removeCustomField(${idx},${ci})" class="icon-btn" title="Remove"
+        style="color:var(--red-700);font-size:14px;opacity:0.7"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
+}
+
+
 function addCustomField(idx) {
   if (!_fndEntities[idx]) return;
   if (!_fndEntities[idx].custom_fields) _fndEntities[idx].custom_fields = [];
   _fndEntities[idx].custom_fields.push({ label: '', value: '' });
-  // Refresh just the custom fields container without closing dialog
   _refreshCustomFieldsUI(idx);
 }
 
@@ -7187,22 +7222,7 @@ function updateCustomField(idx, ci, key, value) {
 function _refreshCustomFieldsUI(idx) {
   const container = document.getElementById('custom-fields-container');
   if (!container) return;
-  const fields = _fndEntities[idx]?.custom_fields || [];
-  if (fields.length === 0) {
-    container.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);padding:4px 0">No custom fields yet. Click Add Field to create one.</div>';
-    return;
-  }
-  container.innerHTML = fields.map((cf, ci) => `
-    <div style="display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center">
-      <input type="text" value="${escHtml(cf.label||'')}" placeholder="Field name"
-        style="font-size:12px;font-weight:600;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
-        oninput="updateCustomField(${idx},${ci},'label',this.value)">
-      <input type="text" value="${escHtml(cf.value||'')}" placeholder="Value"
-        style="font-size:12px;border:0.5px solid var(--border-light);border-radius:5px;padding:6px 8px;background:var(--bg-secondary);box-sizing:border-box;width:100%"
-        oninput="updateCustomField(${idx},${ci},'value',this.value)">
-      <button onclick="removeCustomField(${idx},${ci})" class="icon-btn" title="Remove field"
-        style="color:var(--red-700);font-size:14px;opacity:0.7"><i class="ti ti-trash"></i></button>
-    </div>`).join('');
+  container.innerHTML = renderCustomFieldRows(idx);
 }
 
 function fndDialogUpdate(idx, field, value) {
@@ -7262,52 +7282,1063 @@ const updateFoundationsEntity = fndDialogUpdate;
 const deleteFoundationsEntity = fndDeleteOne;
 
 
+// ── RCM Postgres API ────────────────────────────────────────────────────────
+async function _loadRCMFromDB() {
+  try {
+    const [ctrlRes, riskRes] = await Promise.all([fetch('/api/controls'), fetch('/api/risks')]);
+    if (ctrlRes.ok) {
+      const data = await ctrlRes.json();
+      if (Array.isArray(data) && data.length) {
+        _fndControls = data;
+        // Sync to CONTROLS global so audit tab picks it up
+        data.forEach(c => { CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' }; });
+      }
+    }
+    if (riskRes.ok) {
+      const data = await riskRes.json();
+      if (Array.isArray(data) && data.length) {
+        _fndRisks = data;
+        data.forEach(r => { RISKS[r.id] = { id:r.id, title:r.name||r.title||'', description:r.description||'' }; });
+        // Rebuild CTRL_RISKS_MAP from ctrl linked_risks
+        _fndControls.forEach(c => {
+          const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (c.linked_risks ? JSON.parse(c.linked_risks) : []);
+          if (riskIds.length) CTRL_RISKS_MAP[c.id] = riskIds;
+        });
+      }
+    }
+  } catch(e) { console.log('[DB] RCM load failed:', e.message); }
+}
+
+async function _saveControlToDB(ctrl) {
+  try {
+    const res = await fetch('/api/controls', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ctrl)
+    });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+async function _deleteControlFromDB(id) {
+  try {
+    const res = await fetch('/api/controls/' + encodeURIComponent(id), { method: 'DELETE' });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+async function _saveRiskToDB(risk) {
+  try {
+    const res = await fetch('/api/risks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(risk)
+    });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+// ── RCM grid ─────────────────────────────────────────────────────────────────
+let _fndRisks    = [];
+let _rcmSortCol  = 'category';
+let _rcmSortDir  = 'asc';
+let _rcmSelected = new Set();
+
 function renderFoundationsRCM() {
   const list = document.getElementById('fnd-rcm-list');
   if (!list) return;
-  if (!_fndControls.length) {
-    list.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px;padding:24px 0">No controls defined. Click Add Control to create one.</div>';
-    return;
+
+  // Populate from static RISKS/CONTROLS if _fndRisks/_fndControls are empty
+  if (!_fndRisks.length && typeof RISKS !== 'undefined') {
+    _fndRisks = Object.values(RISKS).map(r => ({ id:r.id, name:r.title, title:r.title, description:r.description||'' }));
   }
-  list.innerHTML = _fndControls.map((c, i) => `
-    <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:8px;padding:14px 16px">
-      <div style="display:flex;align-items:flex-start;gap:12px">
-        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
-          <div style="display:flex;gap:10px;align-items:center">
-            <input type="text" value="${escHtml(c.id)}" placeholder="Control ID (e.g. CC-01)"
-              style="font-size:11px;font-weight:600;color:var(--wf-navy);border:0.5px solid var(--border-light);border-radius:4px;padding:3px 7px;width:90px;background:var(--bg-secondary)"
-              onchange="updateFoundationsControl(${i},'id',this.value)">
-            <input type="text" value="${escHtml(c.name)}" placeholder="Control name"
-              style="font-size:13px;font-weight:600;color:var(--text-primary);border:none;border-bottom:1.5px solid var(--border-light);background:transparent;outline:none;flex:1;padding:2px 0"
-              onchange="updateFoundationsControl(${i},'name',this.value)">
-            <select style="font-size:11px;color:var(--text-tertiary);border:0.5px solid var(--border-light);border-radius:4px;padding:2px 6px;background:var(--bg-secondary)"
-              onchange="updateFoundationsControl(${i},'category',this.value)">
-              ${['Access','Change Management','Operations','Financial Reporting','Compliance','Other'].map(cat =>
-                `<option value="${cat}" ${c.category===cat?'selected':''}>${cat}</option>`
-              ).join('')}
-            </select>
-          </div>
-          <input type="text" value="${escHtml(c.objective||'')}" placeholder="Control objective…"
-            style="font-size:12px;color:var(--text-secondary);border:none;border-bottom:0.5px solid var(--border-light);background:transparent;outline:none;width:100%;padding:1px 0"
-            onchange="updateFoundationsControl(${i},'objective',this.value)">
-          <textarea rows="2" placeholder="Description — included in Claude analysis context when this control is linked to a workpaper…"
-            style="font-size:12px;color:var(--text-primary);border:0.5px solid var(--border-light);border-radius:4px;background:var(--bg-secondary);padding:6px 8px;resize:vertical;width:100%;box-sizing:border-box;font-family:inherit;line-height:1.5"
-            onchange="updateFoundationsControl(${i},'description',this.value)">${escHtml(c.description||'')}</textarea>
-        </div>
-        <button onclick="deleteFoundationsControl(${i})" title="Delete" class="icon-btn"
-          style="color:var(--red-700);background:none;border:none;cursor:pointer;padding:4px;font-size:16px;flex-shrink:0;opacity:0.7">
-          <i class="ti ti-trash"></i>
-        </button>
-      </div>
-    </div>`).join('');
+  if (!_fndControls.length && typeof CONTROLS !== 'undefined') {
+    _fndControls = Object.values(CONTROLS).map(c => ({
+      id:c.id, name:c.title, title:c.title, category:c.category||'General',
+      objective:c.objective||'', description:c.description||'',
+      ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
+      frequency:'', control_type:'',
+      linked_risks: CTRL_RISKS_MAP[c.id] || []
+    }));
+  }
+
+  // Calculate max extra owners across all controls
+  const maxExtraCtrl = _fndControls.reduce(function(m,c){ return Math.max(m, Array.isArray(c.extra_ctrl_owners)?c.extra_ctrl_owners.length:0); }, 0);
+  const maxExtraProc = _fndControls.reduce(function(m,c){ return Math.max(m, Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.length:0); }, 0);
+
+  const cols = [
+    { key:'category',       label:'Category' },
+    { key:'id',             label:'Control ID' },
+    { key:'name',           label:'Control Title' },
+    { key:'objective',      label:'Control Objective' },
+    { key:'linked_risks',   label:'Linked Risks' },
+    { key:'ctrl_owner',     label:'Control Owner (Primary)' },
+  ];
+  for (var ei=0; ei<maxExtraCtrl; ei++) {
+    cols.push({ key:'extra_ctrl_'+ei, label:'Control Owner #'+(ei+2), extraCtrl:ei });
+  }
+  cols.push({ key:'proc_owner', label:'Process Owner (Primary)' });
+  for (var pi=0; pi<maxExtraProc; pi++) {
+    cols.push({ key:'extra_proc_'+pi, label:'Process Owner #'+(pi+2), extraProc:pi });
+  }
+  cols.push(
+    { key:'frequency',      label:'Frequency' },
+    { key:'control_type',   label:'Type' },
+    { key:'additional_info',label:'Additional Information' }
+  );
+
+  const totalCols = cols.length + 2; // +checkbox +actions
+
+  const sorted = [..._fndControls].sort((a, b) => {
+    let av = a[_rcmSortCol] || '', bv = b[_rcmSortCol] || '';
+    if (Array.isArray(av)) av = av.join(',');
+    if (Array.isArray(bv)) bv = bv.join(',');
+    return _rcmSortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+
+  const allChecked = _fndControls.length > 0 && _rcmSelected.size === _fndControls.length;
+
+  const colHdr = (col) => {
+    const sortKey = col.extraCtrl!=null ? 'extra_ctrl_'+col.extraCtrl : col.extraProc!=null ? 'extra_proc_'+col.extraProc : col.key;
+    const active = _rcmSortCol === sortKey;
+    const icon   = active ? (_rcmSortDir === 'asc' ? '↑' : '↓') : '';
+    return '<th onclick="rcmSort(\'' + sortKey + '\')" style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;cursor:pointer;user-select:none;background:var(--bg-secondary);color:' + (active?'var(--wf-navy)':'var(--text-tertiary)') + '">' + col.label + ' ' + icon + '</th>';
+  };
+
+  list.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+      '<span style="font-size:11px;color:var(--text-tertiary)">' + _fndControls.length + ' control' + (_fndControls.length!==1?'s':'') + (_rcmSelected.size?' · '+_rcmSelected.size+' selected':'') + '</span>' +
+      '<div style="flex:1"></div>' +
+      (_rcmSelected.size ? '<button class="btn-s" onclick="rcmDeleteSelected()" style="font-size:11px;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected</button>' : '') +
+      '<button class="btn-s" onclick="rcmImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Controls</button>' +
+      '<input type="file" id="rcm-import-input" accept=".xlsx" style="display:none" onchange="rcmHandleImport(this)">' +
+      '<button class="btn-s" onclick="rcmExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Controls</button>' +
+      '<button class="btn-s" onclick="rcmExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>' +
+    '</div>' +
+    '<div style="border:0.5px solid var(--border-light);border-radius:8px;overflow:hidden;overflow-x:auto">' +
+      '<table style="width:100%;border-collapse:collapse;min-width:900px">' +
+        '<thead><tr>' +
+          '<th style="padding:7px 10px;background:var(--bg-secondary);width:32px"><input type="checkbox"' + (allChecked?' checked':'') + ' onchange="rcmSelectAll(this.checked)" style="cursor:pointer"></th>' +
+          cols.map(colHdr).join('') +
+          '<th style="padding:7px 10px;background:var(--bg-secondary);width:60px"></th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+          (sorted.length ? sorted.map(function(c) {
+            var idx = _fndControls.indexOf(c);
+            var checked = _rcmSelected.has(c.id);
+            var riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : [];
+            var riskHtml = riskIds.map(function(rid) {
+              var r = _fndRisks.find(function(x){ return x.id===rid; }) || RISKS[rid];
+              return r ? '<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 5px;white-space:nowrap;display:inline-block;margin:1px">' + rid + '</span>' : '';
+            }).join('');
+            var extraCtrlCells = '';
+            for (var ei=0; ei<maxExtraCtrl; ei++) {
+              var v = Array.isArray(c.extra_ctrl_owners) ? (c.extra_ctrl_owners[ei]||'') : '';
+              extraCtrlCells += '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(v||'—') + '</td>';
+            }
+            var extraProcCells = '';
+            for (var pi=0; pi<maxExtraProc; pi++) {
+              var vp = Array.isArray(c.extra_proc_owners) ? (c.extra_proc_owners[pi]||'') : '';
+              extraProcCells += '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(vp||'—') + '</td>';
+            }
+            return '<tr style="border-top:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s" onmouseenter="this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=\'\'" onclick="openRCMDialog(' + idx + ')">' +
+              '<td style="padding:8px 10px" onclick="event.stopPropagation()"><input type="checkbox"' + (checked?' checked':'') + ' onchange="rcmToggleSelect(\'' + c.id + '\',this.checked)" style="cursor:pointer"></td>' +
+              '<td style="padding:8px 10px"><span style="font-size:10px;font-weight:600;color:var(--wf-navy);background:#eff6ff;border:0.5px solid #93c5fd;border-radius:4px;padding:2px 6px">' + escHtml(c.category||'') + '</span></td>' +
+              '<td style="padding:8px 10px;font-size:11px;font-weight:700;color:var(--wf-navy);white-space:nowrap">' + escHtml(c.id) + '</td>' +
+              '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary);min-width:160px">' + escHtml(c.name||c.title||'') + '</td>' +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(c.objective||'') + '">' + escHtml(c.objective||'—') + '</td>' +
+              '<td style="padding:8px 10px">' + (riskHtml || '<span style="color:var(--text-tertiary);font-size:11px">—</span>') + '</td>' +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(c.ctrl_owner||'—') + '</td>' +
+              extraCtrlCells +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(c.proc_owner||'—') + '</td>' +
+              extraProcCells +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">' + escHtml(c.frequency||'—') + '</td>' +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">' + escHtml(c.control_type||'—') + '</td>' +
+              '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(c.additional_info||'') + '">' + escHtml(c.additional_info||'—') + '</td>' +
+              '<td style="padding:8px 10px;text-align:center" onclick="event.stopPropagation()"><button onclick="rcmDeleteOne(' + idx + ')" class="icon-btn" title="Delete" style="color:var(--red-700);opacity:0.7;font-size:14px"><i class="ti ti-trash"></i></button></td>' +
+            '</tr>';
+          }).join('') : '<tr><td colspan="' + totalCols + '" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No controls defined. Click <strong>Add Control</strong> to create one.</td></tr>') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
 }
 
-function addFoundationsControl() {
-  _fndControls.push({ id: 'CTRL-' + String(_fndControls.length+1).padStart(2,'0'), name: '', category: 'Operations', objective: '', description: '' });
+function rcmSort(col) {
+  if (_rcmSortCol===col) _rcmSortDir=_rcmSortDir==='asc'?'desc':'asc';
+  else { _rcmSortCol=col; _rcmSortDir='asc'; }
   renderFoundationsRCM();
 }
-function updateFoundationsControl(i, f, v) { if (_fndControls[i]) _fndControls[i][f] = v; }
-function deleteFoundationsControl(i) { if (confirm('Delete this control?')) { _fndControls.splice(i,1); renderFoundationsRCM(); } }
+function rcmSelectAll(checked) {
+  _fndControls.forEach(function(c){ checked?_rcmSelected.add(c.id):_rcmSelected.delete(c.id); });
+  renderFoundationsRCM();
+}
+function rcmToggleSelect(id, checked) {
+  checked?_rcmSelected.add(id):_rcmSelected.delete(id);
+  renderFoundationsRCM();
+}
+async function rcmDeleteOne(idx) {
+  var c = _fndControls[idx];
+  if (!c) return;
+  rcmConfirmDelete(
+    'Delete Control',
+    'Are you sure you want to delete <strong>' + escHtml(c.name||c.id) + '</strong>?<br><span style="font-size:11px;color:var(--text-tertiary)">Control ID: ' + escHtml(c.id) + ' · This cannot be undone.</span>',
+    async function() {
+      await _deleteControlFromDB(c.id);
+      delete CONTROLS[c.id];
+      delete CTRL_RISKS_MAP[c.id];
+      _fndControls.splice(idx, 1);
+      _rcmSelected.delete(c.id);
+      renderFoundationsRCM();
+    }
+  );
+}
+
+async function rcmDeleteSelected() {
+  if (!_rcmSelected.size) return;
+  var count = _rcmSelected.size;
+  var names = [..._rcmSelected].map(function(id) {
+    var ctrl = _fndControls.find(function(c){ return c.id===id; });
+    return escHtml(ctrl ? (ctrl.name||ctrl.id) : id);
+  });
+  var listHtml = names.length <= 5
+    ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(function(n){ return '<li>'+n+'</li>'; }).join('') + '</ul>'
+    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
+  rcmConfirmDelete(
+    'Delete ' + count + ' Control' + (count!==1?'s':''),
+    'Are you sure you want to delete <strong>' + count + ' control' + (count!==1?'s':'') + '</strong>? This cannot be undone.' + listHtml,
+    async function() {
+      for (var id of _rcmSelected) {
+        await _deleteControlFromDB(id);
+        delete CONTROLS[id];
+        delete CTRL_RISKS_MAP[id];
+        var i = _fndControls.findIndex(function(c){ return c.id===id; });
+        if (i>=0) _fndControls.splice(i,1);
+      }
+      _rcmSelected.clear();
+      renderFoundationsRCM();
+    }
+  );
+}
+
+function rcmConfirmDelete(title, bodyHtml, onConfirm) {
+  var id = 'rcm-confirm-overlay';
+  document.getElementById(id)?.remove();
+  var html =
+    '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\''+id+'\')?.remove()">' +
+      '<div style="background:var(--bg-primary);border-radius:12px;width:min(420px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+        '<div style="padding:18px 20px 14px;display:flex;align-items:flex-start;gap:14px">' +
+          '<div style="width:38px;height:38px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+            '<i class="ti ti-alert-triangle" style="font-size:18px;color:#dc2626"></i>' +
+          '</div>' +
+          '<div style="flex:1">' +
+            '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">'+title+'</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">'+bodyHtml+'</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">' +
+          '<button class="btn-s" onclick="document.getElementById(\''+id+'\')?.remove()">Cancel</button>' +
+          '<button class="btn-p" id="rcm-confirm-btn" style="background:#dc2626;border-color:#dc2626"><i class="ti ti-trash"></i>Delete</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('rcm-confirm-btn').onclick = function() {
+    document.getElementById(id)?.remove();
+    onConfirm();
+  };
+}
+// ── RCM field definitions ─────────────────────────────────────────────────────
+// ── RCM base field definitions (static fields, no dynamic owner columns) ──────
+var RCM_BASE_FIELDS = [
+  { key:'id',              label:'Control ID',             fmt:'Text | Max 20 chars | Required | Pattern: [A-Z0-9-]+', maxLen:20,   required:true, pattern:/^[A-Za-z0-9\-]+$/ },
+  { key:'name',            label:'Control Title',          fmt:'Text | Max 200 chars | Required',                       maxLen:200,  required:true },
+  { key:'category',        label:'Category',               fmt:'Text | Max 50 chars | Values: Access, Change Management, Operations, Financial Reporting, Compliance, IT General Controls, Payroll, Vendor Due Diligence, Other', maxLen:50 },
+  { key:'objective',       label:'Control Objective',      fmt:'Text | Max 500 chars',                                  maxLen:500  },
+  { key:'description',     label:'Control Description',    fmt:'Text | Max 2000 chars',                                 maxLen:2000 },
+  { key:'additional_info', label:'Additional Information', fmt:'Text | Max 2000 chars',                                 maxLen:2000 },
+];
+
+// Owner-related fields are generated dynamically
+var RCM_TAIL_FIELDS = [
+  { key:'frequency',       label:'Frequency',    fmt:'Text | Values: Daily, Weekly, Monthly, Quarterly, Semi-Annual, Annual, Ad Hoc, Per Occurrence, or blank', maxLen:30,
+    validValues:['','Daily','Weekly','Monthly','Quarterly','Semi-Annual','Annual','Ad Hoc','Per Occurrence'] },
+  { key:'control_type',    label:'Control Type', fmt:'Text | Values: Preventive, Detective, Corrective, Directive, Compensating, or blank', maxLen:30,
+    validValues:['','Preventive','Detective','Corrective','Directive','Compensating'] },
+  { key:'linked_risks',    label:'Linked Risks',    fmt:'Text | Max 500 chars | Semicolon-separated Risk IDs',    maxLen:500 },
+  { key:'linked_entities', label:'Linked Entities', fmt:'Text | Max 500 chars | Semicolon-separated Entity IDs', maxLen:500 },
+  { key:'linked_accounts', label:'Linked Accounts', fmt:'Text | Max 500 chars | Semicolon-separated Account IDs',maxLen:500 },
+];
+
+// Build dynamic field list based on max extra owners in current data (or a minimum for templates)
+function rcmBuildFieldList(minExtraCtrl, minExtraProc) {
+  minExtraCtrl = minExtraCtrl || 0;
+  minExtraProc = minExtraProc || 0;
+
+  var maxExtraCtrl = Math.max(minExtraCtrl,
+    _fndControls.reduce(function(m,c){ return Math.max(m, Array.isArray(c.extra_ctrl_owners)?c.extra_ctrl_owners.length:0); }, 0));
+  var maxExtraProc = Math.max(minExtraProc,
+    _fndControls.reduce(function(m,c){ return Math.max(m, Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.length:0); }, 0));
+
+  var fields = RCM_BASE_FIELDS.slice();
+
+  // Primary control owner
+  fields.push({ key:'ctrl_owner', label:'Control Owner (Primary)', fmt:'Text | Max 100 chars', maxLen:100 });
+  // Extra control owners
+  for (var ei=0; ei<maxExtraCtrl; ei++) {
+    var num = ei+2;
+    fields.push({ key:'extra_ctrl_'+ei, label:'Control Owner #'+num, fmt:'Text | Max 100 chars', maxLen:100,
+      _extraCtrl:ei });
+  }
+
+  // Primary process owner
+  fields.push({ key:'proc_owner', label:'Process Owner (Primary)', fmt:'Text | Max 100 chars', maxLen:100 });
+  // Extra process owners
+  for (var pi=0; pi<maxExtraProc; pi++) {
+    var pnum = pi+2;
+    fields.push({ key:'extra_proc_'+pi, label:'Process Owner #'+pnum, fmt:'Text | Max 100 chars', maxLen:100,
+      _extraProc:pi });
+  }
+
+  return fields.concat(RCM_TAIL_FIELDS);
+}
+
+// Extract value from a control for a given field definition
+function rcmFieldValue(c, f) {
+  if (f._extraCtrl != null) {
+    return Array.isArray(c.extra_ctrl_owners) ? (c.extra_ctrl_owners[f._extraCtrl] || '') : '';
+  }
+  if (f._extraProc != null) {
+    return Array.isArray(c.extra_proc_owners) ? (c.extra_proc_owners[f._extraProc] || '') : '';
+  }
+  var v = c[f.key];
+  if (Array.isArray(v)) return v.join(';');
+  return v || '';
+}
+
+function rcmExportCSV() { rcmExportXLSX(false); } // alias
+
+function rcmExportXLSX(templateOnly) {
+  // For template, include at least 3 extra owner slots so users know the format
+  var fields = rcmBuildFieldList(templateOnly ? 3 : 0, templateOnly ? 3 : 0);
+
+  var doExport = function(XLSX) {
+    var fmtRow  = fields.map(function(f){ return f.fmt || ''; });
+    var headers = fields.map(function(f){ return f.label; });
+    var wsData  = [fmtRow, headers];
+
+    if (!templateOnly) {
+      _fndControls.forEach(function(c) {
+        wsData.push(fields.map(function(f){ return rcmFieldValue(c, f); }));
+      });
+    }
+
+    var ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = fields.map(function(f) { return { wch: Math.min(Math.max(f.label.length+4, 16), 45) }; });
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'RCM');
+    var fname = templateOnly
+      ? 'RCM_Import_Template.xlsx'
+      : 'RCM_Export_' + new Date().toISOString().slice(0,10) + '.xlsx';
+    XLSX.writeFile(wb, fname);
+  };
+
+  if (window.XLSX) { doExport(window.XLSX); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload  = function() { doExport(window.XLSX); };
+  s.onerror = function() { alert('Could not load xlsx library. Check your internet connection.'); };
+  document.head.appendChild(s);
+}
+
+function rcmImportTrigger() {
+  var el = document.getElementById('rcm-import-input');
+  if (el) { el.value = ''; el.click(); }
+}
+
+function rcmHandleImport(input) {
+  var file = input.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    rcmShowImportResult(false, 'Invalid file type. Please select a <strong>.xlsx</strong> file.');
+    return;
+  }
+
+  var doImport = function(XLSX) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb   = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+        var ws   = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+        if (rows.length < 2) {
+          rcmShowImportResult(false, 'File is empty or missing the required rows (format row + header row).');
+          return;
+        }
+
+        // Row 0 = format spec, Row 1 = headers
+        var fileHeaders = rows[1].map(function(h){ return String(h||'').trim(); });
+
+        // Detect how many extra ctrl/proc owner columns are in the file
+        var maxExtraCtrl = 0, maxExtraProc = 0;
+        fileHeaders.forEach(function(h) {
+          var ctrlM = h.match(/^Control Owner #(\d+)$/);
+          if (ctrlM) maxExtraCtrl = Math.max(maxExtraCtrl, parseInt(ctrlM[1])-1);
+          var procM = h.match(/^Process Owner #(\d+)$/);
+          if (procM) maxExtraProc = Math.max(maxExtraProc, parseInt(procM[1])-1);
+        });
+
+        // Build field list matching what the file actually has
+        var fields = rcmBuildFieldList(maxExtraCtrl, maxExtraProc);
+        var expectedHeaders = fields.map(function(f){ return f.label; });
+
+        // Validate headers
+        var missingHeaders = expectedHeaders.filter(function(h){ return fileHeaders.indexOf(h)<0; });
+        if (missingHeaders.length) {
+          rcmShowImportResult(false,
+            'Column headers do not match. Missing columns:<br><strong>' + missingHeaders.join(', ') +
+            '</strong><br><br>Use <em>Export Template</em> to get the correct format.');
+          return;
+        }
+
+        // Build column index lookup
+        var colIdx = {};
+        fields.forEach(function(f) { colIdx[f.key] = fileHeaders.indexOf(f.label); });
+        // Also map dynamic extra owner fields by label
+        fields.forEach(function(f) {
+          if (f._extraCtrl != null || f._extraProc != null) {
+            colIdx[f.key] = fileHeaders.indexOf(f.label);
+          }
+        });
+
+        // Validate and collect data rows (rows 2+)
+        var dataRows = rows.slice(2);
+        var errors   = [];
+        var valid    = [];
+
+        dataRows.forEach(function(row, ri) {
+          var rowNum  = ri + 3;
+          var isEmpty = row.every(function(v){ return !String(v||'').trim(); });
+          if (isEmpty) return;
+
+          var rowErrors = [];
+          var ctrl = { extra_ctrl_owners:[], extra_proc_owners:[] };
+
+          fields.forEach(function(f) {
+            var ci  = colIdx[f.key];
+            var raw = (ci >= 0 && ci < row.length) ? String(row[ci]||'').trim() : '';
+
+            if (f.required && !raw)
+              rowErrors.push('<em>' + f.label + '</em>: required');
+            if (f.maxLen && raw.length > f.maxLen)
+              rowErrors.push('<em>' + f.label + '</em>: max ' + f.maxLen + ' chars (got ' + raw.length + ')');
+            if (f.pattern && raw && !f.pattern.test(raw))
+              rowErrors.push('<em>' + f.label + '</em>: invalid format');
+            if (f.validValues && raw && f.validValues.indexOf(raw) < 0)
+              rowErrors.push('<em>' + f.label + '</em>: invalid value "' + raw + '"');
+
+            // Store value into ctrl
+            if (f._extraCtrl != null) {
+              ctrl.extra_ctrl_owners[f._extraCtrl] = raw;
+            } else if (f._extraProc != null) {
+              ctrl.extra_proc_owners[f._extraProc] = raw;
+            } else if (['linked_risks','linked_entities','linked_accounts'].indexOf(f.key) >= 0) {
+              ctrl[f.key] = raw ? raw.split(';').map(function(s){ return s.trim(); }).filter(Boolean) : [];
+            } else {
+              ctrl[f.key] = raw;
+            }
+          });
+
+          // Remove empty trailing extra owners
+          ctrl.extra_ctrl_owners = ctrl.extra_ctrl_owners.filter(Boolean);
+          ctrl.extra_proc_owners = ctrl.extra_proc_owners.filter(Boolean);
+
+          if (rowErrors.length) {
+            if (errors.length < 20) {
+              errors.push({ row:rowNum, issues:rowErrors });
+            } else if (errors.length === 20) {
+              errors.push({ row:-1 }); // overflow sentinel
+            }
+          } else {
+            valid.push(ctrl);
+          }
+        });
+
+        if (errors.length) {
+          var overflow = errors[errors.length-1].row === -1;
+          var shown    = overflow ? errors.slice(0,20) : errors;
+          var html =
+            '<div style="font-size:12px;font-weight:600;color:var(--red-700);margin-bottom:10px">' +
+              (errors.length-(overflow?1:0)) + ' row' + ((errors.length-(overflow?1:0))!==1?'s':'') + ' failed validation' +
+              (valid.length ? ' &nbsp;·&nbsp; <span style="color:#16a34a">'+valid.length+' row'+(valid.length!==1?'s':'')+' are valid</span>' : '') +
+            '</div>' +
+            '<div style="max-height:280px;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:6px">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:11px">' +
+            '<thead><tr style="background:var(--bg-secondary)">' +
+              '<th style="padding:6px 10px;text-align:left;color:var(--text-tertiary);white-space:nowrap">Row #</th>' +
+              '<th style="padding:6px 10px;text-align:left;color:var(--text-tertiary)">Issues</th>' +
+            '</tr></thead><tbody>' +
+            shown.map(function(e) {
+              return '<tr style="border-top:0.5px solid var(--border-light)">' +
+                '<td style="padding:6px 10px;font-weight:600;color:var(--wf-navy);vertical-align:top;white-space:nowrap">Row ' + e.row + '</td>' +
+                '<td style="padding:6px 10px;color:var(--text-secondary);line-height:1.7">' + e.issues.join('<br>') + '</td>' +
+              '</tr>';
+            }).join('') +
+            (overflow ? '<tr style="border-top:0.5px solid var(--border-light);background:#fffbeb"><td colspan="2" style="padding:8px 10px;font-size:11px;color:#92400e;font-style:italic">… additional non-compliant records not shown</td></tr>' : '') +
+            '</tbody></table></div>';
+          rcmShowImportResult(false, html, valid.length ? valid : null, valid.length);
+        } else {
+          rcmApplyImport(valid);
+        }
+
+      } catch(err) {
+        rcmShowImportResult(false, 'Error reading file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  if (window.XLSX) { doImport(window.XLSX); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload  = function() { doImport(window.XLSX); };
+  s.onerror = function() { rcmShowImportResult(false, 'Could not load xlsx library. Check your internet connection.'); };
+  document.head.appendChild(s);
+}
+
+function rcmShowImportResult(success, html, validControls, validCount) {
+  var oid = 'rcm-import-result-overlay';
+  document.getElementById(oid)?.remove();
+
+  var footerHtml = '<button class="btn-s" onclick="document.getElementById(\''+oid+'\')?.remove()">Close</button>';
+  if (validControls && validControls.length) {
+    window._rcmPendingImport = validControls;
+    footerHtml =
+      '<button class="btn-s" onclick="document.getElementById(\''+oid+'\')?.remove()">Cancel</button>' +
+      '<button class="btn-p" onclick="rcmApplyImport(window._rcmPendingImport);document.getElementById(\''+oid+'\')?.remove()" style="background:#ea580c;border-color:#ea580c">' +
+        '<i class="ti ti-upload"></i>Import ' + validCount + ' valid record' + (validCount!==1?'s':'') +
+      '</button>';
+  }
+
+  document.body.insertAdjacentHTML('beforeend',
+    '<div id="'+oid+'" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">' +
+    '<div style="background:var(--bg-primary);border-radius:12px;width:min(660px,96vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+      '<div style="background:'+(success?'var(--wf-navy)':'#dc2626')+';color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div style="display:flex;align-items:center;gap:10px"><i class="ti '+(success?'ti-circle-check':'ti-alert-triangle')+'" style="font-size:18px"></i>' +
+        '<span style="font-size:15px;font-weight:700">'+(success?'Import Successful':'Import Validation Errors')+'</span></div>' +
+        '<button onclick="document.getElementById(\''+oid+'\')?.remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>' +
+      '</div>' +
+      '<div style="padding:20px;overflow-y:auto;flex:1">' + html + '</div>' +
+      '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">' + footerHtml + '</div>' +
+    '</div></div>');
+}
+
+async function rcmApplyImport(controls) {
+  window._rcmPendingImport = null;
+  var added=0, updated=0;
+  for (var i=0; i<controls.length; i++) {
+    var c = controls[i];
+    var xi = _fndControls.findIndex(function(x){ return x.id===c.id; });
+    if (xi >= 0) { Object.assign(_fndControls[xi], c); updated++; }
+    else          { _fndControls.push(c); added++; }
+    CONTROLS[c.id] = { id:c.id, title:c.name||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' };
+    CTRL_RISKS_MAP[c.id] = Array.isArray(c.linked_risks) ? c.linked_risks : [];
+    await _saveControlToDB(c);
+  }
+  renderFoundationsRCM();
+  rcmShowImportResult(true,
+    '<div style="font-size:13px;color:var(--text-secondary);line-height:2.2">' +
+    (added   ? '<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>'+added+'</strong> new control'+(added!==1?'s':'')+' added</div>' : '') +
+    (updated ? '<div><i class="ti ti-refresh"      style="color:#2563eb;margin-right:8px"></i><strong>'+updated+'</strong> existing control'+(updated!==1?'s':'')+' updated</div>' : '') +
+    '</div>');
+}
+
+// ── RCM detail dialog ─────────────────────────────────────────────────────────
+// ── RCM owner row helper ─────────────────────────────────────────────────────
+function rcmOwnerRow(idx, type, pos, val, isPrimary) {
+  var label = isPrimary ? '(primary)' : '#'+(pos+1);
+  var placeholder = (isPrimary ? 'Primary ' : '') + (type==='ctrl' ? 'Control Owner' : 'Process Owner') + ' — name, title';
+  return '<div id="rcm-'+type+'-owner-row-'+pos+'" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+    '<span style="font-size:10px;font-weight:600;color:var(--text-tertiary);white-space:nowrap;min-width:56px">'+label+'</span>' +
+    '<input type="text" value="'+escHtml(val||'')+'" placeholder="'+placeholder+'" ' +
+      'style="flex:1;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
+      'oninput="rcmUpdateOwner('+idx+',\''+type+'\','+pos+',this.value)">' +
+    (isPrimary ? '' :
+      '<button type="button" onclick="rcmRemoveOwner('+idx+',\''+type+'\','+pos+')" title="Remove" class="icon-btn" style="color:var(--red-700);font-size:15px;opacity:0.7;flex-shrink:0"><i class="ti ti-trash"></i></button>') +
+  '</div>';
+}
+
+function rcmAddOwner(idx, type) {
+  var c = _fndControls[idx];
+  if (!c) return;
+  var key = type==='ctrl' ? 'extra_ctrl_owners' : 'extra_proc_owners';
+  if (!Array.isArray(c[key])) c[key] = [];
+  c[key].push('');
+  var container = document.getElementById('rcm-'+type+'-owners');
+  if (!container) return;
+  var pos = c[key].length; // 1-based (0 = primary)
+  var row = rcmOwnerRow(idx, type, pos, '', false);
+  container.insertAdjacentHTML('beforeend', row);
+  container.querySelector('#rcm-'+type+'-owner-row-'+pos+' input')?.focus();
+  // Grid will update when dialog is saved — no need to re-render now
+}
+
+function rcmRemoveOwner(idx, type, pos) {
+  var c = _fndControls[idx];
+  if (!c) return;
+  var key = type==='ctrl' ? 'extra_ctrl_owners' : 'extra_proc_owners';
+  if (!Array.isArray(c[key])) return;
+  // pos is 1-based for extras (0 = primary)
+  var extraIdx = pos - 1;
+  c[key].splice(extraIdx, 1);
+  // Re-render the owner section
+  var container = document.getElementById('rcm-'+type+'-owners');
+  if (!container) return;
+  container.innerHTML = rcmOwnerRow(idx, type, 0, c[type==='ctrl'?'ctrl_owner':'proc_owner']||'', true) +
+    c[key].map(function(v,i){ return rcmOwnerRow(idx,type,i+1,v,false); }).join('');
+}
+
+function rcmUpdateOwner(idx, type, pos, value) {
+  var c = _fndControls[idx];
+  if (!c) return;
+  if (pos === 0) {
+    // primary
+    c[type==='ctrl'?'ctrl_owner':'proc_owner'] = value;
+  } else {
+    var key = type==='ctrl'?'extra_ctrl_owners':'extra_proc_owners';
+    if (!Array.isArray(c[key])) c[key]=[];
+    c[key][pos-1] = value;
+  }
+}
+
+// ── RCM combo-box helpers ─────────────────────────────────────────────────────
+window._rcmObjectivePool = window._rcmObjectivePool || [];
+
+function rcmToggleCombo(dropId) {
+  var d = document.getElementById(dropId);
+  if (!d) return;
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+}
+
+function rcmFilterCombo(dropId, query) {
+  var d = document.getElementById(dropId);
+  if (!d) return;
+  var q = (query||'').toLowerCase();
+  d.style.display = 'block';
+  d.querySelectorAll('.rcm-combo-opt').forEach(function(opt) {
+    var text = (opt.dataset.val||'') + ' ' + (opt.dataset.label||'');
+    opt.style.display = !q || text.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function rcmSelectObjective(idx, inputId, dropId, value) {
+  var el = document.getElementById(inputId);
+  if (el) el.value = value;
+  rcmDialogUpdate(idx, 'objective', value);
+  var d = document.getElementById(dropId);
+  if (d) d.style.display = 'none';
+}
+
+function rcmSelectRisk(idx, inputId, dropId, riskId, riskLabel) {
+  // Select an existing risk — link it via toggle
+  rcmDialogToggleRisk(idx, riskId, true);
+  // Refresh checkbox state in the list
+  var cb = document.querySelector('#rcm-risk-list input[value="'+riskId+'"]');
+  if (cb) cb.checked = true;
+  var el = document.getElementById(inputId);
+  if (el) el.value = '';
+  var d = document.getElementById(dropId);
+  if (d) d.style.display = 'none';
+  // Update the "linked" indicator in the dropdown
+  var opt = d && d.querySelector('.rcm-combo-opt[data-val="'+riskId+'"]');
+  if (opt) opt.innerHTML = opt.innerHTML.replace(/✓ linked|$/, '✓ linked');
+}
+
+async function rcmQuickAddRisk(idx, inputId) {
+  var el = document.getElementById(inputId);
+  var name = (el ? el.value : '').trim();
+  if (!name) { if (el) el.focus(); return; }
+
+  var c = _fndControls[idx];
+  if (!c) return;
+
+  // Check if a risk with this exact name already exists
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id,name:r.title||r.name||'',description:r.description||''}; });
+  var existing = allRisks.find(function(r){ return (r.name||r.title||'').toLowerCase()===name.toLowerCase(); });
+
+  var riskId;
+  if (existing) {
+    // Just link the existing risk
+    riskId = existing.id;
+  } else {
+    // Create new risk with auto-generated ID
+    var existingIds = allRisks.map(function(r){ return r.id; });
+    var baseNum = 1;
+    do { riskId = 'RSK-USER-' + String(baseNum).padStart(3,'0'); baseNum++; }
+    while (existingIds.indexOf(riskId) >= 0);
+
+    var newRisk = { id: riskId, name: name, title: name, description: '' };
+    _fndRisks.push(newRisk);
+    RISKS[riskId] = { id: riskId, title: name, description: '' };
+    await _saveRiskToDB(newRisk);
+  }
+
+  // Link to this control
+  if (!Array.isArray(c.linked_risks)) c.linked_risks = [];
+  if (c.linked_risks.indexOf(riskId) < 0) c.linked_risks.push(riskId);
+  CTRL_RISKS_MAP[c.id] = c.linked_risks.slice();
+
+  // Clear input and refresh the risk list section
+  if (el) el.value = '';
+  var riskSection = document.getElementById('rcm-risk-list');
+  if (riskSection) {
+    // Find and check the checkbox if it exists, or add a new one
+    var cb = riskSection.querySelector('input[value="'+riskId+'"]');
+    if (cb) {
+      cb.checked = true;
+    } else {
+      // Append new checkbox entry
+      var newLabel = document.createElement('label');
+      newLabel.style.cssText = 'display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer';
+      newLabel.innerHTML =
+        '<input type="checkbox" value="'+riskId+'" checked style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleRisk('+idx+',\''+riskId+'\',this.checked)">' +
+        '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">' +
+        '<span style="font-size:10px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-right:5px">'+riskId+'</span>'+
+        escHtml(name)+'</div></div>';
+      riskSection.appendChild(newLabel);
+    }
+  }
+}
+
+// When saving, also persist any new free-text objectives to the pool
+function rcmPersistObjective(value) {
+  if (!value || !value.trim()) return;
+  if (!Array.isArray(window._rcmObjectivePool)) window._rcmObjectivePool = [];
+  if (window._rcmObjectivePool.indexOf(value.trim()) < 0) {
+    window._rcmObjectivePool.push(value.trim());
+  }
+}
+
+function openRCMDialog(idx) {
+  var c = _fndControls[idx];
+  if (!c) return;
+  if (!Array.isArray(c.linked_risks))    c.linked_risks    = [];
+  if (!Array.isArray(c.linked_entities)) c.linked_entities = [];
+  if (!Array.isArray(c.linked_accounts)) c.linked_accounts = [];
+
+  var CATEGORIES = ['Access','Change Management','Operations','Financial Reporting','Compliance','IT General Controls','Payroll','Vendor Due Diligence','Other'];
+  var FREQUENCIES = ['','Daily','Weekly','Monthly','Quarterly','Semi-Annual','Annual','Ad Hoc','Per Occurrence'];
+  var CTRL_TYPES  = ['','Preventive','Detective','Corrective','Directive','Compensating'];
+
+  // ── Build objective pool from all controls ────────────────────────────────
+  var objectivePool = [];
+  _fndControls.forEach(function(x) {
+    if (x.objective && x.objective.trim() && objectivePool.indexOf(x.objective.trim()) < 0) {
+      objectivePool.push(x.objective.trim());
+    }
+  });
+  // Add any custom objectives stored separately
+  if (Array.isArray(window._rcmObjectivePool)) {
+    window._rcmObjectivePool.forEach(function(o) {
+      if (o && objectivePool.indexOf(o) < 0) objectivePool.push(o);
+    });
+  }
+  objectivePool.sort();
+
+  // ── Build risk list ───────────────────────────────────────────────────────
+  var allRisks = _fndRisks.length ? _fndRisks
+    : Object.values(RISKS).map(function(r){ return {id:r.id, name:r.title||r.name||'', description:r.description||''}; });
+
+  // ── Combo-box: Control Objective ──────────────────────────────────────────
+  var objDropId  = 'rcm-obj-drop-'+idx;
+  var objInputId = 'rcm-obj-input-'+idx;
+  var objectiveCombo =
+    '<div style="position:relative">' +
+      '<div style="display:flex;gap:6px">' +
+        '<input type="text" id="'+objInputId+'" value="'+escHtml(c.objective||'')+'" placeholder="Type a control objective or select from list…" autocomplete="off" ' +
+          'style="flex:1;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px 0 0 6px;padding:8px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
+          'oninput="rcmDialogUpdate('+idx+',\'objective\',this.value);rcmFilterCombo(\''+objDropId+'\',this.value)" ' +
+          'onfocus="document.getElementById(\''+objDropId+'\').style.display=\'block\'" ' +
+          'onblur="setTimeout(function(){var d=document.getElementById(\''+objDropId+'\');if(d)d.style.display=\'none\';},180)">' +
+        '<button type="button" onclick="rcmToggleCombo(\''+objDropId+'\')" title="Show saved objectives" ' +
+          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 6px 6px 0;padding:0 10px;background:var(--bg-secondary);cursor:pointer;color:var(--text-tertiary)">' +
+          '<i class="ti ti-chevron-down" style="font-size:12px"></i>' +
+        '</button>' +
+      '</div>' +
+      '<div id="'+objDropId+'" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;max-height:180px;overflow-y:auto">' +
+        (objectivePool.length
+          ? objectivePool.map(function(o) {
+              return '<div class="rcm-combo-opt" onclick="rcmSelectObjective('+idx+',\''+objInputId+'\',\''+objDropId+'\',this.dataset.val)" data-val="'+escHtml(o)+'" ' +
+                'style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:0.5px solid var(--border-light);color:var(--text-primary)" ' +
+                'onmouseenter="this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=\'\'">'+escHtml(o)+'</div>';
+            }).join('')
+          : '<div style="padding:10px 12px;font-size:12px;color:var(--text-tertiary);font-style:italic">No saved objectives yet — type below to create one</div>') +
+      '</div>' +
+    '</div>';
+
+  // ── Combo-box: Quick-add Risk ─────────────────────────────────────────────
+  var rskDropId  = 'rcm-rsk-drop-'+idx;
+  var rskInputId = 'rcm-rsk-input-'+idx;
+  var riskQuickAdd =
+    '<div style="margin-bottom:8px;padding-bottom:10px;border-bottom:0.5px solid var(--border-light)">' +
+      '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Add risk from list or enter new risk:</div>' +
+      '<div style="display:flex;gap:6px;position:relative">' +
+        '<input type="text" id="'+rskInputId+'" placeholder="Select existing risk or type new risk name…" autocomplete="off" ' +
+          'style="flex:1;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px 0 0 6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
+          'oninput="rcmFilterCombo(\''+rskDropId+'\',this.value)" ' +
+          'onfocus="document.getElementById(\''+rskDropId+'\').style.display=\'block\'" ' +
+          'onblur="setTimeout(function(){var d=document.getElementById(\''+rskDropId+'\');if(d)d.style.display=\'none\';},180)">' +
+        '<button type="button" onclick="rcmToggleCombo(\''+rskDropId+'\')" ' +
+          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 0 0 0;padding:0 8px;background:var(--bg-secondary);cursor:pointer;color:var(--text-tertiary)">' +
+          '<i class="ti ti-chevron-down" style="font-size:12px"></i>' +
+        '</button>' +
+        '<button type="button" onclick="rcmQuickAddRisk('+idx+',\''+rskInputId+'\')" ' +
+          'style="border:0.5px solid var(--border-light);border-left:none;border-radius:0 6px 6px 0;padding:0 10px;background:var(--wf-navy);color:#fff;cursor:pointer;font-size:11px;white-space:nowrap">' +
+          '<i class="ti ti-plus"></i>Add' +
+        '</button>' +
+        '<div id="'+rskDropId+'" style="display:none;position:absolute;left:0;right:72px;top:calc(100% + 3px);background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:9999;max-height:160px;overflow-y:auto">' +
+          allRisks.map(function(r) {
+            var already = c.linked_risks.indexOf(r.id) >= 0;
+            return '<div class="rcm-combo-opt" data-val="'+escHtml(r.id)+'" data-label="'+escHtml(r.name||r.title||'')+'" ' +
+              'onclick="rcmSelectRisk('+idx+',\''+rskInputId+'\',\''+rskDropId+'\',this.dataset.val,this.dataset.label)" ' +
+              'style="padding:7px 12px;font-size:12px;cursor:pointer;border-bottom:0.5px solid var(--border-light);'+(already?'opacity:0.45;':'')+'color:var(--text-primary)" ' +
+              'onmouseenter="this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=\'\'">' +
+              '<span style="font-size:10px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-right:6px">'+escHtml(r.id)+'</span>' +
+              escHtml(r.name||r.title||'') + (already?' <span style="font-size:10px;color:#16a34a">✓ linked</span>':'') +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // ── Existing risk checkboxes ──────────────────────────────────────────────
+  var riskCheckboxes = allRisks.map(function(r) {
+    var checked = c.linked_risks.indexOf(r.id)>=0;
+    return '<label style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
+      '<input type="checkbox" value="'+r.id+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleRisk('+idx+',\''+r.id+'\',this.checked)">' +
+      '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)"><span style="font-size:10px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-right:5px">'+r.id+'</span>'+escHtml(r.name||r.title||'')+'</div>' +
+      (r.description?'<div style="font-size:11px;color:var(--text-tertiary);margin-top:1px;line-height:1.4">'+escHtml(r.description.slice(0,100))+(r.description.length>100?'…':'')+'</div>':'') +
+      '</div></label>';
+  }).join('');
+
+
+  // ── Linked Assessment Entities ────────────────────────────────────────────
+  var entityList = (typeof _fndEntities!=='undefined'&&_fndEntities.length) ? _fndEntities : ALL_ENTITIES;
+  var entityTypes = [];
+  entityList.forEach(function(e){
+    var t=e.type||e.category||'Other';
+    if(entityTypes.indexOf(t)<0) entityTypes.push(t);
+  });
+  entityTypes.sort();
+
+  var entityCheckboxes = entityTypes.map(function(type) {
+    var items = entityList.filter(function(e){ return (e.type||e.category||'Other')===type; });
+    var ts = (typeof getEntityTypeStyle==='function') ? getEntityTypeStyle(type) : {bg:'#f1f5f9',color:'#475569',border:'#cbd5e1',icon:'ti-tag'};
+    var header = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;margin-top:4px;color:var(--text-tertiary)">'+
+      '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:'+ts.bg+';color:'+ts.color+';border:0.5px solid '+ts.border+'">'+
+      '<i class="ti '+( ts.icon||'ti-tag')+'" style="font-size:10px"></i>'+type+'</span></div>';
+    var rows = items.sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(e) {
+      var checked = c.linked_entities.indexOf(e.id)>=0;
+      var loc = [e.city,e.state].filter(Boolean).join(', ');
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
+        '<input type="checkbox" value="'+e.id+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleEntity('+idx+',\''+e.id+'\',this.checked)">' +
+        '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escHtml(e.name||'')+'</div>' +
+        (loc?'<div style="font-size:10px;color:var(--text-tertiary)">'+escHtml(loc)+'</div>':'') +
+        '</div></label>';
+    }).join('');
+    return header+rows;
+  }).join('');
+
+  // ── Linked FS Accounts ───────────────────────────────────────────────────
+  var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
+    : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
+  var fsCategories = [];
+  fsList.forEach(function(f){ var cat=f.category||f.statement||'Other'; if(fsCategories.indexOf(cat)<0) fsCategories.push(cat); });
+  fsCategories.sort();
+
+  var fsCheckboxes = fsCategories.map(function(cat) {
+    var items = fsList.filter(function(f){ return (f.category||f.statement||'Other')===cat; });
+    var header = '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:6px 0 4px;margin-top:4px;color:var(--wf-navy)">'+escHtml(cat)+'</div>';
+    var rows = items.map(function(f) {
+      var fid = f.id||f.account;
+      var checked = c.linked_accounts.indexOf(fid)>=0;
+      var risk = f.riskLevel ? '<span style="font-size:10px;background:'+(f.riskLevel==='High'?'#fef2f2':f.riskLevel==='Medium'?'#fff7ed':'#f0fdf4')+';color:'+(f.riskLevel==='High'?'#dc2626':f.riskLevel==='Medium'?'#ea580c':'#16a34a')+';border-radius:3px;padding:1px 6px;margin-left:5px">'+f.riskLevel+'</span>' : '';
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border-light);cursor:pointer">' +
+        '<input type="checkbox" value="'+fid+'" '+(checked?'checked':'')+' style="margin-top:3px;flex-shrink:0" onchange="rcmDialogToggleAccount('+idx+',\''+fid+'\',this.checked)">' +
+        '<div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escHtml(f.label||f.name||fid||'')+risk+'</div>' +
+        (f.assertion?'<div style="font-size:10px;color:var(--text-tertiary)">'+escHtml(f.assertion)+'</div>':'') +
+        '</div></label>';
+    }).join('');
+    return header+rows;
+  }).join('');
+
+  // ── Section helper ───────────────────────────────────────────────────────
+  function sec(title, icon, content, id) {
+    return '<div style="grid-column:1/-1;margin-top:6px">' +
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 0 8px;border-top:1px solid var(--border-light)">' +
+      (icon?'<i class="ti '+icon+'" style="font-size:14px;color:var(--wf-navy)"></i>':'') +
+      '<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--wf-navy)">'+title+'</span></div>' +
+      '<div id="'+id+'" style="border:0.5px solid var(--border-light);border-radius:6px;overflow:hidden;max-height:200px;overflow-y:auto;padding:0 12px">'+
+      (content||'<div style="padding:14px 0;color:var(--text-tertiary);font-size:12px">None defined yet.</div>')+
+      '</div></div>';
+  }
+
+  function fld(label, note) {
+    return '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:5px">'+label+
+      (note?'<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--wf-navy);margin-left:6px"><i class="ti ti-sparkles" style="font-size:9px"></i>'+note+'</span>':'')+'</div>';
+  }
+  function inp(field, val, ph, bold) {
+    return '<input type="text" value="'+escHtml(val||'')+'" placeholder="'+escHtml(ph||'')+'" '+
+      'style="width:100%;font-size:'+(bold?'14':'12')+'px;font-weight:'+(bold?700:400)+';border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;outline:none;color:var(--text-primary)" '+
+      'oninput="rcmDialogUpdate('+idx+',\''+field+'\',this.value)">';
+  }
+  function sel(field, val, opts) {
+    return '<select onchange="rcmDialogUpdate('+idx+',\''+field+'\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+      opts.map(function(o){ return '<option value="'+o+'" '+((val||'')=== o?'selected':'')+'>'+( o||'Select…')+'</option>'; }).join('')+'</select>';
+  }
+
+  var html =
+    '<div id="rcm-dialog-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)closeRCMDialog()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(780px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+
+      // Header
+      '<div style="background:var(--wf-navy);color:#fff;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div><div style="font-size:16px;font-weight:700">'+escHtml(c.name||c.title||'New Control')+'</div>' +
+        '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'')+'</div></div>' +
+        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+      '</div>' +
+
+      // Body
+      '<div style="overflow-y:auto;padding:22px;flex:1">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">' +
+
+          // Row 1: ID + Category
+          '<div>'+fld('Control ID')+'<input type="text" value="'+escHtml(c.id||'')+'" placeholder="e.g. IT-CTL-01" style="width:100%;font-size:13px;font-weight:700;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--wf-navy)" oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
+          '<div>'+fld('Category')+sel('category', c.category, CATEGORIES)+'</div>' +
+
+          // Title (full)
+          '<div style="grid-column:1/-1">'+fld('Control Title')+inp('name', c.name||c.title, 'Control title', true)+'</div>' +
+
+          // Objective (full) — combo-box
+          '<div style="grid-column:1/-1">'+fld('Control Objective')+objectiveCombo+'</div>' +
+
+          // Description (full)
+          '<div style="grid-column:1/-1">'+fld('Control Description','sent to Claude when linked')+
+            '<textarea rows="3" placeholder="Detailed description of how the control operates…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" oninput="rcmDialogUpdate('+idx+',\'description\',this.value)">'+escHtml(c.description||'')+'</textarea></div>' +
+
+          '<div style="grid-column:1/-1">'+fld('Additional Information (regarding control operation)')+
+            '<textarea rows="2" placeholder="Additional context about how this control operates in practice, exceptions, known issues, or relevant notes…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" oninput="rcmDialogUpdate('+idx+',\'additional_info\',this.value)">'+escHtml(c.additional_info||'')+'</textarea></div>' +
+
+
+          // Control Owners (primary + additional)
+          '<div style="grid-column:1/-1">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Control Owners</div>' +
+              '<button type="button" onclick="rcmAddOwner('+idx+',\'ctrl\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add Owner</button>' +
+            '</div>' +
+            '<div id="rcm-ctrl-owners">' +
+              rcmOwnerRow(idx, 'ctrl', 0, c.ctrl_owner||'', true) +
+              (Array.isArray(c.extra_ctrl_owners)?c.extra_ctrl_owners.map(function(v,i){return rcmOwnerRow(idx,'ctrl',i+1,v,false);}).join(''):'') +
+            '</div>' +
+          '</div>' +
+
+          // Process Owners (primary + additional)
+          '<div style="grid-column:1/-1">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+              '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Process Owners</div>' +
+              '<button type="button" onclick="rcmAddOwner('+idx+',\'proc\')" class="btn-s" style="font-size:11px"><i class="ti ti-plus"></i>Add Owner</button>' +
+            '</div>' +
+            '<div id="rcm-proc-owners">' +
+              rcmOwnerRow(idx, 'proc', 0, c.proc_owner||'', true) +
+              (Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.map(function(v,i){return rcmOwnerRow(idx,'proc',i+1,v,false);}).join(''):'') +
+            '</div>' +
+          '</div>' +
+
+          // Frequency + Control Type
+          '<div>'+fld('Frequency')+sel('frequency', c.frequency, FREQUENCIES)+'</div>' +
+          '<div>'+fld('Control Type')+sel('control_type', c.control_type, CTRL_TYPES)+'</div>' +
+
+          // Linked Risks — quick-add combo + existing checkboxes
+          sec('Linked Risks', 'ti-alert-triangle', riskQuickAdd + (riskCheckboxes || '<div style="padding:10px 0;color:var(--text-tertiary);font-size:12px">No risks defined. Type a name above to create one.</div>'), 'rcm-risk-list') +
+
+          // Linked Assessment Entities
+          sec('Linked Assessment Entities', 'ti-building-community', entityCheckboxes||null, 'rcm-entity-list') +
+
+          // Linked FS Accounts
+          sec('Linked Financial Statement Accounts', 'ti-report-money', fsCheckboxes||null, 'rcm-fs-list') +
+
+        '</div>' +
+      '</div>' +
+
+      // Footer
+      '<div style="padding:14px 22px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--bg-secondary)">' +
+        '<button onclick="rcmDeleteOne('+idx+');closeRCMDialog();" class="btn-s" style="color:var(--red-700);border-color:var(--red-700);font-size:11px"><i class="ti ti-trash"></i>Delete</button>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn-s" onclick="closeRCMDialog()">Cancel</button>' +
+          '<button class="btn-p" id="rcm-save-btn" onclick="saveRCMFromDialog('+idx+')"><i class="ti ti-device-floppy"></i>Save</button>' +
+        '</div>' +
+      '</div>' +
+
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function rcmDialogUpdate(idx, field, value) {
+  if (_fndControls[idx]) _fndControls[idx][field] = value;
+}
+function rcmDialogToggleRisk(idx, riskId, checked) {
+  if (!_fndControls[idx]) return;
+  if (!Array.isArray(_fndControls[idx].linked_risks)) _fndControls[idx].linked_risks=[];
+  var arr=_fndControls[idx].linked_risks;
+  var i=arr.indexOf(riskId);
+  if(checked && i<0) arr.push(riskId);
+  else if(!checked && i>=0) arr.splice(i,1);
+  CTRL_RISKS_MAP[_fndControls[idx].id]=arr.slice();
+}
+function rcmDialogToggleEntity(idx, entityId, checked) {
+  if (!_fndControls[idx]) return;
+  if (!Array.isArray(_fndControls[idx].linked_entities)) _fndControls[idx].linked_entities=[];
+  var arr=_fndControls[idx].linked_entities;
+  var i=arr.indexOf(entityId);
+  if(checked && i<0) arr.push(entityId);
+  else if(!checked && i>=0) arr.splice(i,1);
+}
+function rcmDialogToggleAccount(idx, accountId, checked) {
+  if (!_fndControls[idx]) return;
+  if (!Array.isArray(_fndControls[idx].linked_accounts)) _fndControls[idx].linked_accounts=[];
+  var arr=_fndControls[idx].linked_accounts;
+  var i=arr.indexOf(accountId);
+  if(checked && i<0) arr.push(accountId);
+  else if(!checked && i>=0) arr.splice(i,1);
+}
+async function saveRCMFromDialog(idx) {
+  var c=_fndControls[idx];
+  if(!c) return;
+  var btn=document.getElementById('rcm-save-btn');
+  if(btn){btn.innerHTML='<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…';btn.disabled=true;}
+  CONTROLS[c.id]={id:c.id,title:c.name||c.title||'',description:c.description||'',ctrlOwner:c.ctrl_owner||'',procOwner:c.proc_owner||'',objective:c.objective||'',category:c.category||''};
+  CTRL_RISKS_MAP[c.id]=Array.isArray(c.linked_risks)?c.linked_risks:[];
+  if (c.objective) rcmPersistObjective(c.objective);
+  var ok=await _saveControlToDB(c);
+  if(btn){
+    btn.innerHTML=ok?'<i class="ti ti-check"></i> Saved!':'<i class="ti ti-alert-triangle"></i> Error';
+    btn.style.background=ok?'#16a34a':'#dc2626';
+    setTimeout(function(){closeRCMDialog();renderFoundationsRCM();},900);
+  }
+}
+function closeRCMDialog(){document.getElementById('rcm-dialog-overlay')?.remove();}
+
+
+async function addFoundationsControl() {
+  var newCtrl = { id:'CTRL-'+String(_fndControls.length+1).padStart(2,'0'), name:'', title:'', category:'Operations', objective:'', description:'', additional_info:'', ctrl_owner:'', proc_owner:'', extra_ctrl_owners:[], extra_proc_owners:[], frequency:'', control_type:'', linked_risks:[] };
+  _fndControls.unshift(newCtrl);
+  renderFoundationsRCM();
+  openRCMDialog(0);
+}
+function updateFoundationsControl(i, f, v) { if (_fndControls[i]) _fndControls[i][f]=v; }
+function deleteFoundationsControl(i) { rcmDeleteOne(i); }
+
 
 function renderFoundationsFS() {
   const list = document.getElementById('fnd-fsra-list');
@@ -8564,22 +9595,27 @@ function renderControlsList(query) {
   const auditName   = w?.auditName;
   const auditCtrls  = auditLinkedControls[auditName] || new Set();
 
-  const ctrlIds = Object.keys(CONTROLS);
-  let filtered = ctrlIds.filter(id => {
-    const c = CONTROLS[id];
-    return !query ||
-      id.toLowerCase().includes(query) ||
-      c.title.toLowerCase().includes(query) ||
-      c.description.toLowerCase().includes(query) ||
-      (CTRL_RISKS_MAP[id] || []).some(rid => {
-        const r = RISKS[rid];
-        return r && (r.id.toLowerCase().includes(query) || r.title.toLowerCase().includes(query));
+  // Use live _fndControls from Foundations if populated, otherwise fall back to static CONTROLS
+  const liveControls = (typeof _fndControls !== 'undefined' && _fndControls.length)
+    ? _fndControls
+    : Object.values(CONTROLS).map(c => ({ id:c.id, name:c.title, title:c.title, description:c.description||'', ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'', category:c.category||'', linked_risks: CTRL_RISKS_MAP[c.id]||[] }));
+
+  let filtered = liveControls.filter(c => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : [];
+    return (c.id||'').toLowerCase().includes(q) ||
+      (c.name||c.title||'').toLowerCase().includes(q) ||
+      (c.description||'').toLowerCase().includes(q) ||
+      (c.category||'').toLowerCase().includes(q) ||
+      riskIds.some(rid => {
+        const r = (typeof _fndRisks!=='undefined'&&_fndRisks.find(x=>x.id===rid)) || RISKS[rid];
+        return r && ((r.id||'').toLowerCase().includes(q) || (r.name||r.title||'').toLowerCase().includes(q));
       });
   });
 
-  // Apply audit filter
   if (_ctrlFilter === 'audit') {
-    filtered = filtered.filter(id => auditCtrls.has(id));
+    filtered = filtered.filter(c => auditCtrls.has(c.id));
   }
 
   if (!filtered.length) {
@@ -8587,36 +9623,47 @@ function renderControlsList(query) {
     return;
   }
 
-  container.innerHTML = filtered.map(id => {
-    const c       = CONTROLS[id];
-    const checked = _ctrlDialogTemp.has(id);
-    const inAudit = auditCtrls.has(id);
-    const riskIds = CTRL_RISKS_MAP[id] || [];
-    const riskTags= riskIds.map(rid => {
-      const r = RISKS[rid];
-      return r ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;white-space:nowrap">${rid}: ${r.title}</span>` : '';
-    }).join('');
-    const auditBadge = inAudit
-      ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
-      : '';
+  // Group by category, sorted alpha
+  const categories = [...new Set(filtered.map(c => c.category || 'General'))].sort();
 
-    return `<div onclick="toggleCtrl('${id}')"
-      style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked ? 'background:#f0fdf4' : ''}"
-      onmouseover="this.style.background='${checked ? '#dcfce7' : '#f8fafc'}'"
-      onmouseout="this.style.background='${checked ? '#f0fdf4' : ''}'">
-      <div id="ctrl-cb-${id}" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked ? 'var(--wf-navy)' : 'var(--border-medium)'};background:${checked ? 'var(--wf-navy)' : '#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:all 0.1s">
-        ${checked ? '<i class="ti ti-check" style="font-size:10px;color:#fff"></i>' : ''}
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-          <span style="font-size:11px;font-weight:700;color:var(--wf-blue)">${id}</span>
-          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${c.title}</span>
-          ${auditBadge}
+  container.innerHTML = categories.map(cat => {
+    const items = filtered.filter(c => (c.category||'General') === cat);
+    const catHeader = `<div style="padding:5px 18px 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">${cat} <span style="font-weight:400;opacity:0.6">(${items.length})</span></div>`;
+
+    const rows = items.map(c => {
+      const checked   = _ctrlDialogTemp.has(c.id);
+      const inAudit   = auditCtrls.has(c.id);
+      const riskIds   = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[c.id]||[]);
+      const riskTags  = riskIds.map(rid => {
+        const r = (typeof _fndRisks!=='undefined'&&_fndRisks.find(x=>x.id===rid)) || RISKS[rid];
+        return r ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;white-space:nowrap">${rid}</span>` : '';
+      }).join('');
+      const auditBadge = inAudit ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>` : '';
+      const owners = [c.ctrl_owner, c.proc_owner].filter(Boolean).join(' · ');
+
+      return `<div onclick="toggleCtrl('${c.id}')"
+        style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked?'background:#f0fdf4':''}"
+        onmouseover="this.style.background='${checked?'#dcfce7':'#f8fafc'}'" onmouseout="this.style.background='${checked?'#f0fdf4':''}'">
+        <div id="ctrl-cb-${c.id}" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked?'var(--wf-navy)':'var(--border-medium)'};background:${checked?'var(--wf-navy)':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:all 0.1s">
+          ${checked?'<i class="ti ti-check" style="font-size:10px;color:#fff"></i>':''}
         </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;line-height:1.4">${c.description.slice(0,120)}…</div>
-        ${riskTags ? `<div style="display:flex;flex-wrap:wrap;gap:4px"><span style="font-size:10px;color:var(--text-tertiary);margin-right:2px">Linked risks:</span>${riskTags}</div>` : ''}
-      </div>
-    </div>`;
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:700;color:var(--wf-blue)">${escHtml(c.id)}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${escHtml(c.name||c.title||'')}</span>
+            ${auditBadge}
+          </div>
+          ${c.objective ? `<div style="font-size:11px;color:var(--wf-navy);font-style:italic;margin-bottom:3px">${escHtml(c.objective.slice(0,100))}</div>` : ''}
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;line-height:1.4">${escHtml((c.description||'').slice(0,130))}${(c.description||'').length>130?'…':''}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            ${riskTags ? `<span style="font-size:10px;color:var(--text-tertiary)">Risks:</span>${riskTags}` : ''}
+            ${owners ? `<span style="font-size:10px;color:var(--text-tertiary);margin-left:4px">Owners: ${escHtml(owners)}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return catHeader + rows;
   }).join('');
 }
 
@@ -9834,54 +10881,97 @@ function filterEntityList() {
 }
 
 function renderEntityList(query) {
-  const container  = document.getElementById('entity-list-container');
-  const q          = query.toLowerCase();
-  const overlay    = document.getElementById('entity-dialog-overlay');
-  const isWPScope  = overlay?.dataset.mode === 'wp-scope';
+  const container     = document.getElementById('entity-list-container');
+  const q             = (query||'').toLowerCase();
+  const overlay       = document.getElementById('entity-dialog-overlay');
+  const isWPScope     = overlay?.dataset.mode === 'wp-scope';
   const auditEntities = currentAuditEntities || new Set();
 
-  let filtered = ALL_ENTITIES.filter(e =>
-    e.name.toLowerCase().includes(q) || e.sub.toLowerCase().includes(q)
-  );
+  let filtered = ALL_ENTITIES.filter(e => {
+    const name = (e.name||'').toLowerCase();
+    const sub  = (e.sub||'').toLowerCase();
+    const type = (e.type||e.category||'').toLowerCase();
+    return !q || name.includes(q) || sub.includes(q) || type.includes(q);
+  });
 
   // Apply audit filter (wp-scope only)
   if (isWPScope && _entityFilter === 'audit') {
     filtered = filtered.filter(e => auditEntities.has(e.id));
   }
 
-  if (filtered.length === 0) {
-    container.innerHTML = `<div style="padding:20px 18px;text-align:center;color:var(--text-tertiary);font-size:13px">${_entityFilter === 'audit' ? 'No audit entities match.' : `No entities match "${query}"`}</div>`;
+  if (!filtered.length) {
+    container.innerHTML = `<div style="padding:20px 18px;text-align:center;color:var(--text-tertiary);font-size:13px">
+      ${_entityFilter === 'audit' ? 'No audit entities match.' : (q ? `No entities match "${query}"` : 'No assessment entities defined.')}
+    </div>`;
     return;
   }
 
-  const showBiomed = currentWPHasInfosecControl();
-  const groups = [
-    { key: 'facility', label: 'Facilities',         items: filtered.filter(e => e.category === 'facility') },
-    { key: 'app',      label: 'Applications',        items: filtered.filter(e => e.category === 'app') },
-    { key: 'biomed',   label: 'Biomedical Equipment',items: showBiomed ? filtered.filter(e => e.category === 'biomed') : [] },
-  ].filter(g => g.items.length > 0);
+  // Build type groups from _fndEntityTypes (sorted alpha) + catch any unlisted types
+  const knownTypes  = (typeof _fndEntityTypes !== 'undefined' ? _fndEntityTypes : []).map(t => t.name);
+  const entityTypes = filtered.map(e => e.type || e.category || 'Other');
+  const allTypes    = [...new Set([...knownTypes, ...entityTypes])].sort((a, b) => a.localeCompare(b));
+
+  // Map legacy category keys to display types
+  function resolveType(e) {
+    if (e.type) return e.type;
+    const c = e.category || '';
+    if (c === 'app')    return 'Application';
+    if (c === 'biomed') return 'Biomed';
+    if (c === 'facility') return 'Facility';
+    return c.charAt(0).toUpperCase() + c.slice(1) || 'Other';
+  }
+
+  const groups = allTypes
+    .map(typeName => ({
+      typeName,
+      items: filtered.filter(e => resolveType(e) === typeName)
+    }))
+    .filter(g => g.items.length > 0);
 
   container.innerHTML = groups.map(g => {
-    const groupHeader = `<div style="padding:6px 18px 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-tertiary);background:var(--bg-secondary)">${g.label}</div>`;
-    const rows = g.items.map(e => {
-      const checked    = dialogTempEntities.has(e.id);
-      const inAudit    = auditEntities.has(e.id);
-      const { icon }   = entityStyle(e.category);
-      const dotColor   = e.category === 'app' ? '#f97316' : e.category === 'biomed' ? '#7c3aed' : '#16a34a';
-      const checkedBg  = dotColor;
-      const auditBadge = isWPScope && inAudit
-        ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
-        : '';
-      return `<div class="entity-list-item${checked ? ' checked' : ''}" onclick="toggleEntityItem('${e.id}')" id="eli-${e.id}" data-cat="${e.category}">
-        <div class="entity-checkbox" style="${checked ? 'background:' + checkedBg + ';border-color:' + checkedBg : ''}">${checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : ''}</div>
-        <i class="ti ${icon}" style="font-size:15px;color:${dotColor};flex-shrink:0"></i>
-        <div>
-          <div class="entity-name" style="display:flex;align-items:center;gap:0">${e.name}${auditBadge}</div>
-          <div class="entity-sub">${e.sub}</div>
-        </div>
+    const typeStyle = (typeof getEntityTypeStyle === 'function')
+      ? getEntityTypeStyle(g.typeName)
+      : { bg:'#f1f5f9', color:'#475569', border:'#cbd5e1', icon:'ti-tag' };
+
+    const header = `
+      <div style="display:flex;align-items:center;gap:7px;padding:6px 16px 4px;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${typeStyle.bg};color:${typeStyle.color};border:0.5px solid ${typeStyle.border}">
+          <i class="ti ${typeStyle.icon||'ti-tag'}" style="font-size:10px"></i>${g.typeName}
+        </span>
+        <span style="font-size:10px;color:var(--text-tertiary)">${g.items.length}</span>
       </div>`;
-    }).join('');
-    return groupHeader + rows;
+
+    const rows = g.items
+      .sort((a, b) => (a.name||'').localeCompare(b.name||''))
+      .map(e => {
+        const checked    = dialogTempEntities.has(e.id);
+        const inAudit    = auditEntities.has(e.id);
+        const checkColor = typeStyle.color;
+        const checkBg    = checked ? typeStyle.bg : '';
+        const checkBord  = checked ? typeStyle.border : '';
+        const auditBadge = isWPScope && inAudit
+          ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
+          : '';
+        const pocText = e.poc ? `<span style="font-size:10px;color:var(--text-tertiary);margin-left:6px">${escHtml(e.poc)}</span>` : '';
+        const locText = (e.city || e.state) ? `<span style="font-size:10px;color:var(--text-tertiary)">${[e.city,e.state].filter(Boolean).join(', ')}</span>` : '';
+        const subText = e.sub ? `<div class="entity-sub">${escHtml(e.sub)}</div>` : '';
+
+        return `<div class="entity-list-item${checked?' checked':''}" onclick="toggleEntityItem('${e.id}')" id="eli-${e.id}" data-cat="${e.category||''}" data-type="${escHtml(g.typeName)}">
+          <div class="entity-checkbox" style="background:${checkBg};border-color:${checkBord};color:${checkColor}">
+            ${checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : ''}
+          </div>
+          <i class="ti ${typeStyle.icon||'ti-tag'}" style="font-size:15px;color:${typeStyle.color};flex-shrink:0"></i>
+          <div style="flex:1;min-width:0">
+            <div class="entity-name" style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
+              ${escHtml(e.name)}${auditBadge}${pocText}
+            </div>
+            ${subText}
+            ${locText}
+          </div>
+        </div>`;
+      }).join('');
+
+    return header + rows;
   }).join('');
 }
 
@@ -9893,13 +10983,16 @@ function toggleEntityItem(id) {
   }
   const item = document.getElementById('eli-' + id);
   if (item) {
-    const checked = dialogTempEntities.has(id);
-    const cat = item.dataset.cat || 'facility';
-    const checkedBg = cat === 'app' ? '#f97316' : cat === 'biomed' ? '#7c3aed' : '#16a34a';
+    const checked  = dialogTempEntities.has(id);
+    const typeName = item.dataset.type || item.dataset.cat || 'facility';
+    const ts       = (typeof getEntityTypeStyle === 'function')
+      ? getEntityTypeStyle(typeName)
+      : { bg:'#dcfce7', color:'#166534', border:'#86efac' };
     item.className = 'entity-list-item' + (checked ? ' checked' : '');
     const cb = item.querySelector('.entity-checkbox');
-    cb.style.background  = checked ? checkedBg : '';
-    cb.style.borderColor = checked ? checkedBg : '';
+    cb.style.background  = checked ? ts.bg    : '';
+    cb.style.borderColor = checked ? ts.border : '';
+    cb.style.color       = checked ? ts.color  : '';
     cb.innerHTML = checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : '';
   }
   updateEntityCount();
