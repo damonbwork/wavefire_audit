@@ -6,13 +6,90 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
+const { Pool } = require('pg');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Postgres ────────────────────────────────────────────────────────────────
+const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null;
+
+// Create tables on startup if they don't exist
+async function initDB() {
+  if (!pool) { console.log('No DATABASE_URL — running without database'); return; }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assessment_entities (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL DEFAULT '',
+        type        TEXT NOT NULL DEFAULT 'Facility',
+        category    TEXT NOT NULL DEFAULT 'facility',
+        address     TEXT DEFAULT '',
+        city        TEXT DEFAULT '',
+        state       TEXT DEFAULT '',
+        poc         TEXT DEFAULT '',
+        sub         TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('DB: assessment_entities table ready');
+  } catch(err) {
+    console.error('DB init error:', err.message);
+  }
+}
+initDB();
+
 // ── Middleware ──────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// ── Assessment Entities API ─────────────────────────────────────────────────
+app.get('/api/entities', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query('SELECT * FROM assessment_entities ORDER BY type, name');
+    res.json(rows);
+  } catch(err) {
+    console.error('GET /api/entities:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/entities', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { id, name, type, category, address, city, state, poc, sub, description } = req.body;
+  try {
+    await pool.query(`
+      INSERT INTO assessment_entities (id, name, type, category, address, city, state, poc, sub, description, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        name=EXCLUDED.name, type=EXCLUDED.type, category=EXCLUDED.category,
+        address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state,
+        poc=EXCLUDED.poc, sub=EXCLUDED.sub, description=EXCLUDED.description,
+        updated_at=NOW()
+    `, [id, name||'', type||'Facility', category||'facility', address||'', city||'', state||'', poc||'', sub||'', description||'']);
+    res.json({ ok: true });
+  } catch(err) {
+    console.error('POST /api/entities:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/entities/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    await pool.query('DELETE FROM assessment_entities WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch(err) {
+    console.error('DELETE /api/entities:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ── Serve the frontend HTML ─────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
