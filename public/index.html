@@ -6687,9 +6687,13 @@ function _initFoundationsData() {
   if (typeof CONTROLS !== 'undefined') {
     Object.values(CONTROLS).forEach(c => {
       _fndControls.push({
-        id: c.id, name: c.title || c.name || '', category: c.category || 'General',
+        id: c.id, name: c.title || c.name || '', category: c.category || '',
         objective: c.objective || '', description: c.description || '',
-        ctrlOwner: c.ctrlOwner || '', procOwner: c.procOwner || ''
+        ctrl_owner: c.ctrlOwner || '', proc_owner: c.procOwner || '',
+        frequency: '', control_type: '', additional_info: '',
+        linked_risks: CTRL_RISKS_MAP[c.id] || [],
+        extra_ctrl_owners: [], extra_proc_owners: [],
+        linked_entities: [], linked_accounts: []
       });
     });
   }
@@ -7301,7 +7305,16 @@ const deleteFoundationsEntity = fndDeleteOne;
 // ── RCM Postgres API ────────────────────────────────────────────────────────
 async function _loadRCMFromDB() {
   try {
-    const [ctrlRes, riskRes] = await Promise.all([fetch('/api/controls'), fetch('/api/risks')]);
+    const [ctrlRes, riskRes, catRes] = await Promise.all([
+      fetch('/api/controls'), fetch('/api/risks'), fetch('/api/control-categories')
+    ]);
+    // ── Categories ──────────────────────────────────────────────────────────
+    if (catRes.ok) {
+      const cats = await catRes.json();
+      if (Array.isArray(cats) && cats.length) {
+        window._rcmCategories = cats; // already sorted by server
+      }
+    }
     if (ctrlRes.ok) {
       const data = await ctrlRes.json();
       if (Array.isArray(data) && data.length) {
@@ -8829,23 +8842,41 @@ function rcmDialogNavSync() {
 }
 
 // ── RCM category helper ───────────────────────────────────────────────────────
+function rcmCategoryChange(idx, sel) {
+  if (sel.value === '__new__') {
+    // Restore previous selection while prompting
+    var prev = (_fndControls[idx] || {}).category || '';
+    sel.value = prev || (sel.options[0] && sel.options[0].value) || '';
+    rcmAddCategory(idx);
+  } else {
+    rcmDialogUpdate(idx, 'category', sel.value);
+  }
+}
+
 function rcmAddCategory(idx) {
   var name = (window.prompt('Enter new category name:') || '').trim();
   if (!name) return;
-  // Add to persistent pool if not already there
   if (!window._rcmCategories) window._rcmCategories = [];
   if (window._rcmCategories.indexOf(name) < 0) {
     window._rcmCategories.push(name);
     window._rcmCategories.sort();
+    // Persist to Postgres
+    fetch('/api/control-categories', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name: name })
+    }).catch(function(e){ console.warn('[DB] category save failed:', e.message); });
   }
-  // Update the control's category value
   if (_fndControls[idx]) _fndControls[idx].category = name;
-  // Rebuild the select inside the open dialog
   var sel = document.getElementById('rcm-cat-sel-' + idx);
   if (sel) {
-    sel.innerHTML = window._rcmCategories.map(function(cat) {
-      return '<option value="' + escHtml(cat) + '" ' + (cat === name ? 'selected' : '') + '>' + escHtml(cat) + '</option>';
+    // Rebuild all standard options, then separator + new option
+    var cats = window._rcmCategories;
+    var opts = cats.map(function(cat) {
+      return '<option value="'+escHtml(cat)+'" '+(cat===name?'selected':'')+'>'+escHtml(cat)+'</option>';
     }).join('');
+    opts += '<option disabled style="color:var(--border-medium)">──────────────</option>';
+    opts += '<option value="__new__">+ New Category…</option>';
+    sel.innerHTML = opts;
     sel.value = name;
   }
 }
@@ -8986,12 +9017,11 @@ function openRCMDialog(idx) {
                 'style="width:100%;font-size:13px;font-weight:700;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--wf-navy)" ' +
                 'oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
               '<div>'+fld('Category')+
-                '<div style="display:flex;gap:6px">' +
-                  '<select id="rcm-cat-sel-'+idx+'" tabindex="2" onchange="rcmDialogUpdate('+idx+',\'category\',this.value)" style="flex:1;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-                  CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
-                  '</select>' +
-                  '<button type="button" onclick="rcmAddCategory('+idx+')" title="Create new category" class="btn-s" style="font-size:11px;white-space:nowrap;flex-shrink:0"><i class="ti ti-plus"></i>New</button>' +
-                '</div></div>' +
+                '<select id="rcm-cat-sel-'+idx+'" tabindex="2" onchange="rcmCategoryChange('+idx+',this)" style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
+                CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
+                '<option disabled style="color:var(--border-medium)">──────────────</option>'+
+                '<option value="__new__">+ New Category…</option>'+
+                '</select></div>' +
               '<div style="grid-column:1/-1">'+fld('Control Title')+
                 '<input type="text" tabindex="3" value="'+escHtml(c.name||c.title||'')+'" placeholder="Control title" ' +
                 'style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;color:var(--text-primary)" ' +
