@@ -22,18 +22,28 @@ async function initDB() {
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS assessment_entities (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL DEFAULT '',
-        type        TEXT NOT NULL DEFAULT 'Facility',
-        category    TEXT NOT NULL DEFAULT 'facility',
-        address     TEXT DEFAULT '',
-        city        TEXT DEFAULT '',
-        state       TEXT DEFAULT '',
-        poc         TEXT DEFAULT '',
-        sub         TEXT DEFAULT '',
-        description TEXT DEFAULT '',
-        created_at  TIMESTAMPTZ DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
+        id                   TEXT PRIMARY KEY,
+        name                 TEXT NOT NULL DEFAULT '',
+        type                 TEXT NOT NULL DEFAULT 'Facility',
+        category             TEXT NOT NULL DEFAULT 'facility',
+        address              TEXT DEFAULT '',
+        city                 TEXT DEFAULT '',
+        state                TEXT DEFAULT '',
+        poc                  TEXT DEFAULT '',
+        sub                  TEXT DEFAULT '',
+        description          TEXT DEFAULT '',
+        app_purpose          TEXT DEFAULT '',
+        user_count           TEXT DEFAULT '',
+        txn_volume           TEXT DEFAULT '',
+        txn_dollar           TEXT DEFAULT '',
+        change_volume        TEXT DEFAULT '',
+        change_complexity    TEXT DEFAULT '',
+        admin_users          TEXT DEFAULT '',
+        key_integrations     TEXT DEFAULT '',
+        external_integrations TEXT DEFAULT '',
+        custom_fields         JSONB DEFAULT '[]',
+        created_at            TIMESTAMPTZ DEFAULT NOW(),
+        updated_at            TIMESTAMPTZ DEFAULT NOW()
       );
     `);
     console.log('DB: assessment_entities table ready');
@@ -61,17 +71,30 @@ app.get('/api/entities', async (req, res) => {
 
 app.post('/api/entities', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { id, name, type, category, address, city, state, poc, sub, description } = req.body;
+  const { id, name, type, category, address, city, state, poc, sub, description,
+          app_purpose, user_count, txn_volume, txn_dollar, change_volume,
+          change_complexity, admin_users, key_integrations, external_integrations } = req.body;
   try {
     await pool.query(`
-      INSERT INTO assessment_entities (id, name, type, category, address, city, state, poc, sub, description, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      INSERT INTO assessment_entities
+        (id,name,type,category,address,city,state,poc,sub,description,
+         app_purpose,user_count,txn_volume,txn_dollar,change_volume,
+         change_complexity,admin_users,key_integrations,external_integrations,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name=EXCLUDED.name, type=EXCLUDED.type, category=EXCLUDED.category,
         address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state,
         poc=EXCLUDED.poc, sub=EXCLUDED.sub, description=EXCLUDED.description,
-        updated_at=NOW()
-    `, [id, name||'', type||'Facility', category||'facility', address||'', city||'', state||'', poc||'', sub||'', description||'']);
+        app_purpose=EXCLUDED.app_purpose, user_count=EXCLUDED.user_count,
+        txn_volume=EXCLUDED.txn_volume, txn_dollar=EXCLUDED.txn_dollar,
+        change_volume=EXCLUDED.change_volume, change_complexity=EXCLUDED.change_complexity,
+        admin_users=EXCLUDED.admin_users, key_integrations=EXCLUDED.key_integrations,
+        external_integrations=EXCLUDED.external_integrations, updated_at=NOW()
+    `, [id, name||'', type||'Facility', category||'facility',
+        address||'', city||'', state||'', poc||'', sub||'', description||'',
+        app_purpose||'', user_count||'', txn_volume||'', txn_dollar||'',
+        change_volume||'', change_complexity||'', admin_users||'',
+        key_integrations||'', external_integrations||'']);
     res.json({ ok: true });
   } catch(err) {
     console.error('POST /api/entities:', err.message);
