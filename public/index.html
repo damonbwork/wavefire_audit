@@ -1253,7 +1253,7 @@
             <div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                 <div class="fl">Assessment entities</div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openEntityDialog()">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openAuditEntityDialog()">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -11827,7 +11827,7 @@ function renderWPScopeEntities(ref) {
   }).join('');
 }
 
-function openEntityDialog() {
+function openAuditEntityDialog() {
   dialogTempEntities = new Set(currentAuditEntities);
   document.getElementById('entity-search-input').value = '';
   _entityFilter = 'all';
