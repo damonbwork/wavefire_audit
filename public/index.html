@@ -3088,7 +3088,7 @@ auditor's assessment.
       <!-- Dialog header -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Select assessment entities</div>
-        <button onclick="closeEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
+        <button onclick="closeWPEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
       </div>
       <!-- Search + filter -->
       <div style="padding:10px 18px;border-bottom:0.5px solid var(--border-light)">
@@ -3109,7 +3109,7 @@ auditor's assessment.
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:0.5px solid var(--border-light)">
         <span id="entity-selected-count" style="font-size:12px;color:var(--text-secondary)">0 selected</span>
         <div style="display:flex;gap:8px">
-          <button class="btn-s" onclick="closeEntityDialog()">Cancel</button>
+          <button class="btn-s" onclick="closeWPEntityDialog()">Cancel</button>
           <button class="btn-p" onclick="applyEntitySelectionRouted()"><i class="ti ti-check"></i>Apply</button>
         </div>
       </div>
@@ -6676,27 +6676,33 @@ function _initFoundationsData() {
   if (_fndInitialized) return;
   _fndInitialized = true;
 
-  // Try loading from DB first; fall back to static ALL_ENTITIES
-  Promise.all([_loadEntityTypesFromDB(), _loadEntitiesFromDB(), _loadRCMFromDB()]).then(([, loaded]) => {
+  // Try loading from DB first; fall back to static data only if DB returns nothing
+  Promise.all([_loadEntityTypesFromDB(), _loadEntitiesFromDB(), _loadRCMFromDB()]).then(function(results) {
+    var loaded = results[1];
     if (!loaded && typeof ALL_ENTITIES !== 'undefined' && ALL_ENTITIES?.length) {
       _fndEntities = ALL_ENTITIES.map(e => ({ ...e, type: e.type || e.category || 'Facility', description: e.description || '' }));
     }
+    // If DB returned no controls, seed from static CONTROLS as fallback
+    if (!_fndControls.length && typeof CONTROLS !== 'undefined') {
+      Object.values(CONTROLS).forEach(c => {
+        _fndControls.push({
+          id: c.id, name: c.title || c.name || '', category: c.category || '',
+          objective: c.objective || '', description: c.description || '',
+          ctrl_owner: c.ctrlOwner || '', proc_owner: c.procOwner || '',
+          frequency: '', control_type: '', additional_info: '',
+          linked_risks: CTRL_RISKS_MAP[c.id] || [],
+          extra_ctrl_owners: [], extra_proc_owners: [],
+          linked_entities: [], linked_accounts: []
+        });
+      });
+    }
     renderFoundationsEntities();
+    // Re-render RCM grid now that DB data is available
+    if (document.getElementById('fnd-section-rcm')?.style.display !== 'none') {
+      renderFoundationsRCM();
+    }
   });
 
-  if (typeof CONTROLS !== 'undefined') {
-    Object.values(CONTROLS).forEach(c => {
-      _fndControls.push({
-        id: c.id, name: c.title || c.name || '', category: c.category || '',
-        objective: c.objective || '', description: c.description || '',
-        ctrl_owner: c.ctrlOwner || '', proc_owner: c.procOwner || '',
-        frequency: '', control_type: '', additional_info: '',
-        linked_risks: CTRL_RISKS_MAP[c.id] || [],
-        extra_ctrl_owners: [], extra_proc_owners: [],
-        linked_entities: [], linked_accounts: []
-      });
-    });
-  }
   if (typeof HOSPITAL_FS !== 'undefined' && HOSPITAL_FS?.length) {
     _fndFSAccounts = HOSPITAL_FS.map(f => ({ ...f, assertion: f.assertion || '', riskLevel: f.riskLevel || '' }));
   }
@@ -7321,6 +7327,8 @@ async function _loadRCMFromDB() {
         _fndControls = data;
         // Sync to CONTROLS global so audit tab picks it up
         data.forEach(c => { CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' }; });
+        // Refresh grid if visible
+        if (document.getElementById('fnd-section-rcm')?.style.display !== 'none') renderFoundationsRCM();
       }
     }
     if (riskRes.ok) {
@@ -8808,11 +8816,10 @@ function rcmDialogScrollTo(secId) {
   var sec  = document.getElementById(secId);
   var body = document.getElementById('rcm-dialog-body');
   if (!sec || !body) return;
-  // Use rendered positions so the section header is always fully visible
   var bodyRect = body.getBoundingClientRect();
   var secRect  = sec.getBoundingClientRect();
-  var target   = secRect.top - bodyRect.top + body.scrollTop - 12;
-  body.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+  var target   = secRect.top - bodyRect.top + body.scrollTop;
+  body.scrollTo({ top: Math.max(0, target), behavior: 'instant' });
   rcmDialogNavActivate(secId);
 }
 
@@ -8981,13 +8988,13 @@ function openRCMDialog(idx) {
 
   var html =
     '<div id="rcm-dialog-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:20000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)closeRCMDialog()">' +
-    '<div style="background:var(--bg-primary);border-radius:14px;width:min(900px,97vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(900px,97vw);height:88vh;min-width:560px;min-height:400px;max-width:98vw;max-height:98vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden;resize:both">' +
 
       // ── Header ──
       '<div style="background:var(--wf-navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:16px;font-weight:700">'+escHtml(c.name||c.title||'New Control')+'</div>' +
         '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'— new control —')+'</div></div>' +
-        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:300;line-height:1;padding:0;flex-shrink:0"><i class="ti ti-x" style="font-size:16px;line-height:1">&#x00D7;</i></button>' +
+        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
       '</div>' +
 
       // ── Body: side-nav + scrollable content ──
@@ -8999,10 +9006,10 @@ function openRCMDialog(idx) {
           rcmNavBtn('rcm-sec-narrative', 'ti-file-description', 'Description') +
           rcmNavBtn('rcm-sec-owners',    'ti-users',            'Owners') +
           rcmNavBtn('rcm-sec-classify',  'ti-tags',             'Classification') +
-          rcmNavBtn('rcm-sec-objective', 'ti-target',           'Objective') +
-          rcmNavBtn('rcm-sec-risks',     'ti-alert-triangle',   'Risks') +
-          rcmNavBtn('rcm-sec-entities',  'ti-building-community','Entities') +
-          rcmNavBtn('rcm-sec-fs',        'ti-report-money',     'FS Accounts') +
+          rcmNavBtn('rcm-sec-objective', 'ti-target',           'Control Objective') +
+          rcmNavBtn('rcm-sec-risks',     'ti-alert-triangle',   'Linked Risks') +
+          rcmNavBtn('rcm-sec-entities',  'ti-building-community','Linked Entities') +
+          rcmNavBtn('rcm-sec-fs',        'ti-report-money',     'Linked FS Accounts') +
         '</div>' +
 
         // Scrollable form
@@ -9173,19 +9180,26 @@ function rcmDialogToggleAccount(idx, accountId, checked) {
   else if(!checked && i>=0) arr.splice(i,1);
 }
 async function saveRCMFromDialog(idx) {
-  var c=_fndControls[idx];
-  if(!c) return;
-  var btn=document.getElementById('rcm-save-btn');
-  if(btn){btn.innerHTML='<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…';btn.disabled=true;}
-  CONTROLS[c.id]={id:c.id,title:c.name||c.title||'',description:c.description||'',ctrlOwner:c.ctrl_owner||'',procOwner:c.proc_owner||'',objective:c.objective||'',category:c.category||''};
-  CTRL_RISKS_MAP[c.id]=Array.isArray(c.linked_risks)?c.linked_risks:[];
+  var c = _fndControls[idx];
+  if (!c) return;
+  var btn = document.getElementById('rcm-save-btn');
+  if (btn) { btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…'; btn.disabled = true; }
+
+  // Sync to globals immediately (optimistic update)
+  CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' };
+  CTRL_RISKS_MAP[c.id] = Array.isArray(c.linked_risks) ? c.linked_risks : [];
   if (c.objective) rcmPersistObjective(c.objective);
-  var ok=await _saveControlToDB(c);
-  if(btn){
-    btn.innerHTML=ok?'<i class="ti ti-check"></i> Saved!':'<i class="ti ti-alert-triangle"></i> Error';
-    btn.style.background=ok?'#16a34a':'#dc2626';
-    setTimeout(function(){closeRCMDialog();renderFoundationsRCM();},900);
-  }
+
+  // Close and refresh immediately — don't wait for the network round-trip
+  closeRCMDialog();
+  renderFoundationsRCM();
+
+  // Fire-and-forget DB persist; warn quietly if it fails
+  _saveControlToDB(c).then(function(ok) {
+    if (!ok) console.warn('[RCM] Control saved in memory but DB persist failed for', c.id);
+  }).catch(function(e) {
+    console.warn('[RCM] DB persist error:', e.message);
+  });
 }
 function closeRCMDialog(){document.getElementById('rcm-dialog-overlay')?.remove();}
 
@@ -11715,7 +11729,7 @@ function openWPEntityDialog() {
   const ref = WORKPAPERS[currentWPIndex]?.ref;
   if (!ref) return;
   if (!wpScopeEntities[ref]) wpScopeEntities[ref] = new Set();
-  const overlay = document.getElementById('fnd-entity-dialog-overlay');
+  const overlay = document.getElementById('entity-dialog-overlay');
   if (!overlay) return;
   overlay.dataset.mode = 'wp-scope';
   dialogTempEntities = new Set(wpScopeEntities[ref]);
@@ -11738,7 +11752,7 @@ function openWPEntityDialog() {
 }
 
 function applyEntitySelectionRouted() {
-  const overlay = document.getElementById('fnd-entity-dialog-overlay');
+  const overlay = document.getElementById('entity-dialog-overlay');
   if (overlay?.dataset.mode === 'wp-scope') {
     applyWPEntitySelection();
   } else if (overlay?.dataset.mode === 'new-audit') {
@@ -11794,7 +11808,7 @@ function applyWPEntitySelection() {
   });
   renderAuditEntityTags();
 
-  document.getElementById('fnd-entity-dialog-overlay').style.display = 'none';
+  document.getElementById('entity-dialog-overlay').style.display = 'none';
 }
 
 function renderWPScopeEntities(ref) {
@@ -11821,14 +11835,14 @@ function openEntityDialog() {
   if (filterRow) filterRow.style.display = 'none';
   renderEntityList('');
   updateEntityCount();
-  const overlay = document.getElementById('fnd-entity-dialog-overlay');
+  const overlay = document.getElementById('entity-dialog-overlay');
   overlay.dataset.mode = 'audit';
   overlay.style.display = 'flex';
   setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
 }
 
-function closeEntityDialog() {
-  document.getElementById('fnd-entity-dialog-overlay').style.display = 'none';
+function closeWPEntityDialog() {
+  document.getElementById('entity-dialog-overlay').style.display = 'none';
 }
 
 let _entityFilter = 'all'; // 'all' or 'audit'
@@ -11852,7 +11866,7 @@ function filterEntityList() {
 function renderEntityList(query) {
   const container     = document.getElementById('entity-list-container');
   const q             = (query||'').toLowerCase();
-  const overlay       = document.getElementById('fnd-entity-dialog-overlay');
+  const overlay       = document.getElementById('entity-dialog-overlay');
   const isWPScope     = overlay?.dataset.mode === 'wp-scope';
   const auditEntities = currentAuditEntities || new Set();
 
@@ -11976,7 +11990,7 @@ function updateEntityCount() {
 function applyEntitySelection() {
   currentAuditEntities = new Set(dialogTempEntities);
   renderAuditEntityTags();
-  closeEntityDialog();
+  closeWPEntityDialog();
 }
 
 function renderAuditEntityTags() {
