@@ -6662,7 +6662,7 @@ function _initFoundationsData() {
   _fndInitialized = true;
 
   // Try loading from DB first; fall back to static ALL_ENTITIES
-  _loadEntitiesFromDB().then(loaded => {
+  Promise.all([_loadEntityTypesFromDB(), _loadEntitiesFromDB()]).then(([, loaded]) => {
     if (!loaded && typeof ALL_ENTITIES !== 'undefined' && ALL_ENTITIES?.length) {
       _fndEntities = ALL_ENTITIES.map(e => ({ ...e, type: e.type || e.category || 'Facility', description: e.description || '' }));
     }
@@ -6713,7 +6713,148 @@ function showFoundationsSection(section) {
 }
 
 // ── Entity Types (user-extensible) ──────────────────────────────────────────
-let _fndEntityTypes = ['Facility', 'Application', 'Business Unit', 'Company', 'Biomed', 'Other'];
+// ── Entity Type Registry (color-aware, Postgres-backed) ─────────────────────
+let _fndEntityTypes = [
+  { name: 'Facility',      bg: '#dcfce7', color: '#166534', border: '#86efac', icon: 'ti-building-hospital' },
+  { name: 'Application',   bg: '#ffedd5', color: '#9a3412', border: '#fdba74', icon: 'ti-device-desktop' },
+  { name: 'Business Unit', bg: '#dbeafe', color: '#1e40af', border: '#93c5fd', icon: 'ti-sitemap' },
+  { name: 'Company',       bg: '#fef9c3', color: '#854d0e', border: '#fde047', icon: 'ti-building-skyscraper' },
+  { name: 'Biomed',        bg: '#ede9fe', color: '#5b21b6', border: '#c4b5fd', icon: 'ti-heart-rate-monitor' },
+  { name: 'Other',         bg: '#f1f5f9', color: '#475569', border: '#cbd5e1', icon: 'ti-tag' },
+];
+
+// Palette for color picker
+const _fndColorPalette = [
+  { bg:'#dcfce7', color:'#166534', border:'#86efac', label:'Green' },
+  { bg:'#ffedd5', color:'#9a3412', border:'#fdba74', label:'Orange' },
+  { bg:'#dbeafe', color:'#1e40af', border:'#93c5fd', label:'Blue' },
+  { bg:'#fef9c3', color:'#854d0e', border:'#fde047', label:'Yellow' },
+  { bg:'#ede9fe', color:'#5b21b6', border:'#c4b5fd', label:'Purple' },
+  { bg:'#fce7f3', color:'#9d174d', border:'#f9a8d4', label:'Pink' },
+  { bg:'#ccfbf1', color:'#134e4a', border:'#5eead4', label:'Teal' },
+  { bg:'#fee2e2', color:'#991b1b', border:'#fca5a5', label:'Red' },
+  { bg:'#f0f9ff', color:'#0369a1', border:'#7dd3fc', label:'Sky' },
+  { bg:'#ecfdf5', color:'#065f46', border:'#6ee7b7', label:'Emerald' },
+  { bg:'#fff7ed', color:'#9a3412', border:'#fdba74', label:'Amber' },
+  { bg:'#f5f3ff', color:'#4c1d95', border:'#a78bfa', label:'Violet' },
+  { bg:'#f0fdf4', color:'#14532d', border:'#86efac', label:'Lime' },
+  { bg:'#fdf4ff', color:'#701a75', border:'#e879f9', label:'Fuchsia' },
+  { bg:'#f8fafc', color:'#334155', border:'#94a3b8', label:'Slate' },
+  { bg:'#fff1f2', color:'#881337', border:'#fda4af', label:'Rose' },
+];
+
+function getEntityTypeStyle(typeName) {
+  const t = _fndEntityTypes.find(t => t.name === typeName);
+  if (t) return t;
+  return _fndEntityTypes.find(t => t.name === 'Other') || _fndEntityTypes[0];
+}
+
+function entityTypeBadge(typeName) {
+  const s = getEntityTypeStyle(typeName);
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:12px;background:${s.bg};color:${s.color};border:0.5px solid ${s.border}"><i class="ti ${s.icon}" style="font-size:10px"></i>${escHtml(typeName)}</span>`;
+}
+
+async function _loadEntityTypesFromDB() {
+  try {
+    const res = await fetch('/api/entity-types');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length) {
+      // Merge DB types with defaults (DB wins on name match)
+      data.forEach(dbType => {
+        const idx = _fndEntityTypes.findIndex(t => t.name === dbType.name);
+        if (idx >= 0) _fndEntityTypes[idx] = { ..._fndEntityTypes[idx], ...dbType };
+        else _fndEntityTypes.push(dbType);
+      });
+    }
+  } catch(e) {}
+}
+
+async function _saveEntityTypeToDB(typeObj) {
+  try {
+    const res = await fetch('/api/entity-types', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(typeObj)
+    });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+function showAddEntityTypeDialog() {
+  let selectedPalette = _fndColorPalette[0];
+
+  const paletteHtml = _fndColorPalette.map((p, pi) => `
+    <div id="palette-${pi}" onclick="selectPaletteColor(${pi})"
+      style="width:28px;height:28px;border-radius:6px;background:${p.bg};border:2px solid ${pi===0?p.color:'transparent'};cursor:pointer;transition:all 0.1s;display:flex;align-items:center;justify-content:center"
+      title="${p.label}">
+      <div style="width:14px;height:14px;border-radius:3px;background:${p.color};opacity:0.7"></div>
+    </div>`).join('');
+
+  const html = `
+    <div id="new-type-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:21000;display:flex;align-items:center;justify-content:center">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(400px,95vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column">
+        <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:14px;font-weight:700">New Entity Type</div>
+          <button onclick="document.getElementById('new-type-overlay').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:6px">Type Name *</div>
+            <input id="new-type-name" type="text" placeholder="e.g. Vendor, Cloud Service, Data Center…"
+              style="width:100%;font-size:13px;font-weight:600;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);box-sizing:border-box;outline:none">
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px">Color</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${paletteHtml}</div>
+            <div id="color-preview" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;border-radius:12px;background:${_fndColorPalette[0].bg};color:${_fndColorPalette[0].color};border:0.5px solid ${_fndColorPalette[0].border};font-weight:500">
+              <i class="ti ti-tag" style="font-size:11px"></i>
+              <span id="color-preview-label">Preview</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-s" onclick="document.getElementById('new-type-overlay').remove()">Cancel</button>
+          <button class="btn-p" onclick="createNewEntityType()"><i class="ti ti-check"></i>Create Type</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(() => document.getElementById('new-type-name')?.focus(), 50);
+
+  // Store selection index on window for createNewEntityType
+  window._selectedPaletteIdx = 0;
+}
+
+function selectPaletteColor(pi) {
+  window._selectedPaletteIdx = pi;
+  const p = _fndColorPalette[pi];
+  // Update all swatches
+  _fndColorPalette.forEach((pp, i) => {
+    const el = document.getElementById('palette-' + i);
+    if (el) el.style.border = i === pi ? `2px solid ${pp.color}` : '2px solid transparent';
+  });
+  // Update preview
+  const preview = document.getElementById('color-preview');
+  if (preview) { preview.style.background = p.bg; preview.style.color = p.color; preview.style.border = `0.5px solid ${p.border}`; }
+  const nameEl = document.getElementById('new-type-name');
+  const lbl    = document.getElementById('color-preview-label');
+  if (lbl) lbl.textContent = nameEl?.value?.trim() || 'Preview';
+}
+
+async function createNewEntityType() {
+  const nameEl = document.getElementById('new-type-name');
+  const name   = nameEl?.value?.trim();
+  if (!name) { nameEl?.focus(); return; }
+  if (_fndEntityTypes.find(t => t.name === name)) {
+    alert(`Type "${name}" already exists.`); return;
+  }
+  const p = _fndColorPalette[window._selectedPaletteIdx || 0];
+  const newType = { name, bg: p.bg, color: p.color, border: p.border, icon: 'ti-tag' };
+  _fndEntityTypes.push(newType);
+  await _saveEntityTypeToDB(newType);
+  document.getElementById('new-type-overlay')?.remove();
+  renderFoundationsEntities();
+}
 let _fndSortField = 'name';
 let _fndSortDir   = 'asc';
 let _fndSelected  = new Set(); // selected entity IDs for bulk actions
@@ -6801,7 +6942,7 @@ function renderFoundationsEntities() {
               </td>
               <td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">${escHtml(e.name||'—')}</td>
               <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">
-                <span style="background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:4px;padding:2px 7px;font-size:11px">${escHtml(e.type||e.category||'—')}</span>
+                ${entityTypeBadge(e.type||e.category||'Other')}
               </td>
               <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">${escHtml(e.city||'—')}</td>
               <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary)">${escHtml(e.state||'—')}</td>
@@ -6868,7 +7009,7 @@ function openEntityDialog(idx) {
   const e = _fndEntities[idx];
   if (!e) return;
   if (!e.custom_fields) e.custom_fields = [];
-  const types  = [...new Set([..._fndEntityTypes, ..._fndEntities.map(x => x.type||x.category||'Other')])];
+  const types  = _fndEntityTypes.map(t => t.name);
   const isApp  = (e.type||e.category||'').toLowerCase().includes('application') || (e.type||e.category||'').toLowerCase() === 'app';
 
   const dropField = (label, field, val) => `
@@ -7095,14 +7236,6 @@ async function addFoundationsEntity() {
   _fndEntities.unshift(newEntity);
   renderFoundationsEntities();
   openEntityDialog(0);
-}
-
-function showAddEntityTypeDialog() {
-  const name = prompt('Enter new entity type name:');
-  if (!name?.trim()) return;
-  const clean = name.trim();
-  if (!_fndEntityTypes.includes(clean)) _fndEntityTypes.push(clean);
-  renderFoundationsEntities();
 }
 
 // Aliases
