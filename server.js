@@ -31,6 +31,49 @@ async function initDB() {
       );
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS audits (
+        name        TEXT PRIMARY KEY,
+        period      TEXT DEFAULT '',
+        owner       TEXT DEFAULT '',
+        type        TEXT DEFAULT '',
+        status      TEXT DEFAULT 'planned',
+        desc        TEXT DEFAULT '',
+        year        INTEGER,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS workpapers (
+        ref                    TEXT PRIMARY KEY,
+        audit_name             TEXT NOT NULL DEFAULT '',
+        name                   TEXT DEFAULT '',
+        type                   TEXT DEFAULT '',
+        status                 TEXT DEFAULT 'draft',
+        results                TEXT DEFAULT '',
+        preparer               TEXT DEFAULT '',
+        reviewer               TEXT DEFAULT '',
+        secondary_reviewer     TEXT DEFAULT '',
+        date_started           DATE,
+        review_date            DATE,
+        date_submitted         DATE,
+        secondary_review_date  DATE,
+        population             TEXT DEFAULT '',
+        sample_method          TEXT DEFAULT '',
+        sample_size            INTEGER,
+        narrative              TEXT DEFAULT '',
+        description            TEXT DEFAULT '',
+        test_desc              TEXT DEFAULT '',
+        linked_controls        JSONB DEFAULT '[]',
+        linked_risks           JSONB DEFAULT '[]',
+        linked_entities        JSONB DEFAULT '[]',
+        fs_accounts            JSONB DEFAULT '[]',
+        scope_entities         JSONB DEFAULT '[]',
+        scope_fs_accounts      JSONB DEFAULT '[]',
+        test_attributes        JSONB DEFAULT '[]',
+        sample_fields          JSONB DEFAULT '[]',
+        exceptions             JSONB DEFAULT '[]',
+        created_at             TIMESTAMPTZ DEFAULT NOW(),
+        updated_at             TIMESTAMPTZ DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS control_categories (
         name       TEXT PRIMARY KEY,
         sort_order INTEGER DEFAULT 0,
@@ -369,3 +412,91 @@ app.listen(PORT, () => {
   console.log(`    API key set: ${process.env.ANTHROPIC_API_KEY ? 'YES' : 'NO — set ANTHROPIC_API_KEY in .env'}`);
   console.log(`    Frontend:    http://localhost:${PORT}/\n`);
 });
+
+// ── Audits API ────────────────────────────────────────────────────────────────
+app.get('/api/audits', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM audits ORDER BY created_at'); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/audits', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { name, period, owner, type, status, desc, year } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    await pool.query(`INSERT INTO audits (name,period,owner,type,status,desc,year,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+      ON CONFLICT (name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
+        type=EXCLUDED.type, status=EXCLUDED.status, desc=EXCLUDED.desc, year=EXCLUDED.year, updated_at=NOW()`,
+      [name, period||'', owner||'', type||'', status||'planned', desc||'', year||null]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Workpapers API ────────────────────────────────────────────────────────────
+app.get('/api/workpapers', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM workpapers ORDER BY audit_name, ref'); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/workpapers', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const {
+    ref, audit_name, name, type, status, results,
+    preparer, reviewer, secondary_reviewer,
+    date_started, review_date, date_submitted, secondary_review_date,
+    population, sample_method, sample_size,
+    narrative, description, test_desc,
+    linked_controls, linked_risks, linked_entities, fs_accounts,
+    scope_entities, scope_fs_accounts,
+    test_attributes, sample_fields, exceptions
+  } = req.body;
+  if (!ref) return res.status(400).json({ error: 'ref required' });
+  try {
+    await pool.query(`INSERT INTO workpapers
+        (ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
+         date_started,review_date,date_submitted,secondary_review_date,
+         population,sample_method,sample_size,narrative,description,test_desc,
+         linked_controls,linked_risks,linked_entities,fs_accounts,
+         scope_entities,scope_fs_accounts,test_attributes,sample_fields,exceptions,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+              $20,$21,$22,$23,$24,$25,$26,$27,$28,NOW())
+      ON CONFLICT (ref) DO UPDATE SET
+        audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
+        status=EXCLUDED.status, results=EXCLUDED.results,
+        preparer=EXCLUDED.preparer, reviewer=EXCLUDED.reviewer,
+        secondary_reviewer=EXCLUDED.secondary_reviewer,
+        date_started=EXCLUDED.date_started, review_date=EXCLUDED.review_date,
+        date_submitted=EXCLUDED.date_submitted,
+        secondary_review_date=EXCLUDED.secondary_review_date,
+        population=EXCLUDED.population, sample_method=EXCLUDED.sample_method,
+        sample_size=EXCLUDED.sample_size, narrative=EXCLUDED.narrative,
+        description=EXCLUDED.description, test_desc=EXCLUDED.test_desc,
+        linked_controls=EXCLUDED.linked_controls, linked_risks=EXCLUDED.linked_risks,
+        linked_entities=EXCLUDED.linked_entities, fs_accounts=EXCLUDED.fs_accounts,
+        scope_entities=EXCLUDED.scope_entities, scope_fs_accounts=EXCLUDED.scope_fs_accounts,
+        test_attributes=EXCLUDED.test_attributes, sample_fields=EXCLUDED.sample_fields,
+        exceptions=EXCLUDED.exceptions, updated_at=NOW()`,
+      [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
+       preparer||'', reviewer||'', secondary_reviewer||'',
+       date_started||null, review_date||null, date_submitted||null, secondary_review_date||null,
+       population||'', sample_method||'', sample_size||null,
+       narrative||'', description||'', test_desc||'',
+       JSON.stringify(linked_controls||[]), JSON.stringify(linked_risks||[]),
+       JSON.stringify(linked_entities||[]), JSON.stringify(fs_accounts||[]),
+       JSON.stringify(scope_entities||[]), JSON.stringify(scope_fs_accounts||[]),
+       JSON.stringify(test_attributes||[]), JSON.stringify(sample_fields||[]),
+       JSON.stringify(exceptions||[])
+      ]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/workpapers/:ref', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try { await pool.query('DELETE FROM workpapers WHERE ref=$1', [req.params.ref]); res.json({ ok:true }); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
