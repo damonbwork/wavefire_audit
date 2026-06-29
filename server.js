@@ -90,11 +90,6 @@ async function initDB() {
         notes       TEXT DEFAULT '',
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-      -- Knowledge / analysis notes columns on existing tables
-      ALTER TABLE audits            ADD COLUMN IF NOT EXISTS analysis_notes TEXT DEFAULT '';
-      ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes  TEXT DEFAULT '';
-      ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes  TEXT DEFAULT '';
-      ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT '';
       CREATE TABLE IF NOT EXISTS control_categories (
         name       TEXT PRIMARY KEY,
         sort_order INTEGER DEFAULT 0,
@@ -163,10 +158,12 @@ async function initDB() {
     console.log('DB: assessment_entities table ready');
 
     // ── Auto-migrations for pre-existing tables ──────────────────────────────
-    // If an older 'audits' table exists with a reserved-word 'desc' column,
-    // ensure a usable 'description' column exists and migrate data.
     try {
-      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS analysis_notes TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
         SELECT column_name FROM information_schema.columns
@@ -175,7 +172,8 @@ async function initDB() {
         await pool.query(`UPDATE audits SET description = "desc" WHERE (description IS NULL OR description='') AND "desc" IS NOT NULL`);
         console.log('DB: migrated audits.desc → audits.description');
       }
-    } catch(mErr) { console.warn('DB: audits description migration skipped:', mErr.message); }
+      console.log('DB: all migrations applied');
+    } catch(mErr) { console.warn('DB: migration skipped:', mErr.message); }
   } catch(err) {
     console.error('DB init error:', err.message);
   }
@@ -622,4 +620,3 @@ app.listen(PORT, () => {
   console.log(`    API key set: ${process.env.ANTHROPIC_API_KEY ? 'YES' : 'NO — set ANTHROPIC_API_KEY in .env'}`);
   console.log(`    Frontend:    http://localhost:${PORT}/\n`);
 });
-
