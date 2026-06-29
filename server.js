@@ -93,7 +93,7 @@ async function initDB() {
         ('Financial Reporting',4),('Compliance',5),('IT General Controls',6),
         ('Payroll',7),('Vendor Due Diligence',8),('Other',9)
       ON CONFLICT (name) DO NOTHING;
-
+      CREATE TABLE IF NOT EXISTS entity_types (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL DEFAULT '',
         description TEXT DEFAULT '',
@@ -148,6 +148,21 @@ async function initDB() {
       );
     `);
     console.log('DB: assessment_entities table ready');
+
+    // ── Auto-migrations for pre-existing tables ──────────────────────────────
+    // If an older 'audits' table exists with a reserved-word 'desc' column,
+    // ensure a usable 'description' column exists and migrate data.
+    try {
+      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''`);
+      // Copy any data from a legacy "desc" column if it still exists
+      const col = await pool.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name='audits' AND column_name='desc'`);
+      if (col.rows.length) {
+        await pool.query(`UPDATE audits SET description = "desc" WHERE (description IS NULL OR description='') AND "desc" IS NOT NULL`);
+        console.log('DB: migrated audits.desc → audits.description');
+      }
+    } catch(mErr) { console.warn('DB: audits description migration skipped:', mErr.message); }
   } catch(err) {
     console.error('DB init error:', err.message);
   }
@@ -328,8 +343,6 @@ app.delete('/api/entities/:id', async (req, res) => {
 });
 
 
-// ── Serve the frontend HTML ─────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ── PDF.js — served from npm package (no CDN needed) ───────────────────────
 app.get('/pdfjs/pdf.min.js', (req, res) => {
@@ -414,12 +427,6 @@ app.post('/api/claude', async (req, res) => {
   }
 });
 
-// ── Start server ────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n✅  Wavefire backend running at http://localhost:${PORT}`);
-  console.log(`    API key set: ${process.env.ANTHROPIC_API_KEY ? 'YES' : 'NO — set ANTHROPIC_API_KEY in .env'}`);
-  console.log(`    Frontend:    http://localhost:${PORT}/\n`);
-});
 
 // ── Audits API ────────────────────────────────────────────────────────────────
 app.get('/api/audits', async (req, res) => {
@@ -430,16 +437,20 @@ app.get('/api/audits', async (req, res) => {
 
 app.post('/api/audits', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { name, period, owner, type, status, description, year } = req.body;
+  const { name, period, owner, type, status, description, desc, year } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
+  const descVal = description != null ? description : (desc || '');
   try {
     await pool.query(`INSERT INTO audits (name,period,owner,type,status,description,year,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
       ON CONFLICT (name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
         type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
-      [name, period||'', owner||'', type||'', status||'planned', desc||'', year||null]);
+      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) {
+    console.error('[API] audit save error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Workpapers API ────────────────────────────────────────────────────────────
@@ -546,4 +557,14 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
     );
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Serve the frontend HTML (after all /api routes) ──────────────────────────
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Start server ────────────────────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`\n✅  Wavefire backend running at http://localhost:${PORT}`);
+  console.log(`    API key set: ${process.env.ANTHROPIC_API_KEY ? 'YES' : 'NO — set ANTHROPIC_API_KEY in .env'}`);
+  console.log(`    Frontend:    http://localhost:${PORT}/\n`);
 });
