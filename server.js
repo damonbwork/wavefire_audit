@@ -12,11 +12,14 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Postgres ────────────────────────────────────────────────────────────────
-const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
-  : null;
-
-// Create tables on startup if they don't exist
+const dbUrl = process.env.DATABASE_URL
+  || process.env.database_url
+  || process.env.POSTGRES_URL
+  || process.env.DATABASE_PRIVATE_URL
+  || process.env.DATABASE_PUBLIC_URL;
+const pool = dbUrl ? new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } }) : null;
+if (!dbUrl) console.warn('[DB] No database URL found — checked DATABASE_URL, database_url, POSTGRES_URL, DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL');
+else console.log('[DB] Connecting to:', dbUrl.replace(/:\/\/[^@]+@/, '://***@'));
 async function initDB() {
   if (!pool) { console.log('No DATABASE_URL — running without database'); return; }
   try {
