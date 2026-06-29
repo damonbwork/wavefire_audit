@@ -3599,7 +3599,7 @@ auditor's assessment.
 
         <!-- Workpaper Elements box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
-          <div style="background:#1d4ed8;color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Workpaper Elements</div>
+          <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Workpaper Elements</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
@@ -14507,9 +14507,17 @@ async function previewMemFile(ref, bucket, idx) {
     // If this is a sample file and we have analysis results OR stored annotations, place overlays
     if (bucket === 'sample') {
       console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
-      // Reload stored user annotations if present on this file entry
-      // If no stored annotations, check analysis results for auto-placement
-      if (!entry._annotations?.length) {
+
+      // ── Restore saved user annotations directly ──────────────────────────
+      if (entry._annotations?.length) {
+        const ov = document.getElementById('pdf-ann-overlay');
+        if (ov) {
+          // Small delay to ensure the overlay is attached after setupAnnOverlay
+          setTimeout(function() {
+            _restoreAnnotationsToOverlay(entry._annotations, ov);
+          }, 120);
+        }
+      } else {
 
 
       // Use persisted results for this workpaper (survives navigation/refresh)
@@ -14567,7 +14575,7 @@ async function previewMemFile(ref, bucket, idx) {
       } else {
         console.log('[Viewer] No analysis results available for ref', ref);
       }
-      } // end if (!entry._annotations?.length)
+      } // end else (no stored annotations — try analysis results)
     }
   } else {
     const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
