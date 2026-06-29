@@ -1238,7 +1238,7 @@
             <!-- Description -->
             <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border-light)">
               <div class="fl" style="margin-bottom:5px">Description</div>
-              <textarea id="aud-desc" placeholder="Enter a description for this audit…" rows="3" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'; saveAuditDesc(this.value)" disabled="disabled">Review of revenue recognition policies and transaction-level testing for Q2 2026.</textarea>
+              <textarea id="aud-desc" placeholder="Enter a description for this audit…" rows="3" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" oninput="saveAuditDesc(this.value)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'; saveAuditDesc(this.value)" disabled="disabled">Review of revenue recognition policies and transaction-level testing for Q2 2026.</textarea>
             </div>
           </div>
         </div>
@@ -3599,7 +3599,7 @@ auditor's assessment.
 
         <!-- Workpaper Elements box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
-          <div style="background:var(--bg-secondary);color:var(--wf-navy);padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-bottom:0.5px solid var(--border-light)">Workpaper Elements</div>
+          <div style="background:#1d4ed8;color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Workpaper Elements</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
@@ -12613,8 +12613,26 @@ function setAuditInfoLocked(locked) {
 function toggleAuditInfoEdit() {
   const isLocked = document.getElementById('aud-owner')?.disabled !== false;
   if (!isLocked) {
-    // Pressing Ok — rebuild period first, then lock
+    // Pressing Ok — flush all fields to currentAudit and save to DB
     rebuildAuditPeriod();
+
+    const descEl   = document.getElementById('aud-desc');
+    const ownerSel = document.getElementById('aud-owner');
+    const typeSel  = document.getElementById('aud-type');
+    const statusSel= document.getElementById('aud-status');
+    const yearEl   = document.getElementById('aud-year');
+
+    if (currentAudit) {
+      if (descEl)    currentAudit.desc   = descEl.value.trim();
+      if (ownerSel)  currentAudit.owner  = ownerSel.options[ownerSel.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || currentAudit.owner;
+      if (typeSel)   currentAudit.type   = typeSel.value;
+      if (statusSel) currentAudit.status = statusSel.value;
+      if (yearEl)    {
+        const yr = parseInt(yearEl.value);
+        if (yr >= 2000 && yr <= 2099) currentAudit.year = yr;
+      }
+      _saveAuditToDB(currentAudit);
+    }
   }
   setAuditInfoLocked(!isLocked);
 }
@@ -12879,6 +12897,7 @@ async function analyzeWithClaude() {
   // Gather sample field extraction fields and options — must be before analyzeOneFile is defined
   const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
   const opts = _analysisOptions || {};
+  const wp   = WORKPAPERS[currentWPIndex];
 
   // Helper to update progress bar
   function setProgress(pct, statusText) {
