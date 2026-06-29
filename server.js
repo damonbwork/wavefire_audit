@@ -45,7 +45,7 @@ async function initDB() {
         owner       TEXT DEFAULT '',
         type        TEXT DEFAULT '',
         status      TEXT DEFAULT 'planned',
-        desc        TEXT DEFAULT '',
+        description TEXT DEFAULT '',
         year        INTEGER,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
@@ -430,13 +430,13 @@ app.get('/api/audits', async (req, res) => {
 
 app.post('/api/audits', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { name, period, owner, type, status, desc, year } = req.body;
+  const { name, period, owner, type, status, description, year } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   try {
-    await pool.query(`INSERT INTO audits (name,period,owner,type,status,desc,year,updated_at)
+    await pool.query(`INSERT INTO audits (name,period,owner,type,status,description,year,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
       ON CONFLICT (name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
-        type=EXCLUDED.type, status=EXCLUDED.status, desc=EXCLUDED.desc, year=EXCLUDED.year, updated_at=NOW()`,
+        type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
       [name, period||'', owner||'', type||'', status||'planned', desc||'', year||null]);
     res.json({ ok:true });
   } catch(err) { res.status(500).json({ error: err.message }); }
