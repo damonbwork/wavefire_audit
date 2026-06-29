@@ -450,6 +450,7 @@ app.post('/api/audits', async (req, res) => {
   const { name, period, owner, type, status, description, desc, year } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const descVal = description != null ? description : (desc || '');
+  console.log('[API] POST /api/audits name=', name, 'desc length=', descVal.length);
   try {
     await pool.query(`INSERT INTO audits (name,period,owner,type,status,description,year,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
@@ -605,6 +606,12 @@ app.post('/api/analysis-notes/:type/:id', async (req, res) => {
 
 // ── Serve the frontend HTML (after all /api routes) ──────────────────────────
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Catch-all: log any unmatched requests (helps diagnose 404s) ──────────────
+app.use(function(req, res) {
+  console.warn('[404] Unmatched route:', req.method, req.path);
+  res.status(404).json({ error: 'Not found', path: req.path });
+});
 
 // ── Start server ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
