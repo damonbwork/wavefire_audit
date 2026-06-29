@@ -3315,8 +3315,9 @@ auditor's assessment.
         </button>
         <div style="width:0.5px;height:20px;background:rgba(255,255,255,0.15);flex-shrink:0"></div>
         <span id="ann-count-label" style="font-size:11px;color:rgba(255,255,255,0.5)">23 annotations</span>
-        <div style="margin-left:auto">
-          <button onclick="saveAnnotatedPDF()" id="ann-save-btn" style="font-size: 12px; padding: 5px 14px; border-radius: 6px; border: medium; cursor: pointer; background: rgb(234, 88, 12); color: rgb(255, 255, 255); font-weight: 600; display: flex; align-items: center; gap: 6px;"><i class="ti ti-device-floppy"></i> Save annotated PDF</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button onclick="burnAnnotationsToPDF()" id="ann-burn-btn" title="Embed annotations permanently into a downloadable PDF" style="font-size:12px;padding:5px 14px;border-radius:6px;border:1.5px solid rgba(147,197,253,0.5);cursor:pointer;background:rgba(37,99,235,0.25);color:#93c5fd;font-weight:600;display:flex;align-items:center;gap:6px"><i class="ti ti-file-download"></i> Download with Annotations</button>
+          <button onclick="saveAnnotatedPDF()" id="ann-save-btn" style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;background:rgb(234,88,12);color:#fff;font-weight:600;display:flex;align-items:center;gap:6px"><i class="ti ti-device-floppy"></i> Save Annotations</button>
         </div>
       </div>
       <!-- Body -->
@@ -4775,6 +4776,9 @@ function openWP(i) {
 
   // Auto-resize all description textareas to fit their content
   setTimeout(autoResizeAllTAs, 50);
+
+  // Restore any saved annotations from Postgres onto in-memory sample file entries
+  _loadAnnotationsFromDB(w.ref);
 }
 
 /* ══════════════════════════════════════
@@ -5464,6 +5468,206 @@ function updateAnnCount() {
 }
 
 // Wire up clicks on the PDF body to place annotations
+async function burnAnnotationsToPDF() {
+  const btn = document.getElementById('ann-burn-btn');
+  if (btn) { btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Building…'; btn.disabled = true; }
+
+  try {
+    const PDFLib = await loadPdfLib();
+    const { PDFDocument, rgb, StandardFonts, degrees } = PDFLib;
+
+    // Get the current file
+    const entry = inMemoryFiles[_fpRef]?.[_fpBucket]?.[_fpIdx];
+    if (!entry?.file) throw new Error('No file open');
+
+    const origBytes = await entry.file.arrayBuffer();
+    const pdfDoc    = await PDFDocument.load(origBytes, { ignoreEncryption: true });
+    const pages     = pdfDoc.getPages();
+    const font      = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontReg   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontMono  = await pdfDoc.embedFont(StandardFonts.Courier);
+
+    // ── Collect annotations from overlay DOM ─────────────────────────────────
+    const overlay  = document.getElementById('pdf-ann-overlay');
+    const body     = document.getElementById('file-preview-body');
+    const canvas   = body?.querySelector('canvas');
+
+    if (!overlay || !canvas) throw new Error('PDF viewer not open');
+
+    const overlayH = parseInt(overlay.style.height) || body.scrollHeight || 1000;
+    const canvasW  = canvas.width;
+    const canvasH  = canvas.height;   // single-page canvas height in px
+
+    // Measure total rendered height of all pages
+    const wrappers = body.querySelectorAll('[data-page]');
+    const pageHeightsPx = [];
+    wrappers.forEach(w => {
+      const c = w.querySelector('canvas');
+      pageHeightsPx.push(c ? c.height : canvasH);
+    });
+
+    // Convert overlay-px → PDF-points (account for gap between pages = 12px)
+    const GAP_PX  = 12; // gap between page wrappers
+    function overlayYToPage(overlayY) {
+      let cumY = 0;
+      for (let p = 0; p < pageHeightsPx.length; p++) {
+        const ph = pageHeightsPx[p];
+        if (overlayY <= cumY + ph) {
+          const localY = overlayY - cumY; // px from top of this page
+          return { pageIdx: p, localY };
+        }
+        cumY += ph + GAP_PX;
+      }
+      return { pageIdx: 0, localY: overlayY };
+    }
+
+    function pxToPt(px, refPxH, refPtH) { return (px / refPxH) * refPtH; }
+
+    // Colour helpers
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1,3),16)/255;
+      const g = parseInt(hex.slice(3,5),16)/255;
+      const b = parseInt(hex.slice(5,7),16)/255;
+      return rgb(r,g,b);
+    }
+    const TICK_COLORS = {
+      pass:           '#16a34a',
+      pass_exception: '#ea580c',
+      fail:           '#dc2626',
+      error:          '#6b7280',
+      na:             '#6b7280',
+    };
+
+    // ── Burn each annotation DOM element ────────────────────────────────────
+    const annItems = overlay.querySelectorAll('.ann-item.ann-auto, .ann-item');
+    annItems.forEach(el => {
+      const left = parseFloat(el.style.left) || 0;
+      const top  = parseFloat(el.style.top)  || 0;
+
+      const { pageIdx, localY } = overlayYToPage(top);
+      if (pageIdx >= pages.length) return;
+
+      const page   = pages[pageIdx];
+      const { width: ptW, height: ptH } = page.getSize();
+
+      // Scale from canvas-px to PDF-points
+      const scaleX = ptW / canvasW;
+      const scaleY = ptH / pageHeightsPx[pageIdx];
+
+      const pdfX   = left * scaleX;
+      const pdfY   = ptH - localY * scaleY; // flip Y (PDF origin = bottom-left)
+
+      // Tick marks
+      const tickText = el.textContent?.trim();
+      if ((tickText === '✓' || tickText === '⚠' || tickText === '✗' || tickText === 'N/A' || tickText === '–') && el.style.border) {
+        const ann = pdfAnnotations.find(a => a.el === el);
+        const colHex = TICK_COLORS[ann?.tickType] || '#475569';
+        const c = hexToRgb(colHex);
+        page.drawRectangle({ x: pdfX - 2, y: pdfY - 18, width: 32, height: 22, borderColor: c, borderWidth: 1.5, color: rgb(c.red*0.12, c.green*0.12, c.blue*0.12), opacity: 0.15 });
+        page.drawText(tickText, { x: pdfX + 2, y: pdfY - 14, font, size: 13, color: c });
+        // Draw label text to the right of the tick
+        const ann2 = pdfAnnotations.find(a => a.el === el);
+        if (ann2?.text) {
+          page.drawText(ann2.text, { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
+        }
+        return;
+      }
+
+      // Text note / legend boxes
+      const ta = el.querySelector('textarea');
+      if (ta && ta.value) {
+        const isLegend = ta.style.fontFamily?.includes('monospace');
+        const boxW = parseFloat(el.style.width) || (isLegend ? 260 : 200);
+        const lines = ta.value.split('\n');
+        const lineH = isLegend ? 8.5 : 9;
+        const boxH  = Math.min(lines.length * lineH + 12, ptH * 0.4);
+
+        // Background rectangle
+        page.drawRectangle({ x: pdfX, y: pdfY - boxH, width: boxW * scaleX, height: boxH, color: rgb(1,1,0.8), borderColor: rgb(0.92,0.7,0.08), borderWidth: 1, opacity: 0.92 });
+
+        // Text lines
+        let ty = pdfY - 8;
+        const maxLines = Math.floor((boxH - 8) / lineH);
+        lines.slice(0, maxLines).forEach(line => {
+          page.drawText(line.slice(0, 90), { x: pdfX + 3, y: ty, font: isLegend ? fontMono : fontReg, size: isLegend ? 6 : 7, color: rgb(0.1,0.1,0.1) });
+          ty -= lineH;
+        });
+      }
+
+      // Highlights
+      if (el.style.background?.includes('rgba(250,204,21') || el.style.background?.includes('rgba(250')) {
+        const w = (parseFloat(el.style.width) || 180) * scaleX;
+        const h = (parseFloat(el.style.height) || 28) * scaleY;
+        page.drawRectangle({ x: pdfX, y: pdfY - h, width: w, height: h, color: rgb(0.98,0.8,0.08), opacity: 0.28, borderColor: rgb(0.8,0.5,0.02), borderWidth: 1 });
+      }
+    });
+
+    // ── Also handle result-type logical annotations on the entry ─────────────
+    const ann0 = entry._annotations?.[0];
+    if (ann0?.type === 'result' && pdfAnnotations.filter(a=>a.auto).length === 0) {
+      // Annotations not rendered to overlay yet — build from logical data
+      const ref   = _fpRef;
+      const attrs = entry._annotations.filter(a => a.type === 'result');
+      const SYMS  = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+      const COLS  = { pass: rgb(0.09,0.47,0.24), pass_exception: rgb(0.92,0.35,0), fail: rgb(0.75,0.07,0.22), error: rgb(0.4,0.4,0.4) };
+
+      // Legend on page 0
+      if (pages[0]) {
+        const pg   = pages[0];
+        const { width: ptW, height: ptH } = pg.getSize();
+        const legLines = ['TESTWORK SUMMARY', '─'.repeat(32)];
+        attrs.forEach(a => {
+          const sym   = SYMS[a.result] || '–';
+          const exRef = a.exRef ? ' ['+a.exRef+']' : '';
+          legLines.push(sym + '  ' + (a.attrRef||'') + '. ' + (a.title||'') + exRef);
+          if (a.note) legLines.push('    ' + a.note.slice(0,55));
+        });
+        const lh  = 8, lw = 240, boxH = legLines.length * lh + 14;
+        const lx  = ptW - lw - 14, ly = ptH - 14;
+        pg.drawRectangle({ x: lx, y: ly - boxH, width: lw, height: boxH, color: rgb(1,1,0.85), borderColor: rgb(0.2,0.4,0.7), borderWidth: 1.5, opacity: 0.95 });
+        let ty = ly - 10;
+        legLines.forEach((line, li) => {
+          pg.drawText(line.slice(0,50), { x: lx + 5, y: ty, font: li < 2 ? font : fontMono, size: li === 0 ? 7.5 : 6.5, color: rgb(0.1,0.1,0.3) });
+          ty -= lh;
+        });
+      }
+
+      // Tick marks on each page
+      attrs.forEach(a => {
+        const pgIdx = Math.max(0, (a.page||1) - 1);
+        if (pgIdx >= pages.length) return;
+        const pg = pages[pgIdx];
+        const { width: ptW, height: ptH } = pg.getSize();
+        const paraFrac = Math.min(0.9, ((a.paragraph||1) + 1) / Math.max((attrs.length + 3), 10));
+        const pdfY = ptH * (1 - paraFrac);
+        const col  = COLS[a.result] || COLS.error;
+        const sym  = SYMS[a.result] || '–';
+        pg.drawRectangle({ x: 10, y: pdfY - 10, width: 28, height: 16, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.08, col.green*0.08, col.blue*0.08), opacity: 0.2 });
+        pg.drawText(sym, { x: 14, y: pdfY - 6, font, size: 11, color: col });
+        if (a.attrRef) pg.drawText(String(a.attrRef), { x: 42, y: pdfY - 4, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3) });
+      });
+    }
+
+    // ── Save and download ────────────────────────────────────────────────────
+    const outBytes = await pdfDoc.save();
+    const blob     = new Blob([outBytes], { type:'application/pdf' });
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement('a');
+    const baseName = (entry.name||'document').replace(/\.pdf$/i,'');
+    a.href         = url;
+    a.download     = baseName + '_annotated.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Downloaded!'; btn.style.background = 'rgba(22,163,74,0.3)'; btn.style.borderColor = '#4ade80'; btn.style.color = '#4ade80'; setTimeout(() => { btn.innerHTML = '<i class="ti ti-file-download"></i> Download with Annotations'; btn.style.background='rgba(37,99,235,0.25)'; btn.style.borderColor='rgba(147,197,253,0.5)'; btn.style.color='#93c5fd'; btn.disabled=false; }, 2500); }
+
+  } catch(err) {
+    console.error('[BurnPDF]', err);
+    alert('Could not build annotated PDF: ' + err.message);
+    if (btn) { btn.innerHTML = '<i class="ti ti-file-download"></i> Download with Annotations'; btn.disabled = false; }
+  }
+}
+
 async function loadPdfLib() {
   if (window.PDFLib) return window.PDFLib;
   return new Promise((resolve, reject) => {
@@ -5574,6 +5778,8 @@ async function saveAnnotatedPDF() {
     entry._annotations = serialized;
     entry.updatedBy    = 'jdavis';
     entry.updatedOn    = nowStr;
+    // Persist annotations to Postgres
+    _saveAnnotationsToDB(_fpRef, entry.name, serialized);
 
     if (entry.name !== annName) {
       // Rename: create new File with new name, same bytes
@@ -6675,6 +6881,42 @@ async function _loadWorkpapersFromDB() {
     }
   } catch(e) { console.warn('[DB] bootstrap load error:', e.message); }
 })();
+
+// ── Annotation Postgres persistence ──────────────────────────────────────────
+async function _saveAnnotationsToDB(ref, filename, annotations) {
+  if (!ref || !filename) return;
+  try {
+    await fetch('/api/annotations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref, filename, annotations: annotations || [] })
+    });
+  } catch(e) { console.warn('[DB] annotation save failed:', e.message); }
+}
+
+async function _loadAnnotationsFromDB(ref) {
+  if (!ref) return;
+  try {
+    const res = await fetch('/api/annotations/' + encodeURIComponent(ref));
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    // Restore onto matching in-memory file entries
+    const sampleFiles = (inMemoryFiles[ref] || {}).sample || [];
+    rows.forEach(function(row) {
+      if (!row.annotations || !row.annotations.length) return;
+      // Match by filename (exact or basename)
+      const match = sampleFiles.find(function(f) {
+        return f.name === row.filename ||
+          f.name.replace(/\.pdf$/i,'') === row.filename.replace(/\.pdf$/i,'');
+      });
+      if (match && !match._annotations?.length) {
+        match._annotations = row.annotations;
+        console.log('[DB] Restored', row.annotations.length, 'annotations onto', match.name);
+      }
+    });
+  } catch(e) { console.warn('[DB] annotation load failed:', e.message); }
+}
 
 function saveCurrentPage() {
   const activePage = document.querySelector('.page.active');
@@ -14238,31 +14480,12 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       continue;
     }
 
-    // Skip already-annotated files to prevent double-annotation
-    if (/_annotated_\d{8}_\d{4}\.pdf$/i.test(fileName) || fileName.toLowerCase().endsWith('_annotated.pdf')) {
-      console.log('[Annotate] Skipping already-annotated file:', fileName);
-      continue;
-    }
-
-    // Look up in sample files — match original name OR already-annotated name
+    // Look up in sample files — match by original filename
     const sampleFiles = inMemoryFiles[ref]?.sample || [];
     console.log('[Annotate] Sample files in store:', sampleFiles.map(f => f.name));
 
-    const _annTs = (() => {
-      const n = new Date();
-      return String(n.getFullYear()) +
-        String(n.getMonth()+1).padStart(2,'0') +
-        String(n.getDate()).padStart(2,'0') + '_' +
-        String(n.getHours()).padStart(2,'0') +
-        String(n.getMinutes()).padStart(2,'0');
-    })();
-    const annName = fileName.replace(/\.pdf$/i, `_annotated_${_annTs}.pdf`);
+    const annName = fileName; // keep original filename — no renaming
     let sfEntry = sampleFiles.find(f => f.name === fileName);
-    if (!sfEntry) {
-      // Try matching the _annotated version (previous run replaced original)
-      sfEntry = sampleFiles.find(f => f.name === annName);
-      if (sfEntry) console.log('[Annotate] Found previous annotated version:', sfEntry.name);
-    }
     if (!sfEntry) {
       // Fuzzy match — strip _annotated suffix and compare basenames
       const base = fileName.replace(/\.pdf$/i, '').toLowerCase();
@@ -14280,104 +14503,53 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
 
     try {
       console.log('[Annotate] Creating annotated entry with overlay annotations');
-      const annBlob  = sfEntry.file;
-      const annFile  = new File([annBlob], annName, { type: 'application/pdf' });
+      // Update the existing entry in-place with annotations — no file rename, no new entry
+      const annFile = new File([annBlob], fileName, { type: 'application/pdf' });
       const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
-      // Build serialized annotation data from analysis results so they
-      // reload as interactive overlays when the file is reopened
-      const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
-      const serializedAnnotations = [];
-      const bodyH   = 15477; // estimated total body height for 19 pages at 815px each
-      const pageH   = 792;   // standard PDF page height in PDF points mapped to ~815px
-
-      attributes.forEach((attr, ai) => {
-        let match = fileResult.results.find(r => r.title === attr.title);
-        if (!match) {
-          const al = attr.title.toLowerCase();
-          match = fileResult.results.find(r =>
-            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-          );
-        }
-        if (!match) return;
-
-        const result  = match.result || 'error';
-        const sym     = TICK_SYMS[result] || '–';
-        const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
-        const label   = (attr.attrRef || attr.num || String(ai+1)) + exRef;
-        const noteText = (match.note || '').slice(0, 60);
-
-        const targetPage = Math.max(0, (match.page || 1) - 1);
-        const paraNum    = Math.max(1, match.paragraph || (ai + 1));
-        const estPageH   = 815; // px per page in viewer
-        const paraH      = Math.min(40, (estPageH - 80) / Math.max(paraNum + 2, 10));
-        const rawY       = targetPage * estPageH + 40 + paraNum * paraH;
-        const tickY      = Math.max(targetPage * estPageH + 20, Math.min((targetPage + 1) * estPageH - 40, rawY));
-
-        // Tick mark annotation
-        serializedAnnotations.push({
-          type: 'tick', tickType: result, symbol: sym,
-          x: 10, y: tickY, text: label, auto: true,
-          width: 40, height: 30,
-        });
-
-        // Text note annotation
-        if (noteText) {
-          serializedAnnotations.push({
-            type: 'text',
-            x: 46, y: tickY - 4, text: '[' + label + '] ' + noteText,
-            auto: true, width: 200, height: 32,
-          });
-        }
+      // Store logical annotation metadata (page, paragraph) — resolved to pixels at render time
+      // by placeInteractiveAnnotations / placeLegendOverlay using the actual canvas dimensions.
+      const serializedAnnotations = attributes.map((attr, ai) => {
+        const match = fileResult.results.find(r => r.title === attr.title) ||
+          (() => { const al = attr.title.toLowerCase(); return fileResult.results.find(r => r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())); })();
+        return {
+          type: 'result',
+          attrRef: attr.attrRef || attr.num || String(ai + 1),
+          title: attr.title,
+          result: match?.result || 'error',
+          note: match?.note || '',
+          page: match?.page || 1,
+          paragraph: match?.paragraph || (ai + 1),
+          symbol: { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' }[match?.result || 'error'] || '–',
+          exRef: exMap[`${fi}-${ai}`] || '',
+        };
       });
-
-      // Also add Testwork Summary legend
-      const TICK_FULL = { pass:'P', pass_exception:'PE', fail:'F', error:'-' };
-      const legendLines = ['Testwork Summary', '-'.repeat(40)];
-      attributes.forEach((attr, ai) => {
-        let match = fileResult.results.find(r => r.title === attr.title);
-        if (!match) {
-          const al = attr.title.toLowerCase();
-          match = fileResult.results.find(r =>
-            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-          );
-        }
-        const result  = match?.result || 'error';
-        const tick    = TICK_SYMS[result] || '-';
-        const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
-        const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
-        const pageNum = (match?.page && match.page > 0) ? '  Pg ' + match.page : '';
-        legendLines.push(tick + '  ' + label + exRef + pageNum);
-        if (match?.note) legendLines.push('     ' + match.note.slice(0, 60));
-      });
-      serializedAnnotations.push({
-        type: 'legend', x: 10, y: 20,
-        text: legendLines.join('\n'),
-        auto: true, width: 360, height: 200,
-      });
+      // Add a marker that signals the summary legend should appear on page 1
+      serializedAnnotations.push({ type: 'legend_marker', fi });
 
       console.log('[Annotate] Built', serializedAnnotations.length, 'annotations for entry');
 
-      // Replace original AND any existing annotated version in sample files
+      // Replace the existing entry in the sample files list (same name, same position)
       const sfArr = inMemoryFiles[ref].sample;
-      const _origBase = fileName.replace(/\.pdf$/i, '').toLowerCase();
-      for (let i = sfArr.length - 1; i >= 0; i--) {
-        const n = sfArr[i].name;
-        const nBase = n.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
-        if (n === fileName || n === annName || nBase === _origBase) sfArr.splice(i, 1);
-      }
+      const existingIdx = sfArr.findIndex(f => f.name === fileName);
       const annEntry = {
-        file: annFile, name: annName,
-        size: formatFileSize(annBlob.size),
+        file: annFile, name: fileName,
+        size: sfEntry.size,
         type: 'application/pdf',
-        uploadedBy: 'Wavefire',
-        uploadedOn: nowStr,
-        _annotations: serializedAnnotations,  // ← stored for reloading
+        uploadedBy: sfEntry.uploadedBy || 'Wavefire',
+        uploadedOn: sfEntry.uploadedOn || nowStr,
+        _annotations: serializedAnnotations,
       };
-      sfArr.unshift(annEntry);
+      if (existingIdx >= 0) {
+        sfArr[existingIdx] = annEntry;
+      } else {
+        sfArr.unshift(annEntry);
+      }
       console.log('[Annotate] annEntry._annotations count:', annEntry._annotations?.length, 'name:', annEntry.name);
       console.log('[Annotate] inMemoryFiles[ref].sample[0]._annotations:', inMemoryFiles[ref].sample[0]?._annotations?.length);
       console.log('[Annotate] Stored in sample files. Current sample files:', sfArr.map(f => f.name));
+      // Persist to Postgres
+      _saveAnnotationsToDB(ref, annEntry.name, serializedAnnotations);
       refreshFileList(ref, 'sample');
 
     } catch(err) {
@@ -14417,6 +14589,30 @@ function _restoreAnnotationsToOverlay(annotations, overlay) {
   overlay.querySelectorAll('.ann-auto').forEach(el => el.remove());
   pdfAnnotations = pdfAnnotations.filter(a => !a.auto);
 
+  // Check if these are logical result annotations (new format — place via placement functions)
+  const hasLogical = annotations.some(a => a.type === 'result' || a.type === 'legend_marker');
+  if (hasLogical) {
+    // Reconstruct fileResult and attrs from stored data, then call placement functions
+    const results = annotations
+      .filter(a => a.type === 'result')
+      .map(a => ({ title: a.title, result: a.result, note: a.note, page: a.page, paragraph: a.paragraph }));
+    const fileName = (overlay.closest?.('[data-filename]') || document.getElementById('file-preview-title'))?.textContent || '';
+    const legendMarker = annotations.find(a => a.type === 'legend_marker');
+    const fi = legendMarker?.fi ?? 0;
+    const attrs = annotations.filter(a => a.type === 'result').map((a, ai) => ({ title: a.title, attrRef: a.attrRef, num: a.attrRef }));
+    const exMapLocal = {};
+    annotations.filter(a => a.type === 'result').forEach((a, ai) => {
+      if (a.exRef) exMapLocal[`${fi}-${ai}`] = a.exRef;
+    });
+    const fileResult = { fileName, results };
+    if (results.length) {
+      placeLegendOverlay(fileResult, attrs, exMapLocal, fi);
+      placeInteractiveAnnotations(fileResult, attrs, exMapLocal, fi);
+    }
+    return;
+  }
+
+  // Legacy format — render pre-computed pixel annotations directly
   annotations.forEach(ann => {
     if (ann.type === 'tick') {
       const col = { pass:'#16a34a', pass_exception:'#ea580c', fail:'#dc2626', error:'#6b7280', na:'#6b7280' }[ann.tickType] || '#6b7280';
@@ -14521,14 +14717,8 @@ async function previewMemFile(ref, bucket, idx) {
           : analysisResults;
 
       if (wpResults.length) {
-        // Strip _annotated_YYYYMMDD_HHMM suffix to get original filename for matching
-        const baseName = name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
-                             .replace(/_annotated\.pdf$/i, '.pdf');
-        const fileResult = wpResults.find(r => {
-          const rBase = r.fileName.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '.pdf')
-                                  .replace(/_annotated\.pdf$/i, '.pdf');
-          return r.fileName === name || r.fileName === baseName || rBase === baseName || rBase === name;
-        });
+        // Match by filename directly (files no longer get renamed during analysis)
+        const fileResult = wpResults.find(r => r.fileName === name);
         if (fileResult) {
           console.log('[Viewer] Found analysis results for', name, '— will place overlays after PDF renders');
           const fi = wpResults.indexOf(fileResult);
