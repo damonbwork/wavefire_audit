@@ -776,6 +776,7 @@
       <a class="wf-nav-item" href="#">My Action Plans</a>
       <a class="wf-nav-item active" href="#" onclick="activateAuditsSection();return false;">Audits</a>
       <a class="wf-nav-item" href="#" onclick="activateFoundations();return false;">Foundations</a>
+      <a class="wf-nav-item" href="#" onclick="openKnowledgeBaseModal();return false;" style="margin-left:auto"><i class="ti ti-brain" style="font-size:13px;margin-right:4px"></i>Knowledge Base</a>
     </nav>
     <div class="wf-user">
       <div class="wf-notif"><i class="ti ti-bell"></i></div>
@@ -1240,10 +1241,13 @@
               <div class="fl" style="margin-bottom:5px">Description</div>
               <textarea id="aud-desc" placeholder="Enter a description for this audit…" rows="3" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" oninput="saveAuditDesc(this.value)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'; saveAuditDesc(this.value)" disabled="disabled">Review of revenue recognition policies and transaction-level testing for Q2 2026.</textarea>
             </div>
+            <!-- Analysis Notes (for AI context) -->
+            <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border-light)">
+              <div class="fl" style="margin-bottom:5px">Analysis Notes <span style="font-size:9px;color:var(--text-tertiary);font-weight:400;text-transform:none;letter-spacing:0">(used to inform AI analysis — summarise key risks, scope limits, prior findings)</span></div>
+              <textarea id="aud-analysis-notes" placeholder="Enter notes to inform AI analysis of this audit…" rows="3" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" oninput="saveAuditAnalysisNotes(this.value)" onblur="saveAuditAnalysisNotes(this.value)" disabled="disabled"></textarea>
+            </div>
           </div>
         </div>
-
-        <!-- Scope Section Card -->
         <div class="sect-card" style="margin-bottom:0">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-scope"></i>Scope</div>
@@ -3578,6 +3582,33 @@ auditor's assessment.
   </div>
 
   <!-- Analysis Options Dialog -->
+  <!-- ── Knowledge Base Modal ──────────────────────────────────────────────── -->
+  <div id="kb-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:22000;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+    <div style="background:var(--bg-primary);border-radius:14px;width:min(640px,96vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.35);overflow:hidden">
+      <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <div>
+          <div style="font-size:15px;font-weight:700"><i class="ti ti-brain" style="margin-right:8px"></i>Knowledge Base</div>
+          <div style="font-size:11px;opacity:0.65;margin-top:2px">Notes entered here are included in AI analysis when selected — keep each field concise</div>
+        </div>
+        <button onclick="document.getElementById('kb-modal-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0">&#x00D7;</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+        <!-- Company level -->
+        <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
+          <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Company / Organisation</div>
+          <div style="padding:12px 14px">
+            <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">Business overview, risk appetite, regulatory environment, key personnel, known patterns</div>
+            <textarea id="kb-company-notes" rows="5" placeholder="Enter company-level context for AI analysis…" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary);outline:none" oninput="_kbSaveCompany(this.value)"></textarea>
+            <div id="kb-company-status" style="font-size:10px;color:var(--text-tertiary);margin-top:4px"></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
+        <button class="btn-p" onclick="document.getElementById('kb-modal-overlay').style.display='none'"><i class="ti ti-check"></i>Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="analysis-options-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.45); z-index: 11000; align-items: center; justify-content: center;">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(500px,95vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
@@ -3586,6 +3617,17 @@ auditor's assessment.
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis:</div>
+
+        <!-- Knowledge Base box -->
+        <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
+          <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Knowledge Base</div>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-company" class="analysis-opt-cb" checked><span class="analysis-opt-label">Company / Organisation Context</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-audit" class="analysis-opt-cb" checked><span class="analysis-opt-label">Audit Analysis Notes</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-entities" class="analysis-opt-cb" checked><span class="analysis-opt-label">Entity Analyst Notes</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-controls" class="analysis-opt-cb" checked><span class="analysis-opt-label">Control &amp; Risk Analyst Notes</span></label>
+          </div>
+        </div>
 
         <!-- Audit Elements box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
@@ -7589,6 +7631,10 @@ function openEntityDialog(idx) {
     <div style="grid-column:1/-1">
       ${_eLabel('Description', 'included in Claude analysis context')}
       ${_eArea(idx,'description', e.description, 'Describe this entity — this text is silently included in Claude analysis context when this entity is linked to a workpaper…')}
+    </div>
+    <div style="grid-column:1/-1">
+      ${_eLabel('Analyst Notes', 'risk observations, prior findings, notes for AI analysis')}
+      ${_eArea(idx,'analyst_notes', e.analyst_notes||'', 'Enter analyst notes, known risks, prior audit observations…')}
     </div>`;
 
   // ── Application risk fields ──────────────────────────────────────
@@ -8191,6 +8237,127 @@ function _rcmGraphHTML(payload) {
 '<'+'/scr'+'ipt></body></html>';
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  KNOWLEDGE BASE — company / audit / entity / control / risk notes
+// ══════════════════════════════════════════════════════════════════════════════
+var _kbCompanyNotes = '';
+var _kbSaveTimer    = null;
+
+function openKnowledgeBaseModal() {
+  document.getElementById('kb-modal-overlay').style.display = 'flex';
+  var ta = document.getElementById('kb-company-notes');
+  if (ta) ta.value = _kbCompanyNotes;
+  document.getElementById('kb-company-status').textContent = '';
+}
+
+function _kbSaveCompany(val) {
+  _kbCompanyNotes = val;
+  clearTimeout(_kbSaveTimer);
+  _kbSaveTimer = setTimeout(function() {
+    fetch('/api/company-context', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ notes: val })
+    }).then(function(r) {
+      var el = document.getElementById('kb-company-status');
+      if (el) el.textContent = r.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed';
+    }).catch(function(e) { console.warn('[KB] company save failed:', e.message); });
+  }, 800);
+}
+
+function saveAuditAnalysisNotes(val) {
+  if (!currentAudit) return;
+  currentAudit.analysis_notes = val;
+  clearTimeout(_kbSaveTimer);
+  _kbSaveTimer = setTimeout(function() {
+    fetch('/api/analysis-notes/audit/' + encodeURIComponent(currentAudit.name), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ notes: val })
+    }).catch(function(e) { console.warn('[KB] audit notes save failed:', e.message); });
+  }, 800);
+}
+
+function _saveRiskNotes(riskId, val) {
+  var r = _fndRisks.find(function(x){ return x.id===riskId; });
+  if (r) r.analyst_notes = val;
+  clearTimeout(_kbSaveTimer);
+  _kbSaveTimer = setTimeout(function() {
+    fetch('/api/analysis-notes/risk/' + encodeURIComponent(riskId), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ notes: val })
+    }).catch(function(e) { console.warn('[KB] risk notes save failed:', e.message); });
+  }, 800);
+}
+
+// Entity analyst_notes save is handled via _eArea → fndDialogUpdate → saveFoundationsEntity → _saveEntityToDB
+
+// Load company context on startup
+(function() {
+  fetch('/api/company-context').then(function(r){ return r.json(); }).then(function(d){
+    _kbCompanyNotes = d.notes || '';
+    var ta = document.getElementById('kb-company-notes');
+    if (ta && d.notes) ta.value = d.notes;
+  }).catch(function(){});
+})();
+
+// ── Knowledge Base assembler for Claude ───────────────────────────────────────
+function _buildKnowledgeBlock(opts, ref, wp) {
+  if (!opts) return '';
+  var parts  = [];
+  var MAXLEN = 600; // chars per note before truncation
+  function trim(s) { s = (s||'').trim(); return s.length > MAXLEN ? s.slice(0, MAXLEN) + '…' : s; }
+
+  // Company context
+  if (opts.kbCompany && _kbCompanyNotes.trim()) {
+    parts.push('COMPANY / ORGANISATION CONTEXT:\n' + trim(_kbCompanyNotes));
+  }
+
+  // Audit analysis notes
+  if (opts.kbAudit && currentAudit && currentAudit.analysis_notes) {
+    parts.push('AUDIT ANALYSIS NOTES:\n' + trim(currentAudit.analysis_notes));
+  }
+
+  // Entity analyst notes (for entities linked to this workpaper)
+  if (opts.kbEntities) {
+    var allEnts = (typeof _fndEntities!=='undefined'&&_fndEntities.length?_fndEntities:[]).concat(ALL_ENTITIES||[]);
+    var wpEntIds = Array.from(wpScopeEntities[ref]||[]);
+    var entParts = [];
+    wpEntIds.forEach(function(eid) {
+      var e = allEnts.find(function(x){ return x.id===eid; });
+      if (e && e.analyst_notes && e.analyst_notes.trim()) {
+        entParts.push('  ' + (e.name||eid) + ': ' + trim(e.analyst_notes));
+      }
+    });
+    if (entParts.length) parts.push('ENTITY ANALYST NOTES:\n' + entParts.join('\n'));
+  }
+
+  // Control + risk analyst notes
+  if (opts.kbControls) {
+    var ctrlIds = Array.from(wpLinkedControls[ref]||[]);
+    var ctrlParts = [], riskSeen = new Set();
+    ctrlIds.forEach(function(cid) {
+      var c = (typeof _fndControls!=='undefined'?_fndControls:[]).find(function(x){ return x.id===cid; });
+      if (!c) return;
+      var block = [];
+      if (c.analyst_notes && c.analyst_notes.trim()) {
+        block.push('  Control ' + c.id + ' – ' + (c.name||'') + ': ' + trim(c.analyst_notes));
+      }
+      (Array.isArray(c.linked_risks)?c.linked_risks:(CTRL_RISKS_MAP[cid]||[])).forEach(function(rid) {
+        if (riskSeen.has(rid)) return; riskSeen.add(rid);
+        var r = (typeof _fndRisks!=='undefined'?_fndRisks:[]).find(function(x){ return x.id===rid; });
+        if (r && r.analyst_notes && r.analyst_notes.trim()) {
+          block.push('  Risk ' + r.id + ' – ' + (r.name||r.title||'') + ': ' + trim(r.analyst_notes));
+        }
+      });
+      if (block.length) ctrlParts = ctrlParts.concat(block);
+    });
+    if (ctrlParts.length) parts.push('CONTROL & RISK ANALYST NOTES:\n' + ctrlParts.join('\n'));
+  }
+
+  return parts.length
+    ? '=== KNOWLEDGE BASE ===\n' + parts.join('\n\n') + '\n=== END KNOWLEDGE BASE ===\n\n'
+    : '';
+}
 
 function renderFoundationsRCM() {
   const list = document.getElementById('fnd-rcm-list');
@@ -9466,6 +9633,7 @@ function openRCMRisksModal(idx) {
             rcmRiskSortTh('id',          'Risk ID') +
             rcmRiskSortTh('name',        'Risk Name') +
             rcmRiskSortTh('description', 'Description') +
+            '<th style="padding:7px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Analyst Notes</th>' +
           '</tr></thead>' +
           '<tbody id="rcm-risk-tbody"></tbody>' +
         '</table>' +
@@ -9543,7 +9711,8 @@ function rcmRenderRisksModal() {
       '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+r.id+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmRiskToggle(\''+r.id+'\',this.checked,this.closest(\'tr\'))"></td>' +
       '<td style="padding:8px 10px;white-space:nowrap"><span style="font-size:10px;font-weight:700;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:2px 6px">'+escHtml(r.id)+'</span></td>' +
       '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(r.name||r.title||'')+'</td>' +
-      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(r.description||'')+'">'+escHtml((r.description||'').slice(0,90))+(r.description&&r.description.length>90?'…':'')+'</td>' +
+      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(r.description||'')+'">'+escHtml((r.description||'').slice(0,80))+(r.description&&r.description.length>80?'…':'')+'</td>' +
+      '<td style="padding:6px 8px"><textarea rows="1" placeholder="Analyst notes…" style="width:100%;min-width:140px;font-size:11px;border:0.5px solid var(--border-light);border-radius:4px;padding:4px 6px;background:var(--bg-secondary);resize:vertical;font-family:inherit;color:var(--text-primary)" oninput="_saveRiskNotes(\''+r.id+'\',this.value)">'+escHtml(r.analyst_notes||'')+'</textarea></td>' +
     '</tr>';
   }).join('') : '<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:13px">No risks match.</td></tr>';
 
@@ -9862,6 +10031,10 @@ function openRCMDialog(idx) {
                 '<textarea tabindex="6" rows="3" placeholder="Additional context, exceptions, known issues, or relevant notes…" ' +
                 'style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" ' +
                 'oninput="rcmDialogUpdate('+idx+',\'additional_info\',this.value)">'+escHtml(c.additional_info||'')+'</textarea></div>' +
+              '<div>'+fld('Analyst Notes','risk observations, control effectiveness, prior findings — used to inform AI analysis')+
+                '<textarea tabindex="7" rows="3" placeholder="Enter analyst observations, control effectiveness notes, prior findings, residual risk…" ' +
+                'style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);resize:vertical;font-family:inherit;box-sizing:border-box;line-height:1.5;color:var(--text-primary)" ' +
+                'oninput="rcmDialogUpdate('+idx+',\'analyst_notes\',this.value)">'+escHtml(c.analyst_notes||'')+'</textarea></div>' +
             '</div>' +
           '</div>' +
 
@@ -11706,6 +11879,11 @@ let _analysisOptions = {};
 
 function runAnalysisWithOptions() {
   _analysisOptions = {
+    // Knowledge Base
+    kbCompany:  document.getElementById('aopt-kb-company')?.checked,
+    kbAudit:    document.getElementById('aopt-kb-audit')?.checked,
+    kbEntities: document.getElementById('aopt-kb-entities')?.checked,
+    kbControls: document.getElementById('aopt-kb-controls')?.checked,
     // Audit Elements
     auditDesc:     document.getElementById('aopt-audit-desc')?.checked,
     auditEntities: document.getElementById('aopt-audit-entities')?.checked,
@@ -12869,7 +13047,7 @@ const AUDIT_INFO_LOCKED_FIELDS = [
   'aud-year',
   'aud-period-from-month','aud-period-from-day','aud-period-from-year',
   'aud-period-to-month','aud-period-to-day','aud-period-to-year',
-  'aud-owner','aud-biz-owner','aud-type','aud-desc',
+  'aud-owner','aud-biz-owner','aud-type','aud-desc','aud-analysis-notes',
 ];
 
 function setAuditInfoLocked(locked) {
@@ -13253,6 +13431,11 @@ async function analyzeWithClaude() {
 
   // Build context section — workpaper-level data prepended to the user message
   const contextParts = [];
+
+  // ── Knowledge Base (company / audit / entity / control notes) ────────────
+  const kbBlock = _buildKnowledgeBlock(opts, ref, wp);
+  if (kbBlock) contextParts.push(kbBlock.trim());
+
   if (opts.narrative && wp?.narrative?.trim()) {
     contextParts.push(`PROCESS / CONTROL NARRATIVE:\n${wp.narrative.trim()}`);
   }
@@ -13821,7 +14004,11 @@ function downloadTestGuidance() {
   lines.push('ANALYSIS OPTIONS SELECTED');
   lines.push(hr);
   const optLabels = [
-    [opts.auditDesc,     'Audit Description'],
+    [opts.kbCompany,    'Knowledge Base: Company / Organisation Context'],
+    [opts.kbAudit,     'Knowledge Base: Audit Analysis Notes'],
+    [opts.kbEntities,  'Knowledge Base: Entity Analyst Notes'],
+    [opts.kbControls,  'Knowledge Base: Control & Risk Analyst Notes'],
+    [false, ''],
     [opts.auditEntities, 'Audit-Level Assessment Entities'],
     [opts.auditRisks,    'Audit-Level Risks & Controls'],
     [opts.auditFs,       'Audit-Level Financial Statement Accounts & Footnotes'],
