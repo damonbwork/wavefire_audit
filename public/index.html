@@ -12859,10 +12859,19 @@ function setAuditInfoLocked(locked) {
   });
   const btn = document.getElementById('aud-edit-btn');
   if (btn) {
-    btn.innerHTML = locked
-      ? '<i class="ti ti-edit"></i>Edit'
-      : '<i class="ti ti-check"></i>Ok';
-    btn.style.color = locked ? '' : '#166634';
+    if (locked) {
+      btn.innerHTML = '<i class="ti ti-edit"></i>Edit';
+      btn.style.background  = '';
+      btn.style.color       = '';
+      btn.style.borderColor = '';
+      btn.style.fontWeight  = '';
+    } else {
+      btn.innerHTML = '<i class="ti ti-device-floppy"></i>Ok &amp; Save';
+      btn.style.background  = '#ea580c';
+      btn.style.color       = '#fff';
+      btn.style.borderColor = '#ea580c';
+      btn.style.fontWeight  = '700';
+    }
   }
   setAuditPeriodViewMode(locked);
 }
