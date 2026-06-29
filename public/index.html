@@ -6502,6 +6502,139 @@ function escHistVal(str) {
 /* ══════════════════════════════════════
    SAVE CURRENT PAGE — persist all editable fields back to data
 ══════════════════════════════════════ */
+// ── Audit & Workpaper Postgres persistence ────────────────────────────────────
+async function _saveAuditToDB(audit) {
+  if (!audit || !audit.name) return;
+  try {
+    await fetch('/api/audits', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: audit.name, period: audit.period||'', owner: audit.owner||'',
+        type: audit.type||'', status: audit.status||'planned',
+        desc: audit.desc||'', year: audit.year||null
+      })
+    });
+  } catch(e) { console.warn('[DB] audit save failed:', e.message); }
+}
+
+async function _saveWorkpaperToDB(w) {
+  if (!w || !w.ref) return;
+  try {
+    // Gather linked data from session stores (exclude file attachment objects)
+    var linkedControls  = w.linkedControls || [...(wpLinkedControls[w.ref]||[])];
+    var scopeEntities   = [...(wpScopeEntities[w.ref]||[])];
+    var fsAccts         = [...(rcDialogSelected||[])];
+    var scopeFsAccts    = [...(wpFsAccounts[w.ref]||[])];
+    var testAttrs       = wpTestAttributes[w.ref] || [];
+    var sampleFlds      = wpSampleFields[w.ref] || [];
+    var excpts          = Object.values(wpExceptions).filter(function(e){ return e && e.wpRef===w.ref; });
+    await fetch('/api/workpapers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ref:                   w.ref,
+        audit_name:            w.auditName||'',
+        name:                  w.name||'',
+        type:                  w.type||'',
+        status:                w.status||'draft',
+        results:               w.results||'',
+        preparer:              w.preparer||'',
+        reviewer:              w.reviewer||'',
+        secondary_reviewer:    w.secondaryReviewer||'',
+        date_started:          w.dateStarted||null,
+        review_date:           w.reviewDate||null,
+        date_submitted:        w.dateSubmitted||null,
+        secondary_review_date: w.secondaryReviewDate||null,
+        population:            w.population||'',
+        sample_method:         w.sampleMethod||'',
+        sample_size:           w.sampleSize||null,
+        narrative:             w.narrative||'',
+        description:           w.description||'',
+        test_desc:             w.testDesc||'',
+        linked_controls:       linkedControls,
+        linked_risks:          (w.risks||[]).map(function(r){return r.id||r;}),
+        linked_entities:       scopeEntities,
+        fs_accounts:           fsAccts,
+        scope_entities:        scopeEntities,
+        scope_fs_accounts:     scopeFsAccts,
+        test_attributes:       testAttrs,
+        sample_fields:         sampleFlds,
+        exceptions:            excpts
+      })
+    });
+  } catch(e) { console.warn('[DB] workpaper save failed:', e.message); }
+}
+
+async function _loadAuditsFromDB() {
+  try {
+    const res = await fetch('/api/audits');
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    rows.forEach(function(row) {
+      var existing = AUDITS.find(function(a){ return a.name === row.name; });
+      if (existing) {
+        if (row.period)  existing.period  = row.period;
+        if (row.owner)   existing.owner   = row.owner;
+        if (row.type)    existing.type    = row.type;
+        if (row.status)  existing.status  = row.status;
+        if (row.desc)    existing.desc    = row.desc;
+        if (row.year)    existing.year    = row.year;
+      } else {
+        AUDITS.push({ name:row.name, period:row.period||'', owner:row.owner||'',
+          type:row.type||'', status:row.status||'planned', desc:row.desc||'',
+          year:row.year||null, wpCount:0 });
+      }
+    });
+  } catch(e) { console.warn('[DB] audits load failed:', e.message); }
+}
+
+async function _loadWorkpapersFromDB() {
+  try {
+    const res = await fetch('/api/workpapers');
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    rows.forEach(function(row) {
+      var existing = WORKPAPERS.find(function(w){ return w.ref === row.ref; });
+      var target = existing || {};
+      // Merge DB fields → in-memory (never overwrite with blank if memory has value)
+      var merge = function(key, dbVal) { if (dbVal != null && dbVal !== '') target[key] = dbVal; };
+      merge('auditName',           row.audit_name);
+      merge('name',                row.name);
+      merge('type',                row.type);
+      merge('status',              row.status);
+      merge('results',             row.results);
+      merge('preparer',            row.preparer);
+      merge('reviewer',            row.reviewer);
+      merge('secondaryReviewer',   row.secondary_reviewer);
+      merge('dateStarted',         row.date_started);
+      merge('reviewDate',          row.review_date);
+      merge('dateSubmitted',       row.date_submitted);
+      merge('secondaryReviewDate', row.secondary_review_date);
+      merge('population',          row.population);
+      merge('sampleMethod',        row.sample_method);
+      merge('sampleSize',          row.sample_size);
+      merge('narrative',           row.narrative);
+      merge('description',         row.description);
+      merge('testDesc',            row.test_desc);
+      if (Array.isArray(row.linked_controls)  && row.linked_controls.length)  { target.linkedControls = row.linked_controls; wpLinkedControls[row.ref] = new Set(row.linked_controls); }
+      if (Array.isArray(row.scope_entities)   && row.scope_entities.length)   { wpScopeEntities[row.ref] = new Set(row.scope_entities); }
+      if (Array.isArray(row.scope_fs_accounts)&& row.scope_fs_accounts.length){ wpFsAccounts[row.ref]    = new Set(row.scope_fs_accounts); }
+      if (Array.isArray(row.test_attributes)  && row.test_attributes.length)  { wpTestAttributes[row.ref] = row.test_attributes; }
+      if (Array.isArray(row.sample_fields)    && row.sample_fields.length)    { wpSampleFields[row.ref]   = row.sample_fields; }
+      if (Array.isArray(row.exceptions)       && row.exceptions.length)       {
+        row.exceptions.forEach(function(ex){ if (ex && ex.id) wpExceptions[ex.id] = ex; });
+      }
+      if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
+    });
+  } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
+}
+
+// Bootstrap — load on page ready
+(async function() {
+  try { await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]); } catch(e) {}
+})();
+
 function saveCurrentPage() {
   const activePage = document.querySelector('.page.active');
   if (!activePage) return;
@@ -6637,7 +6770,13 @@ function saveCurrentPage() {
       if (typeSel)   audit.type   = typeSel.value;
       if (statusSel) audit.status = statusSel.value;
       if (bizSel)    audit.businessOwner = bizSel.value;
+      _saveAuditToDB(audit);
     }
+  }
+
+  // ── Fire-and-forget DB persist for the current workpaper ─────────────
+  if (pageId === 'page-wpdetail' && currentWPIndex >= 0 && WORKPAPERS[currentWPIndex]) {
+    _saveWorkpaperToDB(WORKPAPERS[currentWPIndex]);
   }
 }
 
@@ -12368,18 +12507,18 @@ function removeAuditEntity(id) {
    POPULATE AUDIT INFO CARD when audit opens
 ══════════════════════════════════════ */
 function saveAuditDesc(val) {
-  if (currentAudit) currentAudit.desc = val.trim();
+  if (currentAudit) { currentAudit.desc = val.trim(); _saveAuditToDB(currentAudit); }
 }
 
 function saveWPTestDesc(val) {
   const w = WORKPAPERS[currentWPIndex];
-  if (w) w.testDesc = val;
+  if (w) { w.testDesc = val; _saveWorkpaperToDB(w); }
 }
 
 function saveAuditYear(val) {
   if (!currentAudit) return;
   const year = parseInt(val);
-  if (year >= 2000 && year <= 2099) currentAudit.year = year;
+  if (year >= 2000 && year <= 2099) { currentAudit.year = year; _saveAuditToDB(currentAudit); }
 }
 
 /* ══════════════════════════════════════
