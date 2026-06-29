@@ -343,8 +343,6 @@ app.delete('/api/entities/:id', async (req, res) => {
 });
 
 
-// ── Serve the frontend HTML ─────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ── PDF.js — served from npm package (no CDN needed) ───────────────────────
 app.get('/pdfjs/pdf.min.js', (req, res) => {
@@ -560,6 +558,9 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
+
+// ── Serve the frontend HTML (after all /api routes) ──────────────────────────
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Start server ────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
