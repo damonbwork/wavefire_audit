@@ -3578,21 +3578,37 @@ auditor's assessment.
 
   <!-- Analysis Options Dialog -->
   <div id="analysis-options-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.45); z-index: 11000; align-items: center; justify-content: center;">
-    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(480px,95vw);box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(500px,95vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div style="font-size:14px;font-weight:600"><i class="ti ti-sparkles" style="margin-right:8px"></i>Analyze &amp; Create Workpaper</div>
         <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
       </div>
-      <div style="padding:20px">
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.5">Select the data to include in the analysis:</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdesc" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Description</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-attraddl" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Additional Information</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-success" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Pass Criteria</span></label>
-          <label class="analysis-opt-row"><input type="checkbox" id="aopt-failure" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Failure Criteria</span></label>
+      <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis:</div>
+
+        <!-- Audit Elements box -->
+        <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
+          <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Audit Elements</div>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-desc" class="analysis-opt-cb"><span class="analysis-opt-label">Audit Description</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-entities" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Assessment Entities</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-risks" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Risks &amp; Controls</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-fs" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Financial Statement Accounts &amp; Footnotes</span></label>
+          </div>
+        </div>
+
+        <!-- Workpaper Elements box -->
+        <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
+          <div style="background:var(--bg-secondary);color:var(--wf-navy);padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-bottom:0.5px solid var(--border-light)">Workpaper Elements</div>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdesc" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Description</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attraddl" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Additional Information</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-success" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Pass Criteria</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-failure" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Failure Criteria</span></label>
+          </div>
         </div>
       </div>
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
@@ -11409,6 +11425,12 @@ let _analysisOptions = {};
 
 function runAnalysisWithOptions() {
   _analysisOptions = {
+    // Audit Elements
+    auditDesc:     document.getElementById('aopt-audit-desc')?.checked,
+    auditEntities: document.getElementById('aopt-audit-entities')?.checked,
+    auditRisks:    document.getElementById('aopt-audit-risks')?.checked,
+    auditFs:       document.getElementById('aopt-audit-fs')?.checked,
+    // Workpaper Elements
     narrative:     document.getElementById('aopt-narrative')?.checked,
     narrativeFile: document.getElementById('aopt-narrative-file')?.checked,
     testDesc:      document.getElementById('aopt-testdesc')?.checked,
@@ -12924,6 +12946,88 @@ async function analyzeWithClaude() {
   if (opts.testDesc && wp?.testDesc?.trim()) {
     contextParts.push(`TEST DESCRIPTION:\n${wp.testDesc.trim()}`);
   }
+
+  // ── Audit-level context ───────────────────────────────────────────────────
+  const currentAuditObj = AUDITS.find(a => a.name === wp?.auditName);
+  const allEnts = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
+
+  // Workpaper-level entity IDs (for duplicate detection)
+  const wpEntityIds  = new Set(wpScopeEntities[ref] || []);
+  // Audit-level entity IDs
+  const auditEntityIds = new Set([...(currentAuditEntities || [])]);
+
+  if (opts.auditDesc && currentAuditObj?.desc?.trim()) {
+    contextParts.push(`AUDIT DESCRIPTION:\n${currentAuditObj.desc.trim()}`);
+  }
+
+  if (opts.auditEntities && auditEntityIds.size) {
+    const auditEntParts = [];
+    auditEntityIds.forEach(id => {
+      const e = allEnts.find(x => x.id === id);
+      if (!e) return;
+      const isDup = opts.entities && wpEntityIds.has(id); // 'entities' from prior checkbox
+      let line = `• ${e.name}${e.type||e.category ? ' ('+( e.type||e.category)+')' : ''}`;
+      if (e.city || e.state) line += ` — ${[e.city,e.state].filter(Boolean).join(', ')}`;
+      if (e.description) line += `\n  ${e.description}`;
+      if (isDup) line += '\n  [NOTE: This entity is also linked at the workpaper level — included once]';
+      auditEntParts.push(line);
+    });
+    if (auditEntParts.length) {
+      contextParts.push(`AUDIT-LEVEL ASSESSMENT ENTITIES:\n${auditEntParts.join('\n\n')}`);
+    }
+  }
+
+  if (opts.auditRisks) {
+    const auditCtrls = auditLinkedControls[wp?.auditName] || new Set();
+    if (auditCtrls.size) {
+      const ctrlParts = [];
+      const wpCtrls   = new Set(wpLinkedControls[ref] || []);
+      auditCtrls.forEach(cid => {
+        const c = (typeof _fndControls !== 'undefined' ? _fndControls : []).find(x => x.id === cid)
+          || (CONTROLS[cid] ? { id:cid, name:CONTROLS[cid].title, objective:CONTROLS[cid].objective, description:CONTROLS[cid].description } : null);
+        if (!c) return;
+        const isDup = wpCtrls.has(cid);
+        const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[cid] || []);
+        let block = `Control ${c.id}: ${c.name||c.title||''}`;
+        if (c.objective) block += `\n  Objective: ${c.objective}`;
+        if (c.description) block += `\n  Description: ${c.description}`;
+        if (riskIds.length) {
+          const riskList = riskIds.map(rid => {
+            const r = (typeof _fndRisks !== 'undefined' ? _fndRisks : []).find(x => x.id === rid) || RISKS[rid];
+            return r ? `${rid}: ${r.name||r.title||''}` : rid;
+          });
+          block += `\n  Linked Risks: ${riskList.join('; ')}`;
+        }
+        if (isDup) block += '\n  [NOTE: This control is also linked at the workpaper level — included once]';
+        ctrlParts.push(block);
+      });
+      if (ctrlParts.length) {
+        contextParts.push(`AUDIT-LEVEL LINKED RISKS & CONTROLS:\n${ctrlParts.join('\n\n')}`);
+      }
+    }
+  }
+
+  if (opts.auditFs) {
+    const auditFsIds = auditLinkedFs[wp?.auditName] || new Set();
+    const wpFsIds    = new Set([...(rcDialogSelected||[]), ...(wpFsAccounts[ref]||[])]);
+    const fsList = (typeof _fndFSAccounts !== 'undefined' && _fndFSAccounts.length ? _fndFSAccounts : []).concat(HOSPITAL_FS||[]).concat(ALL_FS_ACCOUNTS||[]);
+    const fsSeen = new Set();
+    const fsParts = [];
+    auditFsIds.forEach(id => {
+      if (fsSeen.has(id)) return; fsSeen.add(id);
+      const f = fsList.find(x => (x.id||x.account) === id);
+      if (!f) return;
+      const isDup = wpFsIds.has(id);
+      let line = `• ${f.label||f.name||id}${f.riskLevel ? ' ('+f.riskLevel+' risk)' : ''}`;
+      if (f.assertion) line += ` — Assertions: ${f.assertion}`;
+      if (isDup) line += '\n  [NOTE: This account is also linked at the workpaper level — included once]';
+      fsParts.push(line);
+    });
+    if (fsParts.length) {
+      contextParts.push(`AUDIT-LEVEL FINANCIAL STATEMENT ACCOUNTS & FOOTNOTES:\n${fsParts.join('\n\n')}`);
+    }
+  }
+
   const contextBlock = contextParts.length ? contextParts.join('\n\n') + '\n\n' : '';
 
   // Build sample field prompt text
@@ -13404,6 +13508,11 @@ function downloadTestGuidance() {
   lines.push('ANALYSIS OPTIONS SELECTED');
   lines.push(hr);
   const optLabels = [
+    [opts.auditDesc,     'Audit Description'],
+    [opts.auditEntities, 'Audit-Level Assessment Entities'],
+    [opts.auditRisks,    'Audit-Level Risks & Controls'],
+    [opts.auditFs,       'Audit-Level Financial Statement Accounts & Footnotes'],
+    [false, ''],  // visual separator (blank line)
     [opts.narrative,     'Process / Control Narrative (text)'],
     [opts.narrativeFile, 'Process / Control Narrative (attached file)'],
     [opts.testDesc,      'Test Description'],
@@ -13413,9 +13522,88 @@ function downloadTestGuidance() {
     [opts.failure,       'Failure Criteria'],
   ];
   optLabels.forEach(([checked, label]) => {
+    if (!label) { lines.push(''); return; }
     lines.push(`  [${checked ? 'X' : ' '}]  ${label}`);
   });
   lines.push('');
+
+  // ── Audit Description ─────────────────────────────────────────────
+  const currentAuditObj2 = AUDITS.find(a => a.name === wp?.auditName);
+  if (opts.auditDesc && currentAuditObj2?.desc?.trim()) {
+    lines.push(hr);
+    lines.push('AUDIT DESCRIPTION');
+    lines.push(hr);
+    lines.push(currentAuditObj2.desc.trim());
+    lines.push('');
+  }
+
+  // ── Audit-Level Assessment Entities ──────────────────────────────
+  if (opts.auditEntities && (currentAuditEntities?.size)) {
+    const allEnts2 = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
+    const wpEntIds = new Set(wpScopeEntities[getWPRef()] || []);
+    lines.push(hr);
+    lines.push('AUDIT-LEVEL ASSESSMENT ENTITIES');
+    lines.push(hr);
+    currentAuditEntities.forEach(id => {
+      const e = allEnts2.find(x => x.id === id);
+      if (!e) return;
+      const isDup = wpEntIds.has(id);
+      lines.push(`  • ${e.name}${e.type||e.category ? ' ('+( e.type||e.category)+')' : ''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
+      if (e.city || e.state) lines.push(`    Location: ${[e.city,e.state].filter(Boolean).join(', ')}`);
+      if (e.description) lines.push(`    ${e.description}`);
+    });
+    lines.push('');
+  }
+
+  // ── Audit-Level Risks & Controls ──────────────────────────────────
+  if (opts.auditRisks) {
+    const auditCtrls2 = auditLinkedControls[wp?.auditName] || new Set();
+    if (auditCtrls2.size) {
+      const wpCtrls2 = new Set(wpLinkedControls[getWPRef()] || []);
+      lines.push(hr);
+      lines.push('AUDIT-LEVEL LINKED RISKS & CONTROLS');
+      lines.push(hr);
+      auditCtrls2.forEach(cid => {
+        const c = (typeof _fndControls !== 'undefined' ? _fndControls : []).find(x => x.id === cid) || (CONTROLS[cid] ? {id:cid,name:CONTROLS[cid].title,objective:CONTROLS[cid].objective,description:CONTROLS[cid].description} : null);
+        if (!c) return;
+        const isDup = wpCtrls2.has(cid);
+        lines.push(`  ${c.id}: ${c.name||c.title||''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
+        if (c.objective) lines.push(`    Objective: ${c.objective}`);
+        if (c.description) lines.push(`    Description: ${c.description}`);
+        const rids = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[cid]||[]);
+        if (rids.length) {
+          const rnames = rids.map(rid => {
+            const r = (typeof _fndRisks !== 'undefined' ? _fndRisks:[]).find(x=>x.id===rid)||RISKS[rid];
+            return r ? `${rid}: ${r.name||r.title||''}` : rid;
+          });
+          lines.push(`    Risks: ${rnames.join('; ')}`);
+        }
+      });
+      lines.push('');
+    }
+  }
+
+  // ── Audit-Level FS Accounts ───────────────────────────────────────
+  if (opts.auditFs) {
+    const auditFsIds2 = auditLinkedFs[wp?.auditName] || new Set();
+    const wpFsIds2 = new Set([...(rcDialogSelected||[]), ...(wpFsAccounts[getWPRef()]||[])]);
+    const fsList2 = (typeof _fndFSAccounts !== 'undefined' && _fndFSAccounts.length ? _fndFSAccounts:[]).concat(HOSPITAL_FS||[]).concat(ALL_FS_ACCOUNTS||[]);
+    if (auditFsIds2.size) {
+      const fsSeen2 = new Set();
+      lines.push(hr);
+      lines.push('AUDIT-LEVEL FINANCIAL STATEMENT ACCOUNTS & FOOTNOTES');
+      lines.push(hr);
+      auditFsIds2.forEach(id => {
+        if (fsSeen2.has(id)) return; fsSeen2.add(id);
+        const f = fsList2.find(x => (x.id||x.account)===id);
+        if (!f) return;
+        const isDup = wpFsIds2.has(id);
+        lines.push(`  • ${f.label||f.name||id}${f.riskLevel ? ' ('+f.riskLevel+' risk)' : ''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
+        if (f.assertion) lines.push(`    Assertions: ${f.assertion}`);
+      });
+      lines.push('');
+    }
+  }
 
   // ── Process / Control Narrative ───────────────────────────────────
   if (opts.narrative && wp?.narrative?.trim()) {
