@@ -622,4 +622,4 @@ app.listen(PORT, () => {
   console.log(`    API key set: ${process.env.ANTHROPIC_API_KEY ? 'YES' : 'NO — set ANTHROPIC_API_KEY in .env'}`);
   console.log(`    Frontend:    http://localhost:${PORT}/\n`);
 });
-//
+
