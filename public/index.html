@@ -5538,7 +5538,22 @@ async function burnAnnotationsToPDF() {
       na:             '#6b7280',
     };
 
-    // ── Burn each annotation DOM element ────────────────────────────────────
+    // Sanitize text for WinAnsi encoding — replace non-encodable chars with ASCII equivalents
+    function pdfText(s) {
+      return String(s || '')
+        .replace(/[─━┄┅┈┉╌╍]/g, '-')   // box-drawing horizontal lines
+        .replace(/[│┃┆┇┊┋╎╏]/g, '|')   // box-drawing vertical lines
+        .replace(/[┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┤┬┴┼╋╬]/g, '+') // corners/intersections
+        .replace(/[✓✔]/g, '(PASS)')
+        .replace(/[✗✘]/g, '(FAIL)')
+        .replace(/[⚠⚡]/g, '(!)')
+        .replace(/[–—]/g, '-')
+        .replace(/['']/g, "'")
+        .replace(/[""]/g, '"')
+        .replace(/[…]/g, '...')
+        .replace(/[•·]/g, '*')
+        .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?'); // strip anything else outside WinAnsi range
+    }
     const annItems = overlay.querySelectorAll('.ann-item.ann-auto, .ann-item');
     annItems.forEach(el => {
       const left = parseFloat(el.style.left) || 0;
@@ -5564,11 +5579,11 @@ async function burnAnnotationsToPDF() {
         const colHex = TICK_COLORS[ann?.tickType] || '#475569';
         const c = hexToRgb(colHex);
         page.drawRectangle({ x: pdfX - 2, y: pdfY - 18, width: 32, height: 22, borderColor: c, borderWidth: 1.5, color: rgb(c.red*0.12, c.green*0.12, c.blue*0.12), opacity: 0.15 });
-        page.drawText(tickText, { x: pdfX + 2, y: pdfY - 14, font, size: 13, color: c });
+        page.drawText(pdfText(tickText), { x: pdfX + 2, y: pdfY - 14, font, size: 13, color: c });
         // Draw label text to the right of the tick
         const ann2 = pdfAnnotations.find(a => a.el === el);
         if (ann2?.text) {
-          page.drawText(ann2.text, { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
+          page.drawText(pdfText(ann2.text), { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
         }
         return;
       }
@@ -5615,7 +5630,7 @@ async function burnAnnotationsToPDF() {
       if (pages[0]) {
         const pg   = pages[0];
         const { width: ptW, height: ptH } = pg.getSize();
-        const legLines = ['TESTWORK SUMMARY', '─'.repeat(32)];
+        const legLines = ['TESTWORK SUMMARY', '-'.repeat(32)];
         attrs.forEach(a => {
           const sym   = SYMS[a.result] || '–';
           const exRef = a.exRef ? ' ['+a.exRef+']' : '';
@@ -13194,8 +13209,12 @@ async function analyzeWithClaude() {
     let parts = [`${i+1}. "${a.title}"`];
     if (opts.attrDesc !== false && a.desc) parts.push(`\n   Test Attribute Description: ${a.desc}`);
     if (opts.attrAddl && a.additionalInfo) parts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
-    if (opts.success && a.successCriteria) parts.push(`\n   Test Attribute Pass Criteria: ${a.successCriteria}`);
-    if (opts.failure && a.failureCriteria) parts.push(`\n   Test Attribute Failure Criteria: ${a.failureCriteria}`);
+    if (opts.success && a.successCriteria) parts.push(
+      `\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`
+    );
+    if (opts.failure && a.failureCriteria) parts.push(
+      `\n   Failure Criteria (the following describes conditions that, if present in the document, constitute a definitive failure of this attribute regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):\n   ${a.failureCriteria}`
+    );
     return parts.join('');
   }).join('\n\n');
 
@@ -13910,8 +13929,14 @@ function downloadTestGuidance() {
       lines.push(`${i+1}. [${ref2}] ${a.title}`);
       if (opts.attrDesc !== false && a.desc)           lines.push(`   Description:       ${a.desc}`);
       if (opts.attrAddl  && a.additionalInfo)          lines.push(`   Additional Info:   ${a.additionalInfo}`);
-      if (opts.success   && a.successCriteria)         lines.push(`   Pass Criteria:     ${a.successCriteria}`);
-      if (opts.failure   && a.failureCriteria)         lines.push(`   Failure Criteria:  ${a.failureCriteria}`);
+      if (opts.success   && a.successCriteria) {
+        lines.push(`   Pass Criteria (conditions that must be present and verifiable for this attribute to be considered satisfied — if all conditions are met by the evidence, the result is a pass):`);
+        lines.push(`   ${a.successCriteria}`);
+      }
+      if (opts.failure   && a.failureCriteria) {
+        lines.push(`   Failure Criteria (conditions that, if present in the document, constitute a definitive failure regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):`);
+        lines.push(`   ${a.failureCriteria}`);
+      }
       lines.push('');
     });
   }
