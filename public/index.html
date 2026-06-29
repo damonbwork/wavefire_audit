@@ -6753,14 +6753,18 @@ function escHistVal(str) {
 async function _saveAuditToDB(audit) {
   if (!audit || !audit.name) return;
   try {
-    await fetch('/api/audits', {
+    const res = await fetch('/api/audits', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: audit.name, period: audit.period||'', owner: audit.owner||'',
         type: audit.type||'', status: audit.status||'planned',
-        desc: audit.desc||'', year: audit.year||null
+        description: audit.desc||'', year: audit.year||null
       })
     });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      console.warn('[DB] audit save failed:', err.error || res.status);
+    }
   } catch(e) { console.warn('[DB] audit save failed:', e.message); }
 }
 
@@ -6820,15 +6824,17 @@ async function _loadAuditsFromDB() {
     rows.forEach(function(row) {
       var existing = AUDITS.find(function(a){ return a.name === row.name; });
       if (existing) {
-        if (row.period)  existing.period  = row.period;
-        if (row.owner)   existing.owner   = row.owner;
-        if (row.type)    existing.type    = row.type;
-        if (row.status)  existing.status  = row.status;
-        if (row.desc)    existing.desc    = row.desc;
-        if (row.year)    existing.year    = row.year;
+        if (row.period)      existing.period  = row.period;
+        if (row.owner)       existing.owner   = row.owner;
+        if (row.type)        existing.type    = row.type;
+        if (row.status)      existing.status  = row.status;
+        if (row.description) existing.desc    = row.description;
+        if (row.desc)        existing.desc    = row.desc; // legacy column name fallback
+        if (row.year)        existing.year    = row.year;
       } else {
         AUDITS.push({ name:row.name, period:row.period||'', owner:row.owner||'',
-          type:row.type||'', status:row.status||'planned', desc:row.desc||'',
+          type:row.type||'', status:row.status||'planned',
+          desc: row.description || row.desc || '',
           year:row.year||null, wpCount:0 });
       }
     });
