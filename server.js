@@ -82,6 +82,16 @@ async function initDB() {
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS company_context (
+        id          INTEGER DEFAULT 1 PRIMARY KEY,
+        notes       TEXT DEFAULT '',
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      -- Knowledge / analysis notes columns on existing tables
+      ALTER TABLE audits            ADD COLUMN IF NOT EXISTS analysis_notes TEXT DEFAULT '';
+      ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes  TEXT DEFAULT '';
+      ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes  TEXT DEFAULT '';
+      ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT '';
       CREATE TABLE IF NOT EXISTS control_categories (
         name       TEXT PRIMARY KEY,
         sort_order INTEGER DEFAULT 0,
@@ -555,6 +565,40 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
       'DELETE FROM workpaper_annotations WHERE ref=$1 AND filename=$2',
       [req.params.ref, decodeURIComponent(req.params.filename)]
     );
+    res.json({ ok: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// ── Company Context API ──────────────────────────────────────────────────────
+app.get('/api/company-context', async (req, res) => {
+  if (!pool) return res.json({ notes: '' });
+  try {
+    await pool.query('INSERT INTO company_context (id,notes) VALUES (1,$1) ON CONFLICT (id) DO NOTHING', ['']);
+    const { rows } = await pool.query('SELECT notes FROM company_context WHERE id=1');
+    res.json({ notes: rows[0]?.notes || '' });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/company-context', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { notes } = req.body;
+  try {
+    await pool.query('INSERT INTO company_context (id,notes,updated_at) VALUES (1,$1,NOW()) ON CONFLICT (id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [notes||'']);
+    res.json({ ok: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Analysis Notes API (generic: audits, controls, risks, entities) ───────────
+app.post('/api/analysis-notes/:type/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { notes } = req.body;
+  const tableMap = { audit:'audits', control:'controls', risk:'risks', entity:'assessment_entities' };
+  const colMap   = { audit:'analysis_notes', control:'analyst_notes', risk:'analyst_notes', entity:'analyst_notes' };
+  const pkMap    = { audit:'name', control:'id', risk:'id', entity:'id' };
+  const tbl = tableMap[req.params.type], col = colMap[req.params.type], pk = pkMap[req.params.type];
+  if (!tbl) return res.status(400).json({ error: 'Unknown type' });
+  try {
+    await pool.query(`UPDATE ${tbl} SET ${col}=$1 WHERE ${pk}=$2`, [notes||'', req.params.id]);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
