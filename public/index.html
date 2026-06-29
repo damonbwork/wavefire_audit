@@ -14828,8 +14828,8 @@ function setPreviewIcon(name) {
 async function renderPDFPreview(file) {
   const body = document.getElementById('file-preview-body');
 
-  // Pull overlay out temporarily
-  const overlay = document.getElementById('pdf-ann-overlay');
+  // Pull overlay out temporarily (create it if it doesn't exist yet)
+  let overlay = document.getElementById('pdf-ann-overlay');
   if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 
   // Clear body
@@ -14841,11 +14841,14 @@ async function renderPDFPreview(file) {
   canvasContainer.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;padding:16px 0;box-sizing:border-box;min-height:200px';
   body.appendChild(canvasContainer);
 
-  // Re-attach overlay on top of canvas container, absolutely positioned within body
-  if (overlay) {
-    overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:30;pointer-events:none';
-    body.appendChild(overlay);
+  // Create the annotation overlay if it doesn't exist
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'pdf-ann-overlay';
   }
+  // Re-attach overlay on top of canvas container, absolutely positioned within body
+  overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:30;pointer-events:none';
+  body.appendChild(overlay);
 
   // Show loading spinner inside canvas container
   const loadingDiv = document.createElement('div');
