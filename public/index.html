@@ -14508,17 +14508,9 @@ async function previewMemFile(ref, bucket, idx) {
     if (bucket === 'sample') {
       console.log('[Viewer] Opening sample file:', name, 'entry._annotations:', entry?._annotations?.length, 'idx:', idx);
 
-      // ── Restore saved user annotations directly ──────────────────────────
-      if (entry._annotations?.length) {
-        const ov = document.getElementById('pdf-ann-overlay');
-        if (ov) {
-          // Small delay to ensure the overlay is attached after setupAnnOverlay
-          setTimeout(function() {
-            _restoreAnnotationsToOverlay(entry._annotations, ov);
-          }, 120);
-        }
-      } else {
-
+      // Saved user annotations are restored via window._pendingAnnotations inside renderPDFPreview's RAF.
+      // Only run analysis-result auto-placement when there are no saved annotations.
+      if (!entry._annotations?.length) {
 
       // Use persisted results for this workpaper (survives navigation/refresh)
       const _wpObj2 = WORKPAPERS.find(w => w.ref === ref);
@@ -14553,7 +14545,7 @@ async function previewMemFile(ref, bucket, idx) {
           });
           const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
 
-          // Poll until canvas exists (PDF has rendered), then place once
+          // Place overlays — PDF is already rendered so try immediately, then poll as fallback
           let _placed = false;
           const _tryPlace = () => {
             if (_placed) return;
@@ -14565,17 +14557,18 @@ async function previewMemFile(ref, bucket, idx) {
               placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
               placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
             } else {
-              setTimeout(_tryPlace, 500);
+              setTimeout(_tryPlace, 200);
             }
           };
-          setTimeout(_tryPlace, 500);
+          // Try immediately (PDF already rendered), then at 200ms intervals
+          requestAnimationFrame(_tryPlace);
         } else {
           console.log('[Viewer] No matching analysis result for', name, '— results:', wpResults.map(r=>r.fileName));
         }
       } else {
         console.log('[Viewer] No analysis results available for ref', ref);
       }
-      } // end else (no stored annotations — try analysis results)
+      } // end if (!entry._annotations?.length)
     }
   } else {
     const toolbarEl2 = document.getElementById('pdf-annotation-toolbar');
