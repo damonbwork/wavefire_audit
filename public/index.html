@@ -12465,9 +12465,6 @@ function renderEntityList(query) {
       .map(e => {
         const checked    = dialogTempEntities.has(e.id);
         const inAudit    = auditEntities.has(e.id);
-        const checkColor = typeStyle.color;
-        const checkBg    = checked ? typeStyle.bg : '';
-        const checkBord  = checked ? typeStyle.border : '';
         const auditBadge = isWPScope && inAudit
           ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>`
           : '';
@@ -12476,7 +12473,7 @@ function renderEntityList(query) {
         const subText = e.sub ? `<div class="entity-sub">${escHtml(e.sub)}</div>` : '';
 
         return `<div class="entity-list-item${checked?' checked':''}" onclick="toggleEntityItem('${e.id}')" id="eli-${e.id}" data-cat="${e.category||''}" data-type="${escHtml(g.typeName)}">
-          <div class="entity-checkbox" style="background:${checkBg};border-color:${checkBord};color:${checkColor}">
+          <div class="entity-checkbox">
             ${checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : ''}
           </div>
           <i class="ti ${typeStyle.icon||'ti-tag'}" style="font-size:15px;color:${typeStyle.color};flex-shrink:0"></i>
@@ -12502,17 +12499,10 @@ function toggleEntityItem(id) {
   }
   const item = document.getElementById('eli-' + id);
   if (item) {
-    const checked  = dialogTempEntities.has(id);
-    const typeName = item.dataset.type || item.dataset.cat || 'facility';
-    const ts       = (typeof getEntityTypeStyle === 'function')
-      ? getEntityTypeStyle(typeName)
-      : { bg:'#dcfce7', color:'#166534', border:'#86efac' };
+    const checked = dialogTempEntities.has(id);
     item.className = 'entity-list-item' + (checked ? ' checked' : '');
     const cb = item.querySelector('.entity-checkbox');
-    cb.style.background  = checked ? ts.bg    : '';
-    cb.style.borderColor = checked ? ts.border : '';
-    cb.style.color       = checked ? ts.color  : '';
-    cb.innerHTML = checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : '';
+    if (cb) cb.innerHTML = checked ? '<i class="ti ti-check" style="font-size:11px"></i>' : '';
   }
   updateEntityCount();
 }
