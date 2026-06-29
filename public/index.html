@@ -4121,7 +4121,7 @@ const WORKPAPERS = [
     risks: [],
     narrative: "",
     files: [],
-    entities: ["St Vincent's Hospital", "South Bay Ortho"],
+    entities: [],
     sampleFiles: []
   }
 ];
@@ -4656,7 +4656,17 @@ function openWP(i) {
 
   // ── Workpaper scope entities ──
   if (!wpScopeEntities[w.ref]) {
-    wpScopeEntities[w.ref] = new Set(w.scopeEntities || []);
+    // Start from saved ID list (scopeEntities) or DB-loaded data
+    const seedIds = new Set(w.scopeEntities || []);
+    // Also resolve any legacy name-based entities (w.entities stores display names)
+    if (w.entities && w.entities.length) {
+      const allEnts = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
+      w.entities.forEach(nameOrId => {
+        const match = allEnts.find(e => e.id === nameOrId || e.name === nameOrId);
+        if (match) seedIds.add(match.id);
+      });
+    }
+    wpScopeEntities[w.ref] = seedIds;
   }
   renderWPScopeEntities(w.ref);
 
@@ -12236,15 +12246,18 @@ function openWPEntityDialog() {
   const ref = WORKPAPERS[currentWPIndex]?.ref;
   if (!ref) return;
   if (!wpScopeEntities[ref]) wpScopeEntities[ref] = new Set();
+
   const overlay = document.getElementById('entity-dialog-overlay');
   if (!overlay) return;
   overlay.dataset.mode = 'wp-scope';
+
+  // Always reset temp selection from the current persisted scope
   dialogTempEntities = new Set(wpScopeEntities[ref]);
+
   document.getElementById('entity-search-input').value = '';
   _entityFilter = 'all';
   const filterRow = document.getElementById('entity-audit-filter-row');
   if (filterRow) filterRow.style.display = 'flex';
-  // Reset filter button styles
   ['all','audit'].forEach(m => {
     const btn = document.getElementById('entity-filter-' + m);
     if (!btn) return;
@@ -12255,7 +12268,7 @@ function openWPEntityDialog() {
   renderEntityList('');
   updateEntityCount();
   overlay.style.display = 'flex';
-  setTimeout(() => document.getElementById('entity-search-input').focus(), 50);
+  setTimeout(() => document.getElementById('entity-search-input')?.focus(), 50);
 }
 
 function applyEntitySelectionRouted() {
@@ -12328,11 +12341,15 @@ function renderWPScopeEntities(ref) {
     container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities linked — click Add / edit to link assessment entities to this workpaper.</span>`;
     return;
   }
+  const allEnts = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
+  const seen = new Set();
   container.innerHTML = [...sel].map(id => {
-    const e = ALL_ENTITIES.find(x => x.id === id);
+    if (seen.has(id)) return '';
+    seen.add(id);
+    const e = allEnts.find(x => x.id === id);
     if (!e) return '';
-    const { cls: _cls3, icon: _ico3, style: _sty3 } = entityStyle(e.type || e.category || 'facility');
-    return `<span class="${_cls3 || 'entity-tag'}" style="display:inline-flex;align-items:center;gap:5px;${_sty3}"><i class="ti ${_ico3}"></i>${e.name}</span>`;
+    const ts = (typeof getEntityTypeStyle === 'function') ? getEntityTypeStyle(e.type || e.category || 'Other') : {bg:'#f1f5f9',color:'#475569',border:'#cbd5e1',icon:'ti-tag'};
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 8px;border-radius:10px;background:${ts.bg};color:${ts.color};border:0.5px solid ${ts.border}"><i class="ti ${ts.icon||'ti-tag'}" style="font-size:10px"></i>${escHtml(e.name||id)}</span>`;
   }).join('');
 }
 
@@ -12719,7 +12736,7 @@ function populateAuditInfoCard(audit) {
     "SOX Compliance Audit":        ["stcharles","stvincents","southwest","southbay","mainst","epic"],
     "Operational Risk Assessment": ["southwest","southbay","intelerad"],
     "Vendor Due Diligence":        ["stcharles","mainst","workday"],
-    "PRS Audits":               ["stvincents","southbay","mainst","workday"],
+    "PRS Audits":               [],
   };
 
   // Use audit.entities if it has been updated (e.g. from workpaper additions),
