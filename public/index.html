@@ -14549,19 +14549,22 @@ async function previewMemFile(ref, bucket, idx) {
           let _placed = false;
           const _tryPlace = () => {
             if (_placed) return;
-            const body = document.getElementById('file-preview-body');
-            const canvas = body?.querySelector('canvas');
-            if (canvas) {
+            const body2 = document.getElementById('file-preview-body');
+            const canvas = body2?.querySelector('canvas');
+            const ov2 = document.getElementById('pdf-ann-overlay');
+            // Ensure overlay has been sized (height > 0) before placing
+            const ovH = ov2 ? parseInt(ov2.style.height) || 0 : 0;
+            if (canvas && ovH > 0) {
               _placed = true;
-              console.log('[Viewer] Canvas found, placing overlays');
+              console.log('[Viewer] Canvas + overlay ready (h=' + ovH + '), placing overlays');
               placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
               placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
             } else {
-              setTimeout(_tryPlace, 200);
+              setTimeout(_tryPlace, 150);
             }
           };
-          // Try immediately (PDF already rendered), then at 200ms intervals
-          requestAnimationFrame(_tryPlace);
+          // Try on next two frames (after RAF in renderPDFPreview sets overlay height)
+          requestAnimationFrame(() => requestAnimationFrame(_tryPlace));
         } else {
           console.log('[Viewer] No matching analysis result for', name, '— results:', wpResults.map(r=>r.fileName));
         }
@@ -14705,20 +14708,24 @@ async function renderPDFPreview(file) {
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
     }
 
-    // After all pages rendered, size overlay to match canvas container
-     requestAnimationFrame(() => {
-       if (overlay) {
-         overlay.style.height = canvasContainer.scrollHeight + 'px';
-         overlay.style.pointerEvents = 'all';
-       }
-       setupAnnOverlay();
-       // Restore any annotations queued before PDF finished rendering
-       if (window._pendingAnnotations?.length) {
-         console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
-         _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
-         window._pendingAnnotations = null;
-       }
-     });
+    // After all pages rendered, size overlay and restore annotations
+    // Use double-RAF to ensure DOM reflow completes before measuring height
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (overlay) {
+          const h = Math.max(canvasContainer.scrollHeight, canvasContainer.offsetHeight, body.scrollHeight);
+          overlay.style.height = (h || 2000) + 'px';
+          overlay.style.pointerEvents = 'all';
+        }
+        setupAnnOverlay();
+        // Restore any annotations queued before PDF finished rendering
+        if (window._pendingAnnotations?.length) {
+          console.log('[PDF] Restoring', window._pendingAnnotations.length, 'pending annotations to overlay');
+          _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
+          window._pendingAnnotations = null;
+        }
+      });
+    });
 
     // Scroll tracking
     body.addEventListener('scroll', () => {
