@@ -31,6 +31,14 @@ async function initDB() {
       );
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS workpaper_annotations (
+        ref         TEXT NOT NULL,
+        filename    TEXT NOT NULL,
+        annotations JSONB DEFAULT '[]',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (ref, filename)
+      );
       CREATE TABLE IF NOT EXISTS audits (
         name        TEXT PRIMARY KEY,
         period      TEXT DEFAULT '',
@@ -500,3 +508,42 @@ app.delete('/api/workpapers/:ref', async (req, res) => {
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ── Workpaper Annotations API ─────────────────────────────────────────────────
+app.get('/api/annotations/:ref', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT filename, annotations FROM workpaper_annotations WHERE ref=$1 ORDER BY updated_at',
+      [req.params.ref]
+    );
+    res.json(rows);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/annotations', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { ref, filename, annotations } = req.body;
+  if (!ref || !filename) return res.status(400).json({ error: 'ref and filename required' });
+  try {
+    await pool.query(
+      `INSERT INTO workpaper_annotations (ref, filename, annotations, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (ref, filename) DO UPDATE
+         SET annotations=EXCLUDED.annotations, updated_at=NOW()`,
+      [ref, filename, JSON.stringify(annotations || [])]
+    );
+    res.json({ ok: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/annotations/:ref/:filename', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    await pool.query(
+      'DELETE FROM workpaper_annotations WHERE ref=$1 AND filename=$2',
+      [req.params.ref, decodeURIComponent(req.params.filename)]
+    );
+    res.json({ ok: true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
