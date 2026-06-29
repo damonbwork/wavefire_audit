@@ -1456,7 +1456,7 @@
             <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);flex-shrink:0">Audit</span>
             <span id="wpd-audit-name" style="font-size:13px;font-weight:600;color:var(--wf-navy);cursor:help;border-bottom:1px dashed var(--border-medium);padding-bottom:1px" onmouseenter="showAuditInfoTooltip(event)" onmouseleave="hideAuditInfoTooltip()" onmousemove="moveAuditInfoTooltip(event)">PRS Audits</span>
             <span style="color:var(--border-medium);flex-shrink:0">·</span>
-            <span style="font-size:12px;color:var(--text-secondary)" id="wpd-audit-desc-short">Review of Potential Referral Payment Sources.</span>
+            <span style="font-size:12px;color:var(--text-secondary)" id="wpd-audit-desc-short"></span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:5px;padding-left:24px">
             <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Audit Period:</span>
@@ -1468,7 +1468,7 @@
         <span id="wpd-audit-manager" style="display:none">J. Davis</span>
         <span id="wpd-audit-type" style="display:none">Financial</span>
         <span id="wpd-audit-status" style="display:none">active</span>
-        <span id="wpd-audit-desc" style="display:none">Review of Potential Referral Payment Sources.</span>
+        <span id="wpd-audit-desc" style="display:none"></span>
         <div id="wpd-business-owner" style="display:none">R. Thompson (Finance)</div>
         <div id="wpd-entities" style="display:none">St Vincent's Hospital, South Bay Ortho</div>
 
@@ -3701,7 +3701,7 @@ const AUDITS = [
   { name: "SOX Compliance Audit",        period: "Jan – Mar 2026", owner: "R. Patel",  type: "SOX",          wpCount: 22, status: "active",  desc: "Sarbanes-Oxley Section 302 and 404 compliance testing for Q1 2026." },
   { name: "Operational Risk Assessment", period: "Oct – Dec 2025", owner: "L. Torres", type: "Operations",   wpCount: 11, status: "closed",  desc: "Evaluation of operational controls across key business processes." },
   { name: "Vendor Due Diligence",        period: "FY 2025",        owner: "J. Davis",  type: "Compliance",   wpCount: 6,  status: "planned", desc: "Third-party vendor risk assessment and compliance review." },
-  { name: "PRS Audits",               period: "", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "Review of Potential Referral Payment Sources." },
+  { name: "PRS Audits",               period: "", owner: "S. Kim",    type: "Financial",    wpCount: 8,  status: "locked",  desc: "" },
 ];
 
 const WORKPAPERS = [
@@ -6901,6 +6901,24 @@ async function _loadWorkpapersFromDB() {
       }
     }
   } catch(e) { console.warn('[DB] bootstrap load error:', e.message); }
+
+  // After DB load, refresh any currently-visible audit info so saved values show
+  try {
+    if (currentAudit) {
+      const fresh = AUDITS.find(a => a.name === currentAudit.name);
+      if (fresh) {
+        currentAudit = fresh;
+        const descEl = document.getElementById('aud-desc');
+        if (descEl && fresh.desc != null) descEl.value = fresh.desc;
+        const shortEl = document.getElementById('wpd-audit-desc-short');
+        if (shortEl && fresh.desc) shortEl.textContent = fresh.desc;
+        const fullEl = document.getElementById('wpd-audit-desc');
+        if (fullEl && fresh.desc) fullEl.textContent = fresh.desc;
+        if (typeof autoResizeAllTAs === 'function') autoResizeAllTAs();
+      }
+    }
+    if (typeof renderAudits === 'function') renderAudits();
+  } catch(e) { console.warn('[DB] post-load refresh error:', e.message); }
 })();
 
 // ── Annotation Postgres persistence ──────────────────────────────────────────
