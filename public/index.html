@@ -7970,6 +7970,7 @@ function openRCMGraph() {
   window._rcmGraphData = { nodes: nodes, links: links };
   window._rcmGraphRaw  = { controls: rawControls, risks: rawRisks, entities: allEnts, objMap: objMap };
   _rgDuplicatedCache = {};
+  _rgExcluded = { control:new Set(), objective:new Set(), risk:new Set(), entity:new Set(), workpaper:new Set() };
   _renderRCMGraphOverlay();
 }
 
@@ -8080,13 +8081,30 @@ function _renderRCMGraphOverlay() {
   ov.id = 'rcm-graph-overlay';
   ov.style.cssText = 'position:fixed;inset:0;z-index:25000;background:#0f172a;display:flex;flex-direction:column;font-family:system-ui,sans-serif;color:#e2e8f0';
   ov.innerHTML =
-    '<div style="flex-shrink:0;background:#1e293b;border-bottom:1px solid #334155;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
-      '<h1 style="font-size:15px;font-weight:700;color:#93c5fd;white-space:nowrap;margin:0">⬡ RCM Relationship Graph</h1>' +
-      '<div style="display:flex;background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden">' +
-        '<button id="rg-btn-force" onclick="_rgSetView(\'force\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#fff;background:#2563eb">⬡ Network</button>' +
-        '<button id="rg-btn-tree" onclick="_rgSetView(\'tree\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#94a3b8;background:transparent">⊢ Tree</button>' +
+    '<div style="flex-shrink:0;background:#1e293b;border-bottom:1px solid #334155;padding:10px 18px 0;display:flex;flex-direction:column;gap:8px">' +
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:10px">' +
+        '<h1 style="font-size:15px;font-weight:700;color:#93c5fd;white-space:nowrap;margin:0">⬡ RCM Relationship Graph</h1>' +
+        '<div style="display:flex;background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden">' +
+          '<button id="rg-btn-force" onclick="_rgSetView(\'force\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#fff;background:#2563eb">⬡ Network</button>' +
+          '<button id="rg-btn-tree" onclick="_rgSetView(\'tree\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#94a3b8;background:transparent">⊢ Tree</button>' +
+        '</div>' +
+        '<div style="width:1px;background:#334155;align-self:stretch;margin:4px 0"></div>' +
+        '<label title="Draw a separate control node for each linked risk instead of one shared node — reduces edge crossings when a control covers many risks" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500;color:#cbd5e1;white-space:nowrap">' +
+          '<input type="checkbox" id="rg-cb-dupcontrols" onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> Duplicate controls with multiple risks' +
+        '</label>' +
+        '<label title="Draw a separate risk node for each citing control instead of one shared node — reduces edge crossings when a risk is covered by many controls" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500;color:#cbd5e1;white-space:nowrap">' +
+          '<input type="checkbox" id="rg-cb-duprisks" onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> Duplicate risks tied to multiple controls' +
+        '</label>' +
+        '<button onclick="document.getElementById(\'rcm-graph-overlay\').remove()" style="margin-left:auto;background:#334155;border:none;cursor:pointer;color:#e2e8f0;width:30px;height:30px;border-radius:6px;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>' +
       '</div>' +
-      '<div style="width:1px;background:#334155;align-self:stretch;margin:4px 0"></div>' +
+      '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;padding-bottom:10px">' +
+        _rgTypeColumn('control','Controls','#60a5fa',true) +
+        _rgTypeColumn('objective','Objectives','#fbbf24',true) +
+        _rgTypeColumn('risk','Risks','#f87171',true) +
+        _rgTypeColumn('entity','Entities','#34d399',false) +
+        _rgTypeColumn('workpaper','Workpapers','#c084fc',false) +
+      '</div>' +
+    '</div>' +
       '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
         '<span style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Show:</span>' +
         _rgCheckbox('control','Controls','#60a5fa',true) +
@@ -8095,15 +8113,6 @@ function _renderRCMGraphOverlay() {
         _rgCheckbox('entity','Entities','#34d399',false) +
         _rgCheckbox('workpaper','Workpapers','#c084fc',false) +
       '</div>' +
-      '<div style="width:1px;background:#334155;align-self:stretch;margin:4px 0"></div>' +
-      '<label title="Draw a separate control node for each linked risk instead of one shared node — reduces edge crossings when a control covers many risks" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500;color:#cbd5e1;white-space:nowrap">' +
-        '<input type="checkbox" id="rg-cb-dupcontrols" onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> Duplicate controls with multiple risks' +
-      '</label>' +
-      '<label title="Draw a separate risk node for each citing control instead of one shared node — reduces edge crossings when a risk is covered by many controls" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500;color:#cbd5e1;white-space:nowrap">' +
-        '<input type="checkbox" id="rg-cb-duprisks" onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> Duplicate risks tied to multiple controls' +
-      '</label>' +
-      '<button onclick="document.getElementById(\'rcm-graph-overlay\').remove()" style="margin-left:auto;background:#334155;border:none;cursor:pointer;color:#e2e8f0;width:30px;height:30px;border-radius:6px;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>' +
-    '</div>' +
     '<div id="rg-main" style="flex:1;overflow:hidden;position:relative">' +
       '<svg id="rg-force-svg" style="width:100%;height:100%;display:block"></svg>' +
       '<div id="rg-tree-view" style="width:100%;height:100%;overflow:auto;display:none"><svg id="rg-tree-svg" style="display:block"></svg></div>' +
@@ -8129,6 +8138,7 @@ function _renderRCMGraphOverlay() {
       dupControls:false, dupRisks:false,
       view:'force', zoom:null, svg:null, gMain:null, sim:null
     };
+    ['control','objective','risk','entity','workpaper'].forEach(_rgUpdateDropdownLabel);
     _rgInitForce();
   });
 }
@@ -8141,6 +8151,116 @@ function _rgLegend(color,label) {
   return '<div style="display:flex;align-items:center;gap:7px;color:#94a3b8"><div style="width:10px;height:10px;border-radius:50%;background:'+color+'"></div>'+label+'</div>';
 }
 
+// Checkbox for a node type PLUS a dropdown caret beneath it for excluding
+// individual items of that type. All items default to included (checked).
+function _rgTypeColumn(type,label,color,checked) {
+  return '<div style="display:flex;flex-direction:column;gap:4px;position:relative">' +
+    _rgCheckbox(type,label,color,checked) +
+    '<button onclick="_rgToggleItemDropdown(\''+type+'\',event)" id="rg-dd-btn-'+type+'" style="display:flex;align-items:center;gap:4px;background:#0f172a;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;cursor:pointer;white-space:nowrap">' +
+      '<span id="rg-dd-label-'+type+'">All selected</span><span style="font-size:8px">▾</span>' +
+    '</button>' +
+    '<div id="rg-dd-pop-'+type+'" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#1e293b;border:1px solid #334155;border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,.5);z-index:50;min-width:220px;max-width:280px">' +
+    '</div>' +
+  '</div>';
+}
+
+// excluded item ids, keyed by type → Set of node ids excluded from that type
+var _rgExcluded = { control:new Set(), objective:new Set(), risk:new Set(), entity:new Set(), workpaper:new Set() };
+
+function _rgItemsOfType(type) {
+  var seen={}; var out=[];
+  (window._rcmGraphData.nodes||[]).forEach(function(n){
+    if(n.type===type && !seen[n.id]){ seen[n.id]=true; out.push(n); }
+  });
+  out.sort(function(a,b){ return (a.label||'').localeCompare(b.label||''); });
+  return out;
+}
+
+function _rgToggleItemDropdown(type, ev) {
+  if (ev) ev.stopPropagation();
+  var pop = document.getElementById('rg-dd-pop-'+type);
+  var isOpen = pop.style.display === 'block';
+  // Close all other popovers first
+  ['control','objective','risk','entity','workpaper'].forEach(function(t){
+    var p = document.getElementById('rg-dd-pop-'+t);
+    if (p) p.style.display = 'none';
+  });
+  if (isOpen) return; // was open, now closed — done
+
+  var items = _rgItemsOfType(type);
+  var excluded = _rgExcluded[type];
+  var rows = items.map(function(it){
+    var checked = !excluded.has(it.id);
+    return '<label style="display:flex;align-items:center;gap:7px;padding:5px 12px;font-size:12px;color:#cbd5e1;cursor:pointer" onmouseenter="this.style.background=\'#273449\'" onmouseleave="this.style.background=\'\'">' +
+      '<input type="checkbox" '+(checked?'checked':'')+' onchange="_rgToggleItemExcluded(\''+type+'\',\''+it.id.replace(/'/g,"\\'")+'\',this.checked)" style="width:13px;height:13px;accent-color:#2563eb;cursor:pointer;flex-shrink:0">' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(it.label||it.id)+'</span>' +
+    '</label>';
+  }).join('');
+
+  pop.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #334155">' +
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b">'+items.length+' item'+(items.length!==1?'s':'')+'</span>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="_rgSelectAllOfType(\''+type+'\',true)" style="background:none;border:none;color:#60a5fa;font-size:10px;cursor:pointer;padding:0">All</button>' +
+        '<button onclick="_rgSelectAllOfType(\''+type+'\',false)" style="background:none;border:none;color:#60a5fa;font-size:10px;cursor:pointer;padding:0">None</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="max-height:260px;overflow-y:auto;padding:4px 0">' + (rows || '<div style="padding:10px 12px;font-size:12px;color:#64748b">No items of this type.</div>') + '</div>';
+
+  pop.style.display = 'block';
+}
+
+function _rgToggleItemExcluded(type, id, isChecked) {
+  if (isChecked) _rgExcluded[type].delete(id);
+  else _rgExcluded[type].add(id);
+  _rgUpdateDropdownLabel(type);
+  if (_rgState) { if(_rgState.view==='force') _rgRenderForce(); else _rgRenderTree(); }
+}
+
+function _rgSelectAllOfType(type, selectAll) {
+  var items = _rgItemsOfType(type);
+  if (selectAll) _rgExcluded[type].clear();
+  else items.forEach(function(it){ _rgExcluded[type].add(it.id); });
+  _rgRefreshOpenDropdown(type);
+  _rgUpdateDropdownLabel(type);
+  if (_rgState) { if(_rgState.view==='force') _rgRenderForce(); else _rgRenderTree(); }
+}
+
+function _rgRefreshOpenDropdown(type) {
+  var pop = document.getElementById('rg-dd-pop-'+type);
+  if (!pop || pop.style.display !== 'block') return;
+  var items = _rgItemsOfType(type);
+  var excluded = _rgExcluded[type];
+  var rows = items.map(function(it){
+    var checked = !excluded.has(it.id);
+    return '<label style="display:flex;align-items:center;gap:7px;padding:5px 12px;font-size:12px;color:#cbd5e1;cursor:pointer" onmouseenter="this.style.background=\'#273449\'" onmouseleave="this.style.background=\'\'">' +
+      '<input type="checkbox" '+(checked?'checked':'')+' onchange="_rgToggleItemExcluded(\''+type+'\',\''+it.id.replace(/'/g,"\\'")+'\',this.checked)" style="width:13px;height:13px;accent-color:#2563eb;cursor:pointer;flex-shrink:0">' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(it.label||it.id)+'</span>' +
+    '</label>';
+  }).join('');
+  var listEl = pop.querySelector('div[style*="overflow-y"]');
+  if (listEl) listEl.innerHTML = rows || '<div style="padding:10px 12px;font-size:12px;color:#64748b">No items of this type.</div>';
+}
+
+function _rgUpdateDropdownLabel(type) {
+  var total = _rgItemsOfType(type).length;
+  var excludedCount = _rgExcluded[type].size;
+  var included = total - excludedCount;
+  var el = document.getElementById('rg-dd-label-'+type);
+  if (!el) return;
+  el.textContent = excludedCount===0 ? 'All selected' : (included+' of '+total+' selected');
+}
+
+// Close any open dropdown when clicking elsewhere
+document.addEventListener('click', function(ev){
+  if (!document.getElementById('rcm-graph-overlay')) return;
+  if (ev.target.closest && ev.target.closest('[id^="rg-dd-"]')) return;
+  ['control','objective','risk','entity','workpaper'].forEach(function(t){
+    var p = document.getElementById('rg-dd-pop-'+t);
+    if (p) p.style.display = 'none';
+  });
+});
+
 var _rgState = null;
 var _rgDuplicatedCache = {}; // keyed by "C0R0" / "C1R0" / "C0R1" / "C1R1"
 
@@ -8150,7 +8270,13 @@ function _rgFilteredData() {
   var src = (s.dupControls || s.dupRisks)
     ? (_rgDuplicatedCache[key] || (_rgDuplicatedCache[key] = _rgBuildDuplicatedData(s.dupControls, s.dupRisks)))
     : window._rcmGraphData;
-  var ns = src.nodes.filter(function(n){ return s.active[n.type]!==false; });
+  var ns = src.nodes.filter(function(n){
+    if (s.active[n.type]===false) return false;
+    var excl = _rgExcluded[n.type];
+    if (!excl || !excl.size) return true;
+    var checkId = n.origId || n.id; // duplicated instances are excluded via their original item's id
+    return !excl.has(checkId);
+  });
   var nset={}; ns.forEach(function(n){ nset[n.id]=true; });
   var ls = src.links.filter(function(l){
     var s2=typeof l.source==='object'?l.source.id:l.source;
@@ -8209,7 +8335,8 @@ function _rgRenderForce() {
     .force('charge',d3.forceManyBody().strength(-260))
     .force('center',d3.forceCenter(W/2,H/2))
     .force('collision',d3.forceCollide().radius(function(d){return(s.R[d.type]||10)+10;}))
-    .on('tick',_rgTick);
+    .on('tick',_rgTick)
+    .on('end',function(){ _rgZoomFit(); });
   var lnk=s.gMain.append('g').selectAll('line').data(fd.links).enter().append('line')
     .attr('stroke',function(d){var t=typeof d.target==='object'?d.target.type:d.rel;return s.C[t]||'#475569';})
     .attr('stroke-opacity',0.4).attr('stroke-width',1.5)
@@ -8336,7 +8463,7 @@ function _rgSetView(v) {
   document.getElementById('rg-btn-force').style.color=v==='force'?'#fff':'#94a3b8';
   document.getElementById('rg-btn-tree').style.background=v==='tree'?'#2563eb':'transparent';
   document.getElementById('rg-btn-tree').style.color=v==='tree'?'#fff':'#94a3b8';
-  if(v==='force')_rgInitForce();else _rgRenderTree();
+  if(v==='force')_rgInitForce();else { _rgRenderTree(); var tv=document.getElementById('rg-tree-view'); if(tv){ tv.scrollTop=0; tv.scrollLeft=0; } }
 }
 
 
