@@ -7968,7 +7968,71 @@ function openRCMGraph() {
 
   // Store data and open the overlay rendered IN this document (no blob/popup)
   window._rcmGraphData = { nodes: nodes, links: links };
+  window._rcmGraphRaw  = { controls: rawControls, risks: rawRisks, entities: allEnts, objMap: objMap };
+  _rgDuplicatedCache = null;
   _renderRCMGraphOverlay();
+}
+
+// Rebuild nodes/links with one control-node PER linked risk (instead of one
+// shared control node fanning out to all its risks). Objectives, entities,
+// and workpapers still attach to every duplicate instance of the control.
+function _rgBuildDuplicatedData() {
+  var raw = window._rcmGraphRaw;
+  if (!raw) return window._rcmGraphData;
+  var nodes=[], links=[], nids={};
+  function node(id, label, type, extra) {
+    if(!nids[id]){ nids[id]=true; nodes.push(Object.assign({id:id,label:(label||id).slice(0,60),type:type},extra||{})); }
+  }
+  raw.controls.forEach(function(c){
+    var riskIds = (c.linked_risks && c.linked_risks.length) ? c.linked_risks : (CTRL_RISKS_MAP[c.id]||[]);
+    var obj=(c.objective||'').trim();
+    var oid = obj ? raw.objMap[obj.slice(0,80)] : null;
+
+    if (riskIds.length <= 1) {
+      // No duplication needed — single instance, same as normal graph
+      var cid = c.id;
+      node(cid, c.name||c.id, 'control', {category:c.category||''});
+      if (oid) { node(oid, obj, 'objective', {}); links.push({source:cid,target:oid,rel:'objective'}); }
+      riskIds.forEach(function(rid){
+        var r=raw.risks.find(function(x){return x.id===rid;});
+        node(rid, r?(r.name||r.title||rid):rid, 'risk', {});
+        links.push({source:cid,target:rid,rel:'risk'});
+      });
+      (c.linked_entities||[]).forEach(function(eid){
+        var e=raw.entities.find(function(x){return x.id===eid;});
+        if(e){ node(eid,e.name||eid,'entity',{etype:e.type||e.category||''}); links.push({source:cid,target:eid,rel:'entity'}); }
+      });
+      return;
+    }
+
+    // Duplicate: one control node instance per linked risk
+    riskIds.forEach(function(rid, i){
+      var cid = c.id + '__dup' + i;
+      var r=raw.risks.find(function(x){return x.id===rid;});
+      node(cid, c.name||c.id, 'control', {category:c.category||'', origId:c.id, dupIndex:i, dupTotal:riskIds.length});
+      node(rid, r?(r.name||r.title||rid):rid, 'risk', {});
+      links.push({source:cid,target:rid,rel:'risk'});
+      if (oid) { node(oid, obj, 'objective', {}); links.push({source:cid,target:oid,rel:'objective'}); }
+      (c.linked_entities||[]).forEach(function(eid){
+        var e=raw.entities.find(function(x){return x.id===eid;});
+        if(e){ node(eid,e.name||eid,'entity',{etype:e.type||e.category||''}); links.push({source:cid,target:eid,rel:'entity'}); }
+      });
+    });
+  });
+  (WORKPAPERS||[]).forEach(function(w){
+    var wid='WP|'+w.ref;
+    var cs=wpLinkedControls[w.ref];
+    if(!cs || !cs.size) return;
+    var hasLink=false;
+    var wpLinks=[];
+    cs.forEach(function(cid){
+      // Link to ALL duplicate instances of this control if it was duplicated
+      var matched = nodes.filter(function(n){ return n.id===cid || n.origId===cid; });
+      matched.forEach(function(n){ wpLinks.push({source:wid,target:n.id,rel:'workpaper'}); hasLink=true; });
+    });
+    if (hasLink) { node(wid, w.name||w.ref, 'workpaper', {audit:w.auditName||''}); links = links.concat(wpLinks); }
+  });
+  return { nodes: nodes, links: links };
 }
 
 function _loadD3(cb) {
@@ -8004,6 +8068,10 @@ function _renderRCMGraphOverlay() {
         _rgCheckbox('entity','Entities','#34d399',false) +
         _rgCheckbox('workpaper','Workpapers','#c084fc',false) +
       '</div>' +
+      '<div style="width:1px;background:#334155;align-self:stretch;margin:4px 0"></div>' +
+      '<label title="Draw a separate control node for each linked risk instead of one shared node — reduces edge crossings when a control covers many risks" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:500;color:#cbd5e1;white-space:nowrap">' +
+        '<input type="checkbox" id="rg-cb-duplicate" onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> Duplicate controls with multiple risks' +
+      '</label>' +
       '<button onclick="document.getElementById(\'rcm-graph-overlay\').remove()" style="margin-left:auto;background:#334155;border:none;cursor:pointer;color:#e2e8f0;width:30px;height:30px;border-radius:6px;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>' +
     '</div>' +
     '<div id="rg-main" style="flex:1;overflow:hidden;position:relative">' +
@@ -8028,6 +8096,7 @@ function _renderRCMGraphOverlay() {
       C:{control:"#60a5fa",objective:"#fbbf24",risk:"#f87171",entity:"#34d399",workpaper:"#c084fc"},
       R:{control:14,objective:9,risk:9,entity:9,workpaper:11},
       active:{control:true,objective:true,risk:true,entity:false,workpaper:false},
+      duplicate:false,
       view:'force', zoom:null, svg:null, gMain:null, sim:null
     };
     _rgInitForce();
@@ -8043,15 +8112,19 @@ function _rgLegend(color,label) {
 }
 
 var _rgState = null;
+var _rgDuplicatedCache = null;
 
 function _rgFilteredData() {
   var s = _rgState;
-  var ns = window._rcmGraphData.nodes.filter(function(n){ return s.active[n.type]!==false; });
+  var src = s.duplicate
+    ? (_rgDuplicatedCache || (_rgDuplicatedCache = _rgBuildDuplicatedData()))
+    : window._rcmGraphData;
+  var ns = src.nodes.filter(function(n){ return s.active[n.type]!==false; });
   var nset={}; ns.forEach(function(n){ nset[n.id]=true; });
-  var ls = window._rcmGraphData.links.filter(function(l){
-    var src=typeof l.source==='object'?l.source.id:l.source;
-    var tgt=typeof l.target==='object'?l.target.id:l.target;
-    return nset[src]&&nset[tgt];
+  var ls = src.links.filter(function(l){
+    var s2=typeof l.source==='object'?l.source.id:l.source;
+    var t2=typeof l.target==='object'?l.target.id:l.target;
+    return nset[s2]&&nset[t2];
   });
   return { nodes: JSON.parse(JSON.stringify(ns)), links: JSON.parse(JSON.stringify(ls)) };
 }
@@ -8063,6 +8136,7 @@ function _rgApplyFilters() {
   s.active.risk     =document.getElementById('rg-cb-risk').checked;
   s.active.entity   =document.getElementById('rg-cb-entity').checked;
   s.active.workpaper=document.getElementById('rg-cb-workpaper').checked;
+  s.duplicate       =document.getElementById('rg-cb-duplicate').checked;
   if(s.view==='force')_rgRenderForce();else _rgRenderTree();
 }
 
@@ -8114,7 +8188,7 @@ function _rgRenderForce() {
     .attr('fill',function(d){return(s.C[d.type]||'#94a3b8')+'30';})
     .attr('stroke',function(d){return s.C[d.type]||'#94a3b8';}).attr('stroke-width',1.5);
   ng.append('text').attr('dy','0.35em').attr('x',function(d){return(s.R[d.type]||10)+7;})
-    .text(function(d){return d.label;}).attr('fill','#cbd5e1')
+    .text(function(d){return d.label + (d.dupTotal>1 ? ' ('+(d.dupIndex+1)+'/'+d.dupTotal+')' : '');}).attr('fill','#cbd5e1')
     .style('font-size',function(d){return d.type==='control'?'11px':'9px';})
     .style('font-weight',function(d){return d.type==='control'||d.type==='objective'?'600':'400';})
     .style('pointer-events','none');
@@ -8124,6 +8198,7 @@ function _rgRenderForce() {
       '<div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">'+d.label+'</div>'+
       (d.category?'<div style="font-size:11px;color:#94a3b8">Category: '+d.category+'</div>':'')+
       (d.audit?'<div style="font-size:11px;color:#94a3b8">Audit: '+d.audit+'</div>':'')+
+      (d.dupTotal>1?'<div style="font-size:11px;color:#fbbf24">Instance '+(d.dupIndex+1)+' of '+d.dupTotal+' for this control</div>':'')+
       '<div style="font-size:11px;color:#94a3b8">'+(deg[d.id]||0)+' link(s)</div>';
     tip.style.display='block';
   }).on('mousemove',function(ev){
