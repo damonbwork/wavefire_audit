@@ -3590,8 +3590,6 @@ auditor's assessment.
       <div style="width:200px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);display:flex;flex-direction:column;overflow-y:auto">
         <div style="padding:18px 16px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary)">Knowledge Base</div>
         <div id="kb-nav-company"  class="kb-nav-btn active" onclick="showKBSection('company')"  style="display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text-primary);border-left:3px solid var(--wf-navy);background:var(--bg-primary)"><i class="ti ti-building" style="font-size:14px;color:var(--wf-navy)"></i>Company</div>
-        <div id="kb-nav-audits"   class="kb-nav-btn"        onclick="showKBSection('audits')"   style="display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-left:3px solid transparent"><i class="ti ti-clipboard-list" style="font-size:14px"></i>Audits</div>
-        <div id="kb-nav-entities" class="kb-nav-btn"        onclick="showKBSection('entities')" style="display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-left:3px solid transparent"><i class="ti ti-building-community" style="font-size:14px"></i>Entities</div>
         <div id="kb-nav-controls" class="kb-nav-btn"        onclick="showKBSection('controls')" style="display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-left:3px solid transparent"><i class="ti ti-shield-check" style="font-size:14px"></i>Controls</div>
         <div id="kb-nav-risks"    class="kb-nav-btn"        onclick="showKBSection('risks')"    style="display:flex;align-items:center;gap:8px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--text-secondary);border-left:3px solid transparent"><i class="ti ti-alert-triangle" style="font-size:14px"></i>Risks</div>
         <div style="padding:16px;margin-top:auto;border-top:0.5px solid var(--border-light)">
@@ -3618,25 +3616,6 @@ auditor's assessment.
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- ── Audits ── -->
-        <div id="kb-sec-audits" class="kb-section" style="display:none">
-          <div style="margin-bottom:6px">
-            <div style="font-size:17px;font-weight:700;color:var(--text-primary)">Audit Analysis Notes</div>
-            <div style="font-size:12px;color:var(--text-tertiary);margin-top:3px">Per-audit notes — scope, materiality, key risks, prior findings, management representations</div>
-          </div>
-          <div id="kb-audits-list" style="display:flex;flex-direction:column;gap:12px;margin-top:14px"></div>
-        </div>
-
-        <!-- ── Entities ── -->
-        <div id="kb-sec-entities" class="kb-section" style="display:none">
-          <div style="margin-bottom:6px">
-            <div style="font-size:17px;font-weight:700;color:var(--text-primary)">Entity Analyst Notes</div>
-            <div style="font-size:12px;color:var(--text-tertiary);margin-top:3px">Known issues, relationship to audits, prior observations — one entry per assessment entity</div>
-          </div>
-          <div style="margin:12px 0 6px"><input type="text" id="kb-ent-search" placeholder="Search entities…" oninput="renderKBEntities(this.value)" style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:7px 10px;width:260px;background:var(--bg-secondary);outline:none;color:var(--text-primary)"></div>
-          <div id="kb-entities-list" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
 
         <!-- ── Controls ── -->
@@ -3677,8 +3656,6 @@ auditor's assessment.
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Knowledge Base</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-company" class="analysis-opt-cb" checked><span class="analysis-opt-label">Company / Organisation Context</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-audit" class="analysis-opt-cb" checked><span class="analysis-opt-label">Audit Analysis Notes</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-entities" class="analysis-opt-cb" checked><span class="analysis-opt-label">Entity Analyst Notes</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-controls" class="analysis-opt-cb" checked><span class="analysis-opt-label">Control &amp; Risk Analyst Notes</span></label>
           </div>
         </div>
@@ -3701,10 +3678,7 @@ auditor's assessment.
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdesc" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Description</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attraddl" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Additional Information</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-success" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Pass Criteria</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-failure" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Failure Criteria</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdetails" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Details <span style="font-size:9px;color:var(--text-tertiary);font-weight:400">(description, additional info, pass &amp; fail criteria)</span></span></label>
           </div>
         </div>
       </div>
@@ -7684,11 +7658,7 @@ function openEntityDialog(idx) {
     </div>
     <div style="grid-column:1/-1">
       ${_eLabel('Description', 'included in Claude analysis context')}
-      ${_eArea(idx,'description', e.description, 'Describe this entity — this text is silently included in Claude analysis context when this entity is linked to a workpaper…')}
-    </div>
-    <div style="grid-column:1/-1">
-      ${_eLabel('Analyst Notes', 'risk observations, prior findings, notes for AI analysis')}
-      ${_eArea(idx,'analyst_notes', e.analyst_notes||'', 'Enter analyst notes, known risks, prior audit observations…')}
+      ${_eArea(idx,'description', e.description, 'Describe this entity — relationship to audits, known issues, risk observations, prior findings, point-of-contact notes. This text is silently included in Claude analysis context when this entity is linked to a workpaper…', 4)}
     </div>`;
 
   // ── Application risk fields ──────────────────────────────────────
@@ -7963,29 +7933,19 @@ function openRCMGraph() {
     if(e.id && !entSeen[e.id]){ entSeen[e.id]=true; allEnts.push(e); }
   });
 
-  // ── Build graph ───────────────────────────────────────────────────────────
   var nodes=[], links=[], nids={};
-
   function node(id, label, type, extra) {
     if(!nids[id]){ nids[id]=true; nodes.push(Object.assign({id:id,label:(label||id).slice(0,60),type:type},extra||{})); }
   }
-
-  // Deduplicate objectives by text
   var objMap={};
   rawControls.forEach(function(c){
     var obj=(c.objective||'').trim();
     if(obj){ var key=obj.slice(0,80); if(!objMap[key]) objMap[key]='OBJ|'+key; }
   });
-
-  // Controls first so nids is populated before links
   rawControls.forEach(function(c){ node(c.id, c.name||c.id, 'control', {category:c.category||''}); });
-
   rawControls.forEach(function(c){
-    // Objective
     var obj=(c.objective||'').trim();
     if(obj){ var oid=objMap[obj.slice(0,80)]; node(oid,obj,'objective',{}); links.push({source:c.id,target:oid,rel:'objective'}); }
-
-    // Risks — use linked_risks OR fall back to CTRL_RISKS_MAP
     var riskIds = (c.linked_risks && c.linked_risks.length) ? c.linked_risks : (CTRL_RISKS_MAP[c.id]||[]);
     riskIds.forEach(function(rid){
       var r=rawRisks.find(function(x){return x.id===rid;});
@@ -7993,308 +7953,282 @@ function openRCMGraph() {
       node(rid, rname, 'risk', {});
       links.push({source:c.id,target:rid,rel:'risk'});
     });
-
-    // Entities
     (c.linked_entities||[]).forEach(function(eid){
       var e=allEnts.find(function(x){return x.id===eid;});
       if(e){ node(eid,e.name||eid,'entity',{etype:e.type||e.category||''}); links.push({source:c.id,target:eid,rel:'entity'}); }
     });
   });
-
-  // Workpapers — linked controls from session store
   (WORKPAPERS||[]).forEach(function(w){
     var wid='WP|'+w.ref;
     node(wid, w.name||w.ref, 'workpaper', {audit:w.auditName||''});
     var cs=wpLinkedControls[w.ref];
     if(cs && cs.size){ cs.forEach(function(cid){ if(nids[cid]) links.push({source:wid,target:cid,rel:'workpaper'}); }); }
   });
-
-  // Filter links to only those between nodes that exist
   links=links.filter(function(l){ return nids[l.source]&&nids[l.target]; });
 
-  var payload=JSON.stringify({nodes:nodes,links:links});
-  var html=_rcmGraphHTML(payload);
-  var blob=new Blob([html],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var tab=window.open(url,'_blank');
-  if(!tab) alert('Please allow pop-ups to open the graph.');
-  setTimeout(function(){URL.revokeObjectURL(url);},90000);
+  // Store data and open the overlay rendered IN this document (no blob/popup)
+  window._rcmGraphData = { nodes: nodes, links: links };
+  _renderRCMGraphOverlay();
 }
 
-function _rcmGraphHTML(payload) {
-  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
-'<title>RCM Relationship Graph</title>' +
-'<style>' +
-'*{box-sizing:border-box;margin:0;padding:0;}' +
-'body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden;}' +
-'#toolbar{flex-shrink:0;background:#1e293b;border-bottom:1px solid #334155;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}' +
-'#toolbar h1{font-size:15px;font-weight:700;color:#93c5fd;white-space:nowrap;}' +
-'.view-toggle{display:flex;background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden;}' +
-'.view-btn{border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#94a3b8;background:transparent;transition:all .15s;}' +
-'.view-btn.active{background:#2563eb;color:#fff;}' +
-'.sep{width:1px;background:#334155;flex-shrink:0;align-self:stretch;margin:4px 0;}' +
-'#filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}' +
-'.fl{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}' +
-'.fcb{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:500;color:#94a3b8;white-space:nowrap;}' +
-'.fcb input[type=checkbox]{width:14px;height:14px;accent-color:#2563eb;cursor:pointer;}' +
-'.fcb.col-ctrl{color:#60a5fa;} .fcb.col-obj{color:#fbbf24;} .fcb.col-risk{color:#f87171;} .fcb.col-ent{color:#34d399;} .fcb.col-wp{color:#c084fc;}' +
-'#main{flex:1;overflow:hidden;position:relative;}' +
-'#force-svg{width:100%;height:100%;}' +
-'#tree-view{width:100%;height:100%;overflow:auto;display:none;}' +
-'#tree-svg{display:block;}' +
-'.node circle{stroke:#0f172a;stroke-width:1.5;cursor:grab;}' +
-'.node circle:active{cursor:grabbing;}' +
-'.node text{font-size:10px;fill:#cbd5e1;pointer-events:none;}' +
-'.link{stroke-opacity:0.4;stroke-width:1.5;}' +
-'#tip{position:absolute;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:12px;max-width:280px;pointer-events:none;display:none;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.6);}' +
-'#tip .tt{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.6;margin-bottom:3px;}' +
-'#tip .tn{font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px;}' +
-'#tip .tm{font-size:11px;color:#94a3b8;line-height:1.5;}' +
-'.tree-link{fill:none;stroke:#334155;stroke-width:1.5;}' +
-'.tree-node circle{cursor:pointer;stroke-width:2;}' +
-'.tree-node text{font-size:11px;fill:#cbd5e1;}' +
-'#legend{position:absolute;bottom:12px;left:14px;background:#1e293bcc;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:11px;display:flex;flex-direction:column;gap:5px;}' +
-'.li{display:flex;align-items:center;gap:7px;color:#94a3b8;}' +
-'.ld{width:10px;height:10px;border-radius:50%;flex-shrink:0;}' +
-'.zb-wrap{position:absolute;top:12px;right:14px;display:flex;flex-direction:column;gap:4px;}' +
-'.zb{background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;width:30px;height:30px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}' +
-'.zb:hover{background:#334155;color:#e2e8f0;}' +
-'#no-data{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#475569;}' +
-'</style></head><body>' +
+function _loadD3(cb) {
+  if (window.d3) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js';
+  s.onload = function(){ cb(); };
+  s.onerror = function(){ alert('Could not load the graphing library (D3). Check your network connection.'); };
+  document.head.appendChild(s);
+}
 
-'<div id="toolbar">' +
-'<h1>⬡ RCM Relationship Graph</h1>' +
-'<div class="view-toggle">' +
-'<button class="view-btn active" id="btn-force" onclick="setView(\'force\')">⬡ Network</button>' +
-'<button class="view-btn" id="btn-tree" onclick="setView(\'tree\')">⊢ Tree</button>' +
-'</div>' +
-'<div class="sep"></div>' +
-'<div id="filters">' +
-'<span class="fl">Show:</span>' +
-'<label class="fcb col-ctrl"><input type="checkbox" id="cb-control" checked onchange="applyFilters()"> Controls</label>' +
-'<label class="fcb col-obj"><input type="checkbox" id="cb-objective" checked onchange="applyFilters()"> Objectives</label>' +
-'<label class="fcb col-risk"><input type="checkbox" id="cb-risk" checked onchange="applyFilters()"> Risks</label>' +
-'<label class="fcb col-ent"><input type="checkbox" id="cb-entity" onchange="applyFilters()"> Entities</label>' +
-'<label class="fcb col-wp"><input type="checkbox" id="cb-workpaper" onchange="applyFilters()"> Workpapers</label>' +
-'</div>' +
-'</div>' +
+function _renderRCMGraphOverlay() {
+  // Remove any existing overlay
+  var existing = document.getElementById('rcm-graph-overlay');
+  if (existing) existing.remove();
 
-'<div id="main">' +
-'<svg id="force-svg"></svg>' +
-'<div id="tree-view"><svg id="tree-svg"></svg></div>' +
-'<div id="tip"></div>' +
-'<div id="no-data"><div style="font-size:32px;margin-bottom:12px">⬡</div><div style="font-size:16px;font-weight:700;margin-bottom:6px">No data to display</div><div style="font-size:13px">Enable more data types above, or link controls in the RCM.</div></div>' +
-'<div id="legend">' +
-'<div class="li"><div class="ld" style="background:#60a5fa"></div>Control</div>' +
-'<div class="li"><div class="ld" style="background:#fbbf24"></div>Objective</div>' +
-'<div class="li"><div class="ld" style="background:#f87171"></div>Risk</div>' +
-'<div class="li"><div class="ld" style="background:#34d399"></div>Entity</div>' +
-'<div class="li"><div class="ld" style="background:#c084fc"></div>Workpaper</div>' +
-'</div>' +
-'<div class="zb-wrap" id="zb-wrap">' +
-'<button class="zb" onclick="zoomBy(1.3)">+</button>' +
-'<button class="zb" onclick="zoomBy(0.77)">−</button>' +
-'<button class="zb" title="Fit" onclick="zoomFit()">⊙</button>' +
-'</div>' +
-'</div>' +
+  var ov = document.createElement('div');
+  ov.id = 'rcm-graph-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:25000;background:#0f172a;display:flex;flex-direction:column;font-family:system-ui,sans-serif;color:#e2e8f0';
+  ov.innerHTML =
+    '<div style="flex-shrink:0;background:#1e293b;border-bottom:1px solid #334155;padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
+      '<h1 style="font-size:15px;font-weight:700;color:#93c5fd;white-space:nowrap;margin:0">⬡ RCM Relationship Graph</h1>' +
+      '<div style="display:flex;background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden">' +
+        '<button id="rg-btn-force" onclick="_rgSetView(\'force\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#fff;background:#2563eb">⬡ Network</button>' +
+        '<button id="rg-btn-tree" onclick="_rgSetView(\'tree\')" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#94a3b8;background:transparent">⊢ Tree</button>' +
+      '</div>' +
+      '<div style="width:1px;background:#334155;align-self:stretch;margin:4px 0"></div>' +
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        '<span style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Show:</span>' +
+        _rgCheckbox('control','Controls','#60a5fa',true) +
+        _rgCheckbox('objective','Objectives','#fbbf24',true) +
+        _rgCheckbox('risk','Risks','#f87171',true) +
+        _rgCheckbox('entity','Entities','#34d399',false) +
+        _rgCheckbox('workpaper','Workpapers','#c084fc',false) +
+      '</div>' +
+      '<button onclick="document.getElementById(\'rcm-graph-overlay\').remove()" style="margin-left:auto;background:#334155;border:none;cursor:pointer;color:#e2e8f0;width:30px;height:30px;border-radius:6px;font-size:16px;display:flex;align-items:center;justify-content:center">✕</button>' +
+    '</div>' +
+    '<div id="rg-main" style="flex:1;overflow:hidden;position:relative">' +
+      '<svg id="rg-force-svg" style="width:100%;height:100%;display:block"></svg>' +
+      '<div id="rg-tree-view" style="width:100%;height:100%;overflow:auto;display:none"><svg id="rg-tree-svg" style="display:block"></svg></div>' +
+      '<div id="rg-tip" style="position:absolute;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:12px;max-width:280px;pointer-events:none;display:none;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.6)"></div>' +
+      '<div id="rg-no-data" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#475569">' +
+        '<div style="font-size:32px;margin-bottom:12px">⬡</div><div style="font-size:16px;font-weight:700;margin-bottom:6px">No data to display</div><div style="font-size:13px">Enable more data types above, or link controls in the RCM.</div></div>' +
+      '<div id="rg-legend" style="position:absolute;bottom:12px;left:14px;background:rgba(30,41,59,0.8);border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:11px;display:flex;flex-direction:column;gap:5px">' +
+        _rgLegend('#60a5fa','Control')+_rgLegend('#fbbf24','Objective')+_rgLegend('#f87171','Risk')+_rgLegend('#34d399','Entity')+_rgLegend('#c084fc','Workpaper') +
+      '</div>' +
+      '<div id="rg-zoom" style="position:absolute;top:12px;right:14px;display:flex;flex-direction:column;gap:4px">' +
+        '<button onclick="_rgZoom(1.3)" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;width:30px;height:30px;font-size:16px;cursor:pointer">+</button>' +
+        '<button onclick="_rgZoom(0.77)" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;width:30px;height:30px;font-size:16px;cursor:pointer">−</button>' +
+        '<button onclick="_rgZoomFit()" title="Fit" style="background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;width:30px;height:30px;font-size:14px;cursor:pointer">⊙</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(ov);
 
-'<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"><'+'/scr'+'ipt>' +
-'<scr'+'ipt>' +
-'var RAW='+payload+';' +
-'var C={control:"#60a5fa",objective:"#fbbf24",risk:"#f87171",entity:"#34d399",workpaper:"#c084fc"};' +
-'var R={control:14,objective:9,risk:9,entity:9,workpaper:11};' +
-'var active={control:true,objective:true,risk:true,entity:false,workpaper:false};' +
-'var view="force",zoom,svg,gMain,sim;' +
+  _loadD3(function(){
+    _rgState = {
+      C:{control:"#60a5fa",objective:"#fbbf24",risk:"#f87171",entity:"#34d399",workpaper:"#c084fc"},
+      R:{control:14,objective:9,risk:9,entity:9,workpaper:11},
+      active:{control:true,objective:true,risk:true,entity:false,workpaper:false},
+      view:'force', zoom:null, svg:null, gMain:null, sim:null
+    };
+    _rgInitForce();
+  });
+}
 
-'function isActive(t){return active[t]!==false;}' +
+function _rgCheckbox(type,label,color,checked) {
+  return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:500;color:'+color+';white-space:nowrap">' +
+    '<input type="checkbox" id="rg-cb-'+type+'" '+(checked?'checked':'')+' onchange="_rgApplyFilters()" style="width:14px;height:14px;accent-color:#2563eb;cursor:pointer"> '+label+'</label>';
+}
+function _rgLegend(color,label) {
+  return '<div style="display:flex;align-items:center;gap:7px;color:#94a3b8"><div style="width:10px;height:10px;border-radius:50%;background:'+color+'"></div>'+label+'</div>';
+}
 
-'function filteredData(){' +
-'var ns=RAW.nodes.filter(function(n){return isActive(n.type);});' +
-'var nset={};ns.forEach(function(n){nset[n.id]=true;});' +
-'var ls=RAW.links.filter(function(l){' +
-'var s=typeof l.source==="object"?l.source.id:l.source;' +
-'var t=typeof l.target==="object"?l.target.id:l.target;' +
-'return nset[s]&&nset[t];' +
-'});' +
-'return{nodes:JSON.parse(JSON.stringify(ns)),links:JSON.parse(JSON.stringify(ls))};' +
-'}' +
+var _rgState = null;
 
-'function applyFilters(){' +
-'active.control  =document.getElementById("cb-control").checked;' +
-'active.objective=document.getElementById("cb-objective").checked;' +
-'active.risk     =document.getElementById("cb-risk").checked;' +
-'active.entity   =document.getElementById("cb-entity").checked;' +
-'active.workpaper=document.getElementById("cb-workpaper").checked;' +
-'if(view==="force")renderForce();else renderTree();' +
-'}' +
+function _rgFilteredData() {
+  var s = _rgState;
+  var ns = window._rcmGraphData.nodes.filter(function(n){ return s.active[n.type]!==false; });
+  var nset={}; ns.forEach(function(n){ nset[n.id]=true; });
+  var ls = window._rcmGraphData.links.filter(function(l){
+    var src=typeof l.source==='object'?l.source.id:l.source;
+    var tgt=typeof l.target==='object'?l.target.id:l.target;
+    return nset[src]&&nset[tgt];
+  });
+  return { nodes: JSON.parse(JSON.stringify(ns)), links: JSON.parse(JSON.stringify(ls)) };
+}
 
-// ── Force graph ──
-'function initForce(){' +
-'var el=document.getElementById("force-svg");' +
-'d3.select(el).selectAll("*").remove();' +
-'svg=d3.select(el);' +
-'zoom=d3.zoom().scaleExtent([0.05,6]).on("zoom",function(ev){gMain.attr("transform",ev.transform);});' +
-'svg.call(zoom);' +
-'gMain=svg.append("g");' +
-'renderForce();' +
-'}' +
+function _rgApplyFilters() {
+  var s=_rgState;
+  s.active.control  =document.getElementById('rg-cb-control').checked;
+  s.active.objective=document.getElementById('rg-cb-objective').checked;
+  s.active.risk     =document.getElementById('rg-cb-risk').checked;
+  s.active.entity   =document.getElementById('rg-cb-entity').checked;
+  s.active.workpaper=document.getElementById('rg-cb-workpaper').checked;
+  if(s.view==='force')_rgRenderForce();else _rgRenderTree();
+}
 
-'function renderForce(){' +
-'if(sim){sim.stop();}' +
-'gMain.selectAll("*").remove();' +
-'var fd=filteredData();' +
-'var nd=document.getElementById("no-data");' +
-'if(!fd.nodes.length){nd.style.display="block";return;}else{nd.style.display="none";}' +
-'var el=document.getElementById("force-svg");' +
-'var W=el.clientWidth||900,H=el.clientHeight||600;' +
-'var deg={};fd.nodes.forEach(function(n){deg[n.id]=0;});' +
-'fd.links.forEach(function(l){deg[l.source]=(deg[l.source]||0)+1;deg[l.target]=(deg[l.target]||0)+1;});' +
-'// arrowhead defs per link colour' +
-'var defs=svg.select("defs");if(defs.empty())defs=svg.append("defs");' +
-'Object.keys(C).forEach(function(t){' +
-'if(!defs.select("#arr-"+t).node()){' +
-'defs.append("marker").attr("id","arr-"+t).attr("viewBox","0 -4 8 8").attr("refX",24).attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto")' +
-'.append("path").attr("d","M0,-4L8,0L0,4").attr("fill",C[t]).attr("opacity",.7);' +
-'}});' +
-'sim=d3.forceSimulation(fd.nodes)' +
-'.force("link",d3.forceLink(fd.links).id(function(d){return d.id;}).distance(function(l){' +
-'var tt=typeof l.target==="object"?l.target.type:l.rel;' +
-'return tt==="risk"?80:tt==="objective"?100:120;' +
-'}).strength(0.7))' +
-'.force("charge",d3.forceManyBody().strength(-260))' +
-'.force("center",d3.forceCenter(W/2,H/2))' +
-'.force("collision",d3.forceCollide().radius(function(d){return(R[d.type]||10)+10;}))' +
-'.on("tick",tick);' +
-'var lnk=gMain.append("g").selectAll("line").data(fd.links).enter().append("line").attr("class","link")' +
-'.attr("stroke",function(d){var t=typeof d.target==="object"?d.target.type:d.rel;return C[t]||"#475569";})' +
-'.attr("marker-end",function(d){var t=typeof d.target==="object"?d.target.type:d.rel;return"url(#arr-"+t+")";});' +
-'var ng=gMain.append("g").selectAll("g").data(fd.nodes).enter().append("g").attr("class","node")' +
-'.call(d3.drag().on("start",ds).on("drag",dd).on("end",de));' +
-'ng.append("circle").attr("r",function(d){return(R[d.type]||10)+Math.min(5,deg[d.id]||0);})\n' +
-'.attr("fill",function(d){return(C[d.type]||"#94a3b8")+"30";})' +
-'.attr("stroke",function(d){return C[d.type]||"#94a3b8";});' +
-'ng.append("text").attr("dy","0.35em").attr("x",function(d){return(R[d.type]||10)+7;})' +
-'.text(function(d){return d.label;})' +
-'.style("font-size",function(d){return d.type==="control"?"11px":"9px";})' +
-'.style("font-weight",function(d){return d.type==="control"||d.type==="objective"?"600":"400";});' +
-'var tip=document.getElementById("tip");' +
-'ng.on("mouseenter",function(ev,d){' +
-'tip.innerHTML="<div class=\'tt\'>"+d.type+"</div><div class=\'tn\'>"+d.label+"</div>"' +
-'+(d.category?"<div class=\'tm\'>Category: "+d.category+"</div>":"")' +
-'+(d.etype?"<div class=\'tm\'>Type: "+d.etype+"</div>":"")' +
-'+(d.audit?"<div class=\'tm\'>Audit: "+d.audit+"</div>":"")' +
-'+"<div class=\'tm\'>"+(deg[d.id]||0)+" link(s)</div>";' +
-'tip.style.display="block";' +
-'}).on("mousemove",function(ev){' +
-'var r=document.getElementById("main").getBoundingClientRect();' +
-'tip.style.left=(ev.clientX-r.left+14)+"px";tip.style.top=(ev.clientY-r.top-10)+"px";' +
-'}).on("mouseleave",function(){tip.style.display="none";});' +
-'function tick(){' +
-'lnk.attr("x1",function(d){return d.source.x;}).attr("y1",function(d){return d.source.y;})' +
-'.attr("x2",function(d){return d.target.x;}).attr("y2",function(d){return d.target.y;});' +
-'ng.attr("transform",function(d){return"translate("+d.x+","+d.y+")";});' +
-'}' +
-'function ds(ev,d){if(!ev.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;}' +
-'function dd(ev,d){d.fx=ev.x;d.fy=ev.y;}' +
-'function de(ev,d){if(!ev.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}' +
-'}' +
+function _rgInitForce() {
+  var s=_rgState;
+  var el=document.getElementById('rg-force-svg');
+  d3.select(el).selectAll('*').remove();
+  s.svg=d3.select(el);
+  s.zoom=d3.zoom().scaleExtent([0.05,6]).on('zoom',function(ev){ s.gMain.attr('transform',ev.transform); });
+  s.svg.call(s.zoom);
+  s.gMain=s.svg.append('g');
+  _rgRenderForce();
+}
 
-'function zoomBy(k){if(zoom&&svg)svg.transition().duration(220).call(zoom.scaleBy,k);}' +
-'function zoomFit(){' +
-'if(!svg||!gMain)return;' +
-'var b=gMain.node().getBBox();' +
-'var el=document.getElementById("force-svg");' +
-'var W=el.clientWidth,H=el.clientHeight;' +
-'if(!b.width||!b.height)return;' +
-'var sc=0.85/Math.max(b.width/W,b.height/H);' +
-'var tx=W/2-sc*(b.x+b.width/2),ty=H/2-sc*(b.y+b.height/2);' +
-'svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(sc));' +
-'}' +
+function _rgRenderForce() {
+  var s=_rgState;
+  if(s.sim) s.sim.stop();
+  s.gMain.selectAll('*').remove();
+  var fd=_rgFilteredData();
+  var nd=document.getElementById('rg-no-data');
+  if(!fd.nodes.length){ nd.style.display='block'; return; } else { nd.style.display='none'; }
+  var el=document.getElementById('rg-force-svg');
+  var W=el.clientWidth||900, H=el.clientHeight||600;
+  var deg={}; fd.nodes.forEach(function(n){ deg[n.id]=0; });
+  fd.links.forEach(function(l){ deg[l.source]=(deg[l.source]||0)+1; deg[l.target]=(deg[l.target]||0)+1; });
+  var defs=s.svg.select('defs'); if(defs.empty()) defs=s.svg.append('defs');
+  Object.keys(s.C).forEach(function(t){
+    if(!defs.select('#rg-arr-'+t).node()){
+      defs.append('marker').attr('id','rg-arr-'+t).attr('viewBox','0 -4 8 8').attr('refX',24).attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+        .append('path').attr('d','M0,-4L8,0L0,4').attr('fill',s.C[t]).attr('opacity',.7);
+    }
+  });
+  s.sim=d3.forceSimulation(fd.nodes)
+    .force('link',d3.forceLink(fd.links).id(function(d){return d.id;}).distance(function(l){
+      var tt=typeof l.target==='object'?l.target.type:l.rel;
+      return tt==='risk'?80:tt==='objective'?100:120;
+    }).strength(0.7))
+    .force('charge',d3.forceManyBody().strength(-260))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collision',d3.forceCollide().radius(function(d){return(s.R[d.type]||10)+10;}))
+    .on('tick',_rgTick);
+  var lnk=s.gMain.append('g').selectAll('line').data(fd.links).enter().append('line')
+    .attr('stroke',function(d){var t=typeof d.target==='object'?d.target.type:d.rel;return s.C[t]||'#475569';})
+    .attr('stroke-opacity',0.4).attr('stroke-width',1.5)
+    .attr('marker-end',function(d){var t=typeof d.target==='object'?d.target.type:d.rel;return'url(#rg-arr-'+t+')';});
+  var ng=s.gMain.append('g').selectAll('g').data(fd.nodes).enter().append('g').style('cursor','grab')
+    .call(d3.drag().on('start',_rgDs).on('drag',_rgDd).on('end',_rgDe));
+  ng.append('circle').attr('r',function(d){return(s.R[d.type]||10)+Math.min(5,deg[d.id]||0);})
+    .attr('fill',function(d){return(s.C[d.type]||'#94a3b8')+'30';})
+    .attr('stroke',function(d){return s.C[d.type]||'#94a3b8';}).attr('stroke-width',1.5);
+  ng.append('text').attr('dy','0.35em').attr('x',function(d){return(s.R[d.type]||10)+7;})
+    .text(function(d){return d.label;}).attr('fill','#cbd5e1')
+    .style('font-size',function(d){return d.type==='control'?'11px':'9px';})
+    .style('font-weight',function(d){return d.type==='control'||d.type==='objective'?'600':'400';})
+    .style('pointer-events','none');
+  var tip=document.getElementById('rg-tip');
+  ng.on('mouseenter',function(ev,d){
+    tip.innerHTML='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.6;margin-bottom:3px">'+d.type+'</div>'+
+      '<div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">'+d.label+'</div>'+
+      (d.category?'<div style="font-size:11px;color:#94a3b8">Category: '+d.category+'</div>':'')+
+      (d.audit?'<div style="font-size:11px;color:#94a3b8">Audit: '+d.audit+'</div>':'')+
+      '<div style="font-size:11px;color:#94a3b8">'+(deg[d.id]||0)+' link(s)</div>';
+    tip.style.display='block';
+  }).on('mousemove',function(ev){
+    var r=document.getElementById('rg-main').getBoundingClientRect();
+    tip.style.left=(ev.clientX-r.left+14)+'px'; tip.style.top=(ev.clientY-r.top-10)+'px';
+  }).on('mouseleave',function(){ tip.style.display='none'; });
+  function _rgTick(){
+    lnk.attr('x1',function(d){return d.source.x;}).attr('y1',function(d){return d.source.y;})
+       .attr('x2',function(d){return d.target.x;}).attr('y2',function(d){return d.target.y;});
+    ng.attr('transform',function(d){return'translate('+d.x+','+d.y+')';});
+  }
+  s._tick=_rgTick;
+}
+function _rgDs(ev,d){ if(!ev.active)_rgState.sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; }
+function _rgDd(ev,d){ d.fx=ev.x; d.fy=ev.y; }
+function _rgDe(ev,d){ if(!ev.active)_rgState.sim.alphaTarget(0); d.fx=null; d.fy=null; }
 
-// ── Tree graph ──
-'function renderTree(){' +
-'var el=document.getElementById("tree-svg");' +
-'d3.select(el).selectAll("*").remove();' +
-'var fd=filteredData();' +
-'var nd=document.getElementById("no-data");' +
-'if(!fd.nodes.length){nd.style.display="block";return;}else{nd.style.display="none";}' +
-'var nmap={};fd.nodes.forEach(function(n){nmap[n.id]=n;});' +
-'var ctrls=fd.nodes.filter(function(n){return n.type==="control";});' +
-'var root={id:"__root__",label:"RCM Controls ("+ctrls.length+")",type:"root",children:[]};' +
-'ctrls.forEach(function(c){' +
-'var ch={id:c.id,label:c.label+(c.category?" · "+c.category:""),type:"control",children:[]};' +
-'var grps={objective:[],risk:[],entity:[],workpaper:[]};' +
-'fd.links.forEach(function(l){' +
-'var s=typeof l.source==="object"?l.source.id:l.source;' +
-'var t=typeof l.target==="object"?l.target.id:l.target;' +
-'var other=s===c.id?t:t===c.id?s:null;' +
-'if(!other)return;var on=nmap[other];if(on&&grps[on.type])grps[on.type].push(on);' +
-'});' +
-'var gLabel={objective:"Objectives",risk:"Risks",entity:"Entities",workpaper:"Workpapers"};' +
-'Object.keys(grps).forEach(function(gt){' +
-'if(grps[gt].length&&isActive(gt)){' +
-'ch.children.push({id:c.id+"|"+gt,label:gLabel[gt]+" ("+grps[gt].length+")",type:"group_"+gt,' +
-'children:grps[gt].map(function(n){return{id:n.id,label:n.label,type:n.type,children:[]};})});' +
-'}});' +
-'root.children.push(ch);' +
-'});' +
-'var H28=28,W240=240;' +
-'var hier=d3.hierarchy(root);' +
-'d3.tree().nodeSize([H28,W240])(hier);' +
-'var ns=hier.descendants(),ls=hier.links();' +
-'var minY=d3.min(ns,function(d){return d.y;})||0;' +
-'var maxY=d3.max(ns,function(d){return d.y;})||400;' +
-'var maxX=d3.max(ns,function(d){return d.x;})||400;' +
-'var svgW=maxY-minY+320,svgH=maxX+80;' +
-'el.setAttribute("width",svgW);el.setAttribute("height",svgH);' +
-'var g=d3.select(el).append("g").attr("transform","translate("+(50-minY)+",40)");' +
-'g.selectAll(".tree-link").data(ls).enter().append("path").attr("class","tree-link")' +
-'.attr("d",function(d){' +
-'return"M"+d.source.y+","+d.source.x+"C"+(d.source.y+W240/2)+","+d.source.x+" "+(d.target.y-W240/2)+","+d.target.x+" "+d.target.y+","+d.target.x;' +
-'});' +
-'var ng=g.selectAll(".tree-node").data(ns).enter().append("g").attr("class","tree-node")' +
-'.attr("transform",function(d){return"translate("+d.y+","+d.x+")";})' +
-'.style("cursor","pointer")' +
-'.on("click",function(ev,d){' +
-'if(d.data.type==="root")return;' +
-'if(d.children){d._ch=d.children;d.children=null;}else if(d._ch){d.children=d._ch;d._ch=null;}else return;' +
-'renderTree();' +
-'});' +
-'ng.append("circle").attr("r",5)' +
-'.attr("fill",function(d){var bt=d.data.type.replace("group_","");return(C[bt]||"#94a3b8")+(d.data.type.startsWith("group_")?"33":"");})' +
-'.attr("stroke",function(d){var bt=d.data.type.replace("group_","");return C[bt]||"#94a3b8";})' +
-'.attr("stroke-width",2);' +
-'ng.append("text").attr("dy","0.35em")' +
-'.attr("x",function(d){return d.children||d._ch?-9:9;})' +
-'.attr("text-anchor",function(d){return d.children||d._ch?"end":"start";})' +
-'.text(function(d){return d.data.label;})' +
-'.style("font-size",function(d){return d.data.type==="root"?"13px":d.data.type==="control"?"11px":"10px";})' +
-'.style("font-weight",function(d){return d.data.type==="root"||d.data.type==="control"?"700":"400";})' +
-'.style("fill",function(d){var bt=d.data.type.replace("group_","");return C[bt]||"#94a3b8";});' +
-'}' +
+function _rgZoom(k){ var s=_rgState; if(s.zoom&&s.svg)s.svg.transition().duration(220).call(s.zoom.scaleBy,k); }
+function _rgZoomFit(){
+  var s=_rgState; if(!s.svg||!s.gMain)return;
+  var b=s.gMain.node().getBBox();
+  var el=document.getElementById('rg-force-svg');
+  var W=el.clientWidth,H=el.clientHeight;
+  if(!b.width||!b.height)return;
+  var sc=0.85/Math.max(b.width/W,b.height/H);
+  var tx=W/2-sc*(b.x+b.width/2), ty=H/2-sc*(b.y+b.height/2);
+  s.svg.transition().duration(400).call(s.zoom.transform,d3.zoomIdentity.translate(tx,ty).scale(sc));
+}
 
-// ── View switch ──
-'function setView(v){' +
-'view=v;' +
-'var fs=document.getElementById("force-svg"),tv=document.getElementById("tree-view");' +
-'fs.style.display=v==="force"?"block":"none";' +
-'tv.style.display=v==="tree"?"block":"none";' +
-'document.getElementById("zb-wrap").style.display=v==="force"?"flex":"none";' +
-'document.getElementById("legend").style.display=v==="force"?"flex":"none";' +
-'document.getElementById("btn-force").classList.toggle("active",v==="force");' +
-'document.getElementById("btn-tree").classList.toggle("active",v==="tree");' +
-'if(v==="force")renderForce();else renderTree();' +
-'}' +
+function _rgRenderTree() {
+  var s=_rgState;
+  var el=document.getElementById('rg-tree-svg');
+  d3.select(el).selectAll('*').remove();
+  var fd=_rgFilteredData();
+  var nd=document.getElementById('rg-no-data');
+  if(!fd.nodes.length){ nd.style.display='block'; return; } else { nd.style.display='none'; }
+  var nmap={}; fd.nodes.forEach(function(n){ nmap[n.id]=n; });
+  var ctrls=fd.nodes.filter(function(n){ return n.type==='control'; });
+  var root={id:'__root__',label:'RCM Controls ('+ctrls.length+')',type:'root',children:[]};
+  ctrls.forEach(function(c){
+    var ch={id:c.id,label:c.label+(c.category?' · '+c.category:''),type:'control',children:[]};
+    var grps={objective:[],risk:[],entity:[],workpaper:[]};
+    fd.links.forEach(function(l){
+      var src=typeof l.source==='object'?l.source.id:l.source;
+      var tgt=typeof l.target==='object'?l.target.id:l.target;
+      var other=src===c.id?tgt:tgt===c.id?src:null;
+      if(!other)return; var on=nmap[other]; if(on&&grps[on.type])grps[on.type].push(on);
+    });
+    var gl={objective:'Objectives',risk:'Risks',entity:'Entities',workpaper:'Workpapers'};
+    Object.keys(grps).forEach(function(gt){
+      if(grps[gt].length&&s.active[gt]!==false){
+        ch.children.push({id:c.id+'|'+gt,label:gl[gt]+' ('+grps[gt].length+')',type:'group_'+gt,
+          children:grps[gt].map(function(n){return{id:n.id,label:n.label,type:n.type,children:[]};})});
+      }
+    });
+    root.children.push(ch);
+  });
+  var hier=d3.hierarchy(root);
+  d3.tree().nodeSize([28,240])(hier);
+  var ns=hier.descendants(), ls=hier.links();
+  var minY=d3.min(ns,function(d){return d.y;})||0;
+  var maxY=d3.max(ns,function(d){return d.y;})||400;
+  var maxX=d3.max(ns,function(d){return d.x;})||400;
+  var svgW=maxY-minY+320, svgH=maxX+80;
+  el.setAttribute('width',svgW); el.setAttribute('height',svgH);
+  var g=d3.select(el).append('g').attr('transform','translate('+(50-minY)+',40)');
+  g.selectAll('.rg-tl').data(ls).enter().append('path')
+    .attr('fill','none').attr('stroke','#334155').attr('stroke-width',1.5)
+    .attr('d',function(d){
+      return'M'+d.source.y+','+d.source.x+'C'+(d.source.y+120)+','+d.source.x+' '+(d.target.y-120)+','+d.target.x+' '+d.target.y+','+d.target.x;
+    });
+  var ng=g.selectAll('.rg-tn').data(ns).enter().append('g')
+    .attr('transform',function(d){return'translate('+d.y+','+d.x+')';})
+    .style('cursor','pointer')
+    .on('click',function(ev,d){
+      if(d.data.type==='root')return;
+      if(d.children){d._ch=d.children;d.children=null;}else if(d._ch){d.children=d._ch;d._ch=null;}else return;
+      _rgRenderTree();
+    });
+  ng.append('circle').attr('r',5)
+    .attr('fill',function(d){var bt=d.data.type.replace('group_','');return(s.C[bt]||'#94a3b8')+(d.data.type.indexOf('group_')===0?'33':'');})
+    .attr('stroke',function(d){var bt=d.data.type.replace('group_','');return s.C[bt]||'#94a3b8';}).attr('stroke-width',2);
+  ng.append('text').attr('dy','0.35em')
+    .attr('x',function(d){return d.children||d._ch?-9:9;})
+    .attr('text-anchor',function(d){return d.children||d._ch?'end':'start';})
+    .text(function(d){return d.data.label;})
+    .style('font-size',function(d){return d.data.type==='root'?'13px':d.data.type==='control'?'11px':'10px';})
+    .style('font-weight',function(d){return d.data.type==='root'||d.data.type==='control'?'700':'400';})
+    .style('fill',function(d){var bt=d.data.type.replace('group_','');return s.C[bt]||'#94a3b8';});
+}
 
-'window.addEventListener("load",function(){initForce();});' +
-'window.addEventListener("resize",function(){if(view==="force")initForce();});' +
-'<'+'/scr'+'ipt></body></html>';
+function _rgSetView(v) {
+  var s=_rgState; s.view=v;
+  document.getElementById('rg-force-svg').style.display=v==='force'?'block':'none';
+  document.getElementById('rg-tree-view').style.display=v==='tree'?'block':'none';
+  document.getElementById('rg-zoom').style.display=v==='force'?'flex':'none';
+  document.getElementById('rg-legend').style.display=v==='force'?'flex':'none';
+  document.getElementById('rg-btn-force').style.background=v==='force'?'#2563eb':'transparent';
+  document.getElementById('rg-btn-force').style.color=v==='force'?'#fff':'#94a3b8';
+  document.getElementById('rg-btn-tree').style.background=v==='tree'?'#2563eb':'transparent';
+  document.getElementById('rg-btn-tree').style.color=v==='tree'?'#fff':'#94a3b8';
+  if(v==='force')_rgInitForce();else _rgRenderTree();
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  KNOWLEDGE BASE — company / audit / entity / control / risk notes
-// ══════════════════════════════════════════════════════════════════════════════
 // ── Knowledge Base Tab ────────────────────────────────────────────────────────
 function activateKnowledgeBase() {
   document.querySelectorAll('.wf-nav-item').forEach(function(el){ el.classList.remove('active'); });
@@ -8326,8 +8260,6 @@ function showKBSection(sec) {
 }
 
 function renderKBSection(sec) {
-  if (sec === 'audits')   renderKBAudits();
-  if (sec === 'entities') renderKBEntities('');
   if (sec === 'controls') renderKBControls('');
   if (sec === 'risks')    renderKBRisks('');
 }
@@ -8354,15 +8286,7 @@ function _kbNoteCard(id, idField, label, sublabel, currentNotes, saveType, place
 var _kbNoteTimer = {};
 function _kbSaveNote(type, id, val) {
   // Update in-memory
-  if (type==='audit') {
-    var a = AUDITS.find(function(x){ return x.name===id; });
-    if (a) a.analysis_notes = val;
-    if (currentAudit && currentAudit.name===id) currentAudit.analysis_notes = val;
-  } else if (type==='entity') {
-    var allEnts = (typeof _fndEntities!=='undefined'?_fndEntities:[]).concat(ALL_ENTITIES||[]);
-    var e = allEnts.find(function(x){ return x.id===id; });
-    if (e) e.analyst_notes = val;
-  } else if (type==='control') {
+  if (type==='control') {
     var c = (typeof _fndControls!=='undefined'?_fndControls:[]).find(function(x){ return x.id===id; });
     if (c) c.analyst_notes = val;
   } else if (type==='risk') {
@@ -8384,31 +8308,6 @@ function _kbSaveNote(type, id, val) {
       console.warn('[KB] save failed:', e.message);
     });
   }, 700);
-}
-
-function renderKBAudits() {
-  var container = document.getElementById('kb-audits-list');
-  if (!container) return;
-  if (!AUDITS.length) { container.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px">No audits found.</div>'; return; }
-  container.innerHTML = AUDITS.map(function(a) {
-    return _kbNoteCard(a.name, 'name', a.name, (a.period||'') + (a.type ? ' · ' + a.type : ''), a.analysis_notes||'', 'audit',
-      'Scope, materiality, key risks, prior findings, management representations for this audit…');
-  }).join('');
-}
-
-function renderKBEntities(q) {
-  var container = document.getElementById('kb-entities-list');
-  if (!container) return;
-  var all = (typeof _fndEntities!=='undefined'&&_fndEntities.length?_fndEntities:[]).concat(ALL_ENTITIES||[]);
-  var seen = new Set(); var unique = [];
-  all.forEach(function(e){ if(e.id&&!seen.has(e.id)){ seen.add(e.id); unique.push(e); } });
-  var lq = (q||'').toLowerCase();
-  var filtered = lq ? unique.filter(function(e){ return (e.name||'').toLowerCase().includes(lq) || (e.type||'').toLowerCase().includes(lq); }) : unique;
-  if (!filtered.length) { container.innerHTML = '<div style="color:var(--text-tertiary);font-size:13px">'+(lq?'No entities match.':'No entities found — add entities in Foundations.')+'</div>'; return; }
-  container.innerHTML = filtered.map(function(e) {
-    return _kbNoteCard(e.id, 'id', e.name||e.id, (e.type||e.category||'')+(e.city?' · '+e.city:''), e.analyst_notes||'', 'entity',
-      'Known issues, relationship to audits, prior observations, point-of-contact notes…');
-  }).join('');
 }
 
 function renderKBControls(q) {
@@ -8437,8 +8336,6 @@ function renderKBRisks(q) {
   }).join('');
 }
 
-
-
 function _kbSaveCompany(val) {
   _kbCompanyNotes = val;
   clearTimeout(_kbSaveTimer);
@@ -8450,18 +8347,6 @@ function _kbSaveCompany(val) {
       var el = document.getElementById('kb-company-status');
       if (el) el.textContent = r.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed';
     }).catch(function(e) { console.warn('[KB] company save failed:', e.message); });
-  }, 800);
-}
-
-function saveAuditAnalysisNotes(val) {
-  if (!currentAudit) return;
-  currentAudit.analysis_notes = val;
-  clearTimeout(_kbSaveTimer);
-  _kbSaveTimer = setTimeout(function() {
-    fetch('/api/analysis-notes/audit/' + encodeURIComponent(currentAudit.name), {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ notes: val })
-    }).catch(function(e) { console.warn('[KB] audit notes save failed:', e.message); });
   }, 800);
 }
 
@@ -8477,7 +8362,8 @@ function _saveRiskNotes(riskId, val) {
   }, 800);
 }
 
-// Entity analyst_notes save is handled via _eArea → fndDialogUpdate → saveFoundationsEntity → _saveEntityToDB
+// Entity description already exists and feeds Claude via the entity Description field.
+// Audit context already exists and feeds Claude via the audit Description field.
 
 // Load company context on startup
 (function() {
@@ -8500,24 +8386,9 @@ function _buildKnowledgeBlock(opts, ref, wp) {
     parts.push('COMPANY / ORGANISATION CONTEXT:\n' + trim(_kbCompanyNotes));
   }
 
-  // Audit analysis notes
-  if (opts.kbAudit && currentAudit && currentAudit.analysis_notes) {
-    parts.push('AUDIT ANALYSIS NOTES:\n' + trim(currentAudit.analysis_notes));
-  }
-
-  // Entity analyst notes (for entities linked to this workpaper)
-  if (opts.kbEntities) {
-    var allEnts = (typeof _fndEntities!=='undefined'&&_fndEntities.length?_fndEntities:[]).concat(ALL_ENTITIES||[]);
-    var wpEntIds = Array.from(wpScopeEntities[ref]||[]);
-    var entParts = [];
-    wpEntIds.forEach(function(eid) {
-      var e = allEnts.find(function(x){ return x.id===eid; });
-      if (e && e.analyst_notes && e.analyst_notes.trim()) {
-        entParts.push('  ' + (e.name||eid) + ': ' + trim(e.analyst_notes));
-      }
-    });
-    if (entParts.length) parts.push('ENTITY ANALYST NOTES:\n' + entParts.join('\n'));
-  }
+  // Note: audit description and entity description already flow into the
+  // prompt via the Audit Elements section (opts.auditDesc / opts.auditEntities)
+  // and the existing entity Description field — no separate KB fields needed.
 
   // Control + risk analyst notes
   if (opts.kbControls) {
@@ -12053,12 +11924,6 @@ function positionAuditTooltip(e) {
    DASHBOARD
 ══════════════════════════════════════ */
 function openAnalysisOptionsDialog() {
-  // Auto-check success/failure criteria if there's data in those columns
-  const hasCriteria = (wpTestAttributes[getWPRef()] || []).some(a => a.successCriteria || a.failureCriteria);
-  const sucEl = document.getElementById('aopt-success');
-  const failEl = document.getElementById('aopt-failure');
-  if (sucEl && hasCriteria) sucEl.checked = true;
-  if (failEl && hasCriteria) failEl.checked = true;
   document.getElementById('analysis-options-overlay').style.display = 'flex';
 }
 
@@ -12069,8 +11934,6 @@ function runAnalysisWithOptions() {
   _analysisOptions = {
     // Knowledge Base
     kbCompany:  document.getElementById('aopt-kb-company')?.checked,
-    kbAudit:    document.getElementById('aopt-kb-audit')?.checked,
-    kbEntities: document.getElementById('aopt-kb-entities')?.checked,
     kbControls: document.getElementById('aopt-kb-controls')?.checked,
     // Audit Elements
     auditDesc:     document.getElementById('aopt-audit-desc')?.checked,
@@ -12081,10 +11944,11 @@ function runAnalysisWithOptions() {
     narrative:     document.getElementById('aopt-narrative')?.checked,
     narrativeFile: document.getElementById('aopt-narrative-file')?.checked,
     testDesc:      document.getElementById('aopt-testdesc')?.checked,
-    attrDesc:      document.getElementById('aopt-attrdesc')?.checked,
-    attrAddl:      document.getElementById('aopt-attraddl')?.checked,
-    success:       document.getElementById('aopt-success')?.checked,
-    failure:       document.getElementById('aopt-failure')?.checked,
+    // Consolidated: description, additional info, pass & fail criteria all controlled by one checkbox
+    attrDesc:      document.getElementById('aopt-attrdetails')?.checked,
+    attrAddl:      document.getElementById('aopt-attrdetails')?.checked,
+    success:       document.getElementById('aopt-attrdetails')?.checked,
+    failure:       document.getElementById('aopt-attrdetails')?.checked,
   };
   document.getElementById('analysis-options-overlay').style.display = 'none';
   analyzeWithClaude();
@@ -14193,8 +14057,6 @@ function downloadTestGuidance() {
   lines.push(hr);
   const optLabels = [
     [opts.kbCompany,    'Knowledge Base: Company / Organisation Context'],
-    [opts.kbAudit,     'Knowledge Base: Audit Analysis Notes'],
-    [opts.kbEntities,  'Knowledge Base: Entity Analyst Notes'],
     [opts.kbControls,  'Knowledge Base: Control & Risk Analyst Notes'],
     [false, ''],
     [opts.auditEntities, 'Audit-Level Assessment Entities'],
@@ -14204,10 +14066,7 @@ function downloadTestGuidance() {
     [opts.narrative,     'Process / Control Narrative (text)'],
     [opts.narrativeFile, 'Process / Control Narrative (attached file)'],
     [opts.testDesc,      'Test Description'],
-    [opts.attrDesc,      'Test Attribute Descriptions'],
-    [opts.attrAddl,      'Test Attribute Additional Information'],
-    [opts.success,       'Pass / Success Criteria'],
-    [opts.failure,       'Failure Criteria'],
+    [opts.attrDesc,      'Test Attribute Details (description, additional info, pass & fail criteria)'],
   ];
   optLabels.forEach(([checked, label]) => {
     if (!label) { lines.push(''); return; }
