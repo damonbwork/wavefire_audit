@@ -90,6 +90,23 @@ async function initDB() {
         notes       TEXT DEFAULT '',
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS fs_accounts (
+        id              TEXT PRIMARY KEY,
+        code            TEXT DEFAULT '',
+        description     TEXT DEFAULT '',
+        section         TEXT DEFAULT '',
+        cur_balance     NUMERIC,
+        py_balance      NUMERIC,
+        materiality     TEXT DEFAULT '',
+        txn_volume      TEXT DEFAULT '',
+        inherent_risk   TEXT DEFAULT '',
+        key_account     BOOLEAN DEFAULT FALSE,
+        assertions      JSONB DEFAULT '[]',
+        audit_approach  TEXT DEFAULT '',
+        notes           TEXT DEFAULT '',
+        fn_text         TEXT DEFAULT '',
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS control_categories (
         name       TEXT PRIMARY KEY,
         sort_order INTEGER DEFAULT 0,
@@ -113,6 +130,7 @@ async function initDB() {
         name         TEXT NOT NULL DEFAULT '',
         category     TEXT DEFAULT '',
         objective    TEXT DEFAULT '',
+        objective_id TEXT DEFAULT '',
         description  TEXT DEFAULT '',
         ctrl_owner   TEXT DEFAULT '',
         proc_owner   TEXT DEFAULT '',
@@ -160,10 +178,9 @@ async function initDB() {
     // ── Auto-migrations for pre-existing tables ──────────────────────────────
     try {
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
-      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS analysis_notes TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
-      await pool.query(`ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
         SELECT column_name FROM information_schema.columns
@@ -236,23 +253,25 @@ app.get('/api/controls', async (req, res) => {
 
 app.post('/api/controls', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { id, name, category, objective, description, additional_info,
+  const { id, name, category, objective, objective_id, description, additional_info,
           ctrl_owner, proc_owner, extra_ctrl_owners, extra_proc_owners,
-          frequency, control_type, linked_risks, linked_entities, linked_accounts } = req.body;
+          frequency, control_type, linked_risks, linked_entities, linked_accounts,
+          analyst_notes } = req.body;
   if (!id) return res.status(400).json({ error: 'id required' });
   try {
     await pool.query(`INSERT INTO controls
-        (id,name,category,objective,description,additional_info,ctrl_owner,proc_owner,extra_ctrl_owners,extra_proc_owners,frequency,control_type,linked_risks,linked_entities,linked_accounts,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+        (id,name,category,objective,objective_id,description,additional_info,ctrl_owner,proc_owner,extra_ctrl_owners,extra_proc_owners,frequency,control_type,linked_risks,linked_entities,linked_accounts,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name=EXCLUDED.name, category=EXCLUDED.category, objective=EXCLUDED.objective,
+        objective_id=EXCLUDED.objective_id,
         description=EXCLUDED.description, additional_info=EXCLUDED.additional_info,
         ctrl_owner=EXCLUDED.ctrl_owner, proc_owner=EXCLUDED.proc_owner,
         extra_ctrl_owners=EXCLUDED.extra_ctrl_owners, extra_proc_owners=EXCLUDED.extra_proc_owners,
         frequency=EXCLUDED.frequency, control_type=EXCLUDED.control_type,
         linked_risks=EXCLUDED.linked_risks, linked_entities=EXCLUDED.linked_entities,
         linked_accounts=EXCLUDED.linked_accounts, updated_at=NOW()`,
-      [id, name||'', category||'', objective||'', description||'', additional_info||'',
+      [id, name||'', category||'', objective||'', objective_id||'', description||'', additional_info||'',
        ctrl_owner||'', proc_owner||'',
        JSON.stringify(extra_ctrl_owners||[]),
        JSON.stringify(extra_proc_owners||[]),
@@ -572,6 +591,45 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
 });
 
 
+// ── FS Accounts API ───────────────────────────────────────────────────────────
+app.get('/api/fs-accounts', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM fs_accounts ORDER BY section, code, id'); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/fs-accounts', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { id, code, description, section, cur_balance, py_balance,
+          materiality, txn_volume, inherent_risk, key_account,
+          assertions, audit_approach, notes, fn_text } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await pool.query(`INSERT INTO fs_accounts
+        (id,code,description,section,cur_balance,py_balance,materiality,txn_volume,inherent_risk,key_account,assertions,audit_approach,notes,fn_text,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        code=EXCLUDED.code, description=EXCLUDED.description, section=EXCLUDED.section,
+        cur_balance=EXCLUDED.cur_balance, py_balance=EXCLUDED.py_balance,
+        materiality=EXCLUDED.materiality, txn_volume=EXCLUDED.txn_volume,
+        inherent_risk=EXCLUDED.inherent_risk, key_account=EXCLUDED.key_account,
+        assertions=EXCLUDED.assertions, audit_approach=EXCLUDED.audit_approach,
+        notes=EXCLUDED.notes, fn_text=EXCLUDED.fn_text, updated_at=NOW()`,
+      [id, code||'', description||'', section||'',
+       cur_balance!=null ? cur_balance : null,
+       py_balance!=null  ? py_balance  : null,
+       materiality||'', txn_volume||'', inherent_risk||'',
+       key_account ? true : false,
+       JSON.stringify(assertions||[]),
+       audit_approach||'', notes||'', fn_text||'']);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/fs-accounts/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try { await pool.query('DELETE FROM fs_accounts WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Company Context API ──────────────────────────────────────────────────────
 app.get('/api/company-context', async (req, res) => {
   if (!pool) return res.json({ notes: '' });
@@ -594,9 +652,9 @@ app.post('/api/company-context', async (req, res) => {
 app.post('/api/analysis-notes/:type/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { notes } = req.body;
-  const tableMap = { audit:'audits', control:'controls', risk:'risks', entity:'assessment_entities' };
-  const colMap   = { audit:'analysis_notes', control:'analyst_notes', risk:'analyst_notes', entity:'analyst_notes' };
-  const pkMap    = { audit:'name', control:'id', risk:'id', entity:'id' };
+  const tableMap = { control:'controls', risk:'risks' };
+  const colMap   = { control:'analyst_notes', risk:'analyst_notes' };
+  const pkMap    = { control:'id', risk:'id' };
   const tbl = tableMap[req.params.type], col = colMap[req.params.type], pk = pkMap[req.params.type];
   if (!tbl) return res.status(400).json({ error: 'Unknown type' });
   try {
