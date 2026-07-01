@@ -7861,9 +7861,47 @@ async function _loadRCMFromDB() {
     if (ctrlRes.ok) {
       const data = await ctrlRes.json();
       if (Array.isArray(data) && data.length) {
-        _fndControls = data;
+        // ── Merge strategy: static CONTROLS is the baseline; DB records overlay it ──
+        // This ensures all static controls always appear, DB-saved fields take precedence,
+        // and user-created controls (only in DB, not in static set) are appended.
+        const dbMap = {};
+        data.forEach(c => { dbMap[c.id] = c; });
+
+        // Build _fndControls: start with static entries overlaid with DB data
+        const staticBase = Object.values(CONTROLS).map(c => {
+          const db = dbMap[c.id];
+          if (db) {
+            // DB record exists — use it, but fill in category from static if DB has none
+            return Object.assign({}, db, {
+              category: db.category || c.category || _rcmCategoryFromId(c.id) || '',
+              linked_risks:   Array.isArray(db.linked_risks)   ? db.linked_risks   : (db.linked_risks   ? JSON.parse(db.linked_risks)   : []),
+              linked_entities:Array.isArray(db.linked_entities)? db.linked_entities: (db.linked_entities? JSON.parse(db.linked_entities): []),
+              linked_accounts:Array.isArray(db.linked_accounts)? db.linked_accounts: (db.linked_accounts? JSON.parse(db.linked_accounts): []),
+            });
+          }
+          // Not in DB yet — use static definition
+          return { id:c.id, name:c.title, title:c.title,
+                   category: c.category || _rcmCategoryFromId(c.id) || '',
+                   objective:c.objective||'', description:c.description||'',
+                   ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
+                   extra_ctrl_owners:[], extra_proc_owners:[],
+                   frequency:'', control_type:'', additional_info:'',
+                   linked_risks: CTRL_RISKS_MAP[c.id] || [],
+                   linked_entities:[], linked_accounts:[] };
+        });
+
+        // Append any controls that exist only in DB (user-created, not in static set)
+        const staticIds = new Set(Object.keys(CONTROLS));
+        const dbOnly = data.filter(c => !staticIds.has(c.id)).map(c => Object.assign({}, c, {
+          linked_risks:   Array.isArray(c.linked_risks)   ? c.linked_risks   : (c.linked_risks   ? JSON.parse(c.linked_risks)   : []),
+          linked_entities:Array.isArray(c.linked_entities)? c.linked_entities: (c.linked_entities? JSON.parse(c.linked_entities): []),
+          linked_accounts:Array.isArray(c.linked_accounts)? c.linked_accounts: (c.linked_accounts? JSON.parse(c.linked_accounts): []),
+        }));
+
+        _fndControls = staticBase.concat(dbOnly);
+
         // Sync to CONTROLS global so audit tab picks it up
-        data.forEach(c => { CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' }; });
+        _fndControls.forEach(c => { CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' }; });
         // Refresh grid if visible
         if (document.getElementById('fnd-section-rcm')?.style.display !== 'none') renderFoundationsRCM();
       }
