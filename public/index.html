@@ -14,6 +14,8 @@
   var isLocal   = host === '' || host === 'localhost' || host === '127.0.0.1';
   var isClaude  = host.includes('claude.ai');
   var onRailway = !isLocal && !isClaude;
+  // Expose a global flag — DB save functions check this before fetching /api/*
+  window._hasBackend = onRailway || host.includes('railway.app') || (isLocal && host !== '');
   var pdfSrc    = onRailway
     ? '/pdfjs/pdf.min.js'
     : 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js';
@@ -874,7 +876,8 @@
       <div class="wf-subnav-left">
         <span class="wf-subnav-label">AUDITS</span>
       </div>
-      <div class="wf-auditcontrols">
+      <div style="margin-left:auto;display:flex;align-items:center">
+        <div class="wf-auditcontrols">
         <div class="wf-ctl-group">
           <div class="wf-ctl-label">Audit name</div>
           <select id="sel-audit" class="wf-ctl-select" aria-label="Select audit name" onchange="onNavAuditChange()">
@@ -899,6 +902,7 @@
             <i class="ti ti-chevron-right" style="font-size:13px"></i>
           </button>
         </div>
+      </div>
       </div>
     </div>
   </div>
@@ -1830,7 +1834,7 @@ attribute.
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="6" oninput="saveAttrRow(0);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(0)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(0)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-1" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">2</div>
@@ -1856,7 +1860,7 @@ before/on start date (amendment may not be dated but should be signed)</textarea
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="10" oninput="saveAttrRow(1);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(1)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(1)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-2" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">3</div>
@@ -1882,7 +1886,7 @@ physician recruitment, N/A XX.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="14" oninput="saveAttrRow(2);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(2)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(2)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-3" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">4</div>
@@ -1911,7 +1915,7 @@ signature page and face sheet</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="18" oninput="saveAttrRow(3);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(3)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(3)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-4" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">5</div>
@@ -1937,7 +1941,7 @@ month interval (+ 90 day grace period).</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="22" oninput="saveAttrRow(4);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(4)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(4)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-5" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">6</div>
@@ -1963,7 +1967,7 @@ Confirm by reviewing contract</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="26" oninput="saveAttrRow(5);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(5)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(5)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-6" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">7</div>
@@ -1992,7 +1996,7 @@ letter.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="30" oninput="saveAttrRow(6);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(6)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(6)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-7" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">8</div>
@@ -2021,7 +2025,7 @@ payment amount.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="34" oninput="saveAttrRow(7);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(7)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(7)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-8" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">9</div>
@@ -2044,7 +2048,7 @@ payment amount.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="38" oninput="saveAttrRow(8);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(8)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(8)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-9" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">10</div>
@@ -2067,7 +2071,7 @@ payment amount.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="42" oninput="saveAttrRow(9);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(9)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(9)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div><div class="attr-row" id="attr-row-10" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">11</div>
@@ -2092,7 +2096,7 @@ signed by the appropriate parties before the check date.</textarea>
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="46" oninput="saveAttrRow(10);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
-      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(10)" tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+      <button class="icon-btn" title="Remove row" onclick="removeAttrRow(10)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div></div>
             <!-- Add attribute button — bottom right -->
@@ -3088,7 +3092,7 @@ auditor's assessment.
       <!-- Dialog header -->
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Select assessment entities</div>
-        <button onclick="closeWPEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
+        <button onclick="closeWPEntityDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px">&#x00D7;</button>
       </div>
       <!-- Search + filter -->
       <div style="padding:10px 18px;border-bottom:0.5px solid var(--border-light)">
@@ -3124,7 +3128,7 @@ auditor's assessment.
           <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Financial Statement Accounts &amp; Footnotes</div>
           <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Select accounts and footnotes to link to this workpaper</div>
         </div>
-        <button onclick="closeRCDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px"><i class="ti ti-x"></i></button>
+        <button onclick="closeRCDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
       </div>
       <!-- Search -->
       <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
@@ -3174,7 +3178,7 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:500px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Linked financial statement accounts &amp; footnotes</div>
-        <button onclick="closeFsAccountsDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px"><i class="ti ti-x"></i></button>
+        <button onclick="closeFsAccountsDialog()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;line-height:1;padding:2px">&#x00D7;</button>
       </div>
       <div style="padding:12px 18px;border-bottom:0.5px solid var(--border-light)">
         <div style="position:relative">
@@ -3250,18 +3254,16 @@ auditor's assessment.
         <i class="ti ti-file-type-pdf" id="file-preview-icon" style="font-size:16px;color:rgba(255,255,255,0.7);flex-shrink:0"></i>
         <span id="file-preview-title">CHG0053245_CHG0053245-bookmark_annotated_20260627_1746.pdf</span>
         <!-- Sample file navigation arrows -->
-        <div id="file-preview-file-nav" style="display:none;align-items:center;gap:6px;margin-left:auto;margin-right:12px">
-          <button id="fp-prev-file" onclick="previewNavFile(-1)" title="Previous sample file" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:18px;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+        <div id="file-preview-file-nav" style="display:none;align-items:center;gap:8px;margin-left:auto;margin-right:12px">
+          <button id="fp-prev-file" onclick="previewNavFile(-1)" title="Previous file  ←" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
             <i class="ti ti-chevron-left"></i>
           </button>
-          <span id="fp-file-counter" style="font-size:12px;color:rgba(255,255,255,0.85);white-space:nowrap;min-width:42px;text-align:center;font-weight:500"></span>
-          <button id="fp-next-file" onclick="previewNavFile(1)" title="Next sample file" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:18px;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+          <span id="fp-file-counter" style="font-size:12px;color:rgba(255,255,255,0.85);white-space:nowrap;min-width:80px;text-align:center;font-weight:500"></span>
+          <button id="fp-next-file" onclick="previewNavFile(1)" title="Next file  →" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
             <i class="ti ti-chevron-right"></i>
           </button>
         </div>
-        <button onclick="closeFilePreview()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <i class="ti ti-x"></i>
-        </button>
+        <button onclick="closeFilePreview()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x00D7;</button>
       </div>
       <!-- Nav bar (PDF only) -->
       <div id="file-preview-nav" style="display: none;">
@@ -3369,7 +3371,7 @@ auditor's assessment.
           <div style="font-size:14px;font-weight:600;color:#fff">Linked Risks &amp; Controls</div>
           <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px">Select controls — related risks are linked automatically</div>
         </div>
-        <button onclick="closeControlsDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>
+        <button onclick="closeControlsDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>
       </div>
       <div style="padding:10px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;gap:10px">
@@ -3403,9 +3405,7 @@ auditor's assessment.
           <div style="font-size:15px;font-weight:600;color:#fff">Change History</div>
           <div id="history-subtitle" style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px"></div>
         </div>
-        <button onclick="closeHistory()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">
-          <i class="ti ti-x"></i>
-        </button>
+        <button onclick="closeHistory()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center">&#x00D7;</button>
       </div>
       <!-- Table -->
       <div style="overflow-y:auto;flex:1">
@@ -3451,9 +3451,7 @@ auditor's assessment.
           <div style="font-size:16px;font-weight:700" id="dash-title">Audit Dashboard</div>
           <div style="font-size:11px;opacity:0.7;margin-top:2px" id="dash-sub"></div>
         </div>
-        <button onclick="document.getElementById('dashboard-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px">
-          <i class="ti ti-x"></i>
-        </button>
+        <button onclick="document.getElementById('dashboard-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px">&#x00D7;</button>
       </div>
       <!-- Body -->
       <div id="dash-body" style="padding:20px;display:grid;grid-template-columns:240px 1fr 1fr;gap:16px"></div>
@@ -3466,7 +3464,7 @@ auditor's assessment.
       <!-- Header -->
       <div id="new-audit-hdr" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0;cursor:move;user-select:none">
         <div style="font-size:15px;font-weight:600;color:#fff">New Audit</div>
-        <button onclick="closeNewAudit()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>
+        <button onclick="closeNewAudit()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>
       </div>
       <!-- Scrollable body -->
       <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
@@ -3646,7 +3644,7 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(500px,95vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div style="font-size:14px;font-weight:600"><i class="ti ti-sparkles" style="margin-right:8px"></i>Analyze &amp; Create Workpaper</div>
-        <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+        <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">&#x00D7;</button>
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis:</div>
@@ -3694,7 +3692,7 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(480px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div style="font-size:14px;font-weight:600"><i class="ti ti-paperclip" style="margin-right:6px"></i>Select Narrative Reference File(s)</div>
-        <button onclick="document.getElementById('narrative-ref-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px"><i class="ti ti-x"></i></button>
+        <button onclick="document.getElementById('narrative-ref-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">&#x00D7;</button>
       </div>
       <div id="narrative-ref-list" style="overflow-y:auto;flex:1;padding:8px 0"></div>
       <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
@@ -3709,7 +3707,7 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--wf-navy);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
         <div style="font-size:14px;font-weight:600;color:#fff"><i class="ti ti-paperclip" style="margin-right:6px"></i>Select Population Reference File(s)</div>
-        <button onclick="closePopRefDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>
+        <button onclick="closePopRefDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center">&#x00D7;</button>
       </div>
       <div id="pop-ref-list" style="overflow-y:auto;flex:1;padding:8px 0"></div>
       <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
@@ -4559,13 +4557,9 @@ function openAudit(i) {
   const selAudit = document.getElementById('sel-audit');
   if (selAudit && currentAudit) selAudit.value = currentAudit.name;
 
-  // Populate the WP ref dropdown for this audit
+  // Blank the WP ref dropdown — user navigates to a workpaper by clicking from the list
   const selWpRef = document.getElementById('sel-wp-ref');
-  if (selWpRef) {
-    const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
-    selWpRef.innerHTML = '<option value="">— Select —</option>' +
-      auditWPs.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
-  }
+  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>';
   // Reset workpaper filters when switching audits
   ['wp-search','wp-filter-type','wp-filter-status','wp-filter-results'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
@@ -6821,6 +6815,7 @@ function escHistVal(str) {
 ══════════════════════════════════════ */
 // ── Audit & Workpaper Postgres persistence ────────────────────────────────────
 async function _saveAuditToDB(audit) {
+  if (!window._hasBackend) return;
   if (!audit || !audit.name) return;
   try {
     const res = await fetch('/api/audits', {
@@ -6839,6 +6834,7 @@ async function _saveAuditToDB(audit) {
 }
 
 async function _saveWorkpaperToDB(w) {
+  if (!window._hasBackend) return;
   if (!w || !w.ref) return;
   try {
     // Gather linked data from session stores (exclude file attachment objects)
@@ -6886,6 +6882,7 @@ async function _saveWorkpaperToDB(w) {
 }
 
 async function _loadAuditsFromDB() {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/audits');
     if (!res.ok) return;
@@ -6912,6 +6909,7 @@ async function _loadAuditsFromDB() {
 }
 
 async function _loadWorkpapersFromDB() {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/workpapers');
     if (!res.ok) return;
@@ -6955,6 +6953,7 @@ async function _loadWorkpapersFromDB() {
 
 // Bootstrap — load on page ready
 (async function() {
+  if (!window._hasBackend) return; // no backend in artifact viewer — skip all DB loads
   try {
     await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]);
     // Also ensure entity list used by audit module stays current from Postgres
@@ -6993,6 +6992,7 @@ async function _loadWorkpapersFromDB() {
 
 // ── Annotation Postgres persistence ──────────────────────────────────────────
 async function _saveAnnotationsToDB(ref, filename, annotations) {
+  if (!window._hasBackend) return;
   if (!ref || !filename) return;
   try {
     await fetch('/api/annotations', {
@@ -7004,6 +7004,7 @@ async function _saveAnnotationsToDB(ref, filename, annotations) {
 }
 
 async function _loadAnnotationsFromDB(ref) {
+  if (!window._hasBackend) return null;
   if (!ref) return;
   try {
     const res = await fetch('/api/annotations/' + encodeURIComponent(ref));
@@ -7317,6 +7318,7 @@ function entityTypeBadge(typeName) {
 }
 
 async function _loadEntityTypesFromDB() {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/entity-types');
     if (!res.ok) return;
@@ -7333,6 +7335,7 @@ async function _loadEntityTypesFromDB() {
 }
 
 async function _saveEntityTypeToDB(typeObj) {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/entity-types', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7357,7 +7360,7 @@ function showAddEntityTypeDialog() {
       <div style="background:var(--bg-primary);border-radius:12px;width:min(400px,95vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column">
         <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between">
           <div style="font-size:14px;font-weight:700">New Entity Type</div>
-          <button onclick="document.getElementById('new-type-overlay').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>
+          <button onclick="document.getElementById('new-type-overlay').remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center">&#x00D7;</button>
         </div>
         <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
           <div>
@@ -7426,6 +7429,7 @@ let _fndSortDir   = 'asc';
 let _fndSelected  = new Set(); // selected entity IDs for bulk actions
 
 async function _loadEntitiesFromDB() {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/entities');
     if (!res.ok) return false;
@@ -7435,6 +7439,7 @@ async function _loadEntitiesFromDB() {
   } catch(e) { return false; }
 }
 async function _saveEntityToDB(entity) {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/entities', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7841,6 +7846,7 @@ const deleteFoundationsEntity = fndDeleteOne;
 
 // ── RCM Postgres API ────────────────────────────────────────────────────────
 async function _loadRCMFromDB() {
+  if (!window._hasBackend) return;
   try {
     const [ctrlRes, riskRes, catRes] = await Promise.all([
       fetch('/api/controls'), fetch('/api/risks'), fetch('/api/control-categories')
@@ -7878,6 +7884,7 @@ async function _loadRCMFromDB() {
 }
 
 async function _saveControlToDB(ctrl) {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/controls', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7895,6 +7902,7 @@ async function _deleteControlFromDB(id) {
 }
 
 async function _saveRiskToDB(risk) {
+  if (!window._hasBackend) return;
   try {
     const res = await fetch('/api/risks', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7909,6 +7917,7 @@ let _fndRisks    = [];
 let _rcmSortCol  = 'category';
 let _rcmSortDir  = 'asc';
 let _rcmSelected = new Set();
+let _rcmFilters  = { category:'', objective:'', risks:'', entities:'' };
 
 // ── RCM Relationship Graph ────────────────────────────────────────────────────
 function openRCMGraph() {
@@ -8082,6 +8091,7 @@ function _kbSaveNote(type, id, val) {
     var r = (typeof _fndRisks!=='undefined'?_fndRisks:[]).find(function(x){ return x.id===id; });
     if (r) r.analyst_notes = val;
   }
+  if (!window._hasBackend) return;
   // Debounced save to DB
   var key = type + '|' + id;
   clearTimeout(_kbNoteTimer[key]);
@@ -8127,6 +8137,7 @@ function renderKBRisks(q) {
 
 function _kbSaveCompany(val) {
   _kbCompanyNotes = val;
+  if (!window._hasBackend) return;
   clearTimeout(_kbSaveTimer);
   _kbSaveTimer = setTimeout(function() {
     fetch('/api/company-context', {
@@ -8142,6 +8153,7 @@ function _kbSaveCompany(val) {
 function _saveRiskNotes(riskId, val) {
   var r = _fndRisks.find(function(x){ return x.id===riskId; });
   if (r) r.analyst_notes = val;
+  if (!window._hasBackend) return;
   clearTimeout(_kbSaveTimer);
   _kbSaveTimer = setTimeout(function() {
     fetch('/api/analysis-notes/risk/' + encodeURIComponent(riskId), {
@@ -8156,6 +8168,7 @@ function _saveRiskNotes(riskId, val) {
 
 // Load company context on startup
 (function() {
+  if (!window._hasBackend) return;
   fetch('/api/company-context').then(function(r){ return r.json(); }).then(function(d){
     _kbCompanyNotes = d.notes || '';
     var ta = document.getElementById('kb-company-notes');
@@ -8207,6 +8220,16 @@ function _buildKnowledgeBlock(opts, ref, wp) {
     : '';
 }
 
+// Derive a sensible category from a control ID prefix when category is missing
+function _rcmCategoryFromId(id) {
+  if (!id) return '';
+  var prefix = id.split('-')[0].toUpperCase();
+  var map = { REV:'Financial', FIN:'Financial', IT:'IT General Controls',
+              SOX:'SOX / ICFR', OPS:'Operational', VDD:'Vendor Due Diligence',
+              PAY:'Payroll', CC:'Compliance', SEC:'Security', ITG:'IT General Controls' };
+  return map[prefix] || '';
+}
+
 function renderFoundationsRCM() {
   const list = document.getElementById('fnd-rcm-list');
   if (!list) return;
@@ -8217,7 +8240,7 @@ function renderFoundationsRCM() {
   }
   if (!_fndControls.length && typeof CONTROLS !== 'undefined') {
     _fndControls = Object.values(CONTROLS).map(c => ({
-      id:c.id, name:c.title, title:c.title, category:c.category||'General',
+      id:c.id, name:c.title, title:c.title, category:c.category||_rcmCategoryFromId(c.id)||'General',
       objective:c.objective||'', description:c.description||'',
       ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
       frequency:'', control_type:'',
@@ -8230,12 +8253,13 @@ function renderFoundationsRCM() {
   const maxExtraProc = _fndControls.reduce(function(m,c){ return Math.max(m, Array.isArray(c.extra_proc_owners)?c.extra_proc_owners.length:0); }, 0);
 
   const cols = [
-    { key:'category',       label:'Category' },
-    { key:'id',             label:'Control ID' },
-    { key:'name',           label:'Control Title' },
-    { key:'objective',      label:'Control Objective' },
-    { key:'linked_risks',   label:'Linked Risks' },
-    { key:'ctrl_owner',     label:'Control Owner (Primary)' },
+    { key:'category',        label:'Category' },
+    { key:'id',              label:'Control ID' },
+    { key:'name',            label:'Control Title' },
+    { key:'objective',       label:'Control Objective' },
+    { key:'linked_risks',    label:'Linked Risks' },
+    { key:'linked_entities', label:'Linked Entities' },
+    { key:'ctrl_owner',      label:'Control Owner (Primary)' },
   ];
   for (var ei=0; ei<maxExtraCtrl; ei++) {
     cols.push({ key:'extra_ctrl_'+ei, label:'Control Owner #'+(ei+2), extraCtrl:ei });
@@ -8257,9 +8281,49 @@ function renderFoundationsRCM() {
     if (Array.isArray(av)) av = av.join(',');
     if (Array.isArray(bv)) bv = bv.join(',');
     return _rcmSortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  }).filter(function(c) {
+    const fo = (_rcmFilters.objective||'').toLowerCase().trim();
+    const fr = (_rcmFilters.risks||'').toLowerCase().trim();
+    const fe = (_rcmFilters.entities||'').toLowerCase().trim();
+    const fc = (_rcmFilters.category||'').toLowerCase().trim();
+    if (fc && !(c.category||'').toLowerCase().includes(fc)) return false;
+    if (fo && !(c.objective||'').toLowerCase().includes(fo)) return false;
+    if (fr) {
+      const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : [];
+      const matches = riskIds.some(function(rid) {
+        var r = _fndRisks.find(function(x){return x.id===rid;}) || RISKS[rid];
+        return rid.toLowerCase().includes(fr) || (r && (r.name||r.title||'').toLowerCase().includes(fr));
+      });
+      if (!matches) return false;
+    }
+    if (fe) {
+      const entIds = Array.isArray(c.linked_entities) ? c.linked_entities : [];
+      const allEnts = (typeof _fndEntities!=='undefined'?_fndEntities:[]).concat(ALL_ENTITIES||[]);
+      const matches = entIds.some(function(eid) {
+        var e = allEnts.find(function(x){return x.id===eid;});
+        return eid.toLowerCase().includes(fe) || (e && (e.name||'').toLowerCase().includes(fe));
+      });
+      if (!matches) return false;
+    }
+    return true;
   });
 
   const allChecked = _fndControls.length > 0 && _rcmSelected.size === _fndControls.length;
+  const hasFilters = (_rcmFilters.category||'').trim() || (_rcmFilters.objective||'').trim() || (_rcmFilters.risks||'').trim() || (_rcmFilters.entities||'').trim();
+
+  // ── Filter bar rendered inline above the three filterable columns ───────────
+  // We position them by injecting a filter-row <tr> under the header
+  const filterRowCells =
+    '<td></td>' + // checkbox col
+    '<td style="padding:4px 6px"><input type="text" value="' + escHtml(_rcmFilters.category||'') + '" placeholder="Filter category…" oninput="_rcmSetFilter(\'category\',this.value)" style="width:100%;font-size:10px;border:0.5px solid var(--border-medium);border-radius:4px;padding:3px 6px;background:var(--bg-primary);color:var(--text-primary);outline:none"></td>' +
+    '<td></td>' + // control ID
+    '<td></td>' + // control title
+    '<td style="padding:4px 6px"><input type="text" value="' + escHtml(_rcmFilters.objective||'') + '" placeholder="Filter objective…" oninput="_rcmSetFilter(\'objective\',this.value)" style="width:100%;font-size:10px;border:0.5px solid var(--border-medium);border-radius:4px;padding:3px 6px;background:var(--bg-primary);color:var(--text-primary);outline:none"></td>' +
+    '<td style="padding:4px 6px"><input type="text" value="' + escHtml(_rcmFilters.risks||'') + '" placeholder="Filter risks…" oninput="_rcmSetFilter(\'risks\',this.value)" style="width:100%;font-size:10px;border:0.5px solid var(--border-medium);border-radius:4px;padding:3px 6px;background:var(--bg-primary);color:var(--text-primary);outline:none"></td>' +
+    '<td style="padding:4px 6px"><input type="text" value="' + escHtml(_rcmFilters.entities||'') + '" placeholder="Filter entities…" oninput="_rcmSetFilter(\'entities\',this.value)" style="width:100%;font-size:10px;border:0.5px solid var(--border-medium);border-radius:4px;padding:3px 6px;background:var(--bg-primary);color:var(--text-primary);outline:none"></td>';
+  // remaining cols are empty in the filter row
+  const filterRowBlankCount = (cols.length - 6) + 1; // -6 already handled + 1 action col
+  const filterRowBlanks = Array(filterRowBlankCount).fill('<td></td>').join('');
 
   const colHdr = (col) => {
     const sortKey = col.extraCtrl!=null ? 'extra_ctrl_'+col.extraCtrl : col.extraProc!=null ? 'extra_proc_'+col.extraProc : col.key;
@@ -8270,7 +8334,8 @@ function renderFoundationsRCM() {
 
   list.innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
-      '<span style="font-size:11px;color:var(--text-tertiary)">' + _fndControls.length + ' control' + (_fndControls.length!==1?'s':'') + (_rcmSelected.size?' · '+_rcmSelected.size+' selected':'') + '</span>' +
+      '<span style="font-size:11px;color:var(--text-tertiary)">' + sorted.length + ' of ' + _fndControls.length + ' control' + (_fndControls.length!==1?'s':'') + (_rcmSelected.size?' · '+_rcmSelected.size+' selected':'') + '</span>' +
+      (hasFilters ? '<button class="btn-s" onclick="_rcmClearFilters()" style="font-size:11px;color:var(--wf-navy);border-color:var(--wf-navy)"><i class="ti ti-filter-off"></i>Clear filters</button>' : '') +
       '<div style="flex:1"></div>' +
       (_rcmSelected.size ? '<button class="btn-s" onclick="rcmDeleteSelected()" style="font-size:11px;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected</button>' : '') +
       '<button class="btn-s" onclick="openRCMGraph()" style="font-size:11px"><i class="ti ti-hierarchy"></i>View Graph</button>' +
@@ -8281,11 +8346,16 @@ function renderFoundationsRCM() {
     '</div>' +
     '<div style="border:0.5px solid var(--border-light);border-radius:8px;overflow:hidden;overflow-x:auto">' +
       '<table style="width:100%;border-collapse:collapse;min-width:900px">' +
-        '<thead><tr>' +
-          '<th style="padding:7px 10px;background:var(--bg-secondary);width:32px"><input type="checkbox"' + (allChecked?' checked':'') + ' onchange="rcmSelectAll(this.checked)" style="cursor:pointer"></th>' +
-          cols.map(colHdr).join('') +
-          '<th style="padding:7px 10px;background:var(--bg-secondary);width:60px"></th>' +
-        '</tr></thead>' +
+        '<thead>' +
+          '<tr>' +
+            '<th style="padding:7px 10px;background:var(--bg-secondary);width:32px"><input type="checkbox"' + (allChecked?' checked':'') + ' onchange="rcmSelectAll(this.checked)" style="cursor:pointer"></th>' +
+            cols.map(colHdr).join('') +
+            '<th style="padding:7px 10px;background:var(--bg-secondary);width:60px"></th>' +
+          '</tr>' +
+          '<tr style="background:var(--bg-primary);border-bottom:0.5px solid var(--border-light)">' +
+            filterRowCells + filterRowBlanks +
+          '</tr>' +
+        '</thead>' +
         '<tbody>' +
           (sorted.length ? sorted.map(function(c) {
             var idx = _fndControls.indexOf(c);
@@ -8294,6 +8364,13 @@ function renderFoundationsRCM() {
             var riskHtml = riskIds.map(function(rid) {
               var r = _fndRisks.find(function(x){ return x.id===rid; }) || RISKS[rid];
               return r ? '<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 5px;white-space:nowrap;display:inline-block;margin:1px">' + rid + '</span>' : '';
+            }).join('');
+            var entIds = Array.isArray(c.linked_entities) ? c.linked_entities : [];
+            var allEntsForRow = (typeof _fndEntities!=='undefined'?_fndEntities:[]).concat(ALL_ENTITIES||[]);
+            var entHtml = entIds.map(function(eid) {
+              var e = allEntsForRow.find(function(x){ return x.id===eid; });
+              var label = e ? (e.name||eid) : eid;
+              return '<span style="font-size:10px;background:#f0fdf4;color:#16a34a;border:0.5px solid #86efac;border-radius:4px;padding:1px 5px;white-space:nowrap;display:inline-block;margin:1px" title="' + escHtml(eid) + '">' + escHtml(label.slice(0,22)+(label.length>22?'…':'')) + '</span>';
             }).join('');
             var extraCtrlCells = '';
             for (var ei=0; ei<maxExtraCtrl; ei++) {
@@ -8312,6 +8389,7 @@ function renderFoundationsRCM() {
               '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary);min-width:160px">' + escHtml(c.name||c.title||'') + '</td>' +
               '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(c.objective||'') + '">' + escHtml(c.objective||'—') + '</td>' +
               '<td style="padding:8px 10px">' + (riskHtml || '<span style="color:var(--text-tertiary);font-size:11px">—</span>') + '</td>' +
+              '<td style="padding:8px 10px">' + (entHtml || '<span style="color:var(--text-tertiary);font-size:11px">—</span>') + '</td>' +
               '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(c.ctrl_owner||'—') + '</td>' +
               extraCtrlCells +
               '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);white-space:nowrap">' + escHtml(c.proc_owner||'—') + '</td>' +
@@ -8321,7 +8399,7 @@ function renderFoundationsRCM() {
               '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(c.additional_info||'') + '">' + escHtml(c.additional_info||'—') + '</td>' +
               '<td style="padding:8px 10px;text-align:center" onclick="event.stopPropagation()"><button onclick="rcmDeleteOne(' + idx + ')" class="icon-btn" title="Delete" style="color:var(--red-700);opacity:0.7;font-size:14px"><i class="ti ti-trash"></i></button></td>' +
             '</tr>';
-          }).join('') : '<tr><td colspan="' + totalCols + '" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No controls defined. Click <strong>Add Control</strong> to create one.</td></tr>') +
+          }).join('') : '<tr><td colspan="' + totalCols + '" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">No controls match the current filters.</td></tr>') +
         '</tbody>' +
       '</table>' +
     '</div>';
@@ -8330,6 +8408,19 @@ function renderFoundationsRCM() {
 function rcmSort(col) {
   if (_rcmSortCol===col) _rcmSortDir=_rcmSortDir==='asc'?'desc':'asc';
   else { _rcmSortCol=col; _rcmSortDir='asc'; }
+  renderFoundationsRCM();
+}
+function _rcmSetFilter(field, val) {
+  _rcmFilters[field] = val;
+  renderFoundationsRCM();
+  // Re-focus the input after re-render so typing isn't interrupted
+  const focusMap = { category:0, objective:1, risks:2, entities:3 };
+  const focusIdx = focusMap[field] ?? 0;
+  const inputs = document.querySelectorAll('#fnd-rcm-list input[type="text"]');
+  if (inputs[focusIdx]) { inputs[focusIdx].focus(); inputs[focusIdx].selectionStart = inputs[focusIdx].value.length; }
+}
+function _rcmClearFilters() {
+  _rcmFilters = { category:'', objective:'', risks:'', entities:'' };
   renderFoundationsRCM();
 }
 function rcmSelectAll(checked) {
@@ -8691,7 +8782,7 @@ function rcmShowImportResult(success, html, validControls, validCount) {
       '<div style="background:'+(success?'var(--wf-navy)':'#dc2626')+';color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div style="display:flex;align-items:center;gap:10px"><i class="ti '+(success?'ti-circle-check':'ti-alert-triangle')+'" style="font-size:18px"></i>' +
         '<span style="font-size:15px;font-weight:700">'+(success?'Import Successful':'Import Validation Errors')+'</span></div>' +
-        '<button onclick="document.getElementById(\''+oid+'\')?.remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>' +
+        '<button onclick="document.getElementById(\''+oid+'\')?.remove()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center">&#x00D7;</button>' +
       '</div>' +
       '<div style="padding:20px;overflow-y:auto;flex:1">' + html + '</div>' +
       '<div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">' + footerHtml + '</div>' +
@@ -8965,7 +9056,7 @@ function openRCMEntityModal(idx) {
       '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-building-community" style="margin-right:8px"></i>Link Assessment Entities</div>' +
         '<div id="rcm-ent-count" style="font-size:11px;opacity:0.65;margin-top:2px"></div></div>' +
-        '<button onclick="document.getElementById(\'rcm-entity-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+        '<button onclick="document.getElementById(\'rcm-entity-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>' +
       '</div>' +
       '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--bg-secondary)">' +
         '<input id="rcm-ent-search" type="text" placeholder="Search name, city, state…" style="flex:1;min-width:160px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmEntityModalState.query=this.value;rcmRenderEntityModal()">' +
@@ -9148,7 +9239,7 @@ function openRCMFSModal(idx) {
       '<div style="background:var(--wf-navy);color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:15px;font-weight:700"><i class="ti ti-report-money" style="margin-right:8px"></i>Link Financial Statement Accounts &amp; Footnotes</div>' +
         '<div id="rcm-fs-count" style="font-size:11px;opacity:0.65;margin-top:2px"></div></div>' +
-        '<button onclick="document.getElementById(\'rcm-fs-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+        '<button onclick="document.getElementById(\'rcm-fs-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>' +
       '</div>' +
       '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--bg-secondary)">' +
         '<input id="rcm-fs-search" type="text" placeholder="Search account, assertion…" style="flex:1;min-width:140px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmFSModalState.query=this.value;rcmRenderFSModal()">' +
@@ -9825,7 +9916,7 @@ function openRCMDialog(idx) {
       '<div style="background:var(--wf-navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
         '<div><div style="font-size:16px;font-weight:700">'+escHtml(c.name||c.title||'New Control')+'</div>' +
         '<div style="font-size:11px;opacity:0.65;margin-top:2px">'+escHtml(c.id||'— new control —')+'</div></div>' +
-        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px"><i class="ti ti-x"></i></button>' +
+        '<button onclick="closeRCMDialog()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>' +
       '</div>' +
 
       // ── Body: side-nav + scrollable content ──
@@ -11560,77 +11651,77 @@ function renderRCTable(ref, controlIds, riskIds) {
 const CONTROLS = {
   // ── Financial / Revenue ──────────────────────────────────────────────
   "REV-CTL-01": {
-    id: "REV-CTL-01", title: "Revenue Recognition Policy",
+    id: "REV-CTL-01", category: "Financial", title: "Revenue Recognition Policy",
     description: "Ensures all revenue transactions are recognized in accordance with ASC 606. Contracts are reviewed at inception by the Controller to identify distinct performance obligations. Revenue is deferred until delivery milestones are confirmed by operations and approved by finance management.",
     ctrlOwner: "J. Davis (Controller)", procOwner: "R. Thompson (VP Finance)"
   },
   "REV-CTL-04": {
-    id: "REV-CTL-04", title: "Journal Entry Approval",
+    id: "REV-CTL-04", category: "Financial", title: "Journal Entry Approval",
     description: "All manual journal entries above $25,000 require dual authorization from both the Controller and the CFO prior to posting. System-generated entries are subject to automated validation rules. A log of all entries and approvals is maintained for audit trail purposes.",
     ctrlOwner: "M. Chen (Accounting Manager)", procOwner: "J. Davis (Controller)"
   },
   "FIN-CTL-11": {
-    id: "FIN-CTL-11", title: "Management Review of Revenue Accounts",
+    id: "FIN-CTL-11", category: "Financial", title: "Management Review of Revenue Accounts",
     description: "The Finance Director performs a monthly analytical review of all revenue accounts, comparing actual results to forecast and prior period. Variances exceeding 5% or $100,000 are investigated and formally documented with explanations approved by the CFO.",
     ctrlOwner: "L. Manager (Finance Director)", procOwner: "R. Thompson (VP Finance)"
   },
   // ── IT General Controls ──────────────────────────────────────────────
   "IT-CTL-01": {
-    id: "IT-CTL-01", title: "User Access Provisioning & Deprovisioning",
+    id: "IT-CTL-01", category: "IT General Controls", title: "User Access Provisioning & Deprovisioning",
     description: "All user access requests must be submitted via a ticketing system with manager approval before provisioning. Upon termination or role change, IT Security must deprovision access within 24 hours of HR notification. Privileged access requires secondary approval from the IT Security Manager.",
     ctrlOwner: "A. Wong (IT Security Manager)", procOwner: "M. Chen (IT Director)"
   },
   "IT-CTL-02": {
-    id: "IT-CTL-02", title: "Periodic User Access Review",
+    id: "IT-CTL-02", category: "IT General Controls", title: "Periodic User Access Review",
     description: "System owners and business managers conduct a quarterly review of all active user accounts and access rights. Any accounts identified as no longer required or appropriate must be removed within five business days. Review completion is documented in the access governance platform.",
     ctrlOwner: "A. Wong (IT Security Manager)", procOwner: "B. Nguyen (Systems Manager)"
   },
   "IT-CTL-03": {
-    id: "IT-CTL-03", title: "Change Management — Production Approval",
+    id: "IT-CTL-03", category: "IT General Controls", title: "Change Management — Production Approval",
     description: "All changes to production environments must follow the standard change lifecycle: submit change request, perform impact assessment, obtain CAB approval, complete testing in non-production, and execute a post-implementation review within 5 business days. Emergency changes require retrospective CAB approval within 48 hours.",
     ctrlOwner: "B. Nguyen (Change Manager)", procOwner: "M. Chen (IT Director)"
   },
   // ── SOX ──────────────────────────────────────────────────────────────
   "SOX-CTL-01": {
-    id: "SOX-CTL-01", title: "CEO/CFO Section 302 Sub-Certification",
+    id: "SOX-CTL-01", category: "SOX / ICFR", title: "CEO/CFO Section 302 Sub-Certification",
     description: "Prior to signing the quarterly 302 certification, the CEO and CFO obtain sub-certifications from all business unit controllers confirming the accuracy of financial data submitted. The Disclosure Committee reviews all significant financial reporting items and documents conclusions in meeting minutes.",
     ctrlOwner: "R. Patel (Chief Accounting Officer)", procOwner: "L. Manager (CFO)"
   },
   "SOX-CTL-02": {
-    id: "SOX-CTL-02", title: "ICFR Operating Effectiveness Testing",
+    id: "SOX-CTL-02", category: "SOX / ICFR", title: "ICFR Operating Effectiveness Testing",
     description: "Management tests the operating effectiveness of all in-scope ICFR controls on an annual basis per AS 2201. Sample sizes are determined based on control frequency and risk rating. Control exceptions are evaluated for severity — deficiency, significant deficiency, or material weakness — and reported to the Audit Committee.",
     ctrlOwner: "R. Patel (Chief Accounting Officer)", procOwner: "J. Davis (Controller)"
   },
   // ── Operational ──────────────────────────────────────────────────────
   "OPS-CTL-01": {
-    id: "OPS-CTL-01", title: "Purchase Order Authorization",
+    id: "OPS-CTL-01", category: "Operational", title: "Purchase Order Authorization",
     description: "All purchase orders above $5,000 must be raised by a requestor and approved by a separate authorized approver. POs above $50,000 require Director-level approval. The system enforces segregation of duties by preventing the requestor from being the same person as the approver. Unapproved POs cannot be transmitted to vendors.",
     ctrlOwner: "L. Torres (Procurement Manager)", procOwner: "K. Williams (VP Operations)"
   },
   "OPS-CTL-02": {
-    id: "OPS-CTL-02", title: "Three-Way Match — AP Invoice Processing",
+    id: "OPS-CTL-02", category: "Operational", title: "Three-Way Match — AP Invoice Processing",
     description: "Before processing payment, the AP system performs an automated three-way match between the purchase order, goods receipt, and vendor invoice. Variances exceeding 5% or $500 require documented business justification and supervisor approval. Unmatched invoices are queued for manual review.",
     ctrlOwner: "L. Torres (Procurement Manager)", procOwner: "M. Chen (VP Finance)"
   },
   // ── Vendor Due Diligence ─────────────────────────────────────────────
   "VDD-CTL-01": {
-    id: "VDD-CTL-01", title: "Vendor Onboarding Due Diligence",
+    id: "VDD-CTL-01", category: "Vendor Due Diligence", title: "Vendor Onboarding Due Diligence",
     description: "All new vendors with expected annual spend above $100,000 must complete the vendor onboarding process: submit company information, pass OFAC/SDN sanctions screening, provide a financial health declaration, and have a designated business owner sign a conflict of interest declaration. Vendors are re-screened annually.",
     ctrlOwner: "J. Davis (Vendor Risk Manager)", procOwner: "K. Williams (VP Operations)"
   },
   "VDD-CTL-02": {
-    id: "VDD-CTL-02", title: "Annual Vendor Performance & Risk Review",
+    id: "VDD-CTL-02", category: "Vendor Due Diligence", title: "Annual Vendor Performance & Risk Review",
     description: "Tier-1 and Tier-2 vendors undergo an annual risk review covering financial health (D&B score), regulatory compliance, information security posture, and contract adherence. Vendors falling below threshold scores are escalated to the Vendor Risk Committee for remediation or off-boarding decisions.",
     ctrlOwner: "B. Nguyen (Vendor Analyst)", procOwner: "J. Davis (Vendor Risk Manager)"
   },
   // ── Payroll ──────────────────────────────────────────────────────────
   "PAY-CTL-01": {
-    id: "PAY-CTL-01", title: "Pay Rate Change Authorization",
+    id: "PAY-CTL-01", category: "Payroll", title: "Pay Rate Change Authorization",
     description: "All changes to employee pay rates must be initiated in the HR system with a digitally signed authorization form approved by both the employee's manager and the HR Business Partner. The payroll system is configured to reject rate changes that lack a linked authorization record. Changes are reviewed by Payroll prior to the next pay cycle.",
     ctrlOwner: "S. Kim (Payroll Manager)", procOwner: "M. Brown (HR Director)"
   },
   "PAY-CTL-02": {
-    id: "PAY-CTL-02", title: "Termination Payroll Cutoff",
+    id: "PAY-CTL-02", category: "Payroll", title: "Termination Payroll Cutoff",
     description: "Upon employee termination, HR must enter the termination date in Workday within 24 hours of the employee's last day. The payroll system automatically flags any terminated employees appearing on the next payroll run. Payroll reviews flagged records and removes them before processing. A monthly reconciliation of active headcount to payroll register is performed.",
     ctrlOwner: "S. Kim (Payroll Manager)", procOwner: "M. Brown (HR Director)"
   }
@@ -13825,41 +13916,44 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 }
 
 function downloadTestGuidance() {
-  const ref  = getWPRef();
-  const wp   = WORKPAPERS[currentWPIndex];
-  const opts = _analysisOptions || {};
+  const ref         = getWPRef();
+  const wp          = WORKPAPERS[currentWPIndex];
+  const opts        = _analysisOptions || {};
   const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
   const sampleFields = (wpSampleFields[ref]  || []).filter(f => f.name);
-  const now  = new Date();
-  const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const now         = new Date();
+  const dateStr     = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const timeStr     = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
   const lines = [];
-  const HR  = '═'.repeat(70);
-  const hr  = '─'.repeat(70);
+  const HR = '═'.repeat(70);
+  const hr = '─'.repeat(70);
 
+  // ── Header ────────────────────────────────────────────────────────────────
   lines.push(HR);
-  lines.push('  WAVEFIRE — TEST GUIDANCE PROVIDED TO CLAUDE');
+  lines.push('  WAVEFIRE — EXACT CONTENT SENT TO CLAUDE');
   lines.push(`  Generated: ${dateStr} at ${timeStr}`);
   lines.push(`  Workpaper: ${wp?.name || ref} (${ref})`);
   lines.push(HR);
   lines.push('');
-  lines.push('This file documents all guidance and context sent to Claude as part of');
-  lines.push('the Analyze & Create Workpaper API call.');
+  lines.push('This file reproduces, as precisely as possible, the system prompt and user');
+  lines.push('message sent to Claude via the Analyze & Create Workpaper API call.');
+  lines.push('(PDF file contents are sent as base64 and are not reproduced here.)');
   lines.push('');
 
-  // ── Checkboxes selected ───────────────────────────────────────────
+  // ── Analysis Options Selected ─────────────────────────────────────────────
   lines.push(hr);
   lines.push('ANALYSIS OPTIONS SELECTED');
   lines.push(hr);
   const optLabels = [
-    [opts.kbCompany,    'Knowledge Base: Company / Organisation Context'],
-    [opts.kbControls,  'Knowledge Base: Control & Risk Analyst Notes'],
+    [opts.kbCompany,     'Knowledge Base: Company / Organisation Context'],
+    [opts.kbControls,    'Knowledge Base: Control & Risk Analyst Notes'],
     [false, ''],
+    [opts.auditDesc,     'Audit Description'],
     [opts.auditEntities, 'Audit-Level Assessment Entities'],
     [opts.auditRisks,    'Audit-Level Risks & Controls'],
     [opts.auditFs,       'Audit-Level Financial Statement Accounts & Footnotes'],
-    [false, ''],  // visual separator (blank line)
+    [false, ''],
     [opts.narrative,     'Process / Control Narrative (text)'],
     [opts.narrativeFile, 'Process / Control Narrative (attached file)'],
     [opts.testDesc,      'Test Description'],
@@ -13871,165 +13965,201 @@ function downloadTestGuidance() {
   });
   lines.push('');
 
-  // ── Audit Description ─────────────────────────────────────────────
-  const currentAuditObj2 = AUDITS.find(a => a.name === wp?.auditName);
-  if (opts.auditDesc && currentAuditObj2?.desc?.trim()) {
-    lines.push(hr);
-    lines.push('AUDIT DESCRIPTION');
-    lines.push(hr);
-    lines.push(currentAuditObj2.desc.trim());
+  // ── SECTION 1: SYSTEM PROMPT ──────────────────────────────────────────────
+  lines.push(HR);
+  lines.push('SECTION 1 — SYSTEM PROMPT (sent as the "system" parameter)');
+  lines.push(HR);
+  lines.push('');
+  const locationInstructions = `For each result also include the location where you found the supporting evidence:
+- "page": the page number (integer, 1-based) where the evidence was found
+- "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
+- "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
+Be as precise as possible — these coordinates are used to place tick marks directly on the document.`;
+
+  if (sampleFields.length) {
+    lines.push(`You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.`);
+    lines.push(`For each test attribute, evaluate the document. Also extract the requested fields from the document.`);
+    lines.push(`Respond ONLY with valid JSON — no markdown, no explanation.`);
+    lines.push(`CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.`);
+    lines.push(locationInstructions);
+    lines.push(`Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`);
+  } else {
+    lines.push(`You are an internal audit assistant evaluating sample files against test attributes.`);
+    lines.push(`For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.`);
+    lines.push(`CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.`);
+    lines.push(locationInstructions);
+    lines.push(`Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`);
+  }
+  lines.push('');
+
+  // ── SECTION 2: USER MESSAGE ───────────────────────────────────────────────
+  lines.push(HR);
+  lines.push('SECTION 2 — USER MESSAGE (sent as the "user" content block)');
+  lines.push('  Note: PDF files are sent as base64 document blocks before this text.');
+  lines.push(HR);
+  lines.push('');
+
+  // ── 2a. Knowledge Base block ──────────────────────────────────────────────
+  const kbBlock = _buildKnowledgeBlock(opts, ref, wp);
+  if (kbBlock && kbBlock.trim()) {
+    lines.push(kbBlock.trim());
     lines.push('');
   }
 
-  // ── Audit-Level Assessment Entities ──────────────────────────────
-  if (opts.auditEntities && (currentAuditEntities?.size)) {
-    const allEnts2 = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
-    const wpEntIds = new Set(wpScopeEntities[getWPRef()] || []);
-    lines.push(hr);
-    lines.push('AUDIT-LEVEL ASSESSMENT ENTITIES');
-    lines.push(hr);
-    currentAuditEntities.forEach(id => {
-      const e = allEnts2.find(x => x.id === id);
-      if (!e) return;
-      const isDup = wpEntIds.has(id);
-      lines.push(`  • ${e.name}${e.type||e.category ? ' ('+( e.type||e.category)+')' : ''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
-      if (e.city || e.state) lines.push(`    Location: ${[e.city,e.state].filter(Boolean).join(', ')}`);
-      if (e.description) lines.push(`    ${e.description}`);
-    });
-    lines.push('');
-  }
-
-  // ── Audit-Level Risks & Controls ──────────────────────────────────
-  if (opts.auditRisks) {
-    const auditCtrls2 = auditLinkedControls[wp?.auditName] || new Set();
-    if (auditCtrls2.size) {
-      const wpCtrls2 = new Set(wpLinkedControls[getWPRef()] || []);
-      lines.push(hr);
-      lines.push('AUDIT-LEVEL LINKED RISKS & CONTROLS');
-      lines.push(hr);
-      auditCtrls2.forEach(cid => {
-        const c = (typeof _fndControls !== 'undefined' ? _fndControls : []).find(x => x.id === cid) || (CONTROLS[cid] ? {id:cid,name:CONTROLS[cid].title,objective:CONTROLS[cid].objective,description:CONTROLS[cid].description} : null);
-        if (!c) return;
-        const isDup = wpCtrls2.has(cid);
-        lines.push(`  ${c.id}: ${c.name||c.title||''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
-        if (c.objective) lines.push(`    Objective: ${c.objective}`);
-        if (c.description) lines.push(`    Description: ${c.description}`);
-        const rids = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[cid]||[]);
-        if (rids.length) {
-          const rnames = rids.map(rid => {
-            const r = (typeof _fndRisks !== 'undefined' ? _fndRisks:[]).find(x=>x.id===rid)||RISKS[rid];
-            return r ? `${rid}: ${r.name||r.title||''}` : rid;
-          });
-          lines.push(`    Risks: ${rnames.join('; ')}`);
-        }
-      });
-      lines.push('');
-    }
-  }
-
-  // ── Audit-Level FS Accounts ───────────────────────────────────────
-  if (opts.auditFs) {
-    const auditFsIds2 = auditLinkedFs[wp?.auditName] || new Set();
-    const wpFsIds2 = new Set([...(rcDialogSelected||[]), ...(wpFsAccounts[getWPRef()]||[])]);
-    const fsList2 = (typeof _fndFSAccounts !== 'undefined' && _fndFSAccounts.length ? _fndFSAccounts:[]).concat(HOSPITAL_FS||[]).concat(ALL_FS_ACCOUNTS||[]);
-    if (auditFsIds2.size) {
-      const fsSeen2 = new Set();
-      lines.push(hr);
-      lines.push('AUDIT-LEVEL FINANCIAL STATEMENT ACCOUNTS & FOOTNOTES');
-      lines.push(hr);
-      auditFsIds2.forEach(id => {
-        if (fsSeen2.has(id)) return; fsSeen2.add(id);
-        const f = fsList2.find(x => (x.id||x.account)===id);
-        if (!f) return;
-        const isDup = wpFsIds2.has(id);
-        lines.push(`  • ${f.label||f.name||id}${f.riskLevel ? ' ('+f.riskLevel+' risk)' : ''}${isDup ? '  [DUPLICATIVE — also at workpaper level, sent once]' : ''}`);
-        if (f.assertion) lines.push(`    Assertions: ${f.assertion}`);
-      });
-      lines.push('');
-    }
-  }
-
-  // ── Process / Control Narrative ───────────────────────────────────
+  // ── 2b. Narrative ─────────────────────────────────────────────────────────
   if (opts.narrative && wp?.narrative?.trim()) {
-    lines.push(hr);
-    lines.push('PROCESS / CONTROL NARRATIVE');
-    lines.push(hr);
+    lines.push(`PROCESS / CONTROL NARRATIVE:`);
     lines.push(wp.narrative.trim());
     lines.push('');
   }
 
-  // ── Narrative attached file (name only, not contents) ─────────────
-  if (opts.narrativeFile) {
-    const refFiles = wpNarrativeRefFiles[ref];
-    const fileNames = refFiles ? Array.from(refFiles) : [];
-    lines.push(hr);
-    lines.push('PROCESS / CONTROL NARRATIVE — ATTACHED FILE(S)');
-    lines.push(hr);
-    if (fileNames.length) {
-      lines.push('The following file(s) were attached and sent to Claude (contents not reproduced here):');
-      fileNames.forEach(fn => lines.push(`  • ${fn}`));
-    } else {
-      lines.push('  (No narrative attachment was selected)');
-    }
-    lines.push('');
-  }
-
-  // ── Test Description ──────────────────────────────────────────────
+  // ── 2c. Test Description ─────────────────────────────────────────────────
   if (opts.testDesc && wp?.testDesc?.trim()) {
-    lines.push(hr);
-    lines.push('TEST DESCRIPTION');
-    lines.push(hr);
+    lines.push(`TEST DESCRIPTION:`);
     lines.push(wp.testDesc.trim());
     lines.push('');
   }
 
-  // ── Test Attributes ───────────────────────────────────────────────
-  if (attributes.length) {
-    lines.push(hr);
-    lines.push('TEST ATTRIBUTES');
-    lines.push(hr);
-    attributes.forEach((a, i) => {
-      const ref2 = a.attrRef || a.num || String(i+1);
-      lines.push(`${i+1}. [${ref2}] ${a.title}`);
-      if (opts.attrDesc !== false && a.desc)           lines.push(`   Description:       ${a.desc}`);
-      if (opts.attrAddl  && a.additionalInfo)          lines.push(`   Additional Info:   ${a.additionalInfo}`);
-      if (opts.success   && a.successCriteria) {
-        lines.push(`   Pass Criteria (conditions that must be present and verifiable for this attribute to be considered satisfied — if all conditions are met by the evidence, the result is a pass):`);
-        lines.push(`   ${a.successCriteria}`);
-      }
-      if (opts.failure   && a.failureCriteria) {
-        lines.push(`   Failure Criteria (conditions that, if present in the document, constitute a definitive failure regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):`);
-        lines.push(`   ${a.failureCriteria}`);
-      }
-      lines.push('');
-    });
-  }
-
-  // ── Sample Field Extraction ───────────────────────────────────────
-  if (sampleFields.length) {
-    lines.push(hr);
-    lines.push('SAMPLE FIELD EXTRACTION FIELDS');
-    lines.push(hr);
-    sampleFields.forEach((f, i) => {
-      lines.push(`${i+1}. ${f.name}${f.desc ? ': ' + f.desc : ''}`);
-    });
+  // ── 2d. Audit Description ────────────────────────────────────────────────
+  const currentAuditObj2 = AUDITS.find(a => a.name === wp?.auditName);
+  if (opts.auditDesc && currentAuditObj2?.desc?.trim()) {
+    lines.push(`AUDIT DESCRIPTION:`);
+    lines.push(currentAuditObj2.desc.trim());
     lines.push('');
   }
 
-  // ── Sample files analyzed ─────────────────────────────────────────
+  // ── 2e. Audit-Level Assessment Entities ───────────────────────────────────
+  if (opts.auditEntities && currentAuditEntities?.size) {
+    const allEnts2 = (typeof _fndEntities !== 'undefined' && _fndEntities.length ? _fndEntities : []).concat(ALL_ENTITIES || []);
+    const wpEntIds = new Set(wpScopeEntities[ref] || []);
+    const entParts = [];
+    currentAuditEntities.forEach(id => {
+      const e = allEnts2.find(x => x.id === id);
+      if (!e) return;
+      const isDup = opts.entities && wpEntIds.has(id);
+      let line = `• ${e.name}${e.type||e.category ? ' ('+(e.type||e.category)+')' : ''}`;
+      if (e.city || e.state) line += ` — ${[e.city,e.state].filter(Boolean).join(', ')}`;
+      if (e.description) line += `\n  ${e.description}`;
+      if (isDup) line += '\n  [NOTE: This entity is also linked at the workpaper level — included once]';
+      entParts.push(line);
+    });
+    if (entParts.length) {
+      lines.push(`AUDIT-LEVEL ASSESSMENT ENTITIES:`);
+      lines.push(entParts.join('\n\n'));
+      lines.push('');
+    }
+  }
+
+  // ── 2f. Audit-Level Risks & Controls ─────────────────────────────────────
+  if (opts.auditRisks) {
+    const auditCtrls2 = auditLinkedControls[wp?.auditName] || new Set();
+    if (auditCtrls2.size) {
+      const wpCtrls2 = new Set(wpLinkedControls[ref] || []);
+      const ctrlParts = [];
+      auditCtrls2.forEach(cid => {
+        const c = (typeof _fndControls !== 'undefined' ? _fndControls : []).find(x => x.id === cid)
+          || (CONTROLS[cid] ? {id:cid,name:CONTROLS[cid].title,objective:CONTROLS[cid].objective,description:CONTROLS[cid].description} : null);
+        if (!c) return;
+        const isDup = wpCtrls2.has(cid);
+        const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[cid] || []);
+        let block = `Control ${c.id}: ${c.name||c.title||''}`;
+        if (c.objective)   block += `\n  Objective: ${c.objective}`;
+        if (c.description) block += `\n  Description: ${c.description}`;
+        if (riskIds.length) {
+          const riskList = riskIds.map(rid => {
+            const r = (typeof _fndRisks !== 'undefined' ? _fndRisks : []).find(x => x.id === rid) || RISKS[rid];
+            return r ? `${rid}: ${r.name||r.title||''}` : rid;
+          });
+          block += `\n  Linked Risks: ${riskList.join('; ')}`;
+        }
+        if (isDup) block += '\n  [NOTE: This control is also linked at the workpaper level — included once]';
+        ctrlParts.push(block);
+      });
+      if (ctrlParts.length) {
+        lines.push(`AUDIT-LEVEL LINKED RISKS & CONTROLS:`);
+        lines.push(ctrlParts.join('\n\n'));
+        lines.push('');
+      }
+    }
+  }
+
+  // ── 2g. Audit-Level FS Accounts ───────────────────────────────────────────
+  if (opts.auditFs) {
+    const auditFsIds2 = auditLinkedFs[wp?.auditName] || new Set();
+    const wpFsIds2 = new Set([...(rcDialogSelected||[]), ...(wpFsAccounts[ref]||[])]);
+    const fsList2 = (typeof _fndFSAccounts !== 'undefined' && _fndFSAccounts.length ? _fndFSAccounts:[]).concat(HOSPITAL_FS||[]).concat(ALL_FS_ACCOUNTS||[]);
+    if (auditFsIds2.size) {
+      const fsSeen2 = new Set();
+      const fsParts = [];
+      auditFsIds2.forEach(id => {
+        if (fsSeen2.has(id)) return; fsSeen2.add(id);
+        const f = fsList2.find(x => (x.id||x.account) === id);
+        if (!f) return;
+        const isDup = wpFsIds2.has(id);
+        let line = `• ${f.label||f.name||id}${f.riskLevel ? ' ('+f.riskLevel+' risk)' : ''}`;
+        if (f.assertion) line += ` — Assertions: ${f.assertion}`;
+        if (isDup) line += '\n  [NOTE: This account is also linked at the workpaper level — included once]';
+        fsParts.push(line);
+      });
+      if (fsParts.length) {
+        lines.push(`AUDIT-LEVEL FINANCIAL STATEMENT ACCOUNTS & FOOTNOTES:`);
+        lines.push(fsParts.join('\n\n'));
+        lines.push('');
+      }
+    }
+  }
+
+  // ── 2h. Attribute prompt + field extraction (exactly as sent to Claude) ───
+  const attrPrompt = attributes.map((a, i) => {
+    let parts = [`${i+1}. "${a.title}"`];
+    if (opts.attrDesc !== false && a.desc)
+      parts.push(`\n   Test Attribute Description: ${a.desc}`);
+    if (opts.attrAddl && a.additionalInfo)
+      parts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
+    if (opts.success && a.successCriteria)
+      parts.push(`\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`);
+    if (opts.failure && a.failureCriteria)
+      parts.push(`\n   Failure Criteria (the following describes conditions that, if present in the document, constitute a definitive failure of this attribute regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):\n   ${a.failureCriteria}`);
+    return parts.join('');
+  }).join('\n\n');
+
+  const fieldPrompt = sampleFields.length
+    ? '\n\nSAMPLE FIELD EXTRACTION:\nAlso extract the following fields from the document. Include them in the "fields" array in your JSON response:\n' +
+      sampleFields.map((f, i) => `${i+1}. "${f.name}"${f.desc ? ': ' + f.desc : ''}`).join('\n')
+    : '';
+
+  lines.push(`Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:`);
+  lines.push('');
+  lines.push(attrPrompt);
+  if (fieldPrompt) lines.push(fieldPrompt);
+  lines.push('');
+  lines.push('Respond only with the JSON object.');
+  lines.push('');
+
+  // ── Narrative attached file names ─────────────────────────────────────────
+  if (opts.narrativeFile) {
+    const refFiles = wpNarrativeRefFiles[ref];
+    const fileNames = refFiles ? Array.from(refFiles) : [];
+    lines.push(hr);
+    lines.push('NARRATIVE ATTACHED FILE(S) — names only; content sent as base64 PDF block');
+    lines.push(hr);
+    if (fileNames.length) fileNames.forEach(fn => lines.push(`  • ${fn}`));
+    else lines.push('  (No narrative attachment was selected)');
+    lines.push('');
+  }
+
+  // ── Sample files ──────────────────────────────────────────────────────────
   const memFiles = (inMemoryFiles[ref]?.sample || []);
   if (memFiles.length) {
     lines.push(hr);
-    lines.push('SAMPLE FILES ANALYZED');
+    lines.push('SAMPLE PDF FILES — sent as base64 document blocks before the user text');
     lines.push(hr);
-    memFiles.forEach((f, i) => {
-      lines.push(`${i+1}. ${f.name} (${f.size})`);
-    });
+    memFiles.forEach((f, i) => lines.push(`${i+1}. ${f.name} (${f.size})`));
     lines.push('');
   }
 
   lines.push(HR);
-  lines.push('END OF TEST GUIDANCE REPORT');
+  lines.push('END OF REPORT');
   lines.push(HR);
 
   const txt  = lines.join('\n');
@@ -14044,6 +14174,7 @@ function downloadTestGuidance() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
 
 function closeAnalysis() {
   document.getElementById('analysis-overlay').style.display = 'none';
@@ -14665,6 +14796,16 @@ function closeFilePreview() {
     `<div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div>`;
   previewPDFDoc = null;
 }
+// Keyboard arrow navigation for file preview
+document.addEventListener('keydown', function(ev) {
+  const overlay = document.getElementById('file-preview-overlay');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  const navBar = document.getElementById('file-preview-file-nav');
+  if (!navBar || navBar.style.display === 'none') return;
+  if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
+  if (ev.key === 'ArrowLeft')  { ev.preventDefault(); previewNavFile(-1); }
+  if (ev.key === 'ArrowRight') { ev.preventDefault(); previewNavFile(1);  }
+});
 
 // Preview an in-memory uploaded file
 // Track current preview context for file navigation
@@ -14866,22 +15007,21 @@ function _updateFileNavButtons() {
   const nextBtn = document.getElementById('fp-next-file');
   if (!navBar) return;
 
-  const files = _fpBucket === 'sample' ? (inMemoryFiles[_fpRef]?.sample || []) : [];
-  if (_fpBucket !== 'sample' || files.length <= 1) {
+  const files = (inMemoryFiles[_fpRef]?.[_fpBucket] || []);
+  if (!_fpBucket || files.length <= 1) {
     navBar.style.display = 'none';
     return;
   }
 
   navBar.style.display = 'flex';
-  if (counter) counter.textContent = `${_fpIdx + 1} / ${files.length}`;
-  if (prevBtn) prevBtn.disabled = _fpIdx <= 0;
-  if (nextBtn) nextBtn.disabled = _fpIdx >= files.length - 1;
-  if (prevBtn) prevBtn.style.opacity = _fpIdx <= 0 ? '0.35' : '1';
-  if (nextBtn) nextBtn.style.opacity = _fpIdx >= files.length - 1 ? '0.35' : '1';
+  const label = _fpBucket === 'workpaper' ? 'WP file' : 'sample';
+  if (counter) counter.textContent = `${_fpBucket === 'workpaper' ? 'File' : 'Sample'} ${_fpIdx + 1} of ${files.length}`;
+  if (prevBtn) { prevBtn.disabled = _fpIdx <= 0; prevBtn.style.opacity = _fpIdx <= 0 ? '0.35' : '1'; }
+  if (nextBtn) { nextBtn.disabled = _fpIdx >= files.length - 1; nextBtn.style.opacity = _fpIdx >= files.length - 1 ? '0.35' : '1'; }
 }
 
 async function previewNavFile(dir) {
-  const files = inMemoryFiles[_fpRef]?.sample || [];
+  const files = inMemoryFiles[_fpRef]?.[_fpBucket] || [];
   const newIdx = _fpIdx + dir;
   if (newIdx < 0 || newIdx >= files.length) return;
   await previewMemFile(_fpRef, _fpBucket, newIdx);
@@ -16716,7 +16856,7 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
-        tabindex="-1" style="width:24px;height:24px;font-size:12px"><i class="ti ti-x"></i></button>
+        tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div>`;
 }
@@ -17275,20 +17415,15 @@ function setWPNavEnabled(enabled) {
 }
 
 function onNavAuditChange() {
-  const auditName  = document.getElementById('sel-audit').value;
-  const selWpRef   = document.getElementById('sel-wp-ref');
+  const auditName = document.getElementById('sel-audit').value;
+  const selWpRef  = document.getElementById('sel-wp-ref');
 
-  // Update currentAudit
-  const audit = AUDITS.find(a => a.name === auditName);
-  if (audit) currentAudit = audit;
+  // Always blank the workpaper dropdown when an audit is selected
+  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>';
 
-  // Blank out wp ref then populate only matching workpapers
-  const matching = WORKPAPERS.filter(w => w.auditName === auditName);
-  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>' +
-    matching.map(w => `<option value="${w.ref}">${w.ref}</option>`).join('');
-
-  // Navigate to the selected audit's workpaper list
-  if (audit) openAudit(AUDITS.indexOf(audit));
+  // Navigate directly to that audit's workpaper list
+  const idx = AUDITS.findIndex(a => a.name === auditName);
+  if (idx !== -1) openAudit(idx);
 }
 
 function onNavWpRefChange() {
