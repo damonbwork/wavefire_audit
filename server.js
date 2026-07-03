@@ -598,7 +598,40 @@ app.post('/api/audits', async (req, res) => {
   }
 });
 
-// ── Workpapers API ────────────────────────────────────────────────────────────
+app.patch('/api/audits/:oldName', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const oldName = req.params.oldName;
+  const { name, period, owner, type, status, description, year } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try {
+    // Rename = insert new row + delete old (if name changed), else just update
+    if (name !== oldName) {
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+        ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
+          type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
+          year=EXCLUDED.year, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
+      // Update workpapers that referenced the old audit name
+      await pool.query(`UPDATE workpapers SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
+        [name, DEFAULT_TENANT_ID, oldName]);
+      await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [DEFAULT_TENANT_ID, oldName]);
+    } else {
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+        ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
+          type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
+          year=EXCLUDED.year, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
+    }
+    res.json({ ok:true });
+  } catch(err) {
+    console.error('[API] audit rename error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [DEFAULT_TENANT_ID]); res.json(rows); }
