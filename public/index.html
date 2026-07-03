@@ -7134,13 +7134,11 @@ async function _loadAuditsFromDB() {
       });
     }
 
-    // Seed any static audits that are not yet in the DB so they persist on rebuild
-    const dbNames = new Set((rows||[]).map(function(r){ return r.name; }));
-    const seedPromises = AUDITS.filter(function(a){ return !dbNames.has(a.name); })
-      .map(function(a){ return _saveAuditToDB(a); });
-    if (seedPromises.length) {
-      await Promise.all(seedPromises);
-      console.log('[DB] Seeded', seedPromises.length, 'missing audit(s) to database');
+    // Seed static audits ONLY when DB is completely empty (first-ever deploy).
+    // After that the DB is authoritative — never re-seed, or renamed audits reappear.
+    if (rows.length === 0) {
+      await Promise.all(AUDITS.map(function(a){ return _saveAuditToDB(a).catch(function(){}); }));
+      console.log('[DB] First-time seed: wrote', AUDITS.length, 'audit(s) to database');
     }
   } catch(e) { console.warn('[DB] audits load failed:', e.message); }
 }
@@ -7187,11 +7185,10 @@ async function _loadWorkpapersFromDB() {
         if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
       });
     }
-    // Seed any static workpapers not yet in DB
-    const toSeed = WORKPAPERS.filter(function(w){ return !dbRefs.has(w.ref); });
-    if (toSeed.length) {
-      await Promise.all(toSeed.map(function(w){ return _saveWorkpaperToDB(w).catch(function(){}); }));
-      console.log('[DB] Seeded', toSeed.length, 'missing workpaper(s)');
+    // Seed static workpapers ONLY on first deploy (empty DB table)
+    if (!rows || rows.length === 0) {
+      await Promise.all(WORKPAPERS.map(function(w){ return _saveWorkpaperToDB(w).catch(function(){}); }));
+      console.log('[DB] First-time seed: wrote', WORKPAPERS.length, 'workpaper(s)');
     }
   } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
 }
@@ -7201,11 +7198,50 @@ async function _loadWorkpapersFromDB() {
   if (!window._hasBackend) return; // no backend in artifact viewer — skip all DB loads
   try {
     await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]);
-    // Also load RCM controls/risks and FS accounts from Postgres
+    // Load RCM, FS accounts, objectives and entities
     if (typeof _loadRCMFromDB === 'function') await _loadRCMFromDB();
     if (typeof _loadFSAccountsFromDB === 'function') await _loadFSAccountsFromDB();
     if (typeof _loadObjectivesFromDB === 'function') await _loadObjectivesFromDB();
-    // Also ensure entity list used by audit module stays current from Postgres
+    if (typeof _loadEntitiesFromDB === 'function') await _loadEntitiesFromDB();
+
+    // ── Bulk seed all static data with stable IDs (ON CONFLICT DO NOTHING) ────
+    // Safe to run every deploy — only inserts missing records, never overwrites user edits.
+    // Audits + workpapers are excluded: their PK is the user-editable name.
+    try {
+      const staticControls = Object.values(CONTROLS).map(function(c) {
+        return { id:c.id, name:c.title||'', category:c.category||_rcmCategoryFromId(c.id)||'',
+          objective:c.objective||'', description:c.description||'',
+          ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
+          linked_risks: CTRL_RISKS_MAP[c.id]||[], linked_entities:[], linked_accounts:[] };
+      });
+      const staticRisks = Object.values(RISKS).map(function(r) {
+        return { id:r.id, name:r.title||r.name||'', description:r.description||'' };
+      });
+      const staticEntities = (ALL_ENTITIES||[]);
+      const staticFS = (typeof HOSPITAL_FS!=='undefined' ? HOSPITAL_FS : []).map(function(f) {
+        return Object.assign({}, f, {
+          description: f.label||f.desc||f.description||'',
+          section: f.category||f.statement||f.section||''
+        });
+      });
+      const staticObjectives = (window._rcmObjectivesLib||[]).filter(function(o){ return o.id&&o.title; });
+
+      const seedRes = await fetch('/api/seed/bulk', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          controls:   staticControls,
+          risks:      staticRisks,
+          entities:   staticEntities,
+          fs_accounts: staticFS,
+          objectives: staticObjectives
+        })
+      });
+      if (seedRes.ok) {
+        const r = await seedRes.json();
+        const total = Object.values(r.inserted||{}).reduce(function(s,n){return s+n;},0);
+        if (total > 0) console.log('[Seed] Inserted', total, 'missing static record(s):', r.inserted);
+      }
+    } catch(e) { console.warn('[Seed] bulk seed failed:', e.message); }
     if (typeof _loadEntitiesFromDB === 'function') {
       await _loadEntitiesFromDB();
       // Merge _fndEntities into ALL_ENTITIES so audit entity dialog sees Postgres data
@@ -7868,8 +7904,8 @@ async function _loadEntitiesFromDB() {
     const dbOnly = (Array.isArray(data)?data:[]).filter(e => !staticEntityIds.has(e.id));
     _fndEntities = staticBase.concat(dbOnly);
 
-    // Seed any static entities not yet in DB
-    const missing = ALL_ENTITIES.filter(e => !dbMap[e.id]);
+    // Seed static entities ONLY on first deploy (empty DB table)
+    const missing = (!Array.isArray(data) || data.length === 0) ? ALL_ENTITIES : [];
     if (missing.length) {
       Promise.all(missing.map(e => _saveEntityToDB(e).catch(()=>{}))).then(() => {
         console.log('[DB] Seeded', missing.length, 'missing entit' + (missing.length===1?'y':'ies'));
@@ -8340,12 +8376,13 @@ async function _loadRCMFromDB() {
 
         _fndControls = staticBase.concat(dbOnly);
 
-        // Seed any static controls not yet in DB
-        const seededCtrlIds = new Set(Object.keys(CONTROLS));
-        const missingCtrls = _fndControls.filter(c => seededCtrlIds.has(c.id) && !dbMap[c.id]);
+        // Seed static controls ONLY on first deploy (no controls in DB yet)
+        const missingCtrls = data.length === 0
+          ? _fndControls.filter(c => seededCtrlIds.has(c.id))
+          : [];
         if (missingCtrls.length) {
           Promise.all(missingCtrls.map(c => _saveControlToDB(c).catch(()=>{}))).then(() => {
-            console.log('[DB] Seeded', missingCtrls.length, 'missing control(s)');
+            console.log('[DB] First-time seed:', missingCtrls.length, 'control(s)');
           });
         }
 
@@ -8378,8 +8415,10 @@ async function _loadRCMFromDB() {
       _fndRisks = staticRisks.concat(dbOnlyRisks);
       _fndRisks.forEach(r => { RISKS[r.id] = { id:r.id, title:r.name||r.title||'', description:r.description||'' }; });
 
-      // Seed missing static risks to DB
-      const missingRisks = staticRisks.filter(r => !dbRiskMap[r.id]);
+      // Seed static risks ONLY on first deploy (empty DB table)
+      const missingRisks = (!Array.isArray(data) || data.length === 0)
+        ? staticRisks
+        : [];
       if (missingRisks.length) {
         Promise.all(missingRisks.map(r => fetch('/api/risks', {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -11632,8 +11671,10 @@ async function _loadFSAccountsFromDB() {
         assertions: Array.isArray(d.assertions) ? d.assertions : (d.assertions?JSON.parse(d.assertions):[])
       }));
     });
-    // Seed any static FS accounts not yet in DB
-    const missing = _fndFSAccounts.filter(f => staticIds.has(f.id) && !dbMap[f.id]);
+    // Seed static FS accounts ONLY on first deploy (empty DB table)
+    const missing = (!Array.isArray(data) || data.length === 0)
+      ? _fndFSAccounts.filter(f => staticIds.has(f.id))
+      : [];
     if (missing.length) {
       Promise.all(missing.map(f => _saveFSAccountToDB(f).catch(()=>{}))).then(() => {
         console.log('[DB] Seeded', missing.length, 'missing FS account(s)');
