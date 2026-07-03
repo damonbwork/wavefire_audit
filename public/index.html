@@ -850,6 +850,7 @@
               <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Define control objectives, risks, and controls. Descriptions are silently passed to Claude when controls are linked to a workpaper.</div>
             </div>
             <button class="btn-p" onclick="addFoundationsControl()" style="flex-shrink:0;margin-left:20px"><i class="ti ti-plus"></i>Add Control</button>
+            <button class="btn-s" onclick="openRCMObjectivesLibModal()" style="flex-shrink:0;margin-left:8px"><i class="ti ti-target"></i>Add/Edit Control Objective</button>
           </div>
           <div id="fnd-rcm-list" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
@@ -881,7 +882,8 @@
         <div class="wf-ctl-group">
           <div class="wf-ctl-label">Audit name</div>
           <select id="sel-audit" class="wf-ctl-select" aria-label="Select audit name" onchange="onNavAuditChange()">
-            <option>Q2 2026 Financial Audit</option>
+            <option value="">—</option>
+                  <option>Q2 2026 Financial Audit</option>
             <option>IT General Controls Review</option>
             <option>SOX Compliance Audit</option>
             <option>Operational Risk Assessment</option>
@@ -915,7 +917,171 @@
            PAGE 1 — AUDIT LIST
       ══════════════════════════ -->
       <div class="page" id="page-audits">
-        <div class="ph">
+
+        <!-- ── Company & AI Settings ──────────────────────────────────────────── -->
+        <div id="company-settings-panel" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
+
+          <!-- Company Information Card -->
+          <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:12px;overflow:hidden">
+            <div style="background:var(--wf-navy);color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleSettingsSection('company')">
+              <div style="display:flex;align-items:center;gap:8px">
+                <i class="ti ti-building" style="font-size:14px"></i>
+                <span style="font-size:13px;font-weight:700" id="company-settings-heading">Company Information</span>
+                <span id="company-name-badge" style="font-size:11px;opacity:0.75;margin-left:4px"></span>
+              </div>
+              <i id="company-chevron" class="ti ti-chevron-down" style="font-size:13px;transition:transform 0.2s"></i>
+            </div>
+            <div id="company-settings-body" style="display:none;padding:16px">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+                <div style="grid-column:1/-1">
+                  <label class="fl" style="margin-bottom:4px">Company / Organisation Name</label>
+                  <input id="cs-name" type="text" placeholder="e.g. Barstow Community Hospital" oninput="_csAutosave()"
+                    style="width:100%;font-size:14px;font-weight:600;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">Industry / Sector</label>
+                  <input id="cs-industry" type="text" placeholder="e.g. Healthcare" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">Fiscal Year End</label>
+                  <input id="cs-fye" type="text" placeholder="e.g. December 31" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">EIN / Tax ID</label>
+                  <input id="cs-ein" type="text" placeholder="XX-XXXXXXX" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">Website</label>
+                  <input id="cs-website" type="text" placeholder="https://…" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div style="grid-column:1/-1">
+                  <label class="fl" style="margin-bottom:4px">Street Address</label>
+                  <input id="cs-address" type="text" placeholder="820 E Mountain View St" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">City</label>
+                  <input id="cs-city" type="text" placeholder="City" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">State</label>
+                  <input id="cs-state" type="text" placeholder="CA" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+                <div>
+                  <label class="fl" style="margin-bottom:4px">ZIP</label>
+                  <input id="cs-zip" type="text" placeholder="92311" oninput="_csAutosave()"
+                    style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                </div>
+              </div>
+              <div id="cs-save-status" style="font-size:11px;color:var(--text-tertiary);margin-top:8px;text-align:right"></div>
+            </div>
+          </div>
+
+          <!-- AI Provider Card -->
+          <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:12px;overflow:hidden">
+            <div style="background:#1e293b;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleSettingsSection('ai')">
+              <div style="display:flex;align-items:center;gap:8px">
+                <i class="ti ti-robot" style="font-size:14px"></i>
+                <span style="font-size:13px;font-weight:700">AI Provider &amp; Model</span>
+                <span id="ai-provider-badge" style="font-size:10px;font-weight:600;background:rgba(255,255,255,0.15);border-radius:4px;padding:1px 7px;margin-left:4px">Anthropic · Claude</span>
+              </div>
+              <i id="ai-chevron" class="ti ti-chevron-down" style="font-size:13px;transition:transform 0.2s"></i>
+            </div>
+            <div id="ai-settings-body" style="display:none;padding:16px">
+              <div style="display:flex;flex-direction:column;gap:14px">
+
+                <!-- Provider selector -->
+                <div>
+                  <label class="fl" style="margin-bottom:8px">AI Provider</label>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap" id="ai-provider-btns">
+                    <button class="ai-prov-btn active" data-provider="anthropic" onclick="_csSelectProvider('anthropic')"
+                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--wf-navy);background:#eff6ff;color:var(--wf-navy);cursor:pointer;font-size:13px;font-weight:600">
+                      <i class="ti ti-brand-anthropic" style="font-size:15px"></i>Anthropic (Claude)
+                    </button>
+                    <button class="ai-prov-btn" data-provider="azure"
+                      onclick="_csSelectProvider('azure')"
+                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--border-medium);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:600">
+                      <i class="ti ti-brand-azure" style="font-size:15px"></i>Azure OpenAI
+                    </button>
+                    <button class="ai-prov-btn" data-provider="openai"
+                      onclick="_csSelectProvider('openai')"
+                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--border-medium);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:600">
+                      <i class="ti ti-sparkles" style="font-size:15px"></i>OpenAI
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Anthropic config -->
+                <div id="ai-config-anthropic">
+                  <label class="fl" style="margin-bottom:6px">Claude Model</label>
+                  <select id="cs-claude-model" onchange="_csAutosave()"
+                    style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);width:100%;max-width:340px">
+                    <option value="claude-sonnet-4-6">claude-sonnet-4-6 (Sonnet 4.6 — default)</option>
+                    <option value="claude-opus-4-6">claude-opus-4-6 (Opus 4.6)</option>
+                    <option value="claude-opus-4-7">claude-opus-4-7 (Opus 4.7)</option>
+                    <option value="claude-opus-4-8">claude-opus-4-8 (Opus 4.8 — most capable)</option>
+                    <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest / lowest cost)</option>
+                  </select>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">API key is set via the <code>ANTHROPIC_API_KEY</code> environment variable on the server.</div>
+                </div>
+
+                <!-- Azure OpenAI config -->
+                <div id="ai-config-azure" style="display:none;display:flex;flex-direction:column;gap:10px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Azure OpenAI Endpoint</label>
+                    <input id="cs-azure-endpoint" type="text" placeholder="https://your-resource.openai.azure.com"
+                      style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Deployment Name</label>
+                    <input id="cs-azure-deployment" type="text" placeholder="e.g. gpt-4o"
+                      style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">API Key <span style="font-size:10px;font-weight:400;color:var(--text-tertiary)">(stored securely on server, never sent to browser after save)</span></label>
+                    <div style="display:flex;gap:8px">
+                      <input id="cs-azure-key" type="password" placeholder="Enter key to update…"
+                        style="flex:1;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                      <button class="btn-p" onclick="_csSaveAIConfig()" style="flex-shrink:0"><i class="ti ti-device-floppy"></i>Save</button>
+                    </div>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-tertiary)">API keys are saved to the database and never returned to the browser after initial save.</div>
+                </div>
+
+                <!-- OpenAI config -->
+                <div id="ai-config-openai" style="display:none;display:flex;flex-direction:column;gap:10px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">OpenAI Model</label>
+                    <select id="cs-openai-model" onchange="_csAutosave()"
+                      style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);width:100%;max-width:340px">
+                      <option value="gpt-4o">GPT-4o (recommended)</option>
+                      <option value="gpt-4o-mini">GPT-4o mini (faster / lower cost)</option>
+                      <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                      <option value="o1-preview">o1-preview (reasoning)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">API Key <span style="font-size:10px;font-weight:400;color:var(--text-tertiary)">(stored securely on server)</span></label>
+                    <div style="display:flex;gap:8px">
+                      <input id="cs-openai-key" type="password" placeholder="sk-…"
+                        style="flex:1;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
+                      <button class="btn-p" onclick="_csSaveAIConfig()" style="flex-shrink:0"><i class="ti ti-device-floppy"></i>Save</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="ai-save-status" style="font-size:11px;color:var(--text-tertiary)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- ── End Settings ────────────────────────────────────────────────────── -->
           <div>
             <div class="pt">All Audits</div>
             <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
@@ -930,7 +1096,8 @@
         </div>
         <div class="filters">
           <select id="filter-type" onchange="filterAudits()">
-            <option value="" selected="selected">All types</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">All types</option>
             <option>SOX</option>
             <option>Operations</option>
             <option>IT / Systems</option>
@@ -939,7 +1106,8 @@
             <option>Vendor</option>
           </select>
           <select id="filter-status" onchange="filterAudits()">
-            <option value="" selected="selected">All statuses</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">All statuses</option>
             <option>Planned</option>
             <option>Active</option>
             <option>Closed</option>
@@ -1150,6 +1318,14 @@
           </div>
           <div class="sect-body">
             <div class="field-grid">
+              <!-- Audit Name (editable in edit mode) -->
+              <div class="fld" id="aud-name-fld" style="grid-column:1/-1;display:none">
+                <div class="fl">Audit name</div>
+                <input id="aud-name" type="text" placeholder="e.g. Vendor Due Diligence 2026" class="aud-field-select"
+                  style="width:100%;font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;opacity:0.55;pointer-events:none;cursor:not-allowed"
+                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"
+                  disabled="disabled">
+              </div>
               <!-- Audit Year -->
               <div class="fld">
                 <div class="fl">Audit year</div>
@@ -1191,6 +1367,7 @@
               <div class="fld">
                 <div class="fl">Audit owner</div>
                 <select id="aud-owner" class="aud-field-select" disabled="disabled" style="opacity: 0.55; pointer-events: none; cursor: not-allowed;">
+                  <option value="">—</option>
                   <option value="jdavis" selected="selected">J. Davis (jdavis)</option>
                   <option value="mchen">M. Chen (mchen)</option>
                   <option value="rpatel">R. Patel (rpatel)</option>
@@ -1205,6 +1382,7 @@
               <div class="fld">
                 <div class="fl">Business owner</div>
                 <select id="aud-biz-owner" class="aud-field-select" disabled="disabled" style="opacity: 0.55; pointer-events: none; cursor: not-allowed;">
+                  <option value="">—</option>
                   <option selected="selected">R. Thompson (Finance)</option>
                   <option>K. Williams (Operations)</option>
                   <option>D. Martinez (IT)</option>
@@ -1217,6 +1395,7 @@
               <div class="fld">
                 <div class="fl">Audit type</div>
                 <select id="aud-type" class="aud-field-select" disabled="disabled" style="opacity: 0.55; pointer-events: none; cursor: not-allowed;">
+                  <option value="">—</option>
                   <option selected="selected">Financial</option>
                   <option>SOX</option>
                   <option>Operations</option>
@@ -1303,7 +1482,8 @@
           <input type="text" id="wp-search" placeholder="Search ref or name…" oninput="filterWorkpapers()" style="min-width:160px">
           <!-- 2. Type -->
           <select id="wp-filter-type" onchange="filterWorkpapers()">
-            <option value="" selected="selected">All types</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">All types</option>
             <option>Planning</option>
             <option>Testwork</option>
             <option>Report</option>
@@ -1311,21 +1491,26 @@
             <option>Other</option>
           </select>
           <!-- 3. Preparer -->
-          <select id="wp-filter-preparer" onchange="filterWorkpapers()"><option value="" selected="selected">All preparers</option><option value="jdavis">jdavis</option><option value="mchen">mchen</option><option value="rpatel">rpatel</option></select>
+          <select id="wp-filter-preparer" onchange="filterWorkpapers()"><option value="">—</option>
+                  <option value="" selected="selected">All preparers</option><option value="jdavis">jdavis</option><option value="mchen">mchen</option><option value="rpatel">rpatel</option></select>
           <!-- 4. Reviewer -->
-          <select id="wp-filter-reviewer" onchange="filterWorkpapers()"><option value="" selected="selected">All reviewers</option><option value="jdavis">jdavis</option><option value="lmgr">lmgr</option><option value="mchen">mchen</option></select>
+          <select id="wp-filter-reviewer" onchange="filterWorkpapers()"><option value="">—</option>
+                  <option value="" selected="selected">All reviewers</option><option value="jdavis">jdavis</option><option value="lmgr">lmgr</option><option value="mchen">mchen</option></select>
           <!-- 5. Review Month -->
-          <select id="wp-filter-review-month" onchange="filterWorkpapers()" style="min-width:140px"><option value="" selected="selected">All review months</option><option value="2026-04">Apr 2026</option><option value="2026-05">May 2026</option><option value="2026-06">Jun 2026</option><option value="2026-07">Jul 2026</option></select>
+          <select id="wp-filter-review-month" onchange="filterWorkpapers()" style="min-width:140px"><option value="">—</option>
+                  <option value="" selected="selected">All review months</option><option value="2026-04">Apr 2026</option><option value="2026-05">May 2026</option><option value="2026-06">Jun 2026</option><option value="2026-07">Jul 2026</option></select>
           <!-- 6. Status -->
           <select id="wp-filter-status" onchange="filterWorkpapers()">
-            <option value="" selected="selected">All statuses</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">All statuses</option>
             <option>Draft</option>
             <option>In review</option>
             <option>Reviewed</option>
           </select>
           <!-- 7. Results -->
           <select id="wp-filter-results" onchange="filterWorkpapers()" style="min-width:160px">
-            <option value="" selected="selected">All results</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">All results</option>
             <option value="pass">Pass</option>
             <option value="passex">Pass w/ Exceptions</option>
             <option value="fail">Fail</option>
@@ -1532,7 +1717,8 @@
             <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
               <select id="wpd-results" style="font-size: 12px; font-weight: 500; color: var(--text-primary); background: var(--bg-secondary); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; border-radius: var(--radius-md); padding: 4px 8px; outline: none; cursor: pointer;" onchange="updateResultsStyle(); logWPDropdownChange('wpd-results','Results')">
-                <option value="" selected="selected">— Select —</option>
+                <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
                 <option value="pass">Pass</option>
                 <option value="passex">Pass w/ Exceptions</option>
                 <option value="fail">Fail</option>
@@ -1541,7 +1727,8 @@
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
               <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status'); setDogEarsVisible(this.value !== 'approved' &amp;&amp; this.value !== 'complete')">
-                <option value="draft" selected="selected">Draft</option>
+                <option value="">—</option>
+                  <option value="draft" selected="selected">Draft</option>
                 <option value="review">In review</option>
                 <option value="approved">Reviewed</option>
               </select>
@@ -1554,7 +1741,8 @@
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
               <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-preparer','Preparer')">
-                <option value="jdavis">J. Davis (jdavis)</option>
+                <option value="">—</option>
+                  <option value="jdavis">J. Davis (jdavis)</option>
                 <option value="mchen">M. Chen (mchen)</option>
                 <option value="rpatel">R. Patel (rpatel)</option>
                 <option value="ltorres">L. Torres (ltorres)</option>
@@ -1571,7 +1759,8 @@
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
               <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-reviewer','Reviewer')">
-                <option value="mchen">M. Chen (mchen)</option>
+                <option value="">—</option>
+                  <option value="mchen">M. Chen (mchen)</option>
                 <option value="jdavis">J. Davis (jdavis)</option>
                 <option value="rpatel">R. Patel (rpatel)</option>
                 <option value="ltorres">L. Torres (ltorres)</option>
@@ -2429,7 +2618,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',0,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2438,7 +2628,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',0,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2475,7 +2666,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',1,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',1,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2484,7 +2676,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',1,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2521,7 +2714,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',2,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',2,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2530,7 +2724,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',2,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2567,7 +2762,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',3,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',3,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2576,7 +2772,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',3,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2613,7 +2810,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',4,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',4,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2622,7 +2820,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',4,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2659,7 +2858,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',5,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',5,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2668,7 +2868,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',5,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2705,7 +2906,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',6,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',6,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2714,7 +2916,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',6,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2751,7 +2954,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',7,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',7,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2760,7 +2964,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',7,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2797,7 +3002,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',8,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',8,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2806,7 +3012,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',8,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2843,7 +3050,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',9,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',9,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2852,7 +3060,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',9,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -2889,7 +3098,8 @@ auditor's assessment.
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Disposition…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',10,'disposition',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"></textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',10,'dispositionType',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Exception">Exception</option>
           <option value="Deficiency">Deficiency</option>
           <option value="Significant Deficiency">Significant Deficiency</option>
@@ -2898,7 +3108,8 @@ auditor's assessment.
       </div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;padding-top:6px">
         <select style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;" onchange="saveException('WP-2026-FIN-002',10,'dispositionStatus',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
-          <option value="" selected="selected">— Select —</option>
+          <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
           <option value="Final">Final</option>
@@ -3023,6 +3234,7 @@ auditor's assessment.
               <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
                 <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
                 <select id="nwp-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="">—</option>
                   <option value="jdavis" selected="selected">J. Davis (jdavis)</option>
                   <option value="mchen">M. Chen (mchen)</option>
                   <option value="rpatel">R. Patel (rpatel)</option>
@@ -3038,6 +3250,7 @@ auditor's assessment.
               <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
                 <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
                 <select id="nwp-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
+                  <option value="">—</option>
                   <option value="mchen" selected="selected">M. Chen (mchen)</option>
                   <option value="jdavis">J. Davis (jdavis)</option>
                   <option value="rpatel">R. Patel (rpatel)</option>
@@ -3055,6 +3268,7 @@ auditor's assessment.
               <div class="fld">
                 <div class="fl">Workpaper type</div>
                 <select id="nwp-type" class="aud-field-select">
+                  <option value="">—</option>
                   <option value="" selected="selected">— Select type —</option>
                   <option>Planning</option>
                   <option>Testwork</option>
@@ -3066,6 +3280,7 @@ auditor's assessment.
               <div class="fld">
                 <div class="fl">Status</div>
                 <select id="nwp-status" class="aud-field-select">
+                  <option value="">—</option>
                   <option value="draft" selected="selected">Draft</option>
                   <option value="review">In review</option>
                   <option value="approved">Reviewed</option>
@@ -3275,7 +3490,8 @@ auditor's assessment.
         <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--text-tertiary)">Zoom:</span>
           <select id="preview-zoom" onchange="if(window._previewFile &amp;&amp; previewPDFDoc){renderPDFPreview(window._previewFile)}" style="font-size:12px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
-            <option value="0.75">75%</option>
+            <option value="">—</option>
+                  <option value="0.75">75%</option>
             <option value="1" selected="selected">100%</option>
             <option value="1.25">125%</option>
             <option value="1.5">150%</option>
@@ -3480,7 +3696,8 @@ auditor's assessment.
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Type</div>
             <select id="na-type" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
-              <option value="" selected="selected">— Select —</option>
+              <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
               <option>Financial</option><option>SOX</option><option>Operations</option>
               <option>IT / Systems</option><option>Compliance</option><option>Vendor / Third-party</option>
             </select>
@@ -3489,7 +3706,8 @@ auditor's assessment.
         <div>
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Manager</div>
           <select id="na-owner" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
-            <option value="" selected="selected">— Select —</option>
+            <option value="">—</option>
+                  <option value="" selected="selected">— Select —</option>
             <option>jdavis</option><option>mchen</option><option>rpatel</option>
             <option>ltorres</option><option>skim</option><option>awong</option>
           </select>
@@ -3500,7 +3718,8 @@ auditor's assessment.
             <!-- From -->
             <div style="display:flex;align-items:center;gap:4px">
               <select id="na-period-from-month" style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:80px" onchange="rebuildNewAuditPeriod()">
-                <option value="" selected="selected">Month</option>
+                <option value="">—</option>
+                  <option value="" selected="selected">Month</option>
                 <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
                 <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
                 <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
@@ -3512,7 +3731,8 @@ auditor's assessment.
             <!-- To -->
             <div style="display:flex;align-items:center;gap:4px">
               <select id="na-period-to-month" style="font-size:12px;padding:5px 7px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;background:var(--bg-secondary);color:var(--text-primary);width:80px" onchange="rebuildNewAuditPeriod()">
-                <option value="" selected="selected">Month</option>
+                <option value="">—</option>
+                  <option value="" selected="selected">Month</option>
                 <option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option>
                 <option>May</option><option>Jun</option><option>Jul</option><option>Aug</option>
                 <option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option>
@@ -4466,7 +4686,7 @@ function populateWpFilters() {
   const revSel = document.getElementById('wp-filter-reviewer');
   if (revSel) {
     revSel.innerHTML = '<option value="">All reviewers</option>' +
-      reviewers.map(r => `<option value="${r}">${r}</option>`).join('');
+      ['', ...reviewers].map(r => `<option value="${r}">${r || '—'}</option>`).join('');
   }
 
   // Review months — unique year-month keys, sorted chronologically
@@ -6959,6 +7179,7 @@ async function _loadWorkpapersFromDB() {
     // Also load RCM controls/risks and FS accounts from Postgres
     if (typeof _loadRCMFromDB === 'function') await _loadRCMFromDB();
     if (typeof _loadFSAccountsFromDB === 'function') await _loadFSAccountsFromDB();
+    if (typeof _loadObjectivesFromDB === 'function') await _loadObjectivesFromDB();
     // Also ensure entity list used by audit module stays current from Postgres
     if (typeof _loadEntitiesFromDB === 'function') {
       await _loadEntitiesFromDB();
@@ -7174,6 +7395,166 @@ function saveCurrentPage() {
   if (pageId === 'page-wpdetail' && currentWPIndex >= 0 && WORKPAPERS[currentWPIndex]) {
     _saveWorkpaperToDB(WORKPAPERS[currentWPIndex]);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  COMPANY SETTINGS & AI PROVIDER
+// ══════════════════════════════════════════════════════════════════════════════
+var _companySettings = {
+  name:'', industry:'', fiscal_year_end:'', address:'', city:'', state:'', zip:'', website:'', ein:'',
+  ai_provider:'anthropic', ai_model:'claude-sonnet-4-6',
+  azure_endpoint:'', azure_deployment:''
+};
+var _csSaveTimer = null;
+
+// Load from DB on startup
+(function() {
+  fetch('/api/company-settings').then(function(r){ return r.json(); }).then(function(d){
+    if (!d || d.error) return;
+    _companySettings = Object.assign(_companySettings, d);
+    _csApplyToUI();
+  }).catch(function(){});
+})();
+
+function _csApplyToUI() {
+  var s = _companySettings;
+  var fields = { 'cs-name':s.name, 'cs-industry':s.industry, 'cs-fye':s.fiscal_year_end,
+                 'cs-ein':s.ein, 'cs-website':s.website, 'cs-address':s.address,
+                 'cs-city':s.city, 'cs-state':s.state, 'cs-zip':s.zip };
+  Object.keys(fields).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && fields[id]) el.value = fields[id];
+  });
+  // Update company name badge in header
+  var badge = document.getElementById('company-name-badge');
+  if (badge) badge.textContent = s.name ? '— ' + s.name : '';
+  // AI provider
+  _csSelectProvider(s.ai_provider || 'anthropic', true);
+  // Claude model select
+  var msel = document.getElementById('cs-claude-model');
+  if (msel && s.ai_model) msel.value = s.ai_model;
+  // Azure config
+  var azEp = document.getElementById('cs-azure-endpoint');
+  if (azEp && s.azure_endpoint) azEp.value = s.azure_endpoint;
+  var azDep = document.getElementById('cs-azure-deployment');
+  if (azDep && s.azure_deployment) azDep.value = s.azure_deployment;
+  // AI badge
+  _csUpdateAIBadge();
+}
+
+function _csAutosave() {
+  clearTimeout(_csSaveTimer);
+  _csSaveTimer = setTimeout(_csSaveAll, 900);
+}
+
+function _csSaveAll() {
+  var s = _companySettings;
+  s.name          = document.getElementById('cs-name')?.value || '';
+  s.industry      = document.getElementById('cs-industry')?.value || '';
+  s.fiscal_year_end = document.getElementById('cs-fye')?.value || '';
+  s.ein           = document.getElementById('cs-ein')?.value || '';
+  s.website       = document.getElementById('cs-website')?.value || '';
+  s.address       = document.getElementById('cs-address')?.value || '';
+  s.city          = document.getElementById('cs-city')?.value || '';
+  s.state         = document.getElementById('cs-state')?.value || '';
+  s.zip           = document.getElementById('cs-zip')?.value || '';
+  // AI model from active provider
+  if (s.ai_provider === 'anthropic') s.ai_model = document.getElementById('cs-claude-model')?.value || 'claude-sonnet-4-6';
+  if (s.ai_provider === 'openai')    s.ai_model = document.getElementById('cs-openai-model')?.value || 'gpt-4o';
+  // Update company badge
+  var badge = document.getElementById('company-name-badge');
+  if (badge) badge.textContent = s.name ? '— ' + s.name : '';
+  _csUpdateAIBadge();
+  fetch('/api/company-settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(s)
+  }).then(function(r) {
+    var el = document.getElementById('cs-save-status');
+    if (el) el.textContent = r.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed';
+  }).catch(function(e) { console.warn('[Settings] save failed:', e.message); });
+}
+
+function _csSaveAIConfig() {
+  var s = _companySettings;
+  var payload = Object.assign({}, s);
+  if (s.ai_provider === 'azure') {
+    payload.azure_endpoint   = document.getElementById('cs-azure-endpoint')?.value || '';
+    payload.azure_deployment = document.getElementById('cs-azure-deployment')?.value || '';
+    payload.azure_api_key    = document.getElementById('cs-azure-key')?.value || '';
+    s.azure_endpoint   = payload.azure_endpoint;
+    s.azure_deployment = payload.azure_deployment;
+  } else if (s.ai_provider === 'openai') {
+    payload.openai_api_key = document.getElementById('cs-openai-key')?.value || '';
+    s.ai_model = document.getElementById('cs-openai-model')?.value || 'gpt-4o';
+    payload.ai_model = s.ai_model;
+  }
+  fetch('/api/company-settings', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  }).then(function(r) {
+    var el = document.getElementById('ai-save-status');
+    if (el) el.textContent = r.ok ? '✓ Saved ' + new Date().toLocaleTimeString() : 'Save failed';
+    // Clear key field after save for security
+    var keyEl = document.getElementById('cs-azure-key') || document.getElementById('cs-openai-key');
+    if (keyEl) keyEl.value = '';
+    _csUpdateAIBadge();
+  }).catch(function(e) { console.warn('[AI] save failed:', e.message); });
+}
+
+function _csSelectProvider(provider, silent) {
+  _companySettings.ai_provider = provider;
+  // Update button styles
+  document.querySelectorAll('.ai-prov-btn').forEach(function(btn) {
+    var isActive = btn.dataset.provider === provider;
+    btn.style.borderColor  = isActive ? 'var(--wf-navy)' : 'var(--border-medium)';
+    btn.style.background   = isActive ? '#eff6ff' : 'var(--bg-secondary)';
+    btn.style.color        = isActive ? 'var(--wf-navy)' : 'var(--text-secondary)';
+  });
+  // Show/hide config panels
+  var panels = { anthropic:'ai-config-anthropic', azure:'ai-config-azure', openai:'ai-config-openai' };
+  Object.keys(panels).forEach(function(p) {
+    var el = document.getElementById(panels[p]);
+    if (el) el.style.display = p === provider ? 'flex' : 'none';
+    if (el && p === provider) el.style.flexDirection = 'column';
+  });
+  _csUpdateAIBadge();
+  if (!silent) _csSaveAll();
+}
+
+function _csUpdateAIBadge() {
+  var s = _companySettings;
+  var label = '';
+  if (s.ai_provider === 'anthropic') label = 'Anthropic · ' + (s.ai_model || 'Claude');
+  else if (s.ai_provider === 'azure') label = 'Azure OpenAI · ' + (s.azure_deployment || 'GPT-4o');
+  else if (s.ai_provider === 'openai') label = 'OpenAI · ' + (s.ai_model || 'GPT-4o');
+  var badge = document.getElementById('ai-provider-badge');
+  if (badge) badge.textContent = label;
+}
+
+var _settingsSectionOpen = {};
+function _toggleSettingsSection(section) {
+  _settingsSectionOpen[section] = !_settingsSectionOpen[section];
+  var bodyId  = section === 'company' ? 'company-settings-body' : 'ai-settings-body';
+  var chevId  = section === 'company' ? 'company-chevron' : 'ai-chevron';
+  var body = document.getElementById(bodyId);
+  var chev = document.getElementById(chevId);
+  if (body) body.style.display = _settingsSectionOpen[section] ? 'block' : 'none';
+  if (chev) chev.style.transform = _settingsSectionOpen[section] ? 'rotate(180deg)' : '';
+}
+
+// ── AI proxy call (replaces direct Anthropic API call when provider is set) ──
+async function _callAI(messages, maxTokens, systemPrompt) {
+  const body = { messages, max_tokens: maxTokens || 4000 };
+  if (systemPrompt) body.system = systemPrompt;
+  const res = await fetch('/api/ai/analyze', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error || 'AI request failed (' + res.status + ')');
+  }
+  return res.json(); // returns { content:[{type:'text',text:'...'}], ... }
 }
 
 function activateAuditsSection() {
@@ -7641,7 +8022,7 @@ function openEntityDialog(idx) {
         style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">
         ${types.map(t => {
           const ts = getEntityTypeStyle(t);
-          return `<option value="${t}" ${currentType===t?'selected':''}>${t}</option>`;
+          return `                  <option value="${t}" ${currentType===t?'selected':''}>${t}</option>`;
         }).join('')}
         <option disabled>──────</option>
         <option value="__new__">+ New type…</option>
@@ -9205,7 +9586,42 @@ function rcmUpdateOwner(idx, type, pos, value) {
 
 // ── RCM combo-box helpers ─────────────────────────────────────────────────────
 window._rcmObjectivePool = window._rcmObjectivePool || [];
-// Map of objective text → CO-NNN id
+// Library of full control objective objects: { id, title, description }
+window._rcmObjectivesLib = window._rcmObjectivesLib || [];
+
+// Sync lib → pool and id map so existing single-objective assignment still works
+function _rcmSyncObjLib() {
+  window._rcmObjectivesLib.forEach(function(o) {
+    if (!o.id || !o.title) return;
+    window._rcmObjectiveIdMap[o.title.trim()] = o.id;
+    if (window._rcmObjectivePool.indexOf(o.title.trim()) < 0) window._rcmObjectivePool.push(o.title.trim());
+  });
+}
+
+// Load control objectives from DB on startup
+async function _loadObjectivesFromDB() {
+  if (!window._hasBackend) return;
+  try {
+    const res = await fetch('/api/control-objectives');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data)) return;
+    window._rcmObjectivesLib = data;
+    _rcmSyncObjLib();
+  } catch(e) { console.warn('[Objectives] load failed:', e.message); }
+}
+
+// Save a single objective to DB
+async function _saveObjectiveToDB(obj) {
+  if (!window._hasBackend || !obj.id) return;
+  try {
+    await fetch('/api/control-objectives', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: obj.id, title: obj.title||'', description: obj.description||'' })
+    });
+  } catch(e) { console.warn('[Objectives] save failed:', e.message); }
+}
+
 window._rcmObjectiveIdMap = window._rcmObjectiveIdMap || {};
 
 // Return or auto-assign a CO-NNN id for an objective text value
@@ -9391,7 +9807,14 @@ function rcmPersistObjective(value) {
     window._rcmObjectivePool.push(value.trim());
   }
   // Ensure an ID is registered for this objective
-  rcmGetOrAssignObjectiveId(value.trim());
+  var id = rcmGetOrAssignObjectiveId(value.trim());
+  // Also add to the library if not already there (title-only, no description)
+  if (!window._rcmObjectivesLib) window._rcmObjectivesLib = [];
+  if (!window._rcmObjectivesLib.find(function(o){ return o.id===id; })) {
+    var obj = { id: id, title: value.trim(), description: '' };
+    window._rcmObjectivesLib.push(obj);
+    _saveObjectiveToDB(obj);
+  }
 }
 
 // ── RCM Entity Link Modal ─────────────────────────────────────────────────────
@@ -9414,7 +9837,7 @@ function openRCMEntityModal(idx) {
   if (!entityList.length) entityList = ALL_ENTITIES||[];
   var types = [...new Set(entityList.map(function(e){ return e.type||e.category||'Other'; }))].sort();
 
-  var typeOpts = '<option value="">All Types</option>' +
+  var typeOpts = '<option value="">— All Types —</option>' +
     types.map(function(t){ return '<option value="'+escHtml(t)+'">'+escHtml(t)+'</option>'; }).join('');
 
   var html =
@@ -9782,6 +10205,269 @@ function rcmGetObjectivePool() {
   });
   pool.sort();
   return pool;
+}
+
+// ── Control Objectives Library Modal ─────────────────────────────────────────
+// State: currently-editing objective in the form (not yet committed)
+var _rcmObjLibState = {
+  pendingId:   '',   // CO-NNN being created/edited (shown in form, not yet saved)
+  title:       '',
+  description: '',
+  isEdit:      false, // true = editing an existing objective
+  listQuery:   ''
+};
+
+function openRCMObjectivesLibModal() {
+  _resetObjLibForm(false);
+  document.getElementById('rcm-objlib-modal')?.remove();
+
+  // Build next pending ID (not yet committed)
+  _rcmObjLibState.pendingId = _rcmNextObjId();
+  _rcmObjLibState.title       = '';
+  _rcmObjLibState.description = '';
+  _rcmObjLibState.isEdit      = false;
+  _rcmObjLibState.listQuery   = '';
+
+  var html =
+    '<div id="rcm-objlib-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)_closeObjLibModal()">' +
+    '<div style="background:var(--bg-primary);border-radius:14px;width:min(700px,96vw);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.4);overflow:hidden">' +
+
+      // ── Header ──────────────────────────────────────────────────────────────
+      '<div style="background:var(--wf-navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+        '<div>' +
+          '<div style="font-size:15px;font-weight:700"><i class="ti ti-target" style="margin-right:8px"></i>Control Objectives Library</div>' +
+          '<div style="font-size:11px;opacity:0.65;margin-top:2px">Create and manage reusable control objectives; select one below to edit it</div>' +
+        '</div>' +
+        '<button onclick="_closeObjLibModal()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0">&#x00D7;</button>' +
+      '</div>' +
+
+      // ── NEW / EDIT FORM ──────────────────────────────────────────────────────
+      '<div style="padding:16px 22px;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);flex-shrink:0">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
+          '<span id="rcm-objlib-mode-badge" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--wf-navy)">New Control Objective</span>' +
+          '<span style="font-size:11px;color:var(--text-tertiary)">·</span>' +
+          '<span id="rcm-objlib-id-badge" style="font-size:12px;font-weight:700;color:var(--wf-navy);background:#eff6ff;border:0.5px solid #93c5fd;border-radius:4px;padding:2px 8px"></span>' +
+          '<button id="rcm-objlib-clear-btn" onclick="_resetObjLibForm(false)" style="display:none;font-size:10px;color:var(--text-tertiary);background:none;border:0.5px solid var(--border-light);border-radius:4px;padding:2px 8px;cursor:pointer;margin-left:auto">Clear / New</button>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px">' +
+          '<div>' +
+            '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Control Objective Title <span style="color:#dc2626">*</span></label>' +
+            '<input id="rcm-objlib-title" type="text" maxlength="200" placeholder="e.g. Ensure proper access controls are in place…" ' +
+              'style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;background:var(--bg-primary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
+              'oninput="_rcmObjLibState.title=this.value;_rcmObjLibPreview()" ' +
+              'onfocus="this.style.borderColor=\'var(--wf-blue)\'" onblur="this.style.borderColor=\'var(--border-medium)\'">' +
+          '</div>' +
+          '<div>' +
+            '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Control Objective Description</label>' +
+            '<textarea id="rcm-objlib-desc" rows="3" placeholder="Describe what this control objective is intended to achieve, the risk it addresses, and any relevant context…" ' +
+              'style="width:100%;font-size:12px;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;background:var(--bg-primary);outline:none;resize:vertical;font-family:inherit;line-height:1.5;color:var(--text-primary);box-sizing:border-box" ' +
+              'oninput="_rcmObjLibState.description=this.value" ' +
+              'onfocus="this.style.borderColor=\'var(--wf-blue)\'" onblur="this.style.borderColor=\'var(--border-medium)\'"></textarea>' +
+          '</div>' +
+        '</div>' +
+        '<div id="rcm-objlib-form-error" style="display:none;font-size:11px;color:#dc2626;margin-top:6px"></div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">' +
+          '<button class="btn-s" onclick="_resetObjLibForm(false)">Cancel / Clear</button>' +
+          '<button class="btn-p" id="rcm-objlib-ok-btn" onclick="_rcmObjLibSave()"><i class="ti ti-check"></i>OK — Save Objective</button>' +
+        '</div>' +
+      '</div>' +
+
+      // ── EXISTING OBJECTIVES LIST ──────────────────────────────────────────────
+      '<div style="padding:10px 22px 6px;border-bottom:0.5px solid var(--border-light);flex-shrink:0;background:var(--bg-primary)">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Existing Objectives</span>' +
+          '<div style="flex:1;display:flex;align-items:center;gap:6px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:6px;padding:5px 10px;max-width:320px">' +
+            '<i class="ti ti-search" style="font-size:11px;color:var(--text-tertiary)"></i>' +
+            '<input id="rcm-objlib-search" type="text" placeholder="Search by ID, title or description…" ' +
+              'style="flex:1;border:none;outline:none;font-size:12px;background:transparent;color:var(--text-primary)" ' +
+              'oninput="_rcmObjLibState.listQuery=this.value;_rcmObjLibRenderList()">' +
+          '</div>' +
+          '<span id="rcm-objlib-count" style="font-size:11px;color:var(--text-tertiary);margin-left:auto"></span>' +
+        '</div>' +
+      '</div>' +
+      '<div id="rcm-objlib-list" style="overflow-y:auto;flex:1;min-height:120px"></div>' +
+
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  _rcmObjLibRefreshIdBadge();
+  _rcmObjLibRenderList();
+  setTimeout(function(){ document.getElementById('rcm-objlib-title')?.focus(); }, 60);
+}
+
+function _closeObjLibModal() {
+  document.getElementById('rcm-objlib-modal')?.remove();
+}
+
+function _rcmNextObjId() {
+  var used = new Set();
+  window._rcmObjectivesLib.forEach(function(o){ var n=parseInt((o.id||'').replace('CO-',''),10); if(!isNaN(n)) used.add(n); });
+  Object.values(window._rcmObjectiveIdMap||{}).forEach(function(id){ var n=parseInt((id||'').replace('CO-',''),10); if(!isNaN(n)) used.add(n); });
+  var next=1; while(used.has(next)) next++;
+  return 'CO-'+String(next).padStart(3,'0');
+}
+
+function _rcmObjLibRefreshIdBadge() {
+  var el = document.getElementById('rcm-objlib-id-badge');
+  if (el) el.textContent = _rcmObjLibState.pendingId;
+}
+
+function _rcmObjLibPreview() {
+  // Live update: nothing else needed since state is already updated via oninput
+}
+
+function _resetObjLibForm(keepModal) {
+  _rcmObjLibState.title       = '';
+  _rcmObjLibState.description = '';
+  _rcmObjLibState.isEdit      = false;
+  _rcmObjLibState.pendingId   = _rcmNextObjId();
+  if (!keepModal) return;
+  var modeEl = document.getElementById('rcm-objlib-mode-badge');
+  if (modeEl) modeEl.textContent = 'New Control Objective';
+  var titleEl = document.getElementById('rcm-objlib-title');
+  if (titleEl) { titleEl.value = ''; }
+  var descEl = document.getElementById('rcm-objlib-desc');
+  if (descEl) descEl.value = '';
+  var errEl = document.getElementById('rcm-objlib-form-error');
+  if (errEl) errEl.style.display = 'none';
+  var clearBtn = document.getElementById('rcm-objlib-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  var okBtn = document.getElementById('rcm-objlib-ok-btn');
+  if (okBtn) okBtn.innerHTML = '<i class="ti ti-check"></i>OK — Save Objective';
+  _rcmObjLibRefreshIdBadge();
+  _rcmObjLibRenderList();
+}
+
+function _rcmObjLibLoadForEdit(id) {
+  var obj = window._rcmObjectivesLib.find(function(o){ return o.id===id; });
+  if (!obj) return;
+  _rcmObjLibState.pendingId   = obj.id;
+  _rcmObjLibState.title       = obj.title||'';
+  _rcmObjLibState.description = obj.description||'';
+  _rcmObjLibState.isEdit      = true;
+  var modeEl = document.getElementById('rcm-objlib-mode-badge');
+  if (modeEl) modeEl.textContent = 'Editing';
+  var badge = document.getElementById('rcm-objlib-id-badge');
+  if (badge) badge.textContent = obj.id;
+  var titleEl = document.getElementById('rcm-objlib-title');
+  if (titleEl) { titleEl.value = obj.title||''; titleEl.focus(); }
+  var descEl = document.getElementById('rcm-objlib-desc');
+  if (descEl) descEl.value = obj.description||'';
+  var clearBtn = document.getElementById('rcm-objlib-clear-btn');
+  if (clearBtn) clearBtn.style.display = '';
+  var okBtn = document.getElementById('rcm-objlib-ok-btn');
+  if (okBtn) okBtn.innerHTML = '<i class="ti ti-check"></i>OK — Update Objective';
+  var errEl = document.getElementById('rcm-objlib-form-error');
+  if (errEl) errEl.style.display = 'none';
+  _rcmObjLibRenderList();
+  // Scroll the form into view
+  var modal = document.getElementById('rcm-objlib-modal');
+  if (modal) modal.querySelector('[id="rcm-objlib-title"]')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function _rcmObjLibSave() {
+  var title = (document.getElementById('rcm-objlib-title')?.value||'').trim();
+  var desc  = (document.getElementById('rcm-objlib-desc')?.value||'').trim();
+  var errEl = document.getElementById('rcm-objlib-form-error');
+
+  if (!title) {
+    if (errEl) { errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; }
+    document.getElementById('rcm-objlib-title')?.focus();
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+
+  var id = _rcmObjLibState.pendingId;
+  var existing = window._rcmObjectivesLib.findIndex(function(o){ return o.id===id; });
+  var obj = { id, title, description: desc };
+
+  if (existing >= 0) {
+    // Update in-memory — update all controls that use this objective's title
+    var oldTitle = window._rcmObjectivesLib[existing].title;
+    window._rcmObjectivesLib[existing] = obj;
+    // If title changed, update controls using the old title
+    if (oldTitle !== title) {
+      _fndControls.forEach(function(c){
+        if ((c.objective||'').trim() === oldTitle.trim()) c.objective = title;
+      });
+      delete window._rcmObjectiveIdMap[oldTitle];
+    }
+  } else {
+    window._rcmObjectivesLib.push(obj);
+  }
+  window._rcmObjectiveIdMap[title] = id;
+  if (window._rcmObjectivePool.indexOf(title) < 0) window._rcmObjectivePool.push(title);
+
+  // Persist to DB
+  _saveObjectiveToDB(obj);
+
+  // Reset form to "new" state with next sequential ID
+  _resetObjLibForm(true);
+  _rcmObjLibRenderList();
+  renderFoundationsRCM();
+}
+
+function _rcmObjLibRenderList() {
+  var list = document.getElementById('rcm-objlib-list');
+  if (!list) return;
+  var q = (_rcmObjLibState.listQuery||'').toLowerCase().trim();
+  var lib = window._rcmObjectivesLib.filter(function(o){
+    if (!q) return true;
+    return (o.id||'').toLowerCase().includes(q) ||
+           (o.title||'').toLowerCase().includes(q) ||
+           (o.description||'').toLowerCase().includes(q);
+  });
+
+  var countEl = document.getElementById('rcm-objlib-count');
+  if (countEl) countEl.textContent = lib.length + ' of ' + window._rcmObjectivesLib.length + ' objective' + (window._rcmObjectivesLib.length!==1?'s':'');
+
+  if (!lib.length) {
+    list.innerHTML = '<div style="padding:20px 22px;font-size:13px;color:var(--text-tertiary);font-style:italic">' +
+      (window._rcmObjectivesLib.length ? 'No objectives match "'+escHtml(q)+'".' : 'No control objectives saved yet — use the form above to create one.') +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML = lib.map(function(o) {
+    var isActive = _rcmObjLibState.isEdit && _rcmObjLibState.pendingId===o.id;
+    // Count how many controls use this objective
+    var useCount = _fndControls.filter(function(c){ return c.objective_id===o.id; }).length;
+    return '<div onclick="_rcmObjLibLoadForEdit(\''+escHtml(o.id)+'\')" ' +
+      'style="display:flex;align-items:flex-start;gap:12px;padding:12px 22px;border-bottom:0.5px solid var(--border-light);cursor:pointer;'+(isActive?'background:#f0fdf4;':'')+'transition:background 0.1s" ' +
+      'onmouseenter="if(!\''+isActive+'\')this.style.background=\'var(--bg-secondary)\'" ' +
+      'onmouseleave="if(!\''+isActive+'\')this.style.background=\'\'">' +
+      '<div style="flex-shrink:0;margin-top:2px">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--wf-navy);background:#eff6ff;border:0.5px solid #93c5fd;border-radius:4px;padding:2px 7px;white-space:nowrap">'+escHtml(o.id)+'</span>' +
+      '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:3px">'+escHtml(o.title||'(no title)')+'</div>' +
+        (o.description ? '<div style="font-size:11px;color:var(--text-secondary);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(o.description)+'">'+escHtml(o.description.slice(0,120)+(o.description.length>120?'…':''))+'</div>' : '') +
+      '</div>' +
+      '<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
+        (useCount ? '<span style="font-size:10px;color:var(--text-tertiary)">'+useCount+' control'+(useCount!==1?'s':'')+'</span>' : '') +
+        '<button onclick="event.stopPropagation();_rcmObjLibDelete(\''+escHtml(o.id)+'\')" title="Delete" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:13px;padding:2px;opacity:0.6" onmouseenter="this.style.color=\'#dc2626\';this.style.opacity=\'1\'" onmouseleave="this.style.color=\'var(--text-tertiary)\';this.style.opacity=\'0.6\'"><i class="ti ti-trash"></i></button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _rcmObjLibDelete(id) {
+  var obj = window._rcmObjectivesLib.find(function(o){ return o.id===id; });
+  if (!obj) return;
+  var useCount = _fndControls.filter(function(c){ return c.objective_id===id; }).length;
+  var msg = 'Delete control objective ' + id + ' — ' + (obj.title||'') + '?';
+  if (useCount) msg += '\n\nWarning: ' + useCount + ' control' + (useCount!==1?'s are':' is') + ' linked to this objective. Their objective reference will be cleared.';
+  if (!confirm(msg)) return;
+  // Remove from lib
+  window._rcmObjectivesLib = window._rcmObjectivesLib.filter(function(o){ return o.id!==id; });
+  delete window._rcmObjectiveIdMap[obj.title||''];
+  // Clear from controls that used it
+  _fndControls.forEach(function(c){ if (c.objective_id===id) { c.objective_id=''; } });
+  // Delete from DB
+  if (window._hasBackend) fetch('/api/control-objectives/'+encodeURIComponent(id), {method:'DELETE'}).catch(function(){});
+  // Reset form if was editing this one
+  if (_rcmObjLibState.pendingId===id) _resetObjLibForm(true);
+  else _rcmObjLibRenderList();
 }
 
 function rcmBuildObjectiveSummaryHtml(idx, c) {
@@ -10289,7 +10975,8 @@ function openRCMDialog(idx) {
   }
   function sel(field, val, opts) {
     return '<select onchange="rcmDialogUpdate('+idx+',\''+field+'\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-      opts.map(function(o){ return '<option value="'+o+'" '+((val||'')=== o?'selected':'')+'>'+( o||'Select…')+'</option>'; }).join('')+'</select>';
+      '<option value="">—</option>' +
+      opts.map(function(o){ return '<option value="'+o+'" '+((val||'')=== o?'selected':'')+'>'+( o||'—')+'</option>'; }).join('')+'</select>';
   }
 
   var html =
@@ -10331,7 +11018,8 @@ function openRCMDialog(idx) {
                 'oninput="rcmDialogUpdate('+idx+',\'id\',this.value)"></div>' +
               '<div>'+fld('Category')+
                 '<select id="rcm-cat-sel-'+idx+'" tabindex="2" onchange="rcmCategoryChange('+idx+',this)" style="width:100%;font-size:13px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-                CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+(c.category===cat?'selected':'')+'>'+cat+'</option>';}).join('')+
+                 '<option value="">—</option>' +
+                 CATEGORIES.map(function(cat){return '<option value="'+cat+'" '+((c.category||'')=== cat?'selected':'')+'>'+cat+'</option>'; }).join('')+
                 '<option disabled style="color:var(--border-medium)">──────────────</option>'+
                 '<option value="__new__">+ New Category…</option>'+
                 '</select></div>' +
@@ -10393,12 +11081,14 @@ function openRCMDialog(idx) {
             rcmSecHdr('Classification', 'ti-tags') +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
               '<div>'+fld('Frequency')+
-                '<select tabindex="10" onchange="rcmDialogUpdate('+idx+',\'frequency\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-                FREQUENCIES.map(function(f){return '<option value="'+f+'" '+((c.frequency||'')===f?'selected':'')+'>'+( f||'Select frequency')+'</option>';}).join('')+
+                '<select tabindex="10" onchange="rcmDialogUpdate('+idx+',\'frequency\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">' +
+                '<option value="">—</option>' +
+                FREQUENCIES.map(function(f){return '<option value="'+f+'" '+((c.frequency||'')===f?'selected':'')+'>'+f+'</option>';}).join('')+
                 '</select></div>' +
               '<div>'+fld('Control Type')+
-                '<select tabindex="11" onchange="rcmDialogUpdate('+idx+',\'control_type\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">'+
-                CTRL_TYPES.map(function(t){return '<option value="'+t+'" '+((c.control_type||'')===t?'selected':'')+'>'+( t||'Select type')+'</option>';}).join('')+
+                '<select tabindex="11" onchange="rcmDialogUpdate('+idx+',\'control_type\',this.value)" style="width:100%;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:8px 10px;background:var(--bg-secondary);color:var(--text-primary)">' +
+                '<option value="">—</option>' +
+                CTRL_TYPES.map(function(t){return '<option value="'+t+'" '+((c.control_type||'')===t?'selected':'')+'>'+t+'</option>';}).join('')+
                 '</select></div>' +
             '</div>' +
           '</div>' +
@@ -10654,19 +11344,19 @@ function renderFoundationsFS() {
               <td style="padding:6px 8px">
                 <select style="font-size:11px;border:0.5px solid var(--border-light);border-radius:4px;padding:3px 6px;background:var(--bg-secondary);color:var(--text-primary);outline:none"
                   onchange="updateFoundationsFS(${idx},'materiality',this.value);_saveFSAccountToDB(_fndFSAccounts[${idx}])">
-                  ${MATERIALITY.map(v=>`<option value="${v}" ${(f.materiality||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
+                  ${"<option value=\"\"\>—</option>"+MATERIALITY.map(v=>`                  <option value="${v}" ${(f.materiality||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:6px 8px">
                 <select style="font-size:11px;border:0.5px solid var(--border-light);border-radius:4px;padding:3px 6px;background:var(--bg-secondary);color:var(--text-primary);outline:none"
                   onchange="updateFoundationsFS(${idx},'txn_volume',this.value);_saveFSAccountToDB(_fndFSAccounts[${idx}])">
-                  ${TXN_VOL.map(v=>`<option value="${v}" ${(f.txn_volume||f.transactionVolume||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
+                  ${"<option value=\"\"\>—</option>"+TXN_VOL.map(v=>`                  <option value="${v}" ${(f.txn_volume||f.transactionVolume||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:6px 8px">
                 <select style="font-size:11px;border:0.5px solid var(--border-light);border-radius:4px;padding:3px 6px;background:var(--bg-secondary);color:var(--text-primary);outline:none"
                   onchange="updateFoundationsFS(${idx},'inherent_risk',this.value);_saveFSAccountToDB(_fndFSAccounts[${idx}])">
-                  ${RISK_LEVELS.map(v=>`<option value="${v}" ${(f.inherent_risk||f.riskLevel||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
+                  ${"<option value=\"\"\>—</option>"+RISK_LEVELS.map(v=>`                  <option value="${v}" ${(f.inherent_risk||f.riskLevel||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:6px 8px;text-align:center">
@@ -10688,7 +11378,7 @@ function renderFoundationsFS() {
               <td style="padding:6px 8px">
                 <select style="font-size:11px;border:0.5px solid var(--border-light);border-radius:4px;padding:3px 6px;background:var(--bg-secondary);color:var(--text-primary);outline:none;min-width:90px"
                   onchange="updateFoundationsFS(${idx},'audit_approach',this.value);_saveFSAccountToDB(_fndFSAccounts[${idx}])">
-                  ${AUDIT_APP.map(v=>`<option value="${v}" ${(f.audit_approach||f.auditApproach||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
+                  ${"<option value=\"\"\>—</option>"+AUDIT_APP.map(v=>`                  <option value="${v}" ${(f.audit_approach||f.auditApproach||'')=== v?'selected':''}>${v||'—'}</option>`).join('')}
                 </select>
               </td>
               <td style="padding:6px 8px;min-width:140px">
@@ -13636,6 +14326,7 @@ function saveAuditYear(val) {
    AUDIT INFO CARD — EDIT LOCK
 ══════════════════════════════════════ */
 const AUDIT_INFO_LOCKED_FIELDS = [
+  'aud-name',
   'aud-year',
   'aud-period-from-month','aud-period-from-day','aud-period-from-year',
   'aud-period-to-month','aud-period-to-day','aud-period-to-year',
@@ -13651,6 +14342,14 @@ function setAuditInfoLocked(locked) {
     el.style.pointerEvents = locked ? 'none' : '';
     el.style.cursor        = locked ? 'not-allowed' : '';
   });
+
+  // Show/hide the name field row — hidden when locked (page title shows name instead)
+  const nameFld = document.getElementById('aud-name-fld');
+  if (nameFld) nameFld.style.display = locked ? 'none' : '';
+  // Populate name input when entering edit mode
+  const nameInput = document.getElementById('aud-name');
+  if (nameInput && !locked && currentAudit) nameInput.value = currentAudit.name || '';
+
   const btn = document.getElementById('aud-edit-btn');
   if (btn) {
     if (locked) {
@@ -13676,6 +14375,7 @@ function toggleAuditInfoEdit() {
     // Pressing Ok — flush all fields to currentAudit and save to DB
     rebuildAuditPeriod();
 
+    const nameEl   = document.getElementById('aud-name');
     const descEl   = document.getElementById('aud-desc');
     const ownerSel = document.getElementById('aud-owner');
     const typeSel  = document.getElementById('aud-type');
@@ -13683,8 +14383,28 @@ function toggleAuditInfoEdit() {
     const yearEl   = document.getElementById('aud-year');
 
     if (currentAudit) {
+      // Name — update all display elements that show the audit name
+      const newName = (nameEl?.value||'').trim();
+      if (newName && newName !== currentAudit.name) {
+        const oldName = currentAudit.name;
+        currentAudit.name = newName;
+        // Update breadcrumb and page title
+        const bcEl = document.getElementById('bc-audit-name');
+        if (bcEl) bcEl.textContent = newName;
+        const ptEl = document.getElementById('wp-page-title');
+        if (ptEl) ptEl.textContent = newName;
+        const ttEl = document.getElementById('wp-table-title');
+        if (ttEl) ttEl.textContent = `Workpapers — ${newName}`;
+        const nwpEl = document.getElementById('nwp-audit-name');
+        if (nwpEl) nwpEl.textContent = newName;
+        // Update in AUDITS array
+        const ai = AUDITS.findIndex(a => a.name === oldName);
+        if (ai >= 0) AUDITS[ai].name = newName;
+        // Update any workpapers that reference the old audit name
+        WORKPAPERS.forEach(w => { if (w.auditName === oldName) w.auditName = newName; });
+      }
       if (descEl)    currentAudit.desc   = descEl.value.trim();
-      if (ownerSel)  currentAudit.owner  = ownerSel.options[ownerSel.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || currentAudit.owner;
+      if (ownerSel)  currentAudit.owner  = ownerSel.value ? (ownerSel.options[ownerSel.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || '') : '';
       if (typeSel)   currentAudit.type   = typeSel.value;
       if (statusSel) currentAudit.status = statusSel.value;
       if (yearEl)    {
