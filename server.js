@@ -212,6 +212,18 @@ async function initDB() {
         linked_risks     JSONB DEFAULT '[]',
         linked_entities  JSONB DEFAULT '[]',
         linked_accounts  JSONB DEFAULT '[]',
+        analyst_notes    TEXT DEFAULT '',
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
+      );
+      CREATE TABLE IF NOT EXISTS risks (
+        tenant_id    TEXT NOT NULL DEFAULT 'default',
+        id           TEXT NOT NULL DEFAULT '',
+        name         TEXT NOT NULL DEFAULT '',
+        category     TEXT DEFAULT '',
+        description  TEXT DEFAULT '',
+        analyst_notes TEXT DEFAULT '',
         created_at   TIMESTAMPTZ DEFAULT NOW(),
         updated_at   TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, id)
@@ -295,6 +307,8 @@ async function initDB() {
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`);
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
         SELECT column_name FROM information_schema.columns
@@ -342,12 +356,13 @@ app.get('/api/risks', async (req, res) => {
 
 app.post('/api/risks', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { id, name, description } = req.body;
+  const { id, name, category, description } = req.body;
   if (!id) return res.status(400).json({ error: 'id required' });
   try {
-    await pool.query(`INSERT INTO risks (id,name,description,updated_at) VALUES ($1,$2,$3,NOW())
-      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description, updated_at=NOW()`,
-      [id, name||'', description||'']);
+    await pool.query(`INSERT INTO risks (tenant_id,id,name,category,description,updated_at)
+      VALUES ($1,$2,$3,$4,$5,NOW())
+      ON CONFLICT (tenant_id,id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, description=EXCLUDED.description, updated_at=NOW()`,
+      [DEFAULT_TENANT_ID, id, name||'', category||'', description||'']);
     res.json({ ok:true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -900,6 +915,110 @@ app.post('/api/ai/analyze', async (req, res) => {
       return res.json({ ...antData, provider:'anthropic' });
     }
   } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Bulk Seed API ─────────────────────────────────────────────────────────────
+// Called from client startup to write all static data to DB using
+// INSERT ... ON CONFLICT DO NOTHING — safe to run on every deploy.
+// Audits + workpapers are excluded here because their PK is the user-editable name.
+app.post('/api/seed/bulk', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { controls=[], risks=[], entities=[], fs_accounts=[], objectives=[] } = req.body;
+  const results = {};
+  const tid = DEFAULT_TENANT_ID;
+  try {
+    // Controls
+    if (controls.length) {
+      let n = 0;
+      for (const c of controls) {
+        if (!c.id) continue;
+        const r = await pool.query(
+          `INSERT INTO controls (tenant_id,id,name,category,objective,objective_id,description,additional_info,
+            ctrl_owner,proc_owner,extra_ctrl_owners,extra_proc_owners,frequency,control_type,
+            linked_risks,linked_entities,linked_accounts,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+           ON CONFLICT (tenant_id,id) DO NOTHING`,
+          [tid, c.id, c.name||c.title||'', c.category||'', c.objective||'', c.objective_id||'',
+           c.description||'', c.additional_info||'', c.ctrl_owner||'', c.proc_owner||'',
+           JSON.stringify(c.extra_ctrl_owners||[]), JSON.stringify(c.extra_proc_owners||[]),
+           c.frequency||'', c.control_type||'',
+           JSON.stringify(c.linked_risks||[]), JSON.stringify(c.linked_entities||[]),
+           JSON.stringify(c.linked_accounts||[])]);
+        if (r.rowCount > 0) n++;
+      }
+      results.controls = n;
+    }
+    // Risks
+    if (risks.length) {
+      let n = 0;
+      for (const r of risks) {
+        if (!r.id) continue;
+        const res2 = await pool.query(
+          `INSERT INTO risks (tenant_id,id,name,category,description,updated_at)
+           VALUES ($1,$2,$3,$4,$5,NOW())
+           ON CONFLICT (tenant_id,id) DO NOTHING`,
+          [tid, r.id, r.name||r.title||'', r.category||'', r.description||'']);
+        if (res2.rowCount > 0) n++;
+      }
+      results.risks = n;
+    }
+    // Entities
+    if (entities.length) {
+      let n = 0;
+      for (const e of entities) {
+        if (!e.id) continue;
+        const res2 = await pool.query(
+          `INSERT INTO assessment_entities (tenant_id,id,name,type,category,address,city,state,zip,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+           ON CONFLICT (tenant_id,id) DO NOTHING`,
+          [tid, e.id, e.name||'', e.type||'Facility', e.category||'facility',
+           e.address||'', e.city||'', e.state||'', e.zip||'']);
+        if (res2.rowCount > 0) n++;
+      }
+      results.entities = n;
+    }
+    // FS Accounts
+    if (fs_accounts.length) {
+      let n = 0;
+      for (const f of fs_accounts) {
+        if (!f.id) continue;
+        const res2 = await pool.query(
+          `INSERT INTO fs_accounts (tenant_id,id,code,description,section,cur_balance,py_balance,
+            materiality,txn_volume,inherent_risk,key_account,assertions,audit_approach,notes,updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+           ON CONFLICT (tenant_id,id) DO NOTHING`,
+          [tid, f.id, f.code||f.id||'', f.description||f.label||f.desc||'',
+           f.section||f.category||f.statement||'',
+           f.cur_balance!=null?f.cur_balance:(f.cur!=null?f.cur:null),
+           f.py_balance!=null?f.py_balance:(f.py!=null?f.py:null),
+           f.materiality||'', f.txn_volume||f.transactionVolume||'',
+           f.inherent_risk||f.riskLevel||'', !!f.key_account,
+           JSON.stringify(Array.isArray(f.assertions)?f.assertions:(f.assertion?[f.assertion]:[])),
+           f.audit_approach||f.auditApproach||'', f.notes||'']);
+        if (res2.rowCount > 0) n++;
+      }
+      results.fs_accounts = n;
+    }
+    // Control Objectives
+    if (objectives.length) {
+      let n = 0;
+      for (const o of objectives) {
+        if (!o.id) continue;
+        const res2 = await pool.query(
+          `INSERT INTO control_objectives (tenant_id,id,title,description,updated_at)
+           VALUES ($1,$2,$3,$4,NOW())
+           ON CONFLICT (tenant_id,id) DO NOTHING`,
+          [tid, o.id, o.title||'', o.description||'']);
+        if (res2.rowCount > 0) n++;
+      }
+      results.objectives = n;
+    }
+    console.log('[Seed] Bulk seed complete:', results);
+    res.json({ ok:true, inserted: results });
+  } catch(err) {
+    console.error('[Seed] bulk seed error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Control Objectives API ─────────────────────────────────────────────────────
