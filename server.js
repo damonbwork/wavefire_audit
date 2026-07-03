@@ -20,10 +20,70 @@ const dbUrl = process.env.DATABASE_URL
 const pool = dbUrl ? new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } }) : null;
 if (!dbUrl) console.warn('[DB] No database URL found — checked DATABASE_URL, database_url, POSTGRES_URL, DATABASE_PRIVATE_URL, DATABASE_PUBLIC_URL');
 else console.log('[DB] Connecting to:', dbUrl.replace(/:\/\/[^@]+@/, '://***@'));
+// ── Tenant scaffolding ────────────────────────────────────────────────────────
+// DEFAULT_TENANT is the placeholder tenant used while the app is single-tenant.
+// When multi-tenancy is added, replace every reference to DEFAULT_TENANT_ID with
+// the tenant_id resolved from the authenticated session.
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
+
+// Lightweight AES-256-GCM encryption for per-tenant AI credentials
+const crypto = require('crypto');
+const ENC_KEY = (process.env.CREDENTIAL_ENCRYPTION_KEY || '').padEnd(32, '0').slice(0, 32);
+function encryptKey(plaintext) {
+  if (!plaintext) return '';
+  try {
+    const iv   = crypto.randomBytes(12);
+    const ciph = crypto.createCipheriv('aes-256-gcm', ENC_KEY, iv);
+    const enc  = Buffer.concat([ciph.update(plaintext, 'utf8'), ciph.final()]);
+    const tag  = ciph.getAuthTag();
+    return Buffer.concat([iv, tag, enc]).toString('base64');
+  } catch(e) { console.error('[enc] error:', e.message); return ''; }
+}
+function decryptKey(ciphertext) {
+  if (!ciphertext) return '';
+  try {
+    const buf  = Buffer.from(ciphertext, 'base64');
+    const iv   = buf.slice(0, 12);
+    const tag  = buf.slice(12, 28);
+    const enc  = buf.slice(28);
+    const dec  = crypto.createDecipheriv('aes-256-gcm', ENC_KEY, iv);
+    dec.setAuthTag(tag);
+    return Buffer.concat([dec.update(enc), dec.final()]).toString('utf8');
+  } catch(e) { return ''; }
+}
+
 async function initDB() {
   if (!pool) { console.log('No DATABASE_URL — running without database'); return; }
   try {
     await pool.query(`
+      -- ── Tenants (scaffold for future multi-tenancy) ────────────────────────
+      CREATE TABLE IF NOT EXISTS tenants (
+        id          TEXT PRIMARY KEY DEFAULT 'default',
+        name        TEXT NOT NULL DEFAULT 'Default Organisation',
+        domain      TEXT DEFAULT '',
+        plan        TEXT DEFAULT 'trial',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO tenants (id, name) VALUES ('default','Default Organisation')
+        ON CONFLICT (id) DO NOTHING;
+
+      -- ── Per-tenant AI credential store ─────────────────────────────────────
+      CREATE TABLE IF NOT EXISTS tenant_ai_configs (
+        tenant_id        TEXT NOT NULL DEFAULT 'default',
+        provider         TEXT NOT NULL DEFAULT 'anthropic',
+        model            TEXT DEFAULT 'claude-sonnet-4-6',
+        endpoint         TEXT DEFAULT '',
+        deployment       TEXT DEFAULT '',
+        encrypted_key    TEXT DEFAULT '',
+        key_hint         TEXT DEFAULT '',
+        azure_tenant_id  TEXT DEFAULT '',
+        use_managed_id   BOOLEAN DEFAULT FALSE,
+        updated_at       TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, provider),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS entity_types (
         name    TEXT PRIMARY KEY,
         bg      TEXT NOT NULL DEFAULT '#f1f5f9',
@@ -40,10 +100,12 @@ async function initDB() {
         annotations JSONB DEFAULT '[]',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW(),
-        PRIMARY KEY (ref, filename)
+        tenant_id   TEXT NOT NULL DEFAULT 'default',
+        PRIMARY KEY (tenant_id, ref, filename)
       );
       CREATE TABLE IF NOT EXISTS audits (
-        name        TEXT PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'default',
+        name        TEXT NOT NULL DEFAULT '',
         period      TEXT DEFAULT '',
         owner       TEXT DEFAULT '',
         type        TEXT DEFAULT '',
@@ -51,10 +113,12 @@ async function initDB() {
         description TEXT DEFAULT '',
         year        INTEGER,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, name)
       );
       CREATE TABLE IF NOT EXISTS workpapers (
-        ref                    TEXT PRIMARY KEY,
+        tenant_id              TEXT NOT NULL DEFAULT 'default',
+        ref                    TEXT NOT NULL DEFAULT '',
         audit_name             TEXT NOT NULL DEFAULT '',
         name                   TEXT DEFAULT '',
         type                   TEXT DEFAULT '',
@@ -83,15 +147,19 @@ async function initDB() {
         sample_fields          JSONB DEFAULT '[]',
         exceptions             JSONB DEFAULT '[]',
         created_at             TIMESTAMPTZ DEFAULT NOW(),
-        updated_at             TIMESTAMPTZ DEFAULT NOW()
+        updated_at             TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, ref)
       );
       CREATE TABLE IF NOT EXISTS company_context (
-        id          INTEGER DEFAULT 1 PRIMARY KEY,
+        tenant_id   TEXT NOT NULL DEFAULT 'default',
+        id          INTEGER DEFAULT 1,
         notes       TEXT DEFAULT '',
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
       );
       CREATE TABLE IF NOT EXISTS fs_accounts (
-        id              TEXT PRIMARY KEY,
+        tenant_id       TEXT NOT NULL DEFAULT 'default',
+        id              TEXT NOT NULL DEFAULT '',
         code            TEXT DEFAULT '',
         description     TEXT DEFAULT '',
         section         TEXT DEFAULT '',
@@ -105,7 +173,8 @@ async function initDB() {
         audit_approach  TEXT DEFAULT '',
         notes           TEXT DEFAULT '',
         fn_text         TEXT DEFAULT '',
-        updated_at      TIMESTAMPTZ DEFAULT NOW()
+        updated_at      TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
       );
       CREATE TABLE IF NOT EXISTS control_categories (
         name       TEXT PRIMARY KEY,
@@ -126,7 +195,8 @@ async function initDB() {
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS controls (
-        id           TEXT PRIMARY KEY,
+        tenant_id    TEXT NOT NULL DEFAULT 'default',
+        id           TEXT NOT NULL DEFAULT '',
         name         TEXT NOT NULL DEFAULT '',
         category     TEXT DEFAULT '',
         objective    TEXT DEFAULT '',
@@ -143,13 +213,43 @@ async function initDB() {
         linked_entities  JSONB DEFAULT '[]',
         linked_accounts  JSONB DEFAULT '[]',
         created_at   TIMESTAMPTZ DEFAULT NOW(),
-        updated_at   TIMESTAMPTZ DEFAULT NOW()
+        updated_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
+      );
+      CREATE TABLE IF NOT EXISTS control_objectives (
+        tenant_id   TEXT NOT NULL DEFAULT 'default',
+        id          TEXT NOT NULL DEFAULT '',
+        title       TEXT NOT NULL DEFAULT '',
+        description TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
+      );
+      CREATE TABLE IF NOT EXISTS company_settings (
+        tenant_id     TEXT NOT NULL DEFAULT 'default' PRIMARY KEY,
+        name          TEXT DEFAULT '',
+        industry      TEXT DEFAULT '',
+        fiscal_year_end TEXT DEFAULT '',
+        address       TEXT DEFAULT '',
+        city          TEXT DEFAULT '',
+        state         TEXT DEFAULT '',
+        zip           TEXT DEFAULT '',
+        website       TEXT DEFAULT '',
+        ein           TEXT DEFAULT '',
+        ai_provider   TEXT DEFAULT 'anthropic',
+        ai_model      TEXT DEFAULT 'claude-sonnet-4-6',
+        azure_endpoint TEXT DEFAULT '',
+        azure_deployment TEXT DEFAULT '',
+        azure_api_key TEXT DEFAULT '',
+        openai_api_key TEXT DEFAULT '',
+        updated_at    TIMESTAMPTZ DEFAULT NOW()
       );
     `);
     console.log('DB: risks + controls tables ready');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS assessment_entities (
-        id                   TEXT PRIMARY KEY,
+        tenant_id            TEXT NOT NULL DEFAULT 'default',
+        id                   TEXT NOT NULL DEFAULT '',
         name                 TEXT NOT NULL DEFAULT '',
         type                 TEXT NOT NULL DEFAULT 'Facility',
         category             TEXT NOT NULL DEFAULT 'facility',
@@ -170,13 +270,27 @@ async function initDB() {
         external_integrations TEXT DEFAULT '',
         custom_fields         JSONB DEFAULT '[]',
         created_at            TIMESTAMPTZ DEFAULT NOW(),
-        updated_at            TIMESTAMPTZ DEFAULT NOW()
+        updated_at            TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, id)
       );
     `);
     console.log('DB: assessment_entities table ready');
 
     // ── Auto-migrations for pre-existing tables ──────────────────────────────
     try {
+      // Tenant scaffolding — add tenant_id to all existing tables
+      const tenantTables = [
+        'audits','workpapers','workpaper_annotations','controls','risks',
+        'assessment_entities','fs_accounts','company_context',
+        'control_objectives','control_categories'
+      ];
+      for (const tbl of tenantTables) {
+        await pool.query(`ALTER TABLE ${tbl} ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`);
+      }
+      // company_settings uses tenant_id as PK — handle separately
+      await pool.query(`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`).catch(()=>{});
+      console.log('DB: tenant_id columns added to all tables');
+
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -222,7 +336,7 @@ app.post('/api/control-categories', async (req, res) => {
 // ── Risks API ───────────────────────────────────────────────────────────────
 app.get('/api/risks', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM risks ORDER BY id'); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM risks WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -247,7 +361,7 @@ app.delete('/api/risks/:id', async (req, res) => {
 // ── Controls API ─────────────────────────────────────────────────────────────
 app.get('/api/controls', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM controls ORDER BY category, id'); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM controls WHERE tenant_id=$1 ORDER BY category, id', [DEFAULT_TENANT_ID]); res.json(rows); }
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -316,7 +430,7 @@ app.post('/api/entity-types', async (req, res) => {
 app.get('/api/entities', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const { rows } = await pool.query('SELECT * FROM assessment_entities ORDER BY type, name');
+    const { rows } = await pool.query('SELECT * FROM assessment_entities WHERE tenant_id=$1 ORDER BY type, name', [DEFAULT_TENANT_ID]);
     res.json(rows);
   } catch(err) {
     console.error('GET /api/entities:', err.message);
@@ -461,7 +575,7 @@ app.post('/api/claude', async (req, res) => {
 // ── Audits API ────────────────────────────────────────────────────────────────
 app.get('/api/audits', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM audits ORDER BY created_at'); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM audits WHERE tenant_id=$1 ORDER BY created_at', [DEFAULT_TENANT_ID]); res.json(rows); }
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -472,11 +586,11 @@ app.post('/api/audits', async (req, res) => {
   const descVal = description != null ? description : (desc || '');
   console.log('[API] POST /api/audits name=', name, 'desc length=', descVal.length);
   try {
-    await pool.query(`INSERT INTO audits (name,period,owner,type,status,description,year,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
-      ON CONFLICT (name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
+    await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
+      VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+      ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
         type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
-      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null]);
+      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, DEFAULT_TENANT_ID]);
     res.json({ ok:true });
   } catch(err) {
     console.error('[API] audit save error:', err.message);
@@ -487,7 +601,7 @@ app.post('/api/audits', async (req, res) => {
 // ── Workpapers API ────────────────────────────────────────────────────────────
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM workpapers ORDER BY audit_name, ref'); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [DEFAULT_TENANT_ID]); res.json(rows); }
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -591,10 +705,198 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
 });
 
 
+// ── Company Settings API ──────────────────────────────────────────────────────
+app.get('/api/company-settings', async (req, res) => {
+  if (!pool) return res.json({});
+  try {
+    await pool.query(`INSERT INTO company_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [DEFAULT_TENANT_ID]);
+    const { rows } = await pool.query('SELECT * FROM company_settings WHERE tenant_id=$1', [DEFAULT_TENANT_ID]);
+    // Never expose API keys to client
+    const row = rows[0] || {};
+    delete row.azure_api_key; delete row.openai_api_key;
+    res.json(row);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/company-settings', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { name, industry, fiscal_year_end, address, city, state, zip, website, ein,
+          ai_provider, ai_model, azure_endpoint, azure_deployment,
+          azure_api_key, openai_api_key } = req.body;
+  try {
+    // Build dynamic update — only update api keys if explicitly provided (non-empty string)
+    let q = `INSERT INTO company_settings
+      (id,name,industry,fiscal_year_end,address,city,state,zip,website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at)
+      VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        name=EXCLUDED.name, industry=EXCLUDED.industry, fiscal_year_end=EXCLUDED.fiscal_year_end,
+        address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state, zip=EXCLUDED.zip,
+        website=EXCLUDED.website, ein=EXCLUDED.ein, ai_provider=EXCLUDED.ai_provider,
+        ai_model=EXCLUDED.ai_model, azure_endpoint=EXCLUDED.azure_endpoint,
+        azure_deployment=EXCLUDED.azure_deployment, updated_at=NOW()`;
+    await pool.query(q, [name||'', industry||'', fiscal_year_end||'', address||'',
+      city||'', state||'', zip||'', website||'', ein||'',
+      ai_provider||'anthropic', ai_model||'claude-sonnet-4-6',
+      azure_endpoint||'', azure_deployment||'']);
+    // Update API keys separately if provided
+    if (azure_api_key) await pool.query('UPDATE company_settings SET azure_api_key=$1 WHERE id=1', [azure_api_key]);
+    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE id=1', [openai_api_key]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Tenant AI Config API ──────────────────────────────────────────────────────
+app.get('/api/tenant-ai-config', async (req, res) => {
+  if (!pool) return res.json({});
+  try {
+    const { rows } = await pool.query(
+      'SELECT provider,model,endpoint,deployment,key_hint,use_managed_id FROM tenant_ai_configs WHERE tenant_id=$1',
+      [DEFAULT_TENANT_ID]
+    );
+    res.json(rows); // never return encrypted_key
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/tenant-ai-config', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { provider, model, endpoint, deployment, api_key, azure_tenant_id, use_managed_id } = req.body;
+  if (!provider) return res.status(400).json({ error: 'provider required' });
+  const enc = api_key ? encryptKey(api_key) : null;
+  const hint = api_key ? api_key.slice(-4) : null;
+  try {
+    await pool.query(`
+      INSERT INTO tenant_ai_configs (tenant_id,provider,model,endpoint,deployment,encrypted_key,key_hint,azure_tenant_id,use_managed_id,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+      ON CONFLICT (tenant_id,provider) DO UPDATE SET
+        model=EXCLUDED.model, endpoint=EXCLUDED.endpoint, deployment=EXCLUDED.deployment,
+        encrypted_key=COALESCE(NULLIF(EXCLUDED.encrypted_key,''),tenant_ai_configs.encrypted_key),
+        key_hint=COALESCE(NULLIF(EXCLUDED.key_hint,''),tenant_ai_configs.key_hint),
+        azure_tenant_id=EXCLUDED.azure_tenant_id, use_managed_id=EXCLUDED.use_managed_id,
+        updated_at=NOW()`,
+      [DEFAULT_TENANT_ID, provider, model||'', endpoint||'', deployment||'',
+       enc||'', hint||'', azure_tenant_id||'', use_managed_id||false]);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── AI Proxy — routes analysis requests to the configured provider ─────────────
+app.post('/api/ai/analyze', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { messages, max_tokens, system } = req.body;
+
+  // ── Resolve credentials: prefer tenant_ai_configs, fall back to company_settings ──
+  let provider = 'anthropic', model = 'claude-sonnet-4-6';
+  let azureEndpoint='', azureDeployment='', azureApiKey='', openaiApiKey='';
+
+  try {
+    // First try the new per-tenant credential store
+    const { rows: cfgRows } = await pool.query(
+      'SELECT * FROM company_settings WHERE tenant_id=$1', [DEFAULT_TENANT_ID]
+    );
+    const cs = cfgRows[0] || {};
+    provider = cs.ai_provider || 'anthropic';
+    model    = cs.ai_model    || 'claude-sonnet-4-6';
+
+    // Look for an encrypted key in tenant_ai_configs
+    const { rows: tacRows } = await pool.query(
+      'SELECT * FROM tenant_ai_configs WHERE tenant_id=$1 AND provider=$2',
+      [DEFAULT_TENANT_ID, provider]
+    );
+    const tac = tacRows[0];
+    if (tac) {
+      model          = tac.model          || model;
+      azureEndpoint  = tac.endpoint       || cs.azure_endpoint  || '';
+      azureDeployment= tac.deployment     || cs.azure_deployment|| '';
+      azureApiKey    = decryptKey(tac.encrypted_key) || cs.azure_api_key || '';
+      openaiApiKey   = decryptKey(tac.encrypted_key) || cs.openai_api_key|| '';
+    } else {
+      // Fall back to company_settings plain-text keys
+      azureEndpoint  = cs.azure_endpoint  || '';
+      azureDeployment= cs.azure_deployment|| '';
+      azureApiKey    = cs.azure_api_key   || '';
+      openaiApiKey   = cs.openai_api_key  || '';
+    }
+  } catch(e) { /* fall through to anthropic default */ }
+
+  try {
+    if (provider === 'azure') {
+      // Azure OpenAI
+      const endpoint = azureEndpoint;
+      const deployment = azureDeployment;
+      const apiKey = azureApiKey;
+      if (!endpoint || !deployment || !apiKey) return res.status(400).json({ error: 'Azure OpenAI not fully configured. Set endpoint, deployment, and API key in Settings.' });
+      const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-01`;
+      const msgs = system ? [{ role:'system', content:system }, ...messages] : messages;
+      const azRes = await fetch(url, {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', 'api-key': apiKey },
+        body: JSON.stringify({ messages: msgs, max_tokens: max_tokens||4000 })
+      });
+      const azData = await azRes.json();
+      if (!azRes.ok) return res.status(azRes.status).json({ error: azData.error?.message || 'Azure API error' });
+      // Normalize to Anthropic-style response
+      return res.json({ content: [{ type:'text', text: azData.choices?.[0]?.message?.content || '' }], model: deployment, provider:'azure' });
+
+    } else if (provider === 'openai') {
+      // Direct OpenAI
+      const apiKey = openaiApiKey;
+      // model already resolved above
+      if (!apiKey) return res.status(400).json({ error: 'OpenAI API key not configured. Add it in Settings.' });
+      const msgs = system ? [{ role:'system', content:system }, ...messages] : messages;
+      const oaRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: model||'gpt-4o', messages: msgs, max_tokens: max_tokens||4000 })
+      });
+      const oaData = await oaRes.json();
+      if (!oaRes.ok) return res.status(oaRes.status).json({ error: oaData.error?.message || 'OpenAI API error' });
+      return res.json({ content: [{ type:'text', text: oaData.choices?.[0]?.message?.content || '' }], model: model||'gpt-4o', provider:'openai' });
+
+    } else {
+      // Anthropic (default) — use existing proxy path
+      const anthropicKey = process.env.ANTHROPIC_API_KEY || '';
+      if (!anthropicKey) return res.status(400).json({ error: 'ANTHROPIC_API_KEY not set on server.' });
+      // model already resolved above
+      const body = { model, max_tokens: max_tokens||4000, messages };
+      if (system) body.system = system;
+      const antRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
+        body: JSON.stringify(body)
+      });
+      const antData = await antRes.json();
+      if (!antRes.ok) return res.status(antRes.status).json({ error: antData.error?.message || 'Anthropic API error' });
+      return res.json({ ...antData, provider:'anthropic' });
+    }
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Control Objectives API ─────────────────────────────────────────────────────
+app.get('/api/control-objectives', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { const { rows } = await pool.query('SELECT * FROM control_objectives WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/control-objectives', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { id, title, description } = req.body;
+  if (!id) return res.status(400).json({ error: 'id required' });
+  try {
+    await pool.query(`INSERT INTO control_objectives (id,title,description,updated_at)
+      VALUES ($1,$2,$3,NOW())
+      ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, description=EXCLUDED.description, updated_at=NOW()`,
+      [id, title||'', description||'']);
+    res.json({ ok:true });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/control-objectives/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try { await pool.query('DELETE FROM control_objectives WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
+  catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── FS Accounts API ───────────────────────────────────────────────────────────
 app.get('/api/fs-accounts', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM fs_accounts ORDER BY section, code, id'); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM fs_accounts WHERE tenant_id=$1 ORDER BY section, code, id', [DEFAULT_TENANT_ID]); res.json(rows); }
   catch(err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/fs-accounts', async (req, res) => {
@@ -634,8 +936,8 @@ app.delete('/api/fs-accounts/:id', async (req, res) => {
 app.get('/api/company-context', async (req, res) => {
   if (!pool) return res.json({ notes: '' });
   try {
-    await pool.query('INSERT INTO company_context (id,notes) VALUES (1,$1) ON CONFLICT (id) DO NOTHING', ['']);
-    const { rows } = await pool.query('SELECT notes FROM company_context WHERE id=1');
+    await pool.query(`INSERT INTO company_context (tenant_id,id,notes) VALUES ($1,1,$2) ON CONFLICT (tenant_id,id) DO NOTHING`, [DEFAULT_TENANT_ID,'']);
+    const { rows } = await pool.query('SELECT notes FROM company_context WHERE tenant_id=$1 AND id=1', [DEFAULT_TENANT_ID]);
     res.json({ notes: rows[0]?.notes || '' });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -643,7 +945,7 @@ app.post('/api/company-context', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { notes } = req.body;
   try {
-    await pool.query('INSERT INTO company_context (id,notes,updated_at) VALUES (1,$1,NOW()) ON CONFLICT (id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [notes||'']);
+    await pool.query('INSERT INTO company_context (tenant_id,id,notes,updated_at) VALUES ($2,1,$1,NOW()) ON CONFLICT (tenant_id,id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [notes||'']);
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
