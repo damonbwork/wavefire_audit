@@ -10085,6 +10085,30 @@ function rcmApplyEntityModal() {
 // ── RCM FS Account Link Modal ─────────────────────────────────────────────────
 var _rcmFSModalState = { idx:null, sortCol:'label', sortDir:'asc', query:'', filterCat:'', filterRisk:'' };
 
+function _fsMergedList() {
+  // Build a unified list from _fndFSAccounts (new) + HOSPITAL_FS (legacy fallback)
+  // normalising field names so the modal works regardless of data source
+  var list = [];
+  var seen = new Set();
+  var src = (_fndFSAccounts && _fndFSAccounts.length) ? _fndFSAccounts : [];
+  // If _fndFSAccounts is empty, fall back to HOSPITAL_FS static data
+  if (!src.length && typeof HOSPITAL_FS !== 'undefined') src = HOSPITAL_FS;
+  src.forEach(function(f) {
+    var id = f.id || f.account;
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    list.push({
+      id:         id,
+      label:      f.description || f.label || f.name || f.desc || id,
+      category:   f.section || f.category || f.statement || '',
+      assertion:  Array.isArray(f.assertions) ? f.assertions.join(', ') : (f.assertion || ''),
+      riskLevel:  f.inherent_risk || f.riskLevel || f.materiality || '',
+      _raw: f
+    });
+  });
+  return list;
+}
+
 function openRCMFSModal(idx) {
   _rcmFSModalState.idx = idx;
   _rcmFSModalState.query = '';
@@ -10094,13 +10118,16 @@ function openRCMFSModal(idx) {
   _rcmFSModalState.sortDir = 'asc';
   document.getElementById('rcm-fs-modal')?.remove();
 
-  var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
-    : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
-  var cats = [...new Set(fsList.map(function(f){ return f.category||f.statement||'Other'; }))].sort();
-  var risks = ['','High','Medium','Low'];
+  var fsList = _fsMergedList();
+  if (!fsList.length) {
+    alert('No financial statement accounts found.\n\nGo to Foundations → F/S Accounts to add accounts first.');
+    return;
+  }
+  var cats = [...new Set(fsList.map(function(f){ return f.category||''; }).filter(Boolean))].sort();
+  var risks = ['High','Medium','Low'];
 
   var catOpts = '<option value="">All Categories</option>' + cats.map(function(c){ return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>'; }).join('');
-  var riskOpts = '<option value="">All Risk Levels</option>' + risks.filter(Boolean).map(function(r){ return '<option value="'+r+'">'+r+'</option>'; }).join('');
+  var riskOpts = '<option value="">All Risk Levels</option>' + risks.map(function(r){ return '<option value="'+r+'">'+r+'</option>'; }).join('');
 
   var html =
     '<div id="rcm-fs-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)document.getElementById(\'rcm-fs-modal\').remove()">' +
@@ -10111,7 +10138,7 @@ function openRCMFSModal(idx) {
         '<button onclick="document.getElementById(\'rcm-fs-modal\').remove()" style="background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px">&#x00D7;</button>' +
       '</div>' +
       '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border-light);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;background:var(--bg-secondary)">' +
-        '<input id="rcm-fs-search" type="text" placeholder="Search account, assertion…" style="flex:1;min-width:140px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmFSModalState.query=this.value;rcmRenderFSModal()">' +
+        '<input id="rcm-fs-search" type="text" placeholder="Search account, section, assertion…" style="flex:1;min-width:140px;font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary);outline:none" oninput="_rcmFSModalState.query=this.value;rcmRenderFSModal()">' +
         '<select style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary)" onchange="_rcmFSModalState.filterCat=this.value;rcmRenderFSModal()">'+catOpts+'</select>' +
         '<select style="font-size:12px;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-primary)" onchange="_rcmFSModalState.filterRisk=this.value;rcmRenderFSModal()">'+riskOpts+'</select>' +
       '</div>' +
@@ -10121,9 +10148,9 @@ function openRCMFSModal(idx) {
             '<thead><tr style="background:var(--bg-secondary)">' +
               '<th style="padding:7px 10px;width:36px"><input type="checkbox" id="rcm-fs-all" onchange="rcmFSSelectAll(this.checked)" style="cursor:pointer"></th>' +
               rcmFSSortTh('label',     'Account / Footnote') +
-              rcmFSSortTh('category',  'Category') +
+              rcmFSSortTh('category',  'F/S Section') +
               rcmFSSortTh('assertion', 'Assertions') +
-              rcmFSSortTh('riskLevel', 'Risk Level') +
+              rcmFSSortTh('riskLevel', 'Inherent Risk') +
             '</tr></thead>' +
             '<tbody id="rcm-fs-tbody"></tbody>' +
           '</table>' +
@@ -10177,19 +10204,19 @@ function rcmRenderFSModal() {
   var s = _rcmFSModalState;
   var c = _fndControls[s.idx];
   if (!c) return;
-  var fsList = (typeof _fndFSAccounts!=='undefined'&&_fndFSAccounts.length) ? _fndFSAccounts
-    : (typeof HOSPITAL_FS!=='undefined'?HOSPITAL_FS:[]).concat(typeof ALL_FS_ACCOUNTS!=='undefined'?ALL_FS_ACCOUNTS:[]);
+  if (!Array.isArray(c.linked_accounts)) c.linked_accounts = [];
+
+  var fsList = _fsMergedList();
   var q = (s.query||'').toLowerCase();
 
   var filtered = fsList.filter(function(f) {
-    var cat = f.category||f.statement||'Other';
-    if (s.filterCat && cat !== s.filterCat) return false;
+    if (s.filterCat && f.category !== s.filterCat) return false;
     if (s.filterRisk && f.riskLevel !== s.filterRisk) return false;
     if (!q) return true;
-    return (f.label||f.name||'').toLowerCase().includes(q) ||
-      (f.assertion||'').toLowerCase().includes(q) ||
-      cat.toLowerCase().includes(q) ||
-      (f.id||'').toLowerCase().includes(q);
+    return f.label.toLowerCase().includes(q) ||
+      f.category.toLowerCase().includes(q) ||
+      f.assertion.toLowerCase().includes(q) ||
+      f.id.toLowerCase().includes(q);
   }).sort(function(a,b) {
     var av = String(a[s.sortCol]||'').toLowerCase();
     var bv = String(b[s.sortCol]||'').toLowerCase();
@@ -10207,13 +10234,13 @@ function rcmRenderFSModal() {
   };
 
   tbody.innerHTML = filtered.length ? filtered.map(function(f) {
-    var fid = f.id||f.account;
+    var fid = f.id;
     var checked = c.linked_accounts.indexOf(fid) >= 0;
     var rc = riskColor(f.riskLevel);
     return '<tr style="border-top:0.5px solid var(--border-light);'+(checked?'background:#f0f9ff':'')+'" onmouseenter="if(!this.querySelector(\'input\').checked)this.style.background=\'var(--bg-secondary)\'" onmouseleave="this.style.background=this.querySelector(\'input\').checked?\'#f0f9ff\':\'\'">' +
-      '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+fid+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmFSToggle(\''+fid+'\',this.checked,this.closest(\'tr\'))"></td>' +
-      '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(f.label||f.name||fid||'')+'</td>' +
-      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">'+escHtml(f.category||f.statement||'—')+'</td>' +
+      '<td style="padding:8px 10px;text-align:center"><input type="checkbox" value="'+escHtml(fid)+'" '+(checked?'checked':'')+' style="cursor:pointer" onchange="rcmFSToggle(\''+fid.replace(/'/g,"\\'")+'\',this.checked,this.closest(\'tr\'))"></td>' +
+      '<td style="padding:8px 10px;font-size:13px;font-weight:600;color:var(--text-primary)">'+escHtml(f.label)+'</td>' +
+      '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">'+escHtml(f.category||'—')+'</td>' +
       '<td style="padding:8px 10px;font-size:11px;color:var(--text-secondary)">'+escHtml(f.assertion||'—')+'</td>' +
       '<td style="padding:8px 10px">'+(f.riskLevel?'<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+rc.bg+';color:'+rc.color+'">'+escHtml(f.riskLevel)+'</span>':'—')+'</td>' +
     '</tr>';
