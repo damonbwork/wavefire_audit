@@ -1082,6 +1082,7 @@
           </div>
         </div>
         <!-- ── End Settings ────────────────────────────────────────────────────── -->
+        <div class="ph">
           <div>
             <div class="pt">All Audits</div>
             <div class="ps" id="audits-page-sub">6 audits across all periods and types</div>
@@ -7559,7 +7560,10 @@ async function _callAI(messages, maxTokens, systemPrompt) {
 
 function activateAuditsSection() {
   document.querySelectorAll('.wf-nav-item').forEach(n => n.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  // Mark the Audits nav item active by text content (works whether called from a click or programmatically)
+  document.querySelectorAll('.wf-nav-item').forEach(n => {
+    if (n.textContent.trim() === 'Audits') n.classList.add('active');
+  });
   // Hide foundations
   document.getElementById('wf-subnav-foundations').style.display = 'none';
   document.getElementById('page-foundations').style.display = 'none';
@@ -18796,14 +18800,27 @@ function setWPNavEnabled(enabled) {
 
 function onNavAuditChange() {
   const auditName = document.getElementById('sel-audit').value;
-  const selWpRef  = document.getElementById('sel-wp-ref');
+  if (!auditName) return; // blank option selected — do nothing
+
+  const selWpRef = document.getElementById('sel-wp-ref');
+
+  // Save whatever page is currently open before switching
+  try { saveCurrentPage(); } catch(e) {}
+
+  // If we're on Foundations or KB, close those first so the audits section renders
+  if (typeof activateAuditsSection === 'function') activateAuditsSection();
 
   // Always blank the workpaper dropdown when an audit is selected
   if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>';
 
-  // Navigate directly to that audit's workpaper list
+  // Navigate to that audit's workpaper list
   const idx = AUDITS.findIndex(a => a.name === auditName);
-  if (idx !== -1) openAudit(idx);
+  if (idx !== -1) {
+    openAudit(idx); // openAudit calls saveCurrentPage + showPage('workpapers')
+  } else {
+    // Audit not found in AUDITS array — just navigate to workpapers page
+    showPage('workpapers');
+  }
 }
 
 function onNavWpRefChange() {
