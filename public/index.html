@@ -14441,8 +14441,9 @@ function setAuditPeriodViewMode(locked) {
     readView.textContent   = currentAudit?.period || '';
     readView.style.display = locked ? '' : 'none';
     readView.style.fontWeight = '400';
-    readView.style.color      = 'var(--text-primary)';
+    readView.style.color      = currentAudit?.period ? 'var(--text-primary)' : 'var(--text-tertiary)';
     readView.style.fontSize   = '13px';
+    if (!currentAudit?.period && locked) readView.textContent = '—';
   }
 }
 
@@ -14465,10 +14466,10 @@ function rebuildAuditPeriod() {
   const previewEl = document.getElementById('aud-period-preview');
   if (previewEl) previewEl.textContent = period ? `→ ${period}` : '';
 
-  if (currentAudit && period) {
-    currentAudit.period = period;
+  if (currentAudit) {
+    currentAudit.period = period; // assign even when empty — clears the field
     const subEl = document.getElementById('wp-page-sub');
-    if (subEl) subEl.textContent = `${currentAudit.type} · ${period} · Owner: ${currentAudit.owner}`;
+    if (subEl) subEl.textContent = `${currentAudit.type || ''}${currentAudit.type && period ? ' · ' : ''}${period}${period && currentAudit.owner ? ' · Owner: ' + currentAudit.owner : ''}`.trim();
     const selPeriod = document.getElementById('sel-period');
     if (selPeriod) selPeriod.textContent = period;
   }
