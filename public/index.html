@@ -7035,17 +7035,23 @@ function escHistVal(str) {
    SAVE CURRENT PAGE — persist all editable fields back to data
 ══════════════════════════════════════ */
 // ── Audit & Workpaper Postgres persistence ────────────────────────────────────
-async function _saveAuditToDB(audit) {
+async function _saveAuditToDB(audit, oldName) {
   if (!window._hasBackend) return;
   if (!audit || !audit.name) return;
   try {
-    const res = await fetch('/api/audits', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: audit.name, period: audit.period||'', owner: audit.owner||'',
-        type: audit.type||'', status: audit.status||'planned',
-        description: audit.desc||'', year: audit.year||null
-      })
+    const body = {
+      name: audit.name, period: audit.period||'', owner: audit.owner||'',
+      type: audit.type||'', status: audit.status||'planned',
+      description: audit.desc||'', year: audit.year||null
+    };
+    // Use PATCH when renaming (old name differs from new name) so server can
+    // update the primary key and cascade to workpapers
+    const isRename = oldName && oldName !== audit.name;
+    const url    = isRename ? '/api/audits/' + encodeURIComponent(oldName) : '/api/audits';
+    const method = isRename ? 'PATCH' : 'POST';
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
     if (!res.ok) {
       const err = await res.json().catch(()=>({}));
@@ -7108,24 +7114,34 @@ async function _loadAuditsFromDB() {
     const res = await fetch('/api/audits');
     if (!res.ok) return;
     const rows = await res.json();
-    if (!Array.isArray(rows) || !rows.length) return;
-    rows.forEach(function(row) {
-      var existing = AUDITS.find(function(a){ return a.name === row.name; });
-      if (existing) {
-        if (row.period)      existing.period  = row.period;
-        if (row.owner)       existing.owner   = row.owner;
-        if (row.type)        existing.type    = row.type;
-        if (row.status)      existing.status  = row.status;
-        if (row.description) existing.desc    = row.description;
-        if (row.desc)        existing.desc    = row.desc; // legacy column name fallback
-        if (row.year)        existing.year    = row.year;
-      } else {
-        AUDITS.push({ name:row.name, period:row.period||'', owner:row.owner||'',
-          type:row.type||'', status:row.status||'planned',
-          desc: row.description || row.desc || '',
-          year:row.year||null, wpCount:0 });
-      }
-    });
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(function(row) {
+        var existing = AUDITS.find(function(a){ return a.name === row.name; });
+        if (existing) {
+          if (row.period)      existing.period  = row.period;
+          if (row.owner)       existing.owner   = row.owner;
+          if (row.type)        existing.type    = row.type;
+          if (row.status)      existing.status  = row.status;
+          if (row.description) existing.desc    = row.description;
+          if (row.desc)        existing.desc    = row.desc;
+          if (row.year)        existing.year    = row.year;
+        } else {
+          AUDITS.push({ name:row.name, period:row.period||'', owner:row.owner||'',
+            type:row.type||'', status:row.status||'planned',
+            desc: row.description || row.desc || '',
+            year:row.year||null, wpCount:0 });
+        }
+      });
+    }
+
+    // Seed any static audits that are not yet in the DB so they persist on rebuild
+    const dbNames = new Set((rows||[]).map(function(r){ return r.name; }));
+    const seedPromises = AUDITS.filter(function(a){ return !dbNames.has(a.name); })
+      .map(function(a){ return _saveAuditToDB(a); });
+    if (seedPromises.length) {
+      await Promise.all(seedPromises);
+      console.log('[DB] Seeded', seedPromises.length, 'missing audit(s) to database');
+    }
   } catch(e) { console.warn('[DB] audits load failed:', e.message); }
 }
 
@@ -7135,40 +7151,48 @@ async function _loadWorkpapersFromDB() {
     const res = await fetch('/api/workpapers');
     if (!res.ok) return;
     const rows = await res.json();
-    if (!Array.isArray(rows) || !rows.length) return;
-    rows.forEach(function(row) {
-      var existing = WORKPAPERS.find(function(w){ return w.ref === row.ref; });
-      var target = existing || {};
-      // Merge DB fields → in-memory (never overwrite with blank if memory has value)
-      var merge = function(key, dbVal) { if (dbVal != null && dbVal !== '') target[key] = dbVal; };
-      merge('auditName',           row.audit_name);
-      merge('name',                row.name);
-      merge('type',                row.type);
-      merge('status',              row.status);
-      merge('results',             row.results);
-      merge('preparer',            row.preparer);
-      merge('reviewer',            row.reviewer);
-      merge('secondaryReviewer',   row.secondary_reviewer);
-      merge('dateStarted',         row.date_started);
-      merge('reviewDate',          row.review_date);
-      merge('dateSubmitted',       row.date_submitted);
-      merge('secondaryReviewDate', row.secondary_review_date);
-      merge('population',          row.population);
-      merge('sampleMethod',        row.sample_method);
-      merge('sampleSize',          row.sample_size);
-      merge('narrative',           row.narrative);
-      merge('description',         row.description);
-      merge('testDesc',            row.test_desc);
-      if (Array.isArray(row.linked_controls)  && row.linked_controls.length)  { target.linkedControls = row.linked_controls; wpLinkedControls[row.ref] = new Set(row.linked_controls); }
-      if (Array.isArray(row.scope_entities)   && row.scope_entities.length)   { wpScopeEntities[row.ref] = new Set(row.scope_entities); }
-      if (Array.isArray(row.scope_fs_accounts)&& row.scope_fs_accounts.length){ wpFsAccounts[row.ref]    = new Set(row.scope_fs_accounts); }
-      if (Array.isArray(row.test_attributes)  && row.test_attributes.length)  { wpTestAttributes[row.ref] = row.test_attributes; }
-      if (Array.isArray(row.sample_fields)    && row.sample_fields.length)    { wpSampleFields[row.ref]   = row.sample_fields; }
-      if (Array.isArray(row.exceptions)       && row.exceptions.length)       {
-        row.exceptions.forEach(function(ex){ if (ex && ex.id) wpExceptions[ex.id] = ex; });
-      }
-      if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
-    });
+    const dbRefs = new Set();
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(function(row) {
+        dbRefs.add(row.ref);
+        var existing = WORKPAPERS.find(function(w){ return w.ref === row.ref; });
+        var target = existing || {};
+        var merge = function(key, dbVal) { if (dbVal != null && dbVal !== '') target[key] = dbVal; };
+        merge('auditName',           row.audit_name);
+        merge('name',                row.name);
+        merge('type',                row.type);
+        merge('status',              row.status);
+        merge('results',             row.results);
+        merge('preparer',            row.preparer);
+        merge('reviewer',            row.reviewer);
+        merge('secondaryReviewer',   row.secondary_reviewer);
+        merge('dateStarted',         row.date_started);
+        merge('reviewDate',          row.review_date);
+        merge('dateSubmitted',       row.date_submitted);
+        merge('secondaryReviewDate', row.secondary_review_date);
+        merge('population',          row.population);
+        merge('sampleMethod',        row.sample_method);
+        merge('sampleSize',          row.sample_size);
+        merge('narrative',           row.narrative);
+        merge('description',         row.description);
+        merge('testDesc',            row.test_desc);
+        if (Array.isArray(row.linked_controls)  && row.linked_controls.length)  { target.linkedControls = row.linked_controls; wpLinkedControls[row.ref] = new Set(row.linked_controls); }
+        if (Array.isArray(row.scope_entities)   && row.scope_entities.length)   { wpScopeEntities[row.ref] = new Set(row.scope_entities); }
+        if (Array.isArray(row.scope_fs_accounts)&& row.scope_fs_accounts.length){ wpFsAccounts[row.ref]    = new Set(row.scope_fs_accounts); }
+        if (Array.isArray(row.test_attributes)  && row.test_attributes.length)  { wpTestAttributes[row.ref] = row.test_attributes; }
+        if (Array.isArray(row.sample_fields)    && row.sample_fields.length)    { wpSampleFields[row.ref]   = row.sample_fields; }
+        if (Array.isArray(row.exceptions)       && row.exceptions.length)       {
+          row.exceptions.forEach(function(ex){ if (ex && ex.id) wpExceptions[ex.id] = ex; });
+        }
+        if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
+      });
+    }
+    // Seed any static workpapers not yet in DB
+    const toSeed = WORKPAPERS.filter(function(w){ return !dbRefs.has(w.ref); });
+    if (toSeed.length) {
+      await Promise.all(toSeed.map(function(w){ return _saveWorkpaperToDB(w).catch(function(){}); }));
+      console.log('[DB] Seeded', toSeed.length, 'missing workpaper(s)');
+    }
   } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
 }
 
@@ -7835,8 +7859,23 @@ async function _loadEntitiesFromDB() {
     const res = await fetch('/api/entities');
     if (!res.ok) return false;
     const data = await res.json();
-    if (Array.isArray(data) && data.length) { _fndEntities = data; return true; }
-    return false;
+
+    // Merge: static ALL_ENTITIES is baseline, DB overlays, DB-only appended
+    const dbMap = {};
+    if (Array.isArray(data)) data.forEach(e => { dbMap[e.id] = e; });
+    const staticEntityIds = new Set(ALL_ENTITIES.map(e => e.id));
+    const staticBase = ALL_ENTITIES.map(e => dbMap[e.id] ? Object.assign({}, e, dbMap[e.id]) : e);
+    const dbOnly = (Array.isArray(data)?data:[]).filter(e => !staticEntityIds.has(e.id));
+    _fndEntities = staticBase.concat(dbOnly);
+
+    // Seed any static entities not yet in DB
+    const missing = ALL_ENTITIES.filter(e => !dbMap[e.id]);
+    if (missing.length) {
+      Promise.all(missing.map(e => _saveEntityToDB(e).catch(()=>{}))).then(() => {
+        console.log('[DB] Seeded', missing.length, 'missing entit' + (missing.length===1?'y':'ies'));
+      });
+    }
+    return true;
   } catch(e) { return false; }
 }
 async function _saveEntityToDB(entity) {
@@ -8301,6 +8340,15 @@ async function _loadRCMFromDB() {
 
         _fndControls = staticBase.concat(dbOnly);
 
+        // Seed any static controls not yet in DB
+        const seededCtrlIds = new Set(Object.keys(CONTROLS));
+        const missingCtrls = _fndControls.filter(c => seededCtrlIds.has(c.id) && !dbMap[c.id]);
+        if (missingCtrls.length) {
+          Promise.all(missingCtrls.map(c => _saveControlToDB(c).catch(()=>{}))).then(() => {
+            console.log('[DB] Seeded', missingCtrls.length, 'missing control(s)');
+          });
+        }
+
         // Sync to CONTROLS global so audit tab picks it up
         _fndControls.forEach(c => {
           CONTROLS[c.id] = { id:c.id, title:c.name||c.title||'', description:c.description||'', ctrlOwner:c.ctrl_owner||'', procOwner:c.proc_owner||'', objective:c.objective||'', category:c.category||'' };
@@ -8316,15 +8364,36 @@ async function _loadRCMFromDB() {
     }
     if (riskRes.ok) {
       const data = await riskRes.json();
-      if (Array.isArray(data) && data.length) {
-        _fndRisks = data;
-        data.forEach(r => { RISKS[r.id] = { id:r.id, title:r.name||r.title||'', description:r.description||'' }; });
-        // Rebuild CTRL_RISKS_MAP from ctrl linked_risks
-        _fndControls.forEach(c => {
-          const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (c.linked_risks ? JSON.parse(c.linked_risks) : []);
-          if (riskIds.length) CTRL_RISKS_MAP[c.id] = riskIds;
+      const dbRiskMap = {};
+      if (Array.isArray(data)) data.forEach(r => { dbRiskMap[r.id] = r; });
+
+      // Merge: start with static RISKS, overlay DB, append DB-only
+      const staticRiskIds = new Set(Object.keys(RISKS));
+      const staticRisks = Object.values(RISKS).map(r => {
+        const db = dbRiskMap[r.id];
+        return db ? Object.assign({}, {id:r.id, name:r.title||r.name||'', title:r.title||r.name||'', description:r.description||''}, db) :
+          {id:r.id, name:r.title||r.name||'', title:r.title||r.name||'', description:r.description||''};
+      });
+      const dbOnlyRisks = (Array.isArray(data)?data:[]).filter(r => !staticRiskIds.has(r.id));
+      _fndRisks = staticRisks.concat(dbOnlyRisks);
+      _fndRisks.forEach(r => { RISKS[r.id] = { id:r.id, title:r.name||r.title||'', description:r.description||'' }; });
+
+      // Seed missing static risks to DB
+      const missingRisks = staticRisks.filter(r => !dbRiskMap[r.id]);
+      if (missingRisks.length) {
+        Promise.all(missingRisks.map(r => fetch('/api/risks', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(r)
+        }).catch(()=>{}))).then(() => {
+          console.log('[DB] Seeded', missingRisks.length, 'missing risk(s)');
         });
       }
+
+      // Rebuild CTRL_RISKS_MAP from ctrl linked_risks
+      _fndControls.forEach(c => {
+        const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (c.linked_risks ? JSON.parse(c.linked_risks) : []);
+        if (riskIds.length) CTRL_RISKS_MAP[c.id] = riskIds;
+      });
     }
   } catch(e) { console.log('[DB] RCM load failed:', e.message); }
 }
@@ -11519,10 +11588,9 @@ async function _loadFSAccountsFromDB() {
     const res = await fetch('/api/fs-accounts');
     if (!res.ok) return;
     const data = await res.json();
-    if (!Array.isArray(data) || !data.length) return;
     // Merge with static HOSPITAL_FS: DB version wins by id
     const dbMap = {};
-    data.forEach(d => { dbMap[d.id] = d; });
+    if (Array.isArray(data)) data.forEach(d => { dbMap[d.id] = d; });
     const staticIds = new Set(_fndFSAccounts.map(f=>f.id));
     // Update static entries with DB data
     _fndFSAccounts = _fndFSAccounts.map(f => {
@@ -11532,11 +11600,18 @@ async function _loadFSAccountsFromDB() {
       }) : f;
     });
     // Append DB-only (user-created) entries
-    data.filter(d => !staticIds.has(d.id)).forEach(d => {
+    (Array.isArray(data)?data:[]).filter(d => !staticIds.has(d.id)).forEach(d => {
       _fndFSAccounts.push(Object.assign({}, d, {
         assertions: Array.isArray(d.assertions) ? d.assertions : (d.assertions?JSON.parse(d.assertions):[])
       }));
     });
+    // Seed any static FS accounts not yet in DB
+    const missing = _fndFSAccounts.filter(f => staticIds.has(f.id) && !dbMap[f.id]);
+    if (missing.length) {
+      Promise.all(missing.map(f => _saveFSAccountToDB(f).catch(()=>{}))).then(() => {
+        console.log('[DB] Seeded', missing.length, 'missing FS account(s)');
+      });
+    }
     if (document.getElementById('fnd-section-fsra')?.style.display !== 'none') renderFoundationsFS();
   } catch(e) { console.warn('[FS] load failed:', e.message); }
 }
@@ -14387,6 +14462,8 @@ function toggleAuditInfoEdit() {
     const yearEl   = document.getElementById('aud-year');
 
     if (currentAudit) {
+      // Capture old name BEFORE any changes so we can pass it to the rename endpoint
+      const preSaveName = currentAudit.name;
       // Name — update all display elements that show the audit name
       const newName = (nameEl?.value||'').trim();
       if (newName && newName !== currentAudit.name) {
@@ -14406,6 +14483,12 @@ function toggleAuditInfoEdit() {
         if (ai >= 0) AUDITS[ai].name = newName;
         // Update any workpapers that reference the old audit name
         WORKPAPERS.forEach(w => { if (w.auditName === oldName) w.auditName = newName; });
+        // Also update sel-audit dropdown option
+        const selAudit = document.getElementById('sel-audit');
+        if (selAudit) {
+          const opt = [...selAudit.options].find(o => o.value === oldName);
+          if (opt) { opt.value = newName; opt.text = newName; }
+        }
       }
       if (descEl)    currentAudit.desc   = descEl.value.trim();
       if (ownerSel)  currentAudit.owner  = ownerSel.value ? (ownerSel.options[ownerSel.selectedIndex]?.text.replace(/\s*\(.*\)/, '') || '') : '';
@@ -14415,7 +14498,8 @@ function toggleAuditInfoEdit() {
         const yr = parseInt(yearEl.value);
         if (yr >= 2000 && yr <= 2099) currentAudit.year = yr;
       }
-      _saveAuditToDB(currentAudit);
+      // Pass preSaveName as oldName so PATCH is used when name changed
+      _saveAuditToDB(currentAudit, preSaveName !== currentAudit.name ? preSaveName : null);
     }
   }
   setAuditInfoLocked(!isLocked);
