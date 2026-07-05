@@ -232,8 +232,7 @@
   }
   .filters input { min-width: 180px; }
   .filters select:focus, .filters input:focus {
-    border-color: var(--wf-blue);
-    box-shadow: 0 0 0 2px rgba(24,95,165,0.12);
+    border-color: var(--border-medium);
   }
 
   /* TABLE */
@@ -454,6 +453,41 @@
     display: flex; align-items: flex-start;
   }
   .attr-cell:last-child { justify-content: center; align-items: flex-start; padding-top: 8px; }
+  /* ── Focus styles — subtle, non-distracting ─────────────────────────────── */
+  /* Suppress browser default blue outline/glow everywhere in the app */
+  input:focus, textarea:focus, select:focus, button:focus { outline: none; }
+  /* Inputs with a visible border: just darken the border slightly on focus */
+  input[style*="border"]:focus, textarea[style*="border"]:focus {
+    border-color: var(--border-medium) !important;
+    box-shadow: none !important;
+  }
+
+  /* ── Transient save indicator ───────────────────────────────────────────── */
+  #wf-save-pill {
+    position: fixed;
+    bottom: 22px;
+    right: 24px;
+    background: #1e293b;
+    color: #94f1b8;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    pointer-events: none;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  #wf-save-pill.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   .attr-input {
     width: 100%; font-size: 12px; color: var(--text-primary);
     background: transparent; border: none; outline: none;
@@ -494,7 +528,7 @@
     border-radius: var(--radius-md);
     padding: 5px 9px; outline: none; cursor: pointer; width: 100%;
   }
-  .aud-field-select:focus { border-color: var(--wf-blue); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+  .aud-field-select:focus { border-color: var(--border-medium); }
 
   /* ── ENTITY DIALOG LIST ITEMS ── */
   .entity-list-item {
@@ -728,6 +762,7 @@
     .attr-row:hover .grid-cell-selected { background: #bfdbfe !important; }
   </style><script src="Wavefire_files/xlsx.full.min_3UUq.js"></script><script src="Wavefire_files/pdf-lib.min_3UUq.js"></script></head>
 <body>
+<div id="wf-save-pill"><i class="ti ti-check" style="font-size:13px"></i>Saved</div>
 <div id="ctrl-tooltip" class="ctrl-tooltip">
   <div class="ctrl-tooltip-id" id="tt-id"></div>
   <div class="ctrl-tooltip-title" id="tt-title"></div>
@@ -1122,7 +1157,7 @@
           </label>
           <!-- Searchable internal control picker -->
           <div id="ctrl-picker" style="position:relative">
-            <button id="ctrl-picker-btn" onclick="toggleCtrlPicker(event)" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);padding:6px 11px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:var(--bg-primary);cursor:pointer;min-width:200px;justify-content:space-between;white-space:nowrap" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+            <button id="ctrl-picker-btn" onclick="toggleCtrlPicker(event)" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);padding:6px 11px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:var(--bg-primary);cursor:pointer;min-width:200px;justify-content:space-between;white-space:nowrap">
               <span id="ctrl-picker-label" style="overflow:hidden;text-overflow:ellipsis;max-width:170px">All internal controls</span>
               <i class="ti ti-chevron-down" style="font-size:12px;flex-shrink:0"></i>
             </button>
@@ -1131,7 +1166,7 @@
               <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
                 <div style="position:relative">
                   <i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text-tertiary);pointer-events:none"></i>
-                  <input id="ctrl-picker-search" type="text" placeholder="Search controls…" oninput="filterCtrlPickerList()" style="width:100%;padding:6px 8px 6px 28px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary);color:var(--text-primary)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+                  <input id="ctrl-picker-search" type="text" placeholder="Search controls…" oninput="filterCtrlPickerList()" style="width:100%;padding:6px 8px 6px 28px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;outline:none;background:var(--bg-secondary);color:var(--text-primary)">
                 </div>
               </div>
               <!-- List -->
@@ -1324,13 +1359,13 @@
                 <div class="fl">Audit name</div>
                 <input id="aud-name" type="text" placeholder="e.g. Vendor Due Diligence 2026" class="aud-field-select"
                   style="width:100%;font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;opacity:0.55;pointer-events:none;cursor:not-allowed"
-                  onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"
+                 
                   disabled="disabled">
               </div>
               <!-- Audit Year -->
               <div class="fld">
                 <div class="fl">Audit year</div>
-                <input id="aud-year" type="number" min="2000" max="2099" placeholder="e.g. 2026" class="aud-field-select" style="font-size: 13px; color: var(--text-primary); background: var(--bg-secondary); border: 0.5px solid var(--border-light); border-radius: var(--radius-md); padding: 4px 8px; outline: none; width: 90px; opacity: 0.55; pointer-events: none; cursor: not-allowed;" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'; saveAuditYear(this.value)" disabled="disabled" value="2026">
+                <input id="aud-year" type="number" min="2000" max="2099" placeholder="e.g. 2026" class="aud-field-select" style="font-size: 13px; color: var(--text-primary); background: var(--bg-secondary); border: 0.5px solid var(--border-light); border-radius: var(--radius-md); padding: 4px 8px; outline: none; width: 90px; opacity: 0.55; pointer-events: none; cursor: not-allowed;" onblur="saveAuditYear(this.value)" disabled="disabled" value="2026">
               </div>
               <!-- Audit Period (structured) -->
               <div class="fld" style="grid-column: span 2">
@@ -1423,7 +1458,7 @@
             <!-- Description -->
             <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border-light)">
               <div class="fl" style="margin-bottom:5px">Description</div>
-              <textarea id="aud-desc" placeholder="Enter a description for this audit…" rows="3" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" oninput="saveAuditDesc(this.value)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'; saveAuditDesc(this.value)" disabled="disabled">Review of revenue recognition policies and transaction-level testing for Q2 2026.</textarea>
+              <textarea id="aud-desc" placeholder="Enter a description for this audit…" rows="3" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5;opacity:0.55;pointer-events:none;cursor:not-allowed" oninput="saveAuditDesc(this.value)" onblur="saveAuditDesc(this.value)" disabled="disabled">Review of revenue recognition policies and transaction-level testing for Q2 2026.</textarea>
             </div>
 
           </div>
@@ -3182,13 +3217,13 @@ auditor's assessment.
             <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:12px;max-width:520px">
               <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
                 <div class="fl">Workpaper title</div>
-                <input id="nwp-name" type="text" maxlength="50" placeholder="Enter workpaper title…" oninput="nwpNameInput(this)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'" style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);
+                <input id="nwp-name" type="text" maxlength="50" placeholder="Enter workpaper title…" oninput="nwpNameInput(this)" style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);
                          border:0.5px solid var(--border-light);border-radius:var(--radius-md);
                          padding:6px 10px;outline:none;width:100%;font-family:inherit" autocomplete="off">
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
                 <div class="fl">Workpaper code</div>
-                <input id="nwp-seg3" type="text" maxlength="4" placeholder="ABCD" list="nwp-tag-options" oninput="nwpTagInput()" onfocus="this.dataset.prev=this.value; this.value=''; this.style.borderColor='#39618b'; updateRefPreview()" onblur="if(!this.value)this.value=this.dataset.prev||''; this.style.borderColor='var(--border-light)'; updateRefPreview()" style="font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);
+                <input id="nwp-seg3" type="text" maxlength="4" placeholder="ABCD" list="nwp-tag-options" oninput="nwpTagInput()" onfocus="this.dataset.prev=this.value; this.value=''; updateRefPreview()" onblur="if(!this.value)this.value=this.dataset.prev||''; updateRefPreview()" style="font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);
                          border:0.5px solid var(--border-light);border-radius:var(--radius-md);
                          padding:6px 8px;outline:none;width:72px;text-align:center;
                          letter-spacing:1px;font-family:inherit" title="2-4 letters. Auto-filled from title if blank.">
@@ -3204,7 +3239,7 @@ auditor's assessment.
             <!-- Workpaper number -->
             <div class="fld" style="margin-bottom:12px">
               <div class="fl">Workpaper number</div>
-              <input id="nwp-seg4" type="number" min="1" max="9999" oninput="updateRefPreview()" style="width:100px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);outline:none;text-align:center" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+              <input id="nwp-seg4" type="number" min="1" max="9999" oninput="updateRefPreview()" style="width:100px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);outline:none;text-align:center">
               <div id="nwp-seg-year" style="display:none">2026</div>
             </div>
             <!-- Preview -->
@@ -3220,7 +3255,7 @@ auditor's assessment.
                        background:var(--bg-secondary);border:0.5px solid var(--border-light);
                        border-radius:var(--radius-md);padding:8px 10px;resize:none;outline:none;
                        line-height:1.6;overflow:hidden;min-height:60px;
-                       transition:border-color 0.15s" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
+                       transition:border-color 0.15s"></textarea>
               <div style="font-size:11px;color:var(--text-tertiary);text-align:right;margin-top:2px" id="nwp-desc-count">0 / 2,500</div>
             </div>
           </div>
@@ -3443,21 +3478,28 @@ auditor's assessment.
       </div>
       <!-- Buttons -->
       <div id="analysis-btn-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px">
-        <!-- Left: secondary utility buttons -->
-        <button class="btn-s" id="dl-guidance-btn" style="display: inline-flex;" onclick="downloadTestGuidance()">
+        <!-- Left: test guidance -->
+        <button class="btn-s" id="dl-guidance-btn" style="display:inline-flex" onclick="downloadTestGuidance()">
           <i class="ti ti-file-description"></i>Test Guidance
-        </button>        <!-- Spacer -->
+        </button>
         <div style="flex:1"></div>
-        <!-- Right: three action buttons (darker blue) + Close at far right -->
+        <!-- Right: downloads + actions -->
         <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
-          <i class="ti ti-file-text"></i>Commentary
+          <i class="ti ti-message-chatbot"></i>Commentary
         </button>
-        <button class="btn-s" id="export-xlsx-btn" style="display: inline-flex; background: rgb(30, 64, 175); color: rgb(255, 255, 255); border-color: rgb(30, 64, 175);" onclick="exportToXlsx(false)">
-          <i class="ti ti-download"></i>Download .xlsx
+        <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
+          <i class="ti ti-file-word"></i>Exception Memo
         </button>
-        <button class="btn-s" id="attach-xlsx-btn" style="display: inline-flex; background: rgb(30, 64, 175); color: rgb(255, 255, 255); border-color: rgb(30, 64, 175);" onclick="exportToXlsx(true)"><i class="ti ti-paperclip"></i> Add to Workpaper Files</button>
+        <button class="btn-s" id="dl-reasoning-log-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download Claude's reasoning trace for this analysis" onclick="downloadReasoningLog()">
+          <i class="ti ti-brain"></i>Reasoning Log
+        </button>
+        <button class="btn-s" id="export-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
+          <i class="ti ti-download"></i>Workpaper (.xlsx)
+        </button>
+        <button class="btn-s" id="attach-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
+          <i class="ti ti-paperclip"></i>Add to Workpaper Files
+        </button>
         <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
-        
       </div>
     </div>
   </div>
@@ -3687,12 +3729,12 @@ auditor's assessment.
       <div style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
         <div>
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Name <span style="color:#dc2626">*</span></div>
-          <input id="na-name" type="text" placeholder="e.g. Q3 2026 Financial Audit" maxlength="120" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+          <input id="na-name" type="text" placeholder="e.g. Q3 2026 Financial Audit" maxlength="120" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
         </div>
         <div style="display:flex;gap:12px">
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Year</div>
-            <input id="na-year" type="number" min="2000" max="2099" placeholder="2026" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'">
+            <input id="na-year" type="number" min="2000" max="2099" placeholder="2026" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;color:var(--text-primary);background:var(--bg-secondary)">
           </div>
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Audit Type</div>
@@ -3746,7 +3788,7 @@ auditor's assessment.
         </div>
         <div>
           <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Description</div>
-          <textarea id="na-desc" rows="3" placeholder="Enter a description for this audit…" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5" onfocus="this.style.borderColor='var(--wf-blue)'" onblur="this.style.borderColor='var(--border-light)'"></textarea>
+          <textarea id="na-desc" rows="3" placeholder="Enter a description for this audit…" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:7px 10px;outline:none;resize:vertical;line-height:1.5"></textarea>
         </div>
         <!-- Scope Section -->
         <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-lg);overflow:hidden">
@@ -7035,6 +7077,32 @@ function escHistVal(str) {
    SAVE CURRENT PAGE — persist all editable fields back to data
 ══════════════════════════════════════ */
 // ── Audit & Workpaper Postgres persistence ────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  SAVE INDICATOR — transient "Saved ✓" pill shown after any DB write
+// ══════════════════════════════════════════════════════════════════════════════
+var _wfSaveTimer = null;
+function _wfSaved() {
+  var pill = document.getElementById('wf-save-pill');
+  if (!pill) return;
+  pill.classList.add('visible');
+  clearTimeout(_wfSaveTimer);
+  _wfSaveTimer = setTimeout(function() {
+    pill.classList.remove('visible');
+  }, 1500);
+}
+
+// ── Enter key on single-line inputs → blur (triggers save) ──────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  var el = e.target;
+  // Only single-line text inputs (not textarea, not search, not buttons)
+  if (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio' &&
+      el.type !== 'submit' && el.type !== 'button' && !el.closest('form')) {
+    e.preventDefault();
+    el.blur();
+  }
+}, true); // capture phase so it fires before field-specific handlers
+
 async function _saveAuditToDB(audit, oldName) {
   if (!window._hasBackend) return;
   if (!audit || !audit.name) return;
@@ -7044,8 +7112,6 @@ async function _saveAuditToDB(audit, oldName) {
       type: audit.type||'', status: audit.status||'planned',
       description: audit.desc||'', year: audit.year||null
     };
-    // Use PATCH when renaming (old name differs from new name) so server can
-    // update the primary key and cascade to workpapers
     const isRename = oldName && oldName !== audit.name;
     const url    = isRename ? '/api/audits/' + encodeURIComponent(oldName) : '/api/audits';
     const method = isRename ? 'PATCH' : 'POST';
@@ -7053,7 +7119,8 @@ async function _saveAuditToDB(audit, oldName) {
       method, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) {
+    if (res.ok) _wfSaved();
+    else {
       const err = await res.json().catch(()=>({}));
       console.warn('[DB] audit save failed:', err.error || res.status);
     }
@@ -7105,6 +7172,7 @@ async function _saveWorkpaperToDB(w) {
         exceptions:            excpts
       })
     });
+    _wfSaved();
   } catch(e) { console.warn('[DB] workpaper save failed:', e.message); }
 }
 
@@ -7530,8 +7598,9 @@ function _csSaveAll() {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(s)
   }).then(function(r) {
+    if (r.ok) _wfSaved();
     var el = document.getElementById('cs-save-status');
-    if (el) el.textContent = r.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed';
+    if (el) { el.textContent = r.ok ? 'Saved ' + new Date().toLocaleTimeString() : 'Save failed'; }
   }).catch(function(e) { console.warn('[Settings] save failed:', e.message); });
 }
 
@@ -7921,6 +7990,7 @@ async function _saveEntityToDB(entity) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entity)
     });
+    if (res.ok) _wfSaved();
     return res.ok;
   } catch(e) { return false; }
 }
@@ -8444,6 +8514,7 @@ async function _saveControlToDB(ctrl) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ctrl)
     });
+    if (res.ok) _wfSaved();
     return res.ok;
   } catch(e) { return false; }
 }
@@ -8462,6 +8533,7 @@ async function _saveRiskToDB(risk) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(risk)
     });
+    if (res.ok) _wfSaved();
     return res.ok;
   } catch(e) { return false; }
 }
@@ -9731,6 +9803,7 @@ async function _saveObjectiveToDB(obj) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: obj.id, title: obj.title||'', description: obj.description||'' })
     });
+    _wfSaved();
   } catch(e) { console.warn('[Objectives] save failed:', e.message); }
 }
 
@@ -10394,14 +10467,14 @@ function openRCMObjectivesLibModal() {
             '<input id="rcm-objlib-title" type="text" maxlength="200" placeholder="e.g. Ensure proper access controls are in place…" ' +
               'style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;background:var(--bg-primary);outline:none;color:var(--text-primary);box-sizing:border-box" ' +
               'oninput="_rcmObjLibState.title=this.value;_rcmObjLibPreview()" ' +
-              'onfocus="this.style.borderColor=\'var(--wf-blue)\'" onblur="this.style.borderColor=\'var(--border-medium)\'">' +
+              '' +
           '</div>' +
           '<div>' +
             '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:4px">Control Objective Description</label>' +
             '<textarea id="rcm-objlib-desc" rows="3" placeholder="Describe what this control objective is intended to achieve, the risk it addresses, and any relevant context…" ' +
               'style="width:100%;font-size:12px;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;background:var(--bg-primary);outline:none;resize:vertical;font-family:inherit;line-height:1.5;color:var(--text-primary);box-sizing:border-box" ' +
               'oninput="_rcmObjLibState.description=this.value" ' +
-              'onfocus="this.style.borderColor=\'var(--wf-blue)\'" onblur="this.style.borderColor=\'var(--border-medium)\'"></textarea>' +
+              '></textarea>' +
           '</div>' +
         '</div>' +
         '<div id="rcm-objlib-form-error" style="display:none;font-size:11px;color:#dc2626;margin-top:6px"></div>' +
@@ -11370,6 +11443,7 @@ async function _saveFSAccountToDB(f) {
         notes: f.notes||'', fn_text: f.fn||f.fn_text||''
       })
     });
+    _wfSaved();
   } catch(e) { console.warn('[FS] save failed:', e.message); }
 }
 
@@ -14727,6 +14801,162 @@ function populateAuditInfoCard(audit) {
 let analysisResults = []; // [{fileName, results:[{attrTitle, result, note},...]}]
 const _wpAnalysisResults = {}; // persisted per ref: { ref: analysisResults[] }
 
+// ── Exception Memo download (.doc, Word-compatible HTML) ────────────────────
+function downloadExceptionMemo() {
+  const ref = getWPRef();
+  const wp  = WORKPAPERS[currentWPIndex];
+  const la  = window._lastAnalysis || {};
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+  const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+
+  // Collect exceptions across all analysed files
+  const exceptions = [];
+  (analysisResults||[]).forEach(function(r) {
+    (r.results||[]).forEach(function(attr) {
+      if (attr.result === 'fail' || attr.result === 'pass_exception') {
+        exceptions.push({
+          file:      r.fileName,
+          attribute: attr.title || '',
+          finding:   attr.note  || '',
+          severity:  attr.result === 'fail' ? 'Exception' : 'Observation',
+          color:     attr.result === 'fail' ? '#dc2626'  : '#d97706'
+        });
+      }
+    });
+  });
+
+  if (!exceptions.length) { alert('No exceptions or observations to include.'); return; }
+
+  const exRows = exceptions.map(function(ex, i) {
+    return `<tr>
+      <td style="border:1px solid #d1d5db;padding:8px 10px;font-weight:600;color:${ex.color};width:90px;vertical-align:top">${ex.severity}</td>
+      <td style="border:1px solid #d1d5db;padding:8px 10px;font-weight:600;vertical-align:top;width:160px">${ex.attribute}</td>
+      <td style="border:1px solid #d1d5db;padding:8px 10px;vertical-align:top">${ex.finding}</td>
+      <td style="border:1px solid #d1d5db;padding:8px 10px;vertical-align:top;width:180px;color:#6b7280;font-style:italic">${ex.file}</td>
+      <td style="border:1px solid #d1d5db;padding:8px 10px;vertical-align:top;width:200px"></td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body { font-family: Calibri, Arial, sans-serif; margin: 60px 72px; font-size: 11pt; color: #111; }
+  h1 { font-size: 16pt; color: #1e3a5f; margin-bottom: 4px; }
+  h2 { font-size: 12pt; color: #1e3a5f; margin-top: 24px; margin-bottom: 6px; border-bottom: 1.5px solid #1e3a5f; padding-bottom: 3px; }
+  .meta { font-size: 10pt; color: #4b5563; margin-bottom: 20px; }
+  .meta td { padding: 2px 12px 2px 0; }
+  table.exc { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10pt; }
+  table.exc th { background: #1e3a5f; color: #fff; padding: 7px 10px; text-align: left; border: 1px solid #1e3a5f; }
+  .sig { margin-top: 36px; border-top: 1px solid #d1d5db; padding-top: 16px; font-size: 10pt; color: #4b5563; }
+  .sig table td { padding: 3px 60px 3px 0; }
+</style>
+</head><body>
+<h1>Exception Memorandum</h1>
+<table class="meta"><tbody>
+  <tr><td><strong>Audit:</strong></td><td>${wp?.auditName||''}</td></tr>
+  <tr><td><strong>Workpaper:</strong></td><td>${ref||''} — ${wp?.name||''}</td></tr>
+  <tr><td><strong>Period:</strong></td><td>${currentAudit?.period||''}</td></tr>
+  <tr><td><strong>Date:</strong></td><td>${dateStr}</td></tr>
+  <tr><td><strong>Preparer:</strong></td><td>${wp?.preparer||''}</td></tr>
+  <tr><td><strong>Files Reviewed:</strong></td><td>${(analysisResults||[]).length} sample file(s)</td></tr>
+</tbody></table>
+
+<h2>Summary</h2>
+<p>The following ${exceptions.length} exception${exceptions.length!==1?'s':''} and observation${exceptions.length!==1?'s were':' was'} identified during analysis of the sample population. Each item requires management response before the workpaper can be finalized.</p>
+
+<h2>Exceptions &amp; Observations</h2>
+<table class="exc">
+  <thead><tr>
+    <th>Type</th><th>Attribute</th><th>Finding</th><th>Source File</th><th>Management Response</th>
+  </tr></thead>
+  <tbody>${exRows}</tbody>
+</table>
+
+<h2>Conclusion</h2>
+<p>${exceptions.filter(function(e){return e.severity==='Exception';}).length > 0
+  ? 'Based on the sample reviewed, one or more exceptions were identified. The control cannot be considered effective for the test period without remediation or compensating controls.'
+  : 'Observations were noted but no exceptions were identified. The control is considered effective for the test period, subject to management response on the observations above.'}</p>
+
+<div class="sig">
+  <table><tbody>
+    <tr><td><strong>Prepared by:</strong> ${wp?.preparer||'_______________'}</td><td><strong>Date:</strong> _______________</td></tr>
+    <tr><td><strong>Reviewed by:</strong> ${wp?.reviewer||'_______________'}</td><td><strong>Date:</strong> _______________</td></tr>
+  </tbody></table>
+</div>
+</body></html>`;
+
+  const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${ref||'Workpaper'}_Exception_Memo_${ts}.doc`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+// ── Reasoning Log download (.txt) ─────────────────────────────────────────────
+function downloadReasoningLog() {
+  const ref = getWPRef();
+  const wp  = WORKPAPERS[currentWPIndex];
+  const la  = window._lastAnalysis || {};
+  const now = new Date();
+  const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const dateStr = now.toLocaleString();
+
+  const lines = [
+    '═'.repeat(72),
+    'WAVEFIRE — CLAUDE ANALYSIS REASONING LOG',
+    '═'.repeat(72),
+    `Workpaper : ${ref} — ${wp?.name||''}`,
+    `Audit     : ${wp?.auditName||''}`,
+    `Generated : ${dateStr}`,
+    `Model     : ${(_companySettings&&_companySettings.ai_model)||'claude-sonnet-4-6'}`,
+    `Provider  : ${(_companySettings&&_companySettings.ai_provider)||'anthropic'}`,
+    '═'.repeat(72),
+    '',
+    '── ANALYSIS SUMMARY ─────────────────────────────────────────────────────',
+    '',
+  ];
+
+  // Per-file attribute results
+  (analysisResults||[]).forEach(function(r, i) {
+    lines.push(`FILE ${i+1}: ${r.fileName}`);
+    lines.push('─'.repeat(60));
+    (r.results||[]).forEach(function(attr) {
+      const icon = attr.result==='pass'?'✓':attr.result==='fail'?'✗':'~';
+      lines.push(`  ${icon}  ${attr.title||''}`);
+      if (attr.note) lines.push(`     Finding: ${attr.note}`);
+    });
+    if (r.commentary) {
+      lines.push('');
+      lines.push('  Commentary:');
+      r.commentary.trim().split('\n').forEach(function(l){ lines.push('  ' + l); });
+    }
+    lines.push('');
+  });
+
+  lines.push('── CLAUDE NARRATIVE / REASONING ────────────────────────────────────────');
+  lines.push('');
+  const commentary = (analysisResults||[])
+    .filter(function(r){ return r.commentary && r.commentary.trim(); })
+    .map(function(r){ return r.commentary.trim(); })
+    .join('\n\n---\n\n');
+  lines.push(commentary || '(No extended commentary returned for this analysis.)');
+  lines.push('');
+  lines.push('── END OF REASONING LOG ─────────────────────────────────────────────────');
+  lines.push(`Generated by Wavefire ${dateStr}`);
+
+  const content = lines.join('\n');
+  const blob    = new Blob([content], { type:'text/plain;charset=utf-8' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = `${ref||'Analysis'}_Reasoning_Log_${ts}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
 function downloadCommentary() {
   const ref = getWPRef();
   const wp  = WORKPAPERS[currentWPIndex];
@@ -15312,6 +15542,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     if (commentaryBtn) commentaryBtn.style.display  = 'none';
   }
 
+  // Store all analysis output for download functions
+  window._lastAnalysis = {
+    workpaper:      currentWP || {},
+    audit:          currentAudit || {},
+    attributes:     attributes || [],
+    results:        analysisResults || [],
+    commentary:     allCommentary.join('\n\n'),
+    completedAt:    new Date().toISOString()
+  };
+
   const _at2 = document.getElementById('analysis-title'); if(_at2) _at2.textContent = errorCount > 0
     ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}`
     : 'Analysis complete';
@@ -15326,6 +15566,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     _attachBtn.disabled           = false;
     _attachBtn.innerHTML          = '<i class="ti ti-paperclip"></i> Add to Workpaper Files';
   }
+  // Show exception memo button if there are any exceptions/results
+  const _exMemoBtn = document.getElementById('dl-exception-memo-btn');
+  if (_exMemoBtn) {
+    const hasExceptions = (analysisResults||[]).some(function(r){ return (r.results||[]).some(function(x){ return x.result==='fail'||x.result==='pass_exception'; }); });
+    _exMemoBtn.style.display = hasExceptions ? 'inline-flex' : 'none';
+  }
+  // Show reasoning log button if commentary/narrative text exists
+  const _logBtn = document.getElementById('dl-reasoning-log-btn');
+  if (_logBtn) _logBtn.style.display = allCommentary.length ? 'inline-flex' : 'none';
+
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
 
