@@ -13402,7 +13402,17 @@ function runAnalysisWithOptions() {
     failure:       document.getElementById('aopt-attrdetails')?.checked,
   };
   document.getElementById('analysis-options-overlay').style.display = 'none';
-  analyzeWithClaude();
+  analyzeWithClaude().catch(function(err) {
+    console.error('[Analyze] Unhandled error:', err);
+    const _as = document.getElementById('analysis-status');
+    if (_as) _as.textContent = 'Analysis error: ' + (err.message || String(err));
+    // Re-show close button
+    const _cb = document.getElementById('analysis-close-btn');
+    if (_cb) { _cb.textContent = 'Close'; _cb.onclick = closeAnalysis; }
+    // Show at minimum the xlsx and guidance buttons
+    const _eb = document.getElementById('export-xlsx-btn'); if(_eb) _eb.style.display='inline-flex';
+    const _gb = document.getElementById('dl-guidance-btn'); if(_gb) _gb.style.display='inline-flex';
+  });
 }
 
 function openAuditAnalysis() {
@@ -15578,6 +15588,18 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
+
+  // ── Safety net: ensure core buttons always visible after analysis ─────────
+  function _ensureButtonsVisible() {
+    const ids = ['export-xlsx-btn','attach-xlsx-btn','dl-guidance-btn'];
+    ids.forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el && el.style.display === 'none') el.style.display = 'inline-flex';
+    });
+    const closeEl = document.getElementById('analysis-close-btn');
+    if (closeEl) { closeEl.textContent = 'Close'; closeEl.onclick = closeAnalysis; }
+  }
+  setTimeout(_ensureButtonsVisible, 100);
 
   // Widen dialog to fit all buttons comfortably
   const _modal = document.getElementById('analysis-modal');
