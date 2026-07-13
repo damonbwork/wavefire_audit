@@ -28,9 +28,20 @@ const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
 
 // Lightweight AES-256-GCM encryption for per-tenant AI credentials
 const crypto = require('crypto');
-const ENC_KEY = (process.env.CREDENTIAL_ENCRYPTION_KEY || '').padEnd(32, '0').slice(0, 32);
+// AES-256-GCM requires a 32-byte key. A missing env var previously fell back to
+// 32 zero bytes — a publicly known constant, so ciphertext would be trivially
+// decryptable by anyone. Refuse to encrypt rather than provide false assurance.
+const _rawEncKey = process.env.CREDENTIAL_ENCRYPTION_KEY || '';
+const ENC_KEY_OK = Buffer.byteLength(_rawEncKey, 'utf8') >= 32;
+const ENC_KEY = ENC_KEY_OK ? Buffer.from(_rawEncKey, 'utf8').subarray(0, 32) : null;
+if (!ENC_KEY_OK) {
+  console.error('[SECURITY] CREDENTIAL_ENCRYPTION_KEY is unset or under 32 bytes. ' +
+    'Per-tenant AI credentials cannot be encrypted and will be rejected. ' +
+    'Set a random 32+ character value in the environment.');
+}
 function encryptKey(plaintext) {
   if (!plaintext) return '';
+  if (!ENC_KEY) throw new Error('CREDENTIAL_ENCRYPTION_KEY not configured');
   try {
     const iv   = crypto.randomBytes(12);
     const ciph = crypto.createCipheriv('aes-256-gcm', ENC_KEY, iv);
@@ -41,6 +52,7 @@ function encryptKey(plaintext) {
 }
 function decryptKey(ciphertext) {
   if (!ciphertext) return '';
+  if (!ENC_KEY) return '';
   try {
     const buf  = Buffer.from(ciphertext, 'base64');
     const iv   = buf.slice(0, 12);
@@ -50,6 +62,39 @@ function decryptKey(ciphertext) {
     dec.setAuthTag(tag);
     return Buffer.concat([dec.update(enc), dec.final()]).toString('utf8');
   } catch(e) { return ''; }
+}
+
+// ── Security helpers ─────────────────────────────────────────────────────────
+// The Azure endpoint is operator-supplied but is used to build an outbound URL
+// that carries the API key in a header. An attacker-controlled value would
+// exfiltrate that key (SSRF + credential leak). Validate on write AND on read,
+// so values persisted before this check was added can never be used.
+function isSafeAzureEndpoint(raw) {
+  if (!raw) return false;
+  let u;
+  try { u = new URL(raw); } catch { return false; }
+  if (u.protocol !== 'https:') return false;
+  if (u.username || u.password) return false;          // https://key@evil.com
+  const host = u.hostname.toLowerCase();
+  // Azure OpenAI resources always live under these suffixes.
+  const ALLOWED_SUFFIXES = ['.openai.azure.com', '.cognitiveservices.azure.com'];
+  if (!ALLOWED_SUFFIXES.some(s => host.endsWith(s))) return false;
+  // Reject the bare suffix itself and any embedded credentials/traversal.
+  if (ALLOWED_SUFFIXES.includes('.' + host)) return false;
+  return true;
+}
+
+// Azure deployment names are path segments — keep them to a safe charset so they
+// cannot escape the path (e.g. "../../" or a full URL).
+function isSafeDeploymentName(name) {
+  return typeof name === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(name);
+}
+
+// Error bodies currently echo err.message, which leaks schema and driver detail.
+// Log the real error server-side; return something generic to the client.
+function fail(res, err, context, status = 500) {
+  console.error(`[${context}]`, err && err.message ? err.message : err);
+  return res.status(status).json({ error: 'Internal server error' });
 }
 
 async function initDB() {
@@ -256,8 +301,78 @@ async function initDB() {
         openai_api_key TEXT DEFAULT '',
         updated_at    TIMESTAMPTZ DEFAULT NOW()
       );
+
+      -- ── Data Analysis tables ──────────────────────────────────────────────
+      CREATE TABLE IF NOT EXISTS da_datasets (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id   TEXT NOT NULL DEFAULT 'default',
+        name        TEXT NOT NULL DEFAULT '',
+        filename    TEXT NOT NULL DEFAULT '',
+        file_hash   TEXT NOT NULL DEFAULT '',
+        row_count   INTEGER DEFAULT 0,
+        col_count   INTEGER DEFAULT 0,
+        notes       TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        last_used   TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS da_columns (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        dataset_id  UUID NOT NULL REFERENCES da_datasets(id) ON DELETE CASCADE,
+        col_index   INTEGER NOT NULL,
+        col_name    TEXT NOT NULL DEFAULT '',
+        label       TEXT DEFAULT '',
+        col_type    TEXT DEFAULT 'auto',
+        include_in_model BOOLEAN DEFAULT TRUE,
+        encoding    TEXT DEFAULT 'auto',
+        notes       TEXT DEFAULT '',
+        UNIQUE (dataset_id, col_index)
+      );
+
+      CREATE TABLE IF NOT EXISTS da_labels (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        dataset_id  UUID NOT NULL REFERENCES da_datasets(id) ON DELETE CASCADE,
+        row_index   INTEGER NOT NULL,
+        label       TEXT NOT NULL DEFAULT 'uncertain',
+        labeled_by  TEXT DEFAULT '',
+        notes       TEXT DEFAULT '',
+        labeled_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (dataset_id, row_index)
+      );
+
+      CREATE TABLE IF NOT EXISTS da_model_runs (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        dataset_id  UUID NOT NULL REFERENCES da_datasets(id) ON DELETE CASCADE,
+        model_type  TEXT NOT NULL DEFAULT '',
+        params      JSONB DEFAULT '{}',
+        scores      JSONB DEFAULT '[]',
+        thresholds  JSONB DEFAULT '{}',
+        weights     JSONB DEFAULT '{}',
+        label_count INTEGER DEFAULT 0,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     console.log('DB: risks + controls tables ready');
+
+    // ── Indexes ───────────────────────────────────────────────────────────────
+    // Every list/read query filters on one of these columns; without indexes each
+    // is a full table scan. IF NOT EXISTS makes this safe to run on every boot.
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_audits_tenant           ON audits(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_workpapers_tenant       ON workpapers(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_workpapers_audit        ON workpapers(tenant_id, audit_name);
+      CREATE INDEX IF NOT EXISTS idx_controls_tenant         ON controls(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_risks_tenant            ON risks(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_entities_tenant         ON assessment_entities(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_fs_accounts_tenant      ON fs_accounts(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_control_obj_tenant      ON control_objectives(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_da_datasets_tenant      ON da_datasets(tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_da_datasets_hash        ON da_datasets(tenant_id, file_hash);
+      CREATE INDEX IF NOT EXISTS idx_da_columns_dataset      ON da_columns(dataset_id);
+      CREATE INDEX IF NOT EXISTS idx_da_labels_dataset       ON da_labels(dataset_id);
+      CREATE INDEX IF NOT EXISTS idx_da_runs_dataset         ON da_model_runs(dataset_id);
+    `);
+    console.log('DB: indexes ready');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS assessment_entities (
         tenant_id            TEXT NOT NULL DEFAULT 'default',
@@ -325,15 +440,75 @@ async function initDB() {
 }
 initDB();
 
+// Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
+// Without this, req.ip is the proxy's address and the per-IP rate limiter would
+// lump every user into one bucket. 1 = trust the first proxy hop.
+app.set('trust proxy', 1);
+
 // ── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+// CORS: `cors()` with no options reflects any Origin, letting any website on the
+// internet drive this API from a visitor's browser. Restrict to known origins.
+// Set ALLOWED_ORIGINS as a comma-separated list in Railway.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    // Same-origin / curl / server-to-server requests send no Origin header.
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.length === 0) return cb(null, true); // dev default
+    return ALLOWED_ORIGINS.includes(origin)
+      ? cb(null, true)
+      : cb(new Error('Origin not allowed by CORS'));
+  },
+  credentials: false,
+}));
+
+// Baseline security headers (equivalent to the parts of helmet that matter here,
+// without adding a dependency).
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.removeHeader('X-Powered-By');           // stop advertising Express
+  next();
+});
+
+// 50mb of JSON per request is a cheap memory-exhaustion DoS. Uploads are parsed
+// in the browser and never POSTed as JSON, so this can be far smaller.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+
+// The AI proxy spends real money per call and is unauthenticated. Until auth
+// lands, cap request volume per IP so a single caller cannot drain the budget.
+const _aiHits = new Map(); // ip -> number[] (timestamps)
+const AI_WINDOW_MS = 60_000;
+const AI_MAX_PER_WINDOW = Number(process.env.AI_RATE_LIMIT || 20);
+function aiRateLimit(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const hits = (_aiHits.get(ip) || []).filter(t => now - t < AI_WINDOW_MS);
+  if (hits.length >= AI_MAX_PER_WINDOW) {
+    res.setHeader('Retry-After', Math.ceil(AI_WINDOW_MS / 1000));
+    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  }
+  hits.push(now);
+  _aiHits.set(ip, hits);
+  next();
+}
+// Bound the map so it cannot grow without limit.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, hits] of _aiHits) {
+    const live = hits.filter(t => now - t < AI_WINDOW_MS);
+    if (live.length) _aiHits.set(ip, live); else _aiHits.delete(ip);
+  }
+}, AI_WINDOW_MS).unref();
 
 // ── Control Categories API ────────────────────────────────────────────────────
 app.get('/api/control-categories', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT name FROM control_categories ORDER BY sort_order, name'); res.json(rows.map(r=>r.name)); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/control-categories', async (req, res) => {
@@ -344,14 +519,14 @@ app.post('/api/control-categories', async (req, res) => {
     const { rows } = await pool.query('SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM control_categories');
     await pool.query('INSERT INTO control_categories (name, sort_order) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING', [name, rows[0].n]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Risks API ───────────────────────────────────────────────────────────────
 app.get('/api/risks', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM risks WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/risks', async (req, res) => {
@@ -364,20 +539,20 @@ app.post('/api/risks', async (req, res) => {
       ON CONFLICT (tenant_id,id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, description=EXCLUDED.description, updated_at=NOW()`,
       [DEFAULT_TENANT_ID, id, name||'', category||'', description||'']);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.delete('/api/risks/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try { await pool.query('DELETE FROM risks WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Controls API ─────────────────────────────────────────────────────────────
 app.get('/api/controls', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM controls WHERE tenant_id=$1 ORDER BY category, id', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/controls', async (req, res) => {
@@ -409,13 +584,13 @@ app.post('/api/controls', async (req, res) => {
        JSON.stringify(linked_entities||[]),
        JSON.stringify(linked_accounts||[])]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.delete('/api/controls/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try { await pool.query('DELETE FROM controls WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Entity Types API ────────────────────────────────────────────────────────
@@ -424,7 +599,7 @@ app.get('/api/entity-types', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM entity_types ORDER BY name');
     res.json(rows);
-  } catch(err) { console.error('GET /api/entity-types:', err.message); res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'GET /api/entity-types:'); }
 });
 
 app.post('/api/entity-types', async (req, res) => {
@@ -438,7 +613,7 @@ app.post('/api/entity-types', async (req, res) => {
       ON CONFLICT (name) DO UPDATE SET bg=EXCLUDED.bg, color=EXCLUDED.color, border=EXCLUDED.border, icon=EXCLUDED.icon
     `, [name, bg||'#f1f5f9', color||'#475569', border||'#cbd5e1', icon||'ti-tag']);
     res.json({ ok: true });
-  } catch(err) { console.error('POST /api/entity-types:', err.message); res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'POST /api/entity-types:'); }
 });
 
 // ── Assessment Entities API ─────────────────────────────────────────────────
@@ -447,10 +622,7 @@ app.get('/api/entities', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM assessment_entities WHERE tenant_id=$1 ORDER BY type, name', [DEFAULT_TENANT_ID]);
     res.json(rows);
-  } catch(err) {
-    console.error('GET /api/entities:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, 'GET /api/entities:'); }
 });
 
 app.post('/api/entities', async (req, res) => {
@@ -484,10 +656,7 @@ app.post('/api/entities', async (req, res) => {
         key_integrations||'', external_integrations||'',
         JSON.stringify(custom_fields||[])]);
     res.json({ ok: true });
-  } catch(err) {
-    console.error('POST /api/entities:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, 'POST /api/entities:'); }
 });
 
 app.delete('/api/entities/:id', async (req, res) => {
@@ -495,10 +664,7 @@ app.delete('/api/entities/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM assessment_entities WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
-  } catch(err) {
-    console.error('DELETE /api/entities:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, 'DELETE /api/entities:'); }
 });
 
 
@@ -527,7 +693,7 @@ app.get('/pdflib/pdf-lib.min.js', (req, res) => {
 app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ── API key + Claude connectivity test ──────────────────────────────────────
-app.get('/api/test', async (req, res) => {
+app.get('/api/test', aiRateLimit, async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ ok: false, error: 'ANTHROPIC_API_KEY is not set on the server.' });
@@ -558,7 +724,7 @@ app.get('/api/test', async (req, res) => {
     const reply = data.content?.[0]?.text || '(no text)';
     res.json({ ok: true, claude_replied: reply, model: data.model });
   } catch (err) {
-    res.status(502).json({ ok: false, error: err.message });
+    console.error('[api/test]', err.message); res.status(502).json({ ok: false, error: 'Upstream request failed' });
   }
 });
 
@@ -591,7 +757,7 @@ app.post('/api/claude', async (req, res) => {
 app.get('/api/audits', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM audits WHERE tenant_id=$1 ORDER BY created_at', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/audits', async (req, res) => {
@@ -607,10 +773,7 @@ app.post('/api/audits', async (req, res) => {
         type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
       [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, DEFAULT_TENANT_ID]);
     res.json({ ok:true });
-  } catch(err) {
-    console.error('[API] audit save error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, '[API] audit save error:'); }
 });
 
 app.patch('/api/audits/:oldName', async (req, res) => {
@@ -640,17 +803,14 @@ app.patch('/api/audits/:oldName', async (req, res) => {
         [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
     }
     res.json({ ok:true });
-  } catch(err) {
-    console.error('[API] audit rename error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, '[API] audit rename error:'); }
 });
 
 
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/workpapers', async (req, res) => {
@@ -703,13 +863,13 @@ app.post('/api/workpapers', async (req, res) => {
        JSON.stringify(exceptions||[])
       ]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.delete('/api/workpapers/:ref', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try { await pool.query('DELETE FROM workpapers WHERE ref=$1', [req.params.ref]); res.json({ ok:true }); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 
@@ -722,7 +882,7 @@ app.get('/api/annotations/:ref', async (req, res) => {
       [req.params.ref]
     );
     res.json(rows);
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/annotations', async (req, res) => {
@@ -738,7 +898,7 @@ app.post('/api/annotations', async (req, res) => {
       [ref, filename, JSON.stringify(annotations || [])]
     );
     res.json({ ok: true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.delete('/api/annotations/:ref/:filename', async (req, res) => {
@@ -749,7 +909,7 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
       [req.params.ref, decodeURIComponent(req.params.filename)]
     );
     res.json({ ok: true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 
@@ -758,24 +918,34 @@ app.get('/api/company-settings', async (req, res) => {
   if (!pool) return res.json({});
   try {
     await pool.query(`INSERT INTO company_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [DEFAULT_TENANT_ID]);
-    const { rows } = await pool.query('SELECT * FROM company_settings WHERE tenant_id=$1', [DEFAULT_TENANT_ID]);
-    // Never expose API keys to client
-    const row = rows[0] || {};
-    delete row.azure_api_key; delete row.openai_api_key;
-    res.json(row);
-  } catch(err) { res.status(500).json({ error: err.message }); }
+    // Select columns explicitly. `SELECT *` + delete would leak any future
+    // secret column that someone forgets to strip.
+    const { rows } = await pool.query(
+      `SELECT tenant_id,name,industry,fiscal_year_end,address,city,state,zip,
+              website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at
+       FROM company_settings WHERE tenant_id=$1`,
+      [DEFAULT_TENANT_ID]
+    );
+    res.json(rows[0] || {});
+  } catch(err) { return fail(res, err, 'company-settings:get'); }
 });
 app.post('/api/company-settings', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { name, industry, fiscal_year_end, address, city, state, zip, website, ein,
           ai_provider, ai_model, azure_endpoint, azure_deployment,
           azure_api_key, openai_api_key } = req.body;
+
+  // Reject an unsafe Azure endpoint before it is ever persisted.
+  if (azure_endpoint && !isSafeAzureEndpoint(azure_endpoint))
+    return res.status(400).json({ error: 'Azure endpoint must be an https URL on *.openai.azure.com or *.cognitiveservices.azure.com' });
+  if (azure_deployment && !isSafeDeploymentName(azure_deployment))
+    return res.status(400).json({ error: 'Azure deployment name may contain only letters, numbers, dot, dash and underscore' });
+
   try {
-    // Build dynamic update — only update api keys if explicitly provided (non-empty string)
-    let q = `INSERT INTO company_settings
-      (id,name,industry,fiscal_year_end,address,city,state,zip,website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at)
-      VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-      ON CONFLICT (id) DO UPDATE SET
+    const q = `INSERT INTO company_settings
+      (tenant_id,name,industry,fiscal_year_end,address,city,state,zip,website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at)
+      VALUES ($14,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      ON CONFLICT (tenant_id) DO UPDATE SET
         name=EXCLUDED.name, industry=EXCLUDED.industry, fiscal_year_end=EXCLUDED.fiscal_year_end,
         address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state, zip=EXCLUDED.zip,
         website=EXCLUDED.website, ein=EXCLUDED.ein, ai_provider=EXCLUDED.ai_provider,
@@ -784,12 +954,12 @@ app.post('/api/company-settings', async (req, res) => {
     await pool.query(q, [name||'', industry||'', fiscal_year_end||'', address||'',
       city||'', state||'', zip||'', website||'', ein||'',
       ai_provider||'anthropic', ai_model||'claude-sonnet-4-6',
-      azure_endpoint||'', azure_deployment||'']);
+      azure_endpoint||'', azure_deployment||'', DEFAULT_TENANT_ID]);
     // Update API keys separately if provided
-    if (azure_api_key) await pool.query('UPDATE company_settings SET azure_api_key=$1 WHERE id=1', [azure_api_key]);
-    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE id=1', [openai_api_key]);
+    if (azure_api_key)  await pool.query('UPDATE company_settings SET azure_api_key=$1  WHERE tenant_id=$2', [azure_api_key,  DEFAULT_TENANT_ID]);
+    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE tenant_id=$2', [openai_api_key, DEFAULT_TENANT_ID]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'company-settings'); }
 });
 
 // ── Tenant AI Config API ──────────────────────────────────────────────────────
@@ -801,12 +971,13 @@ app.get('/api/tenant-ai-config', async (req, res) => {
       [DEFAULT_TENANT_ID]
     );
     res.json(rows); // never return encrypted_key
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/tenant-ai-config', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { provider, model, endpoint, deployment, api_key, azure_tenant_id, use_managed_id } = req.body;
   if (!provider) return res.status(400).json({ error: 'provider required' });
+  if (!ENC_KEY) return res.status(503).json({ error: 'Server is not configured to store credentials securely (CREDENTIAL_ENCRYPTION_KEY missing).' });
   const enc = api_key ? encryptKey(api_key) : null;
   const hint = api_key ? api_key.slice(-4) : null;
   try {
@@ -822,11 +993,11 @@ app.post('/api/tenant-ai-config', async (req, res) => {
       [DEFAULT_TENANT_ID, provider, model||'', endpoint||'', deployment||'',
        enc||'', hint||'', azure_tenant_id||'', use_managed_id||false]);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── AI Proxy — routes analysis requests to the configured provider ─────────────
-app.post('/api/ai/analyze', async (req, res) => {
+app.post('/api/ai/analyze', aiRateLimit, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { messages, max_tokens, system } = req.body;
 
@@ -871,10 +1042,18 @@ app.post('/api/ai/analyze', async (req, res) => {
       const deployment = azureDeployment;
       const apiKey = azureApiKey;
       if (!endpoint || !deployment || !apiKey) return res.status(400).json({ error: 'Azure OpenAI not fully configured. Set endpoint, deployment, and API key in Settings.' });
-      const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-01`;
+      // Re-validate at point of use: a row persisted before validation existed, or
+      // written directly to the DB, must not be able to exfiltrate the API key.
+      if (!isSafeAzureEndpoint(endpoint) || !isSafeDeploymentName(deployment)) {
+        console.error('[ai/analyze] Refusing unsafe Azure endpoint/deployment');
+        return res.status(400).json({ error: 'Stored Azure endpoint is not a valid Azure OpenAI URL. Re-save it in Settings.' });
+      }
+      const url = new URL(`/openai/deployments/${encodeURIComponent(deployment)}/chat/completions`, endpoint);
+      url.searchParams.set('api-version', '2024-02-01');
       const msgs = system ? [{ role:'system', content:system }, ...messages] : messages;
       const azRes = await fetch(url, {
         method:'POST',
+        redirect: 'error',   // never follow a redirect that could carry the key off-host
         headers: { 'Content-Type':'application/json', 'api-key': apiKey },
         body: JSON.stringify({ messages: msgs, max_tokens: max_tokens||4000 })
       });
@@ -914,7 +1093,279 @@ app.post('/api/ai/analyze', async (req, res) => {
       if (!antRes.ok) return res.status(antRes.status).json({ error: antData.error?.message || 'Anthropic API error' });
       return res.json({ ...antData, provider:'anthropic' });
     }
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DATA ANALYSIS API
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Datasets ──────────────────────────────────────────────────────────────────
+app.get('/api/da/datasets', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.*, 
+        (SELECT COUNT(*) FROM da_columns  WHERE dataset_id=d.id) AS col_count_actual,
+        (SELECT COUNT(*) FROM da_labels   WHERE dataset_id=d.id) AS label_count,
+        (SELECT COUNT(*) FROM da_model_runs WHERE dataset_id=d.id) AS run_count
+       FROM da_datasets d
+       WHERE d.tenant_id=$1
+       ORDER BY d.last_used DESC`,
+      [DEFAULT_TENANT_ID]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.post('/api/da/datasets', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { name, filename, file_hash, row_count, col_count, notes } = req.body;
+  if (!filename || !file_hash) return res.status(400).json({ error: 'filename and file_hash required' });
+  try {
+    // Check if this file hash already exists for this tenant
+    const existing = await pool.query(
+      'SELECT id FROM da_datasets WHERE tenant_id=$1 AND file_hash=$2',
+      [DEFAULT_TENANT_ID, file_hash]
+    );
+    if (existing.rows.length) {
+      // Update last_used and return existing id
+      await pool.query(
+        'UPDATE da_datasets SET last_used=NOW(), name=$1, row_count=$2, col_count=$3 WHERE id=$4',
+        [name||filename, row_count||0, col_count||0, existing.rows[0].id]
+      );
+      return res.json({ id: existing.rows[0].id, existing: true });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO da_datasets (tenant_id,name,filename,file_hash,row_count,col_count,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [DEFAULT_TENANT_ID, name||filename, filename, file_hash, row_count||0, col_count||0, notes||'']
+    );
+    res.json({ id: rows[0].id, existing: false });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.patch('/api/da/datasets/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { name, notes } = req.body;
+  try {
+    await pool.query(
+      'UPDATE da_datasets SET name=COALESCE($1,name), notes=COALESCE($2,notes), last_used=NOW() WHERE id=$3 AND tenant_id=$4',
+      [name, notes, req.params.id, DEFAULT_TENANT_ID]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.delete('/api/da/datasets/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    // CASCADE on da_columns, da_labels, da_model_runs handles cleanup
+    const r = await pool.query(
+      'DELETE FROM da_datasets WHERE id=$1 AND tenant_id=$2 RETURNING id',
+      [req.params.id, DEFAULT_TENANT_ID]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: 'Dataset not found' });
+    res.json({ ok: true, purged: req.params.id });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ── Columns ───────────────────────────────────────────────────────────────────
+app.get('/api/da/datasets/:id/columns', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM da_columns WHERE dataset_id=$1 ORDER BY col_index',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.post('/api/da/datasets/:id/columns', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const cols = req.body.columns; // array of column definitions
+  if (!Array.isArray(cols)) return res.status(400).json({ error: 'columns array required' });
+  try {
+    // Upsert all columns in one transaction
+    await pool.query('BEGIN');
+    for (const c of cols) {
+      await pool.query(
+        `INSERT INTO da_columns (dataset_id,col_index,col_name,label,col_type,include_in_model,encoding,notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (dataset_id,col_index) DO UPDATE SET
+           label=EXCLUDED.label, col_type=EXCLUDED.col_type,
+           include_in_model=EXCLUDED.include_in_model,
+           encoding=EXCLUDED.encoding, notes=EXCLUDED.notes`,
+        [req.params.id, c.col_index, c.col_name||'', c.label||'',
+         c.col_type||'auto', c.include_in_model!==false,
+         c.encoding||'auto', c.notes||'']
+      );
+    }
+    await pool.query('COMMIT');
+    res.json({ ok: true, saved: cols.length });
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, 'api');
+  }
+});
+
+// ── Labels ────────────────────────────────────────────────────────────────────
+app.get('/api/da/datasets/:id/labels', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM da_labels WHERE dataset_id=$1 ORDER BY row_index',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.post('/api/da/datasets/:id/labels', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { row_index, label, labeled_by, notes } = req.body;
+  if (row_index == null || !label) return res.status(400).json({ error: 'row_index and label required' });
+  if (!['anomaly','normal','uncertain'].includes(label))
+    return res.status(400).json({ error: 'label must be anomaly|normal|uncertain' });
+  try {
+    await pool.query(
+      `INSERT INTO da_labels (dataset_id,row_index,label,labeled_by,notes,labeled_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (dataset_id,row_index) DO UPDATE SET
+         label=EXCLUDED.label, labeled_by=EXCLUDED.labeled_by,
+         notes=EXCLUDED.notes, labeled_at=NOW()`,
+      [req.params.id, row_index, label, labeled_by||'', notes||'']
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.post('/api/da/datasets/:id/labels/bulk', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const labels = req.body.labels; // [{row_index, label, labeled_by, notes}]
+  if (!Array.isArray(labels)) return res.status(400).json({ error: 'labels array required' });
+  try {
+    await pool.query('BEGIN');
+    for (const l of labels) {
+      if (l.row_index == null || !l.label) continue;
+      await pool.query(
+        `INSERT INTO da_labels (dataset_id,row_index,label,labeled_by,notes,labeled_at)
+         VALUES ($1,$2,$3,$4,$5,NOW())
+         ON CONFLICT (dataset_id,row_index) DO UPDATE SET
+           label=EXCLUDED.label, labeled_by=EXCLUDED.labeled_by,
+           notes=EXCLUDED.notes, labeled_at=NOW()`,
+        [req.params.id, l.row_index, l.label, l.labeled_by||'', l.notes||'']
+      );
+    }
+    await pool.query('COMMIT');
+    res.json({ ok: true, saved: labels.length });
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, 'api');
+  }
+});
+
+app.delete('/api/da/datasets/:id/labels/:rowIndex', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    await pool.query(
+      'DELETE FROM da_labels WHERE dataset_id=$1 AND row_index=$2',
+      [req.params.id, parseInt(req.params.rowIndex)]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ── Model Runs ────────────────────────────────────────────────────────────────
+app.get('/api/da/datasets/:id/runs', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, dataset_id, model_type, params, thresholds, weights,
+              label_count, created_at
+       FROM da_model_runs WHERE dataset_id=$1 ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    // Omit scores from list view — scores can be large
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.get('/api/da/runs/:runId', async (req, res) => {
+  if (!pool) return res.json(null);
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM da_model_runs WHERE id=$1',
+      [req.params.runId]
+    );
+    res.json(rows[0] || null);
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.post('/api/da/datasets/:id/runs', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { model_type, params, scores, thresholds, weights, label_count } = req.body;
+  if (!model_type) return res.status(400).json({ error: 'model_type required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO da_model_runs (dataset_id,model_type,params,scores,thresholds,weights,label_count)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [req.params.id, model_type,
+       JSON.stringify(params||{}),
+       JSON.stringify(scores||[]),
+       JSON.stringify(thresholds||{}),
+       JSON.stringify(weights||{}),
+       label_count||0]
+    );
+    // Update dataset last_used
+    await pool.query('UPDATE da_datasets SET last_used=NOW() WHERE id=$1', [req.params.id]);
+    res.json({ id: rows[0].id });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.patch('/api/da/runs/:runId', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { thresholds, weights } = req.body;
+  try {
+    await pool.query(
+      `UPDATE da_model_runs SET
+         thresholds=COALESCE($1::jsonb, thresholds),
+         weights=COALESCE($2::jsonb, weights)
+       WHERE id=$3`,
+      [thresholds ? JSON.stringify(thresholds) : null,
+       weights    ? JSON.stringify(weights)    : null,
+       req.params.runId]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.delete('/api/da/runs/:runId', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    await pool.query('DELETE FROM da_model_runs WHERE id=$1', [req.params.runId]);
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ── Dataset lookup by file hash (used to restore saved column defs on re-upload)
+app.get('/api/da/datasets/by-hash/:hash', async (req, res) => {
+  if (!pool) return res.json(null);
+  try {
+    const { rows } = await pool.query(
+      `SELECT d.*, array_agg(c.* ORDER BY c.col_index) AS columns
+       FROM da_datasets d
+       LEFT JOIN da_columns c ON c.dataset_id=d.id
+       WHERE d.tenant_id=$1 AND d.file_hash=$2
+       GROUP BY d.id
+       ORDER BY d.last_used DESC LIMIT 1`,
+      [DEFAULT_TENANT_ID, req.params.hash]
+    );
+    if (!rows.length) return res.json(null);
+    await pool.query('UPDATE da_datasets SET last_used=NOW() WHERE id=$1', [rows[0].id]);
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Bulk Seed API ─────────────────────────────────────────────────────────────
@@ -1015,17 +1466,14 @@ app.post('/api/seed/bulk', async (req, res) => {
     }
     console.log('[Seed] Bulk seed complete:', results);
     res.json({ ok:true, inserted: results });
-  } catch(err) {
-    console.error('[Seed] bulk seed error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { return fail(res, err, '[Seed] bulk seed error:'); }
 });
 
 // ── Control Objectives API ─────────────────────────────────────────────────────
 app.get('/api/control-objectives', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM control_objectives WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/control-objectives', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
@@ -1037,19 +1485,19 @@ app.post('/api/control-objectives', async (req, res) => {
       ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, description=EXCLUDED.description, updated_at=NOW()`,
       [id, title||'', description||'']);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 app.delete('/api/control-objectives/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try { await pool.query('DELETE FROM control_objectives WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── FS Accounts API ───────────────────────────────────────────────────────────
 app.get('/api/fs-accounts', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT * FROM fs_accounts WHERE tenant_id=$1 ORDER BY section, code, id', [DEFAULT_TENANT_ID]); res.json(rows); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/fs-accounts', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
@@ -1076,12 +1524,12 @@ app.post('/api/fs-accounts', async (req, res) => {
        JSON.stringify(assertions||[]),
        audit_approach||'', notes||'', fn_text||'']);
     res.json({ ok:true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 app.delete('/api/fs-accounts/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try { await pool.query('DELETE FROM fs_accounts WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch(err) { res.status(500).json({ error: err.message }); }
+  catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Company Context API ──────────────────────────────────────────────────────
@@ -1091,30 +1539,33 @@ app.get('/api/company-context', async (req, res) => {
     await pool.query(`INSERT INTO company_context (tenant_id,id,notes) VALUES ($1,1,$2) ON CONFLICT (tenant_id,id) DO NOTHING`, [DEFAULT_TENANT_ID,'']);
     const { rows } = await pool.query('SELECT notes FROM company_context WHERE tenant_id=$1 AND id=1', [DEFAULT_TENANT_ID]);
     res.json({ notes: rows[0]?.notes || '' });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/company-context', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { notes } = req.body;
   try {
-    await pool.query('INSERT INTO company_context (tenant_id,id,notes,updated_at) VALUES ($2,1,$1,NOW()) ON CONFLICT (tenant_id,id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [notes||'']);
+    await pool.query('INSERT INTO company_context (tenant_id,id,notes,updated_at) VALUES ($1,1,$2,NOW()) ON CONFLICT (tenant_id,id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [DEFAULT_TENANT_ID, notes||'']);
     res.json({ ok: true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Analysis Notes API (generic: audits, controls, risks, entities) ───────────
 app.post('/api/analysis-notes/:type/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { notes } = req.body;
-  const tableMap = { control:'controls', risk:'risks' };
-  const colMap   = { control:'analyst_notes', risk:'analyst_notes' };
-  const pkMap    = { control:'id', risk:'id' };
-  const tbl = tableMap[req.params.type], col = colMap[req.params.type], pk = pkMap[req.params.type];
-  if (!tbl) return res.status(400).json({ error: 'Unknown type' });
+  // Strict allowlist — identifiers are NEVER taken from user input.
+  // Object.hasOwn guards against prototype-chain keys like 'constructor'.
+  const ROUTES = {
+    control: { sql: 'UPDATE controls SET analyst_notes=$1 WHERE tenant_id=$2 AND id=$3' },
+    risk:    { sql: 'UPDATE risks    SET analyst_notes=$1 WHERE tenant_id=$2 AND id=$3' },
+  };
+  if (!Object.hasOwn(ROUTES, req.params.type))
+    return res.status(400).json({ error: 'Unknown type' });
   try {
-    await pool.query(`UPDATE ${tbl} SET ${col}=$1 WHERE ${pk}=$2`, [notes||'', req.params.id]);
+    await pool.query(ROUTES[req.params.type].sql, [notes||'', DEFAULT_TENANT_ID, req.params.id]);
     res.json({ ok: true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 // ── Serve the frontend HTML (after all /api routes) ──────────────────────────
