@@ -813,6 +813,7 @@
       <a class="wf-nav-item" href="#">My Action Plans</a>
       <a class="wf-nav-item active" href="#" onclick="activateAuditsSection();return false;">Audits</a>
       <a class="wf-nav-item" href="#" onclick="activateFoundations();return false;">Foundations</a>
+      <a class="wf-nav-item" href="#" onclick="activateDataAnalysis();return false;" id="nav-data-analysis">Data Analysis</a>
       <a class="wf-nav-item" id="nav-kb" href="#" onclick="activateKnowledgeBase();return false;">Knowledge Base</a>
     </nav>
     <div class="wf-user">
@@ -905,6 +906,323 @@
       </div>
     </div>
   </div>
+
+  <!-- DATA ANALYSIS PAGE -->
+  <div id="page-data-analysis" style="display:none;flex:1;overflow:hidden;flex-direction:row">
+    <div style="display:flex;height:100%;overflow:hidden">
+
+      <!-- Left sidebar -->
+      <div style="width:220px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);display:flex;flex-direction:column;overflow-y:auto">
+        <div style="padding:18px 16px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary)">Data Analysis</div>
+
+        <button class="fnd-nav-btn da-nav-btn" id="da-btn-upload" onclick="showDASection('upload')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:var(--wf-navy);color:#fff;cursor:pointer;font-size:13px;font-weight:600;text-align:left;width:100%;border-radius:0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Upload Data</span>
+        </button>
+
+        <button class="fnd-nav-btn da-nav-btn" id="da-btn-profile" onclick="showDASection('profile')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          <span>Data Profile</span>
+        </button>
+
+        <button class="fnd-nav-btn da-nav-btn" id="da-btn-anomaly" onclick="showDASection('anomaly')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Anomaly Detection</span>
+        </button>
+
+        <button class="fnd-nav-btn da-nav-btn" id="da-btn-results" onclick="showDASection('results')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Results &amp; Export</span>
+        </button>
+
+        <div style="flex:1"></div>
+        <div style="padding:14px 16px;font-size:10px;color:var(--text-tertiary);line-height:1.5;border-top:0.5px solid var(--border-light)">
+          Upload a spreadsheet, profile the data, and run anomaly detection to surface outliers for further investigation.
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div style="flex:1;overflow-y:auto;padding:28px 32px" id="da-main">
+
+        <!-- ── Upload Data ── -->
+        <div id="da-section-upload" class="fnd-section">
+          <div class="ph" style="margin-bottom:24px">
+            <div>
+              <div class="pt">Upload Data</div>
+              <div class="ps">Upload an Excel or CSV file to begin analysis. Rows become records; columns become fields.</div>
+            </div>
+          </div>
+
+          <!-- Drop zone -->
+          <div id="da-dropzone"
+            style="border:2px dashed var(--border-medium);border-radius:12px;padding:48px 32px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;background:var(--bg-secondary)"
+            onclick="document.getElementById('da-file-input').click()"
+            ondragover="event.preventDefault();this.style.borderColor='var(--wf-blue)';this.style.background='#eff6ff'"
+            ondragleave="this.style.borderColor='var(--border-medium)';this.style.background='var(--bg-secondary)'"
+            ondrop="event.preventDefault();this.style.borderColor='var(--border-medium)';this.style.background='var(--bg-secondary)';daHandleFiles(event.dataTransfer.files)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 12px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Drop a file here or click to browse</div>
+            <div style="font-size:12px;color:var(--text-tertiary)">Supports .xlsx, .xls, .csv — up to 50 MB</div>
+            <input type="file" id="da-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="daHandleFiles(this.files)">
+          </div>
+
+          <!-- Loaded file info -->
+          <div id="da-file-info" style="display:none;margin-top:16px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;padding:16px 20px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--wf-navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:700;color:var(--text-primary)" id="da-file-name">—</div>
+                <div style="font-size:12px;color:var(--text-tertiary)" id="da-file-meta">—</div>
+              </div>
+              <button class="btn-p" onclick="showDASection('profile')" style="font-size:12px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                View Data Profile
+              </button>
+              <button class="btn-s" onclick="daReset()" style="font-size:12px">Remove</button>
+            </div>
+          </div>
+
+          <!-- Column sheet selector (shown for multi-sheet xlsx) -->
+          <div id="da-sheet-selector" style="display:none;margin-top:16px">
+            <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Select sheet to analyse</label>
+            <select id="da-sheet-select" onchange="daLoadSheet(this.value)"
+              style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 12px;background:var(--bg-secondary);color:var(--text-primary);outline:none;max-width:300px"></select>
+          </div>
+        </div>
+
+        <!-- ── Data Profile ── -->
+        <div id="da-section-profile" class="fnd-section" style="display:none">
+          <div class="ph" style="margin-bottom:20px">
+            <div>
+              <div class="pt">Data Profile</div>
+              <div class="ps" id="da-profile-sub">Upload a file to see the data profile.</div>
+            </div>
+          </div>
+          <div id="da-profile-content">
+            <div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">
+              No data loaded. Go to <strong>Upload Data</strong> to get started.
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Anomaly Detection ── -->
+        <div id="da-section-anomaly" class="fnd-section" style="display:none">
+          <div class="ph" style="margin-bottom:20px">
+            <div>
+              <div class="pt">Anomaly Detection</div>
+              <div class="ps">Select one or more detection methods and configure their parameters.</div>
+            </div>
+            <button class="btn-p" id="da-run-btn" onclick="daRunAnalysis()" style="flex-shrink:0" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Run Analysis
+            </button>
+          </div>
+
+          <div id="da-no-data-notice" style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">
+            No data loaded. Go to <strong>Upload Data</strong> to get started.
+          </div>
+
+          <!-- Method cards — shown when data is loaded -->
+          <div id="da-method-cards" style="display:none;display:flex;flex-direction:column;gap:14px">
+
+            <!-- Benford's Law -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('benford',this)">
+                <input type="checkbox" id="da-chk-benford" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Benford's Law</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Tests whether first-digit distributions match the expected logarithmic pattern — highly effective for detecting fabricated or rounded amounts</div>
+                </div>
+                <svg id="da-chev-benford" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-benford" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <div style="display:flex;flex-wrap:wrap;gap:16px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Numeric column</label>
+                    <select id="da-benford-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="">— select column —</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Significance threshold</label>
+                    <select id="da-benford-sig" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="0.05">5% (standard)</option>
+                      <option value="0.01">1% (strict)</option>
+                      <option value="0.10">10% (lenient)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Statistical outliers (Z-score / IQR) -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('outlier',this)">
+                <input type="checkbox" id="da-chk-outlier" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Statistical Outliers</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags values that fall beyond a configurable Z-score or IQR threshold — effective for amounts, quantities, or any continuous numeric field</div>
+                </div>
+                <svg id="da-chev-outlier" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-outlier" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <div style="display:flex;flex-wrap:wrap;gap:16px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Numeric column</label>
+                    <select id="da-outlier-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="">— select column —</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Method</label>
+                    <select id="da-outlier-method" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="zscore">Z-score (normal distributions)</option>
+                      <option value="iqr">IQR (skewed distributions)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Threshold</label>
+                    <input type="number" id="da-outlier-thresh" value="3" min="1" max="10" step="0.5"
+                      style="width:80px;font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                    <span style="font-size:11px;color:var(--text-tertiary);margin-left:4px">σ / IQR</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Duplicate detection -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('duplicates',this)">
+                <input type="checkbox" id="da-chk-duplicates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Duplicate Detection</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Identifies exact or near-duplicate rows across selected key fields — useful for double payments, duplicate invoices, or repeated transactions</div>
+                </div>
+                <svg id="da-chev-duplicates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-duplicates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <label class="fl" style="margin-bottom:6px">Key columns (select one or more)</label>
+                <div id="da-dup-cols" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+              </div>
+            </div>
+
+            <!-- Round number test -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('rounding',this)">
+                <input type="checkbox" id="da-chk-rounding" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Round Number Test</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags values ending in .00, .50, or round thousands — disproportionate rounding can indicate estimates, fabrication, or just-below-threshold splitting</div>
+                </div>
+                <svg id="da-chev-rounding" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-rounding" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <div style="display:flex;flex-wrap:wrap;gap:16px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Numeric column</label>
+                    <select id="da-round-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="">— select column —</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Flag values divisible by</label>
+                    <select id="da-round-divisor" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="1">$1.00 (whole dollars)</option>
+                      <option value="10">$10</option>
+                      <option value="100">$100</option>
+                      <option value="1000" selected>$1,000</option>
+                      <option value="5000">$5,000</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Gap analysis -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('gaps',this)">
+                <input type="checkbox" id="da-chk-gaps" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Sequence Gap Analysis</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Detects missing numbers in a sequential field such as invoice numbers, check numbers, or purchase order IDs</div>
+                </div>
+                <svg id="da-chev-gaps" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-gaps" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <div style="display:flex;flex-wrap:wrap;gap:16px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Sequence column</label>
+                    <select id="da-gap-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="">— select column —</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Date anomalies -->
+            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('dates',this)">
+                <input type="checkbox" id="da-chk-dates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Date Anomalies</div>
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags weekend transactions, holiday postings, after-hours timestamps, future dates, or dates outside the audit period</div>
+                </div>
+                <svg id="da-chev-dates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+              <div id="da-cfg-dates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                <div style="display:flex;flex-wrap:wrap;gap:16px">
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Date column</label>
+                    <select id="da-date-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="">— select column —</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-weekends" checked style="accent-color:var(--wf-navy)"> Weekend transactions</label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-future" checked style="accent-color:var(--wf-navy)"> Future dates</label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-outlier-dates" checked style="accent-color:var(--wf-navy)"> Statistical date outliers</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /da-method-cards -->
+        </div>
+
+        <!-- ── Results & Export ── -->
+        <div id="da-section-results" class="fnd-section" style="display:none">
+          <div class="ph" style="margin-bottom:20px">
+            <div>
+              <div class="pt">Results &amp; Export</div>
+              <div class="ps" id="da-results-sub">Run an analysis to see results here.</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-s" id="da-export-csv-btn" onclick="daExportCSV()" style="display:none;font-size:12px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+              <button class="btn-p" id="da-export-xlsx-btn" onclick="daExportXLSX()" style="display:none;font-size:12px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export Excel
+              </button>
+            </div>
+          </div>
+          <div id="da-results-content">
+            <div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">
+              No analysis has been run yet. Go to <strong>Anomaly Detection</strong> to configure and run an analysis.
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /da-main -->
+    </div>
+  </div>
+  <!-- END DATA ANALYSIS PAGE -->
 
   <!-- WAVEFIRE AUDITS SUB-NAV (shown only when Audits is active) -->
   <div class="wf-subnav" id="wf-subnav">
@@ -7762,6 +8080,422 @@ function _initFoundationsData() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  DATA ANALYSIS MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+var _daData       = [];    // array of row objects
+var _daColumns    = [];    // array of column names
+var _daFileName   = '';
+var _daResults    = [];    // array of {method, flags:[{row,col,value,reason}]}
+var _daActiveSection = 'upload';
+
+function activateDataAnalysis() {
+  document.querySelectorAll('.wf-nav-item').forEach(function(n){ n.classList.remove('active'); });
+  document.getElementById('nav-data-analysis')?.classList.add('active');
+  // Hide other pages
+  ['page-audits','page-workpapers','page-wpdetail','page-newwp',
+   'page-foundations','page-knowledge-base'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.style.display='none';
+  });
+  document.getElementById('page-data-analysis').style.display='flex';
+  document.getElementById('wf-subnav').style.display='none';
+  document.getElementById('wf-subnav-foundations').style.display='none';
+  showDASection(_daActiveSection);
+}
+
+function showDASection(sec) {
+  _daActiveSection = sec;
+  ['upload','profile','anomaly','results'].forEach(function(s){
+    var el = document.getElementById('da-section-' + s);
+    if (el) el.style.display = s===sec ? '' : 'none';
+  });
+  // Update sidebar button styles
+  document.querySelectorAll('.da-nav-btn').forEach(function(btn){
+    var id = btn.id.replace('da-btn-','');
+    var active = id === sec;
+    btn.style.background = active ? 'var(--wf-navy)' : 'transparent';
+    btn.style.color      = active ? '#fff' : 'var(--text-secondary)';
+    btn.style.fontWeight = active ? '600' : '500';
+  });
+  // Auto-populate column dropdowns when switching to anomaly
+  if (sec === 'anomaly' && _daColumns.length) _daPopulateColumnDropdowns();
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function daHandleFiles(files) {
+  if (!files || !files.length) return;
+  var file = files[0];
+  _daFileName = file.name;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var data = new Uint8Array(e.target.result);
+    var wb   = XLSX.read(data, { type:'array', cellDates:true });
+    if (wb.SheetNames.length > 1) {
+      // Show sheet selector
+      var sel = document.getElementById('da-sheet-select');
+      sel.innerHTML = wb.SheetNames.map(function(s){ return '<option value="'+escHtml(s)+'">'+escHtml(s)+'</option>'; }).join('');
+      document.getElementById('da-sheet-selector').style.display='block';
+      window._daWorkbook = wb;
+      daLoadSheet(wb.SheetNames[0]);
+    } else {
+      window._daWorkbook = wb;
+      daLoadSheet(wb.SheetNames[0]);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function daLoadSheet(sheetName) {
+  var wb = window._daWorkbook;
+  if (!wb) return;
+  var ws   = wb.Sheets[sheetName];
+  var rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+  _daData    = rows;
+  _daColumns = rows.length ? Object.keys(rows[0]) : [];
+  // Update file info display
+  document.getElementById('da-file-info').style.display = 'block';
+  document.getElementById('da-file-name').textContent = _daFileName + (window._daWorkbook.SheetNames.length>1 ? ' — ' + sheetName : '');
+  document.getElementById('da-file-meta').textContent = rows.length.toLocaleString() + ' rows · ' + _daColumns.length + ' columns';
+  // Enable run button
+  var runBtn = document.getElementById('da-run-btn');
+  if (runBtn) { runBtn.disabled = false; }
+  // Show method cards
+  document.getElementById('da-no-data-notice').style.display = 'none';
+  document.getElementById('da-method-cards').style.display   = 'flex';
+  // Build data profile
+  _daBuildProfile();
+  // Pre-populate column dropdowns if already on anomaly tab
+  _daPopulateColumnDropdowns();
+}
+
+function daReset() {
+  _daData=[]; _daColumns=[]; _daFileName=''; _daResults=[];
+  window._daWorkbook = null;
+  document.getElementById('da-file-info').style.display='none';
+  document.getElementById('da-sheet-selector').style.display='none';
+  document.getElementById('da-file-input').value='';
+  document.getElementById('da-run-btn').disabled=true;
+  document.getElementById('da-no-data-notice').style.display='';
+  document.getElementById('da-method-cards').style.display='none';
+  document.getElementById('da-profile-content').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No data loaded.</div>';
+  document.getElementById('da-results-content').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No analysis run yet.</div>';
+  showDASection('upload');
+}
+
+// ── Toggle method config panel ────────────────────────────────────────────────
+function daToggleMethod(method, headerEl) {
+  var cfg  = document.getElementById('da-cfg-'  + method);
+  var chev = document.getElementById('da-chev-' + method);
+  var chk  = document.getElementById('da-chk-'  + method);
+  if (!cfg) return;
+  var open = cfg.style.display !== 'none';
+  cfg.style.display  = open ? 'none' : 'block';
+  chev.style.transform = open ? '' : 'rotate(90deg)';
+  chk.checked = !open; // auto-check when expanded
+}
+
+// ── Populate column dropdowns ─────────────────────────────────────────────────
+function _daPopulateColumnDropdowns() {
+  var numeric = _daColumns.filter(function(c){
+    return _daData.slice(0,20).some(function(r){ return !isNaN(parseFloat(r[c])) && r[c]!==''; });
+  });
+  var dateish = _daColumns.filter(function(c){
+    return _daData.slice(0,20).some(function(r){ var v=r[c]; return v instanceof Date || (typeof v==='string' && /\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}/.test(v)); });
+  });
+  var all = _daColumns;
+
+  function fillSelect(id, cols, label) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '<option value="">— ' + label + ' —</option>' +
+      cols.map(function(c){ return '<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>'; }).join('');
+  }
+  fillSelect('da-benford-col', numeric, 'select numeric column');
+  fillSelect('da-outlier-col', numeric, 'select numeric column');
+  fillSelect('da-round-col',   numeric, 'select numeric column');
+  fillSelect('da-gap-col',     all,    'select sequence column');
+  fillSelect('da-date-col',    dateish.concat(all.filter(function(c){ return !dateish.includes(c); })), 'select date column');
+
+  // Duplicate detection — checkboxes per column
+  var dupDiv = document.getElementById('da-dup-cols');
+  if (dupDiv) {
+    dupDiv.innerHTML = all.map(function(c){
+      return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:4px;padding:3px 8px;cursor:pointer">' +
+        '<input type="checkbox" class="da-dup-chk" value="'+escHtml(c)+'" style="accent-color:var(--wf-navy)">' + escHtml(c) + '</label>';
+    }).join('');
+  }
+}
+
+// ── Data Profile ─────────────────────────────────────────────────────────────
+function _daBuildProfile() {
+  var content = document.getElementById('da-profile-content');
+  if (!content || !_daData.length) return;
+  document.getElementById('da-profile-sub').textContent =
+    _daData.length.toLocaleString() + ' rows · ' + _daColumns.length + ' columns · ' + _daFileName;
+
+  var rows = _daColumns.map(function(col) {
+    var values  = _daData.map(function(r){ return r[col]; });
+    var nonNull = values.filter(function(v){ return v !== '' && v != null; });
+    var nums    = nonNull.map(parseFloat).filter(function(n){ return !isNaN(n); });
+    var missing = values.length - nonNull.length;
+    var unique  = new Set(nonNull.map(String)).size;
+    var type    = nums.length > nonNull.length * 0.7 ? 'Numeric'
+               : nonNull.some(function(v){ return v instanceof Date || (typeof v==='string'&&/\d{4}-\d{2}-\d{2}/.test(v)); }) ? 'Date'
+               : 'Text';
+    var minV='—', maxV='—', meanV='—';
+    if (nums.length) {
+      minV  = Math.min.apply(null,nums).toLocaleString(undefined,{maximumFractionDigits:2});
+      maxV  = Math.max.apply(null,nums).toLocaleString(undefined,{maximumFractionDigits:2});
+      meanV = (nums.reduce(function(s,n){return s+n;},0)/nums.length).toLocaleString(undefined,{maximumFractionDigits:2});
+    }
+    var missColor = missing > values.length*0.1 ? '#dc2626' : missing > 0 ? '#d97706' : '#16a34a';
+    return '<tr style="border-top:0.5px solid var(--border-light)">' +
+      '<td style="padding:7px 10px;font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap">'+escHtml(col)+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px"><span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+
+        (type==='Numeric'?'#eff6ff':type==='Date'?'#fdf4ff':'#f0fdf4')+';color:'+
+        (type==='Numeric'?'#1e40af':type==='Date'?'#7e22ce':'#166534')+'">'+type+'</span></td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:var(--text-secondary)">'+nonNull.length.toLocaleString()+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:'+missColor+'">'+missing.toLocaleString()+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:var(--text-secondary)">'+unique.toLocaleString()+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:var(--text-secondary)">'+minV+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:var(--text-secondary)">'+maxV+'</td>' +
+      '<td style="padding:7px 10px;font-size:11px;text-align:right;color:var(--text-secondary)">'+meanV+'</td>' +
+    '</tr>';
+  }).join('');
+
+  content.innerHTML =
+    '<div style="border:0.5px solid var(--border-light);border-radius:8px;overflow:hidden;overflow-x:auto">' +
+      '<table style="width:100%;border-collapse:collapse;min-width:700px">' +
+        '<thead><tr style="background:var(--bg-secondary)">' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:left">Column</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:left">Type</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Non-blank</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Missing</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Unique</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Min</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Max</th>' +
+          '<th style="padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);text-align:right">Mean</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>';
+}
+
+// ── Anomaly Detection Engine ──────────────────────────────────────────────────
+function daRunAnalysis() {
+  if (!_daData.length) { alert('No data loaded.'); return; }
+  _daResults = [];
+  var methods = ['benford','outlier','duplicates','rounding','gaps','dates'];
+  var anyChecked = methods.some(function(m){ return document.getElementById('da-chk-'+m)?.checked; });
+  if (!anyChecked) { alert('Select at least one detection method.'); return; }
+
+  if (document.getElementById('da-chk-benford')?.checked)    _daRunBenford();
+  if (document.getElementById('da-chk-outlier')?.checked)    _daRunOutliers();
+  if (document.getElementById('da-chk-duplicates')?.checked) _daRunDuplicates();
+  if (document.getElementById('da-chk-rounding')?.checked)   _daRunRounding();
+  if (document.getElementById('da-chk-gaps')?.checked)       _daRunGaps();
+  if (document.getElementById('da-chk-dates')?.checked)      _daRunDates();
+
+  _daRenderResults();
+  showDASection('results');
+}
+
+function _daNumericCol(colId) {
+  var col = document.getElementById(colId)?.value;
+  if (!col) return null;
+  return { col:col, values:_daData.map(function(r,i){ return {row:i,val:parseFloat(r[col]),raw:r[col]}; }).filter(function(x){ return !isNaN(x.val); }) };
+}
+
+function _daRunBenford() {
+  var d = _daNumericCol('da-benford-col'); if (!d) return;
+  var expected = [0.301,0.176,0.125,0.097,0.079,0.067,0.058,0.051,0.046];
+  var counts   = [0,0,0,0,0,0,0,0,0];
+  d.values.forEach(function(x){
+    var abs = Math.abs(x.val); if(abs<1) return;
+    var digit = parseInt(String(abs).replace(/^0+/,'').charAt(0),10) - 1;
+    if (digit>=0 && digit<9) counts[digit]++;
+  });
+  var total = counts.reduce(function(a,b){return a+b;},0);
+  if (!total) return;
+  var flags = [];
+  var sig = parseFloat(document.getElementById('da-benford-sig')?.value)||0.05;
+  counts.forEach(function(c,i){
+    var obs  = c/total;
+    var exp  = expected[i];
+    var diff = Math.abs(obs-exp);
+    if (diff > sig) {
+      flags.push({digit:i+1, observed:(obs*100).toFixed(1)+'%', expected:(exp*100).toFixed(1)+'%', deviation:(diff*100).toFixed(1)+'%', count:c});
+    }
+  });
+  _daResults.push({ method:"Benford's Law", column:d.col, total:total, flags:flags,
+    summary: flags.length ? flags.length + ' digit(s) deviate significantly from expected distribution' : 'Distribution consistent with Benford\'s Law' });
+}
+
+function _daRunOutliers() {
+  var d = _daNumericCol('da-outlier-col'); if (!d||!d.values.length) return;
+  var method = document.getElementById('da-outlier-method')?.value||'zscore';
+  var thresh = parseFloat(document.getElementById('da-outlier-thresh')?.value)||3;
+  var vals   = d.values.map(function(x){return x.val;});
+  var mean   = vals.reduce(function(a,b){return a+b;},0)/vals.length;
+  var flags  = [];
+  if (method==='zscore') {
+    var sd = Math.sqrt(vals.map(function(v){return Math.pow(v-mean,2);}).reduce(function(a,b){return a+b;},0)/vals.length);
+    if (!sd) return;
+    d.values.forEach(function(x){ var z=Math.abs((x.val-mean)/sd); if(z>thresh) flags.push({row:x.row+1, value:x.val, score:'Z='+z.toFixed(2), reason:'Z-score '+z.toFixed(2)+' > '+thresh}); });
+  } else {
+    var sorted = [...vals].sort(function(a,b){return a-b;});
+    var q1 = sorted[Math.floor(sorted.length*0.25)], q3=sorted[Math.floor(sorted.length*0.75)], iqr=q3-q1;
+    var lo=q1-thresh*iqr, hi=q3+thresh*iqr;
+    d.values.forEach(function(x){ if(x.val<lo||x.val>hi) flags.push({row:x.row+1, value:x.val, score:'IQR', reason:'Outside '+lo.toFixed(2)+' – '+hi.toFixed(2)}); });
+  }
+  _daResults.push({ method:'Statistical Outliers', column:d.col, flags:flags,
+    summary: flags.length + ' outlier' + (flags.length!==1?'s':'') + ' detected using ' + (method==='zscore'?'Z-score':'IQR') + ' method (threshold: ' + thresh + ')' });
+}
+
+function _daRunDuplicates() {
+  var keyCols = Array.from(document.querySelectorAll('.da-dup-chk:checked')).map(function(c){return c.value;});
+  if (!keyCols.length) { _daResults.push({method:'Duplicate Detection',flags:[],summary:'No key columns selected.'}); return; }
+  var seen={}, flags=[];
+  _daData.forEach(function(r,i){
+    var key = keyCols.map(function(c){return String(r[c]||'');}).join('|');
+    if (seen[key]!==undefined) { flags.push({row:i+1, key:key, firstRow:seen[key]+1}); }
+    else seen[key]=i;
+  });
+  _daResults.push({ method:'Duplicate Detection', columns:keyCols.join(', '), flags:flags,
+    summary: flags.length ? flags.length + ' duplicate row' + (flags.length!==1?'s':'') + ' detected across key: ' + keyCols.join(', ') : 'No duplicates found' });
+}
+
+function _daRunRounding() {
+  var d = _daNumericCol('da-round-col'); if (!d) return;
+  var div = parseFloat(document.getElementById('da-round-divisor')?.value)||1000;
+  var flags = d.values.filter(function(x){ return x.val!==0 && x.val%div===0; });
+  _daResults.push({ method:'Round Number Test', column:d.col, divisor:div, flags:flags,
+    summary: flags.length + ' value' + (flags.length!==1?'s':'') + ' exactly divisible by ' + div.toLocaleString() + ' (' + ((flags.length/d.values.length*100).toFixed(1)) + '% of non-zero values)' });
+}
+
+function _daRunGaps() {
+  var col = document.getElementById('da-gap-col')?.value; if(!col) return;
+  var nums = _daData.map(function(r,i){ return {row:i+1, val:parseInt(String(r[col]).replace(/\D/g,''),10)}; })
+             .filter(function(x){ return !isNaN(x.val); }).sort(function(a,b){return a.val-b.val;});
+  var flags=[];
+  for(var i=1;i<nums.length;i++){
+    var diff=nums[i].val-nums[i-1].val;
+    if(diff>1) flags.push({from:nums[i-1].val, to:nums[i].val, missing:diff-1});
+  }
+  _daResults.push({ method:'Sequence Gap Analysis', column:col, flags:flags,
+    summary: flags.length ? flags.length + ' gap' + (flags.length!==1?'s':'') + ' found (' + flags.reduce(function(s,f){return s+f.missing;},0) + ' missing number(s))' : 'No gaps detected in sequence' });
+}
+
+function _daRunDates() {
+  var col = document.getElementById('da-date-col')?.value; if(!col) return;
+  var chkWkend = document.getElementById('da-date-weekends')?.checked;
+  var chkFuture= document.getElementById('da-date-future')?.checked;
+  var chkOlr   = document.getElementById('da-date-outlier-dates')?.checked;
+  var flags=[], now=new Date();
+  _daData.forEach(function(r,i){
+    var raw=r[col]; if(!raw) return;
+    var d = raw instanceof Date ? raw : new Date(raw);
+    if(isNaN(d)) return;
+    if(chkWkend && (d.getDay()===0||d.getDay()===6)) flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Weekend ('+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+')'});
+    if(chkFuture && d>now) flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Future date'});
+  });
+  _daResults.push({ method:'Date Anomalies', column:col, flags:flags,
+    summary: flags.length + ' date anomal' + (flags.length!==1?'ies':'y') + ' detected' });
+}
+
+// ── Results rendering ─────────────────────────────────────────────────────────
+function _daRenderResults() {
+  var content  = document.getElementById('da-results-content');
+  var sub      = document.getElementById('da-results-sub');
+  var totalFlags = _daResults.reduce(function(s,r){ return s+(r.flags||[]).length; },0);
+  if (sub) sub.textContent = _daResults.length + ' method' + (_daResults.length!==1?'s':'')+' run · ' + totalFlags + ' flag' + (totalFlags!==1?'s':'') + ' found';
+
+  var html = _daResults.map(function(res) {
+    var flags  = res.flags||[];
+    var color  = flags.length ? '#dc2626' : '#16a34a';
+    var badge  = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+(flags.length?'#fef2f2':'#f0fdf4')+';color:'+color+'">'+flags.length+' flag'+(flags.length!==1?'s':'')+'</span>';
+
+    var tableHtml = '';
+    if (flags.length && res.method==="Benford's Law") {
+      tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">' +
+        '<thead><tr style="background:var(--bg-secondary)"><th style="padding:5px 8px;text-align:left">Digit</th><th style="padding:5px 8px;text-align:right">Observed</th><th style="padding:5px 8px;text-align:right">Expected</th><th style="padding:5px 8px;text-align:right">Deviation</th><th style="padding:5px 8px;text-align:right">Count</th></tr></thead><tbody>' +
+        flags.map(function(f){ return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px">'+f.digit+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.observed+'</td><td style="padding:5px 8px;text-align:right">'+f.expected+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.deviation+'</td><td style="padding:5px 8px;text-align:right">'+f.count+'</td></tr>'; }).join('') +
+        '</tbody></table>';
+    } else if (flags.length && res.method==='Sequence Gap Analysis') {
+      tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">' +
+        '<thead><tr style="background:var(--bg-secondary)"><th style="padding:5px 8px;text-align:left">From</th><th style="padding:5px 8px;text-align:left">To</th><th style="padding:5px 8px;text-align:right">Missing</th></tr></thead><tbody>' +
+        flags.slice(0,50).map(function(f){ return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px">'+f.from+'</td><td style="padding:5px 8px">'+f.to+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.missing+'</td></tr>'; }).join('') +
+        (flags.length>50?'<tr><td colspan="3" style="padding:8px;text-align:center;color:var(--text-tertiary)">…and '+(flags.length-50)+' more</td></tr>':'') +
+        '</tbody></table>';
+    } else if (flags.length) {
+      tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">' +
+        '<thead><tr style="background:var(--bg-secondary)"><th style="padding:5px 8px;text-align:left">Row</th><th style="padding:5px 8px;text-align:left">Value</th><th style="padding:5px 8px;text-align:left">Reason</th></tr></thead><tbody>' +
+        flags.slice(0,100).map(function(f){
+          var val   = f.value!=null?f.value:(f.key||f.date||'');
+          var reason= f.reason||(f.firstRow?'Duplicate of row '+f.firstRow:'');
+          return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px;color:var(--text-tertiary)">'+f.row+'</td><td style="padding:5px 8px;font-weight:600">'+String(val).slice(0,60)+'</td><td style="padding:5px 8px;color:#dc2626">'+escHtml(reason)+'</td></tr>';
+        }).join('') +
+        (flags.length>100?'<tr><td colspan="3" style="padding:8px;text-align:center;color:var(--text-tertiary)">…and '+(flags.length-100)+' more</td></tr>':'') +
+        '</tbody></table>';
+    }
+
+    return '<div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden;margin-bottom:14px">' +
+      '<div style="padding:14px 18px;display:flex;align-items:center;gap:10px;border-bottom:'+( flags.length?'0.5px solid var(--border-light)':'none')+ '">' +
+        '<div style="flex:1">' +
+          '<div style="font-size:14px;font-weight:700;color:var(--text-primary)">'+res.method+'</div>' +
+          (res.column?'<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Column: '+escHtml(res.column)+(res.columns?'s: '+escHtml(res.columns):'')+'</div>':'') +
+        '</div>' +
+        badge +
+      '</div>' +
+      (flags.length?
+        '<div style="padding:12px 18px">' +
+          '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">'+escHtml(res.summary)+'</div>' +
+          tableHtml +
+        '</div>'
+      : '<div style="padding:12px 18px;font-size:12px;color:#16a34a">'+escHtml(res.summary)+'</div>') +
+    '</div>';
+  }).join('');
+
+  content.innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--text-tertiary)">No results.</div>';
+  document.getElementById('da-export-csv-btn').style.display  = _daResults.length ? 'inline-flex' : 'none';
+  document.getElementById('da-export-xlsx-btn').style.display = _daResults.length ? 'inline-flex' : 'none';
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function daExportCSV() {
+  var rows = [['Method','Column','Row','Value','Reason']];
+  _daResults.forEach(function(res){
+    (res.flags||[]).forEach(function(f){
+      rows.push([res.method, res.column||res.columns||'', f.row||'', f.value!=null?f.value:(f.key||f.date||f.from||''), f.reason||(f.firstRow?'Dup of row '+f.firstRow:f.deviation||'')]);
+    });
+  });
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c||'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = 'anomaly_results_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function daExportXLSX() {
+  var wb = XLSX.utils.book_new();
+  // Summary sheet
+  var sumRows = [['Method','Column/Fields','Flags Found','Summary']].concat(
+    _daResults.map(function(r){ return [r.method, r.column||r.columns||'', (r.flags||[]).length, r.summary||'']; })
+  );
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), 'Summary');
+  // Detail sheet per method
+  _daResults.forEach(function(res){
+    if (!(res.flags||[]).length) return;
+    var sheetName = res.method.slice(0,31);
+    var headers = ['Row','Value','Reason'];
+    var detail = [headers].concat((res.flags).map(function(f){
+      return [f.row||'', f.value!=null?f.value:(f.key||f.date||f.from||''), f.reason||(f.firstRow?'Dup of row '+f.firstRow:f.deviation||'')];
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), sheetName);
+  });
+  XLSX.writeFile(wb, 'anomaly_results_' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
 function activateFoundations() {
   _initFoundationsData();
 
@@ -10636,7 +11370,7 @@ function _rcmObjLibRenderList() {
     var isActive = _rcmObjLibState.isEdit && _rcmObjLibState.pendingId===o.id;
     // Count how many controls use this objective
     var useCount = _fndControls.filter(function(c){ return c.objective_id===o.id; }).length;
-    return '<div onclick="_rcmObjLibLoadForEdit(\''+escHtml(o.id)+'\')" ' +
+    return '<div onclick="_rcmObjLibLoadForEdit(\''+escHtml(escJs(o.id))+'\')" ' +
       'style="display:flex;align-items:flex-start;gap:12px;padding:12px 22px;border-bottom:0.5px solid var(--border-light);cursor:pointer;'+(isActive?'background:#f0fdf4;':'')+'transition:background 0.1s" ' +
       'onmouseenter="if(!\''+isActive+'\')this.style.background=\'var(--bg-secondary)\'" ' +
       'onmouseleave="if(!\''+isActive+'\')this.style.background=\'\'">' +
@@ -10649,7 +11383,7 @@ function _rcmObjLibRenderList() {
       '</div>' +
       '<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
         (useCount ? '<span style="font-size:10px;color:var(--text-tertiary)">'+useCount+' control'+(useCount!==1?'s':'')+'</span>' : '') +
-        '<button onclick="event.stopPropagation();_rcmObjLibDelete(\''+escHtml(o.id)+'\')" title="Delete" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:13px;padding:2px;opacity:0.6" onmouseenter="this.style.color=\'#dc2626\';this.style.opacity=\'1\'" onmouseleave="this.style.color=\'var(--text-tertiary)\';this.style.opacity=\'0.6\'"><i class="ti ti-trash"></i></button>' +
+        '<button onclick="event.stopPropagation();_rcmObjLibDelete(\''+escHtml(escJs(o.id))+'\')" title="Delete" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:13px;padding:2px;opacity:0.6" onmouseenter="this.style.color=\'#dc2626\';this.style.opacity=\'1\'" onmouseleave="this.style.color=\'var(--text-tertiary)\';this.style.opacity=\'0.6\'"><i class="ti ti-trash"></i></button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -10758,7 +11492,7 @@ function rcmRenderObjModal() {
   list.innerHTML = filtered.map(function(o) {
     var active = o === cur;
     var oid = rcmGetOrAssignObjectiveId(o);
-    return '<div onclick="rcmObjPickSaved(\''+escHtml(o).replace(/'/g,'\\\'')+'\')" ' +
+    return '<div onclick="rcmObjPickSaved(\''+escHtml(escJs(o))+'\')" ' +
       'style="display:flex;align-items:flex-start;gap:10px;padding:11px 18px;border-bottom:0.5px solid var(--border-light);cursor:pointer;'+(active?'background:#f0fdf4':'')+'" ' +
       'onmouseenter="if(!this.dataset.active)this.style.background=\'var(--bg-secondary)\'" onmouseleave="if(!this.dataset.active)this.style.background=\'\'" ' +
       'data-active="'+(active?'1':'')+'">' +
@@ -17615,7 +18349,10 @@ async function toggleBookmarks(fileId, idx, ref) {
     if (!entry?.file) throw new Error('File not found in memory.');
 
     const arrayBuffer = await entry.file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    // isEvalSupported:false mitigates CVE-2024-4367 (arbitrary JS execution via a
+    // crafted PDF font) on this pinned pdfjs-dist version. disableWorker matches
+    // the app's worker-suppressed setup.
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, disableWorker: true, isEvalSupported: false }).promise;
 
     // Get bookmarks (outline)
     const outline = await pdf.getOutline();
@@ -18454,11 +19191,11 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
   const dlCall = downloadCall || '';
   const dlBtn = dlCall
     ? `<button class="icon-btn" title="Download" onclick="${dlCall}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`
-    : `<button class="icon-btn" title="Download" onclick="downloadPlaceholder('${escHtml(name)}')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
+    : `<button class="icon-btn" title="Download" onclick="downloadPlaceholder('${escHtml(escJs(name))}')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`;
   const delBtn = isDynamic
     ? `<button class="icon-btn" title="Delete" style="color:var(--red-700)" onclick="${deleteCall}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`
     : `<button class="icon-btn" title="Delete" style="opacity:0.4" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
-  const prevCall = previewCall || `previewStaticFile('${escHtml(name)}')`;
+  const prevCall = previewCall || `previewStaticFile('${escHtml(escJs(name))}')`;
   const prevBtn = `<button onclick="${prevCall}" title="Preview file"
     style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);
            padding:3px;border-radius:var(--radius-md);flex-shrink:0;
@@ -18477,8 +19214,8 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
   return `<div class="file-row" style="align-items:flex-start" id="frow-${reviewKey}">
     <div class="file-icon" ${colorStyle} style="margin-top:2px"><i class="ti ${icon}"></i></div>
     <div style="min-width:0;margin-right:8px">
-      <div class="file-name">${name}</div>
-      <div class="file-meta">${meta}</div>
+      <div class="file-name">${escHtml(name)}</div>
+      <div class="file-meta">${escHtml(meta)}</div>
     </div>
     ${prevBtn}
     <div style="flex:1"></div>
@@ -18507,7 +19244,30 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
 }
 
 function escHtml(str) {
-  return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  // Full HTML-entity encoding. Order matters: & must be first so we don't
+  // double-encode the entities we introduce below. Covers element text,
+  // double- and single-quoted attribute values.
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
+}
+
+// JS-string escape — for values placed inside inline on* handlers like
+// onclick="foo('...')". Prevents breaking out of the JS string literal.
+// NOTE: prefer addEventListener / data-attributes over inline handlers.
+function escJs(str) {
+  return String(str == null ? '' : str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/</g, '\\x3C')
+    .replace(/>/g, '\\x3E');
 }
 
 // Download a real in-memory File object
