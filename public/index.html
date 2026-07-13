@@ -1029,6 +1029,127 @@
           <!-- Method cards — shown when data is loaded -->
           <div id="da-method-cards" style="display:none;display:flex;flex-direction:column;gap:14px">
 
+            <!-- ═══ FOLDER: Statistical Outlier Detection ═══ -->
+            <div class="da-folder-hdr" onclick="daToggleFolder('stat')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 2px;user-select:none">
+              <svg id="da-fold-stat" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--wf-navy)" stroke-width="2.5" stroke-linecap="round" style="transform:rotate(90deg);transition:transform 0.15s"><polyline points="9 18 15 12 9 6"/></svg>
+              <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:var(--wf-navy)">Statistical Outlier Detection</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">— values unusual relative to the data's distribution</span>
+            </div>
+            <div id="da-folder-stat" style="display:flex;flex-direction:column;gap:14px;padding-left:6px">
+              <!-- STAT-GROUP-ANCHOR -->
+            </div>
+
+            <!-- ═══ FOLDER: Multivariate / ML Detection ═══ -->
+            <div class="da-folder-hdr" onclick="daToggleFolder('ml')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 2px;user-select:none;margin-top:6px">
+              <svg id="da-fold-ml" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--wf-navy)" stroke-width="2.5" stroke-linecap="round" style="transform:rotate(90deg);transition:transform 0.15s"><polyline points="9 18 15 12 9 6"/></svg>
+              <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:var(--wf-navy)">Multivariate / ML Detection</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">— finds rows anomalous across several fields at once</span>
+              <span id="da-ml-engine-badge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#eff6ff;color:#1e40af;margin-left:auto">JS engine</span>
+            </div>
+            <div id="da-folder-ml" style="display:flex;flex-direction:column;gap:14px;padding-left:6px">
+
+              <!-- Isolation Forest -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('iforest',this)">
+                  <input type="checkbox" id="da-chk-iforest" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Isolation Forest</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Isolates anomalies by random partitioning — rows separated in few splits are outliers. Strong general-purpose multivariate detector, no distribution assumptions</div>
+                  </div>
+                  <svg id="da-chev-iforest" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-iforest" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <label class="fl" style="margin-bottom:6px">Feature columns (select two or more numeric fields)</label>
+                  <div id="da-iforest-cols" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:16px">
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Contamination (expected % anomalies)</label>
+                      <select id="da-iforest-contam" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="0.01">1%</option>
+                        <option value="0.05" selected>5%</option>
+                        <option value="0.10">10%</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Trees</label>
+                      <select id="da-iforest-trees" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mahalanobis Distance -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('mahal',this)">
+                  <input type="checkbox" id="da-chk-mahal" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Mahalanobis Distance</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Measures distance from the multivariate centre accounting for correlations between fields. Flags rows far from the joint distribution — assumes roughly elliptical data</div>
+                  </div>
+                  <svg id="da-chev-mahal" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-mahal" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <label class="fl" style="margin-bottom:6px">Feature columns (select two or more numeric fields)</label>
+                  <div id="da-mahal-cols" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+                  <div>
+                    <label class="fl" style="margin-bottom:4px">Flag threshold (percentile of χ² distance)</label>
+                    <select id="da-mahal-pct" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <option value="0.95">95th percentile</option>
+                      <option value="0.975" selected>97.5th percentile</option>
+                      <option value="0.99">99th percentile</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Local Outlier Factor -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('lof',this)">
+                  <input type="checkbox" id="da-chk-lof" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Local Outlier Factor (LOF)</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Compares each row's local density to its neighbours' — catches anomalies that are only unusual relative to their local cluster, which global methods miss</div>
+                  </div>
+                  <svg id="da-chev-lof" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-lof" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <label class="fl" style="margin-bottom:6px">Feature columns (select two or more numeric fields)</label>
+                  <div id="da-lof-cols" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:16px">
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Neighbours (k)</label>
+                      <select id="da-lof-k" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="35">35</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Flag threshold (LOF score)</label>
+                      <select id="da-lof-thresh" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="1.5">1.5</option>
+                        <option value="2.0" selected>2.0</option>
+                        <option value="3.0">3.0</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /da-folder-ml -->
+
+            <!-- ═══ FOLDER: Fraud Indicator Tests ═══ -->
+            <div class="da-folder-hdr" onclick="daToggleFolder('fraud')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 2px;user-select:none;margin-top:6px">
+              <svg id="da-fold-fraud" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--wf-navy)" stroke-width="2.5" stroke-linecap="round" style="transform:rotate(90deg);transition:transform 0.15s"><polyline points="9 18 15 12 9 6"/></svg>
+              <span style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;color:var(--wf-navy)">Fraud Indicator Tests</span>
+              <span style="font-size:11px;color:var(--text-tertiary)">— forensic signatures of manipulation, not statistical outliers</span>
+            </div>
+            <div id="da-folder-fraud" style="display:flex;flex-direction:column;gap:14px;padding-left:6px">
+
             <!-- Benford's Law -->
             <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
               <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('benford',this)">
@@ -8092,11 +8213,10 @@ var _daActiveSection = 'upload';
 function activateDataAnalysis() {
   document.querySelectorAll('.wf-nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.getElementById('nav-data-analysis')?.classList.add('active');
-  // Hide other pages
-  ['page-audits','page-workpapers','page-wpdetail','page-newwp',
-   'page-foundations','page-knowledge-base'].forEach(function(id){
-    var el = document.getElementById(id); if(el) el.style.display='none';
-  });
+  // Hide every page, then show only Data Analysis. Using the [id^="page-"]
+  // selector (rather than a hardcoded list) means a new or renamed page can
+  // never leak through this view.
+  document.querySelectorAll('[id^="page-"]').forEach(function(el){ el.style.display='none'; });
   document.getElementById('page-data-analysis').style.display='flex';
   document.getElementById('wf-subnav').style.display='none';
   document.getElementById('wf-subnav-foundations').style.display='none';
