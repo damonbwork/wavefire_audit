@@ -19950,8 +19950,9 @@ function renderSampleDataGrid(ref) {
   // Rebuild header: keep the "#" cell (first child), replace the rest
   while (hdrRow.children.length > 1) hdrRow.removeChild(hdrRow.lastChild);
   data.columns.forEach(function(col, colIdx){
+    if (col.width == null) col.width = SD_DEFAULT_COL_WIDTH; // legacy columns created before this feature
     var th = document.createElement('th');
-    th.style.cssText = 'min-width:140px;position:relative;font-size:10px;font-weight:600;padding:5px 60px 5px 8px;text-align:left;border-right:0.5px solid var(--border-light);' +
+    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 60px 5px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;' +
       (col.extract ? 'cursor:pointer;background:#eff6ff' : '');
     var input = document.createElement('input');
     input.type = 'text';
@@ -20002,8 +20003,17 @@ function renderSampleDataGrid(ref) {
     btnWrap.appendChild(leftBtn);
     btnWrap.appendChild(rightBtn);
     btnWrap.appendChild(delBtn);
+    // Drag handle on the right edge of the header cell — same interaction
+    // pattern as the Test Attributes grid's column resize (startAttrColResize),
+    // adapted to this table's per-column-id width storage.
+    var resizeHandle = document.createElement('span');
+    resizeHandle.className = 'sd-col-resize';
+    resizeHandle.title = 'Drag to resize column';
+    resizeHandle.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;background:transparent;z-index:2';
+    resizeHandle.onmousedown = function(e){ e.stopPropagation(); startSampleDataColResize(e, ref, col); };
     th.appendChild(input);
     th.appendChild(btnWrap);
+    th.appendChild(resizeHandle);
     hdrRow.appendChild(th);
   });
 
@@ -20012,7 +20022,7 @@ function renderSampleDataGrid(ref) {
     while (extractRow.children.length > 1) extractRow.removeChild(extractRow.lastChild);
     data.columns.forEach(function(col){
       var th = document.createElement('th');
-      th.style.cssText = 'min-width:140px;font-weight:400;padding:4px 8px;text-align:left;border-right:0.5px solid var(--border-light)';
+      th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;font-weight:400;padding:4px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box';
       var label = document.createElement('label');
       label.style.cssText = 'display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:var(--text-tertiary)';
       var chk = document.createElement('input');
@@ -20036,41 +20046,53 @@ function renderSampleDataGrid(ref) {
     var isSelected = (i === selectedIdx);
     tr.style.borderBottom = '0.5px solid var(--border-light)';
     tr.style.background = isSelected ? 'var(--wf-blue-50, #eff6ff)' : '';
+    // NOTE: `overflow` on <tr> has no effect in standard table layout — it's
+    // not a block-formatting-context element, so setting it here would be a
+    // no-op that only creates a false impression of clipping. The actual
+    // clip (row.height override -> "hide text if shrunk below what's
+    // needed") is applied per-cell, directly on each <textarea>, further
+    // down — a <textarea> is a real form control with a genuine box model
+    // that does respect a fixed height + overflow:hidden.
     tr.onclick = function(){ _sdSelectRow(ref, i); };
 
     var numTd = document.createElement('td');
     numTd.textContent = i + 1; // auto-generated, next number — never user-editable
-    numTd.style.cssText = 'width:44px;min-width:44px;text-align:center;font-size:12px;padding:6px 8px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);' +
+    numTd.style.cssText = 'width:44px;min-width:44px;text-align:center;font-size:12px;padding:6px 8px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;' +
       (isSelected ? 'color:var(--wf-navy);font-weight:700' : 'color:var(--text-tertiary)');
     tr.appendChild(numTd);
     data.columns.forEach(function(col, colIdx){
       var td = document.createElement('td');
-      td.style.cssText = 'min-width:140px;padding:0;border-right:0.5px solid var(--border-light);' +
+      td.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;padding:0;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
         (col.extract ? 'background:#f8fafc' : '');
-      var input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'sd-cell-input';
-      input.dataset.rowIdx = i;
-      input.dataset.colIdx = colIdx;
-      // A column flagged for extraction is cleared and locked — Wavefire
-      // will populate it from the sample files, so manual entry is disallowed
-      // while the flag is on.
-      input.value = col.extract ? '' : ((row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '');
-      input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:12px;color:var(--text-primary);padding:6px 8px;' +
-        (col.extract ? 'color:var(--text-tertiary);font-style:italic;cursor:not-allowed' : '');
+      // A <textarea> (not <input>) is required so cell content can wrap and
+      // its natural height can be measured via scrollHeight — an <input> has
+      // a fixed single-line height regardless of content length.
+      var ta = document.createElement('textarea');
+      ta.className = 'sd-cell-input';
+      ta.dataset.rowIdx = i;
+      ta.dataset.colIdx = colIdx;
+      ta.rows = 1;
+      ta.value = col.extract ? '' : ((row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '');
+      ta.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:12px;font-family:inherit;line-height:1.4;color:var(--text-primary);padding:6px 8px;box-sizing:border-box;' +
+        (col.extract ? 'color:var(--text-tertiary);font-style:italic;cursor:not-allowed' : '') +
+        (row.height != null ? 'height:'+row.height+'px;' : ''); // manual override clips here — see note above
       if (col.extract) {
-        input.disabled = true;
-        input.placeholder = 'Auto-extracted';
+        ta.disabled = true;
+        ta.placeholder = 'Auto-extracted';
       } else {
-        input.oninput = function(){ if(!row.cells) row.cells = {}; row.cells[col.id] = this.value; };
-        input.onblur  = function(){ saveSampleDataGrid(ref); };
-        input.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); };
+        ta.oninput = function(){
+          if(!row.cells) row.cells = {};
+          row.cells[col.id] = this.value;
+          if (row.height == null) _sdApplyRowHeight(ref, i); // auto rows grow live as the user types
+        };
+        ta.onblur  = function(){ saveSampleDataGrid(ref); };
+        ta.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); };
       }
-      td.appendChild(input);
+      td.appendChild(ta);
       tr.appendChild(td);
     });
     var actionTd = document.createElement('td');
-    actionTd.style.cssText = 'width:76px;padding:2px;text-align:center;white-space:nowrap';
+    actionTd.style.cssText = 'width:76px;padding:2px;text-align:center;white-space:nowrap;vertical-align:top;position:relative';
     var upBtn = document.createElement('button');
     upBtn.title = 'Move row up';
     upBtn.className = 'icon-btn';
@@ -20096,23 +20118,78 @@ function renderSampleDataGrid(ref) {
     actionTd.appendChild(upBtn);
     actionTd.appendChild(downBtn);
     actionTd.appendChild(rowDelBtn);
+    // Drag handle for row height — deliberately confined to this action cell
+    // (not stretched across the whole row) so it can't intercept clicks meant
+    // for the data cells elsewhere in the row; it's still easily discoverable
+    // in the same corner as the row's other controls.
+    var rowResizeHandle = document.createElement('div');
+    rowResizeHandle.className = 'sd-row-resize';
+    rowResizeHandle.title = 'Drag to resize row height';
+    rowResizeHandle.style.cssText = 'position:absolute;left:2px;right:2px;bottom:0;height:5px;cursor:row-resize;border-radius:2px;background:transparent;z-index:2';
+    rowResizeHandle.onmouseenter = function(){ this.style.background = 'var(--wf-blue)'; this.style.opacity = '0.4'; };
+    rowResizeHandle.onmouseleave = function(){ this.style.background = 'transparent'; };
+    rowResizeHandle.onmousedown = function(e){ e.stopPropagation(); startSampleDataRowResize(e, ref, i); };
+    actionTd.appendChild(rowResizeHandle);
     tr.appendChild(actionTd);
     bodyEl.appendChild(tr);
   });
 
   if (hintEl) hintEl.style.display = data.columns.length ? 'none' : '';
+
+  // Auto-size every row that hasn't been manually overridden, now that all
+  // cells for this render pass exist in the DOM and can be measured.
+  data.rows.forEach(function(row, i){ if (row.height == null) _sdApplyRowHeight(ref, i); });
+}
+
+// Computes and applies the height for one row. For an "auto" row (no manual
+// override stored), the height is the tallest natural content height across
+// every textarea in that row — found via scrollHeight after temporarily
+// resetting each to a single line, mirroring the existing autoResizeTA
+// pattern used elsewhere in the app. For a manually-sized row, every
+// textarea in the row is instead pinned to that fixed height (with
+// overflow:hidden already set in its base style), which is what actually
+// clips — `overflow` on <tr> has no effect in table layout, so the clip has
+// to happen on the form control itself.
+function _sdApplyRowHeight(ref, rowIndex) {
+  var data = _daSampleDataFor(ref);
+  var row = data.rows[rowIndex];
+  if (!row) return;
+  var tr = document.querySelector('#sd-body-rows tr[data-row-idx="'+rowIndex+'"]') ||
+           Array.from(document.querySelectorAll('#sd-body-rows .sd-row')).find(function(el){ return parseInt(el.dataset.rowIdx,10)===rowIndex; });
+  if (!tr) return;
+  var textareas = tr.querySelectorAll('.sd-cell-input');
+
+  if (row.height != null) {
+    textareas.forEach(function(ta){ ta.style.height = row.height + 'px'; });
+    return;
+  }
+
+  var maxContentH = SD_MIN_ROW_HEIGHT;
+  textareas.forEach(function(ta){
+    ta.style.height = 'auto';
+    maxContentH = Math.max(maxContentH, ta.scrollHeight);
+  });
+  textareas.forEach(function(ta){ ta.style.height = maxContentH + 'px'; });
 }
 
 // Adds a new column to the right of the "#" column (and to the right of any
 // existing user columns). Title defaults to blank; the user can optionally
 // type a header. Pressing "Add column" repeatedly keeps appending columns.
+// Default column width matches the Title column in the Test Attributes
+// section (see #sect-test-attributes [data-col="title"], width:180px) as a
+// visual reference point only — the two grids are not linked, so a later
+// resize of one has no effect on the other.
+var SD_DEFAULT_COL_WIDTH = 180;
+var SD_MIN_COL_WIDTH     = 60;
+var SD_MIN_ROW_HEIGHT    = 30; // approx. one line of 12px text plus cell padding
+
 function addSampleDataColumn(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
   pushUndo(ref);
   var data = _daSampleDataFor(ref);
   var newId = 'col_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-  data.columns.push({ id: newId, title: '' });
+  data.columns.push({ id: newId, title: '', width: SD_DEFAULT_COL_WIDTH });
   // Ensure every existing row has a (blank) slot for the new column so
   // exports/renders don't need to special-case "missing" cells.
   data.rows.forEach(function(row){ if(!row.cells) row.cells = {}; row.cells[newId] = ''; });
@@ -20171,6 +20248,99 @@ function moveSampleDataRow(ref, rowIndex, direction) {
   data.rows[rowIndex] = data.rows[target];
   data.rows[target] = tmp;
   _sdSelectedRow[ref] = target; // keep the moved row selected at its new position
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// ── Column width / row height resize ───────────────────────────────────────────
+// Same drag-to-resize interaction as the Test Attributes grid's
+// startAttrColResize (mousemove/mouseup on document, live style updates during
+// the drag, a single undo snapshot + save on release) — adapted here to this
+// table's per-column-id width storage and added row-height support.
+
+function startSampleDataColResize(e, ref, col) {
+  e.preventDefault();
+  var data = _daSampleDataFor(ref);
+  var startX = e.clientX;
+  var startW = col.width || SD_DEFAULT_COL_WIDTH;
+  var moved = false;
+
+  function onMove(ev) {
+    var newW = Math.max(SD_MIN_COL_WIDTH, startW + (ev.clientX - startX));
+    col.width = newW;
+    moved = true;
+    // Live-update every cell sharing this column, without a full re-render —
+    // matches the existing Attributes-grid resize pattern for responsiveness.
+    document.querySelectorAll('#sd-table [data-col-id="'+col.id+'"]').forEach(function(headerInput){
+      var th = headerInput.closest('th'); if (th) th.style.width = newW + 'px';
+    });
+    var colIdx = data.columns.indexOf(col);
+    document.querySelectorAll('#sd-body-rows tr').forEach(function(tr){
+      var cell = tr.children[colIdx+1]; // +1 to skip the "#" column
+      if (cell) cell.style.width = newW + 'px';
+    });
+    if (extractRowCellFor(col)) extractRowCellFor(col).style.width = newW + 'px';
+  }
+  function extractRowCellFor(col) {
+    var idx = data.columns.indexOf(col);
+    var extractRow = document.getElementById('sd-extract-row');
+    return extractRow ? extractRow.children[idx+1] : null;
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (moved) { pushUndo(ref); saveSampleDataGrid(ref); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+}
+
+function startSampleDataRowResize(e, ref, rowIndex) {
+  e.preventDefault();
+  var data = _daSampleDataFor(ref);
+  var row = data.rows[rowIndex];
+  if (!row) return;
+  var tr = Array.from(document.querySelectorAll('#sd-body-rows .sd-row')).find(function(el){ return parseInt(el.dataset.rowIdx,10)===rowIndex; });
+  if (!tr) return;
+  var startY = e.clientY;
+  var startH = tr.offsetHeight;
+  var moved = false;
+
+  function onMove(ev) {
+    var newH = Math.max(SD_MIN_ROW_HEIGHT, startH + (ev.clientY - startY));
+    row.height = newH; // manual override — shrinking below content height now clips it
+    moved = true;
+    // Applied to each textarea directly (not tr.style.height/overflow, which
+    // has no effect in table layout) — a <textarea> genuinely respects a
+    // fixed height + overflow:hidden as a real form control.
+    tr.querySelectorAll('.sd-cell-input').forEach(function(ta){ ta.style.height = newH + 'px'; });
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (moved) { pushUndo(ref); saveSampleDataGrid(ref); }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+}
+
+// Restores a row to auto-height (removes the manual override) — exposed so a
+// future "reset row height" affordance can call it; also used defensively if
+// row.height is ever set to something invalid.
+function resetSampleDataRowHeight(ref, rowIndex) {
+  var data = _daSampleDataFor(ref);
+  var row = data.rows[rowIndex];
+  if (!row) return;
+  pushUndo(ref);
+  row.height = null;
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
 }
@@ -20377,7 +20547,7 @@ function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
   var neededCols = startColIdx + widestRow;
   while (data.columns.length < neededCols) {
     var newId = 'col_' + Date.now() + '_' + Math.floor(Math.random()*100000) + '_' + data.columns.length;
-    data.columns.push({ id: newId, title: '' });
+    data.columns.push({ id: newId, title: '', width: SD_DEFAULT_COL_WIDTH });
     data.rows.forEach(function(row){ if(!row.cells) row.cells = {}; row.cells[newId] = ''; });
   }
   var neededRows = startRowIdx + grid.length;
