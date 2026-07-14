@@ -2472,11 +2472,32 @@
                     <th style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light)">#</th>
                     <!-- User-added column headers render here via JS -->
                   </tr>
+                  <tr id="sd-extract-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:9px;font-weight:600;color:var(--text-tertiary);padding:5px 4px;text-align:right;border-right:0.5px solid var(--border-light);white-space:nowrap">Extract data from sample files</th>
+                    <!-- One checkbox cell per column renders here via JS -->
+                  </tr>
                 </thead>
                 <tbody id="sd-body-rows">
                   <!-- Rows render here via JS -->
                 </tbody>
               </table>
+              <!-- Search Guidance dialog for a column flagged for extraction -->
+              <div id="sd-guidance-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+                <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:460px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+                  <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Extract: <span id="sd-guidance-colname"></span></div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Wavefire will search the attached sample files for this data element and fill it in automatically.</div>
+                  </div>
+                  <div style="padding:16px 20px">
+                    <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:block;margin-bottom:6px">Search Guidance <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                    <textarea id="sd-guidance-textarea" maxlength="2500" placeholder="Search guidance…" style="width:100%;min-height:100px;resize:vertical;font-size:12px;border:0.5px solid var(--border-medium);border-radius:6px;padding:8px 10px;outline:none;background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;line-height:1.5"></textarea>
+                  </div>
+                  <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+                    <button class="btn-s" onclick="_sdCloseGuidanceDialog()" style="font-size:12px">Cancel</button>
+                    <button class="btn-p" onclick="_sdSaveGuidanceDialog()" style="font-size:12px">Save</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div style="padding:10px 12px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
               <button class="btn-s" onclick="addSampleDataRow()" style="font-size:11px;padding:3px 10px">
@@ -19889,7 +19910,28 @@ function _sdResolveSelectedIndex(ref) {
 
 function _sdSelectRow(ref, idx) {
   _sdSelectedRow[ref] = idx;
-  renderSampleDataGrid(ref); // re-render so highlight moves — cheap at typical sample sizes
+  _sdUpdateRowHighlight(ref);
+}
+
+// Updates only the visual highlight (row background + "#" cell styling) on
+// the CURRENT DOM nodes — never destroys/rebuilds any <input>. A full
+// renderSampleDataGrid() call here would wipe out whatever cell the user just
+// clicked into (its <input> gets replaced with a new node, losing focus
+// before a single keystroke could land) — this is the fix for that bug.
+function _sdUpdateRowHighlight(ref) {
+  var bodyEl = document.getElementById('sd-body-rows');
+  if (!bodyEl) return;
+  var selectedIdx = _sdResolveSelectedIndex(ref);
+  Array.from(bodyEl.querySelectorAll('.sd-row')).forEach(function(tr){
+    var i = parseInt(tr.dataset.rowIdx, 10);
+    var isSelected = (i === selectedIdx);
+    tr.style.background = isSelected ? 'var(--wf-blue-50, #eff6ff)' : '';
+    var numTd = tr.firstElementChild;
+    if (numTd) {
+      numTd.style.color = isSelected ? 'var(--wf-navy)' : 'var(--text-tertiary)';
+      numTd.style.fontWeight = isSelected ? '700' : '';
+    }
+  });
 }
 
 // Renders the grid from wpSampleData[ref] into #sd-hdr-row / #sd-body-rows.
@@ -19897,18 +19939,20 @@ function _sdSelectRow(ref, idx) {
 // so inserting/deleting rows automatically renumbers everything.
 function renderSampleDataGrid(ref) {
   var data = _daSampleDataFor(ref);
-  var hdrRow  = document.getElementById('sd-hdr-row');
-  var bodyEl  = document.getElementById('sd-body-rows');
-  var hintEl  = document.getElementById('sd-empty-hint');
+  var hdrRow     = document.getElementById('sd-hdr-row');
+  var extractRow = document.getElementById('sd-extract-row');
+  var bodyEl     = document.getElementById('sd-body-rows');
+  var hintEl     = document.getElementById('sd-empty-hint');
   if (!hdrRow || !bodyEl) return;
 
   var selectedIdx = _sdResolveSelectedIndex(ref);
 
   // Rebuild header: keep the "#" cell (first child), replace the rest
   while (hdrRow.children.length > 1) hdrRow.removeChild(hdrRow.lastChild);
-  data.columns.forEach(function(col){
+  data.columns.forEach(function(col, colIdx){
     var th = document.createElement('th');
-    th.style.cssText = 'min-width:140px;position:relative;font-size:10px;font-weight:600;padding:5px 8px;text-align:left;border-right:0.5px solid var(--border-light)';
+    th.style.cssText = 'min-width:140px;position:relative;font-size:10px;font-weight:600;padding:5px 60px 5px 8px;text-align:left;border-right:0.5px solid var(--border-light);' +
+      (col.extract ? 'cursor:pointer;background:#eff6ff' : '');
     var input = document.createElement('input');
     input.type = 'text';
     input.value = col.title || '';
@@ -19919,16 +19963,69 @@ function renderSampleDataGrid(ref) {
     input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:normal;padding:2px 4px';
     input.oninput = function(){ col.title = this.value; };
     input.onblur  = function(){ saveSampleDataGrid(ref); };
+    if (col.extract) {
+      // When flagged for extraction, clicking anywhere in the header (except
+      // directly interacting with the title text itself) opens the guidance
+      // dialog rather than editing the title inline.
+      th.title = 'Click to set search guidance for automatic extraction';
+      th.onclick = function(e){ if (e.target !== input) _sdOpenGuidanceDialog(ref, col.id); };
+      input.onclick = function(){ _sdOpenGuidanceDialog(ref, col.id); };
+      input.readOnly = true;
+    }
+    // Move-left / move-right — index 0 is always the leftmost real column
+    // (the "#" column isn't part of this array), so disabling at the array
+    // edges is exactly "can't move left of the auto-number field."
+    var btnWrap = document.createElement('div');
+    btnWrap.style.cssText = 'position:absolute;right:2px;top:2px;display:flex;gap:1px';
+    var leftBtn = document.createElement('button');
+    leftBtn.title = 'Move column left';
+    leftBtn.className = 'icon-btn';
+    leftBtn.style.cssText = 'width:18px;height:18px';
+    leftBtn.disabled = (colIdx === 0);
+    if (leftBtn.disabled) leftBtn.style.opacity = '0.3';
+    leftBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+    leftBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataColumn(ref, col.id, 'left'); };
+    var rightBtn = document.createElement('button');
+    rightBtn.title = 'Move column right';
+    rightBtn.className = 'icon-btn';
+    rightBtn.style.cssText = 'width:18px;height:18px';
+    rightBtn.disabled = (colIdx === data.columns.length - 1);
+    if (rightBtn.disabled) rightBtn.style.opacity = '0.3';
+    rightBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+    rightBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataColumn(ref, col.id, 'right'); };
     var delBtn = document.createElement('button');
     delBtn.title = 'Remove column';
     delBtn.className = 'icon-btn';
-    delBtn.style.cssText = 'position:absolute;right:2px;top:2px;width:18px;height:18px';
+    delBtn.style.cssText = 'width:18px;height:18px';
     delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    delBtn.onclick = function(){ removeSampleDataColumn(ref, col.id); };
+    delBtn.onclick = function(e){ e.stopPropagation(); removeSampleDataColumn(ref, col.id); };
+    btnWrap.appendChild(leftBtn);
+    btnWrap.appendChild(rightBtn);
+    btnWrap.appendChild(delBtn);
     th.appendChild(input);
-    th.appendChild(delBtn);
+    th.appendChild(btnWrap);
     hdrRow.appendChild(th);
   });
+
+  // Rebuild the "Extract data from sample files" checkbox row
+  if (extractRow) {
+    while (extractRow.children.length > 1) extractRow.removeChild(extractRow.lastChild);
+    data.columns.forEach(function(col){
+      var th = document.createElement('th');
+      th.style.cssText = 'min-width:140px;font-weight:400;padding:4px 8px;text-align:left;border-right:0.5px solid var(--border-light)';
+      var label = document.createElement('label');
+      label.style.cssText = 'display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:var(--text-tertiary)';
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = !!col.extract;
+      chk.style.cssText = 'accent-color:var(--wf-navy);cursor:pointer';
+      chk.onchange = function(){ toggleSampleDataExtractFlag(ref, col.id, this.checked); };
+      label.appendChild(chk);
+      label.appendChild(document.createTextNode('Extract'));
+      th.appendChild(label);
+      extractRow.appendChild(th);
+    });
+  }
 
   // Rebuild body rows
   bodyEl.innerHTML = '';
@@ -19948,31 +20045,56 @@ function renderSampleDataGrid(ref) {
     tr.appendChild(numTd);
     data.columns.forEach(function(col, colIdx){
       var td = document.createElement('td');
-      td.style.cssText = 'min-width:140px;padding:0;border-right:0.5px solid var(--border-light)';
+      td.style.cssText = 'min-width:140px;padding:0;border-right:0.5px solid var(--border-light);' +
+        (col.extract ? 'background:#f8fafc' : '');
       var input = document.createElement('input');
       input.type = 'text';
       input.className = 'sd-cell-input';
       input.dataset.rowIdx = i;
       input.dataset.colIdx = colIdx;
-      input.value = (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '';
-      input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:12px;color:var(--text-primary);padding:6px 8px';
-      input.oninput = function(){ if(!row.cells) row.cells = {}; row.cells[col.id] = this.value; };
-      input.onblur  = function(){ saveSampleDataGrid(ref); };
-      // Focusing a cell selects its row (without a full re-render, so typing
-      // isn't interrupted) — clicking elsewhere in the row still re-renders
-      // via the <tr> handler above for the visual highlight.
-      input.onfocus = function(){ _sdSelectedRow[ref] = i; };
+      // A column flagged for extraction is cleared and locked — Wavefire
+      // will populate it from the sample files, so manual entry is disallowed
+      // while the flag is on.
+      input.value = col.extract ? '' : ((row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '');
+      input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:12px;color:var(--text-primary);padding:6px 8px;' +
+        (col.extract ? 'color:var(--text-tertiary);font-style:italic;cursor:not-allowed' : '');
+      if (col.extract) {
+        input.disabled = true;
+        input.placeholder = 'Auto-extracted';
+      } else {
+        input.oninput = function(){ if(!row.cells) row.cells = {}; row.cells[col.id] = this.value; };
+        input.onblur  = function(){ saveSampleDataGrid(ref); };
+        input.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); };
+      }
       td.appendChild(input);
       tr.appendChild(td);
     });
     var actionTd = document.createElement('td');
-    actionTd.style.cssText = 'width:32px;padding:2px;text-align:center';
+    actionTd.style.cssText = 'width:76px;padding:2px;text-align:center;white-space:nowrap';
+    var upBtn = document.createElement('button');
+    upBtn.title = 'Move row up';
+    upBtn.className = 'icon-btn';
+    upBtn.style.cssText = 'width:20px;height:20px';
+    upBtn.disabled = (i === 0);
+    if (upBtn.disabled) upBtn.style.opacity = '0.3';
+    upBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    upBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataRow(ref, i, 'up'); };
+    var downBtn = document.createElement('button');
+    downBtn.title = 'Move row down';
+    downBtn.className = 'icon-btn';
+    downBtn.style.cssText = 'width:20px;height:20px';
+    downBtn.disabled = (i === data.rows.length - 1);
+    if (downBtn.disabled) downBtn.style.opacity = '0.3';
+    downBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>';
+    downBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataRow(ref, i, 'down'); };
     var rowDelBtn = document.createElement('button');
     rowDelBtn.title = 'Remove row';
     rowDelBtn.className = 'icon-btn';
-    rowDelBtn.style.cssText = 'width:22px;height:22px';
+    rowDelBtn.style.cssText = 'width:20px;height:20px';
     rowDelBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
     rowDelBtn.onclick = function(e){ e.stopPropagation(); removeSampleDataRow(ref, i); };
+    actionTd.appendChild(upBtn);
+    actionTd.appendChild(downBtn);
     actionTd.appendChild(rowDelBtn);
     tr.appendChild(actionTd);
     bodyEl.appendChild(tr);
@@ -20014,6 +20136,103 @@ function removeSampleDataColumn(ref, colId) {
   data.rows.forEach(function(row){ if (row.cells) delete row.cells[colId]; });
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
+}
+
+// Swaps a column with its left/right neighbor in the columns array. Cell data
+// is keyed by column id (never by position), so reordering the columns array
+// is the ENTIRE operation — no row data needs to move or be re-keyed. The
+// "#" column isn't a real entry in this array (it's rendered from row
+// position), so index 0 is always the leftmost real column and naturally
+// can't move further left — no special-case guard needed beyond the normal
+// array-bounds check.
+function moveSampleDataColumn(ref, colId, direction) {
+  var data = _daSampleDataFor(ref);
+  var idx = data.columns.findIndex(function(c){ return c.id === colId; });
+  if (idx === -1) return;
+  var target = idx + (direction === 'left' ? -1 : 1);
+  if (target < 0 || target >= data.columns.length) return; // already at the edge — nothing to do
+  pushUndo(ref);
+  var tmp = data.columns[idx];
+  data.columns[idx] = data.columns[target];
+  data.columns[target] = tmp;
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Swaps a row with its neighbor above/below. The "#" column is derived from
+// row position at render time (never stored), so swapping two rows and
+// re-rendering renumbers both automatically — no separate renumbering step.
+function moveSampleDataRow(ref, rowIndex, direction) {
+  var data = _daSampleDataFor(ref);
+  var target = rowIndex + (direction === 'up' ? -1 : 1);
+  if (target < 0 || target >= data.rows.length) return;
+  pushUndo(ref);
+  var tmp = data.rows[rowIndex];
+  data.rows[rowIndex] = data.rows[target];
+  data.rows[target] = tmp;
+  _sdSelectedRow[ref] = target; // keep the moved row selected at its new position
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// ── "Extract data from sample files" column flag ──────────────────────────────
+// When checked for a column: every existing value in that column is cleared
+// (Wavefire will populate it from the attached sample files instead of the
+// user typing it in), and the column's cells are disabled so no manual entry
+// can happen while the flag is on. Unchecking re-enables manual entry; the
+// column's stored searchGuidance is left intact so re-checking it later
+// doesn't lose anything the user already wrote.
+function toggleSampleDataExtractFlag(ref, colId, checked) {
+  var data = _daSampleDataFor(ref);
+  var col = data.columns.find(function(c){ return c.id === colId; });
+  if (!col) return;
+  pushUndo(ref);
+  col.extract = !!checked;
+  if (col.extract) {
+    // Clear this column's data across every row — manual entry is disallowed
+    // while extraction is enabled, so any pre-existing manual values would be
+    // stale/misleading to keep around.
+    data.rows.forEach(function(row){ if (row.cells) row.cells[colId] = ''; });
+  }
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+  // Immediately prompt for guidance when the user turns extraction on — this
+  // is the "may need to click somewhere in the header" step, offered right
+  // away rather than requiring a second click, though the header remains
+  // clickable afterward to revise it.
+  if (col.extract) _sdOpenGuidanceDialog(ref, colId);
+}
+
+// State for the currently-open guidance dialog, so Save/Cancel know which
+// column and workpaper they're acting on.
+var _sdGuidancePending = null;
+
+function _sdOpenGuidanceDialog(ref, colId) {
+  var data = _daSampleDataFor(ref);
+  var col = data.columns.find(function(c){ return c.id === colId; });
+  if (!col || !col.extract) return; // guidance only applies to flagged columns
+  _sdGuidancePending = { ref: ref, colId: colId };
+  document.getElementById('sd-guidance-colname').textContent = col.title || '(untitled column)';
+  document.getElementById('sd-guidance-textarea').value = col.searchGuidance || '';
+  document.getElementById('sd-guidance-overlay').style.display = 'flex';
+}
+
+function _sdCloseGuidanceDialog() {
+  document.getElementById('sd-guidance-overlay').style.display = 'none';
+  _sdGuidancePending = null;
+}
+
+function _sdSaveGuidanceDialog() {
+  if (!_sdGuidancePending) return;
+  var data = _daSampleDataFor(_sdGuidancePending.ref);
+  var col = data.columns.find(function(c){ return c.id === _sdGuidancePending.colId; });
+  if (col) {
+    pushUndo(_sdGuidancePending.ref);
+    col.searchGuidance = document.getElementById('sd-guidance-textarea').value;
+    saveSampleDataGrid(_sdGuidancePending.ref);
+  }
+  document.getElementById('sd-guidance-overlay').style.display = 'none';
+  _sdGuidancePending = null;
 }
 
 // Adds a new row at the end. The "#" value is never stored — it's always
@@ -20111,16 +20330,25 @@ function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
   // and cells that already exist — a cell in a row/column that doesn't exist
   // yet isn't "overwritten," it's part of the expansion case above.
   var conflicts = [];
+  // Columns flagged "Extract data from sample files" disallow manual entry —
+  // a paste that lands on one of these needs to be blocked outright rather
+  // than silently accepted and then invisibly discarded by the disabled input.
+  var lockedCols = [];
+  var seenLockedIds = {};
   grid.forEach(function(pastedRow, ri){
     var rowIdx = startRowIdx + ri;
-    if (rowIdx >= data.rows.length) return;
-    var existingRow = data.rows[rowIdx];
     pastedRow.forEach(function(cellVal, ci){
       var colIdx = startColIdx + ci;
-      if (colIdx >= data.columns.length) return;
+      if (colIdx >= data.columns.length) return; // column doesn't exist yet — no lock to check
       var col = data.columns[colIdx];
+      if (col.extract && !seenLockedIds[col.id]) {
+        seenLockedIds[col.id] = true;
+        lockedCols.push({ col: colIdx, colTitle: col.title || '(untitled column)' });
+      }
+      if (rowIdx >= data.rows.length) return; // row doesn't exist yet — expansion case, not a conflict
+      var existingRow = data.rows[rowIdx];
       var existingVal = existingRow.cells && existingRow.cells[col.id];
-      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+      if (!col.extract && existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
         conflicts.push({ row: rowIdx, col: colIdx, colTitle: col.title || '(untitled column)', value: existingVal });
       }
     });
@@ -20132,12 +20360,18 @@ function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
     needsExpansion: colsToAdd > 0 || rowsToAdd > 0,
     conflicts: conflicts,
     hasConflicts: conflicts.length > 0,
+    lockedCols: lockedCols,
+    hasLockedCols: lockedCols.length > 0,
   };
 }
 
 // Mutates `data` to actually write the pasted grid into place, expanding rows
 // and columns as needed. Called only after the user has confirmed (or when
 // no confirmation was needed because nothing would be expanded/overwritten).
+// Cells in a column flagged for extraction are skipped — paste never writes
+// into a locked column; callers should already have blocked this via
+// _sdAnalyzePaste().hasLockedCols before reaching here, this is a second
+// line of defense, not the primary gate.
 function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
   var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
   var neededCols = startColIdx + widestRow;
@@ -20156,6 +20390,7 @@ function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
     pastedRow.forEach(function(cellVal, ci){
       var col = data.columns[startColIdx + ci];
       if (!col) return; // shouldn't happen given the expansion loop above, but stay safe
+      if (col.extract) return; // locked column — never write pasted data here
       targetRow.cells[col.id] = cellVal.trim();
     });
   });
@@ -20187,7 +20422,14 @@ function initSampleDataGridPaste() {
     if (!card.contains(active)) return;
 
     var text = e.clipboardData && e.clipboardData.getData('text/plain');
-    if (!text || !text.includes('\t')) return; // single-cell paste — let the browser handle it
+    if (!text) return;
+    // A genuine single-cell paste (one value, no newline, no tab) is left to
+    // the browser's native input behavior. Anything else — including a
+    // single COLUMN copied from Excel, which has newlines but zero tabs —
+    // must go through the grid's own paste handling so expansion/overwrite
+    // checks and the confirmation modal actually run.
+    var looksMultiCell = text.includes('\t') || text.replace(/\r/g, '').replace(/\n+$/, '').includes('\n');
+    if (!looksMultiCell) return;
 
     e.preventDefault();
 
@@ -20215,6 +20457,17 @@ function initSampleDataGridPaste() {
     if (isNaN(startColIdx) || startColIdx < 0) startColIdx = data.columns.length;
 
     var analysis = _sdAnalyzePaste(data, grid, startRowIdx, startColIdx);
+
+    if (analysis.hasLockedCols) {
+      // Extract-flagged columns disallow manual entry entirely — there is no
+      // "accept and overwrite" option here, unlike expansion/conflict
+      // warnings, because the pasted values would have nowhere valid to go.
+      var names = analysis.lockedCols.map(function(c){ return c.colTitle; }).join(', ');
+      alert('Can\'t paste into "' + names + '" — ' + (analysis.lockedCols.length>1?'these columns are':'this column is') +
+        ' set to "Extract data from sample files" and will be filled in automatically. Uncheck the extract flag for ' +
+        (analysis.lockedCols.length>1?'these columns':'this column') + ' first if you want to enter values manually.');
+      return;
+    }
 
     if (!analysis.needsExpansion && !analysis.hasConflicts) {
       // Nothing to warn about — apply immediately, same as before.
