@@ -190,6 +190,7 @@ async function initDB() {
         scope_fs_accounts      JSONB DEFAULT '[]',
         test_attributes        JSONB DEFAULT '[]',
         sample_fields          JSONB DEFAULT '[]',
+        sample_data            JSONB DEFAULT '{"columns":[],"rows":[]}',
         exceptions             JSONB DEFAULT '[]',
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW(),
@@ -424,6 +425,7 @@ async function initDB() {
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`);
+      await pool.query(`ALTER TABLE workpapers         ADD COLUMN IF NOT EXISTS sample_data JSONB DEFAULT '{"columns":[],"rows":[]}'`);
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
         SELECT column_name FROM information_schema.columns
@@ -823,7 +825,7 @@ app.post('/api/workpapers', async (req, res) => {
     narrative, description, test_desc,
     linked_controls, linked_risks, linked_entities, fs_accounts,
     scope_entities, scope_fs_accounts,
-    test_attributes, sample_fields, exceptions
+    test_attributes, sample_fields, sample_data, exceptions
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -832,9 +834,9 @@ app.post('/api/workpapers', async (req, res) => {
          date_started,review_date,date_submitted,secondary_review_date,
          population,sample_method,sample_size,narrative,description,test_desc,
          linked_controls,linked_risks,linked_entities,fs_accounts,
-         scope_entities,scope_fs_accounts,test_attributes,sample_fields,exceptions,updated_at)
+         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-              $20,$21,$22,$23,$24,$25,$26,$27,$28,NOW())
+              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -850,6 +852,7 @@ app.post('/api/workpapers', async (req, res) => {
         linked_entities=EXCLUDED.linked_entities, fs_accounts=EXCLUDED.fs_accounts,
         scope_entities=EXCLUDED.scope_entities, scope_fs_accounts=EXCLUDED.scope_fs_accounts,
         test_attributes=EXCLUDED.test_attributes, sample_fields=EXCLUDED.sample_fields,
+        sample_data=EXCLUDED.sample_data,
         exceptions=EXCLUDED.exceptions, updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
@@ -860,6 +863,7 @@ app.post('/api/workpapers', async (req, res) => {
        JSON.stringify(linked_entities||[]), JSON.stringify(fs_accounts||[]),
        JSON.stringify(scope_entities||[]), JSON.stringify(scope_fs_accounts||[]),
        JSON.stringify(test_attributes||[]), JSON.stringify(sample_fields||[]),
+       JSON.stringify(sample_data||{columns:[],rows:[]}),
        JSON.stringify(exceptions||[])
       ]);
     res.json({ ok:true });
@@ -1366,6 +1370,62 @@ app.get('/api/da/datasets/by-hash/:hash', async (req, res) => {
     await pool.query('UPDATE da_datasets SET last_used=NOW() WHERE id=$1', [rows[0].id]);
     res.json(rows[0]);
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ML SERVICE PROXY (Option B) — routes multivariate/ML + supervised requests to
+//  the Python microservice when configured. The Node app never talks scikit-learn
+//  itself; it just forwards the request and returns the result, so the shared
+//  secret (ML_SERVICE_TOKEN) never reaches the browser.
+// ══════════════════════════════════════════════════════════════════════════════
+const ML_SERVICE_URL   = process.env.ML_SERVICE_URL   || '';
+const ML_SERVICE_TOKEN = process.env.ML_SERVICE_TOKEN || '';
+const ML_SERVICE_CONFIGURED = !!(ML_SERVICE_URL && ML_SERVICE_TOKEN);
+
+if (ML_SERVICE_URL && !ML_SERVICE_TOKEN) {
+  console.error('[SECURITY] ML_SERVICE_URL is set but ML_SERVICE_TOKEN is not. ' +
+    'The ML service proxy will refuse to call it. Set both or neither.');
+}
+
+// Lets the client know at load time whether to prefer the Python engine.
+app.get('/api/ml/status', (req, res) => {
+  res.json({ configured: ML_SERVICE_CONFIGURED, engine: ML_SERVICE_CONFIGURED ? 'python-sklearn' : 'js-fallback' });
+});
+
+app.post('/api/ml/unsupervised', aiRateLimit, async (req, res) => {
+  if (!ML_SERVICE_CONFIGURED) return res.status(503).json({ error: 'ML service not configured', fallback: 'js' });
+  try {
+    const upstream = await fetch(new URL('/api/ml/unsupervised', ML_SERVICE_URL), {
+      method: 'POST',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...req.body, token: ML_SERVICE_TOKEN }), // token injected server-side only
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status).json({ error: data.detail || 'ML service error' });
+    res.json(data);
+  } catch(err) {
+    console.error('[ml/unsupervised]', err.message);
+    res.status(502).json({ error: 'ML service unreachable', fallback: 'js' });
+  }
+});
+
+app.post('/api/ml/train', aiRateLimit, async (req, res) => {
+  if (!ML_SERVICE_CONFIGURED) return res.status(503).json({ error: 'ML service not configured', fallback: 'js' });
+  try {
+    const upstream = await fetch(new URL('/api/ml/train', ML_SERVICE_URL), {
+      method: 'POST',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...req.body, token: ML_SERVICE_TOKEN }),
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status).json({ error: data.detail || 'ML service error' });
+    res.json(data);
+  } catch(err) {
+    console.error('[ml/train]', err.message);
+    res.status(502).json({ error: 'ML service unreachable', fallback: 'js' });
+  }
 });
 
 // ── Bulk Seed API ─────────────────────────────────────────────────────────────
