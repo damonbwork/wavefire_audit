@@ -508,6 +508,9 @@
     z-index: 1;
   }
   .attr-col-resize:hover { background: var(--wf-blue); opacity: 0.4; }
+  /* Sample Data grid — highlights the target range of a pending paste
+     confirmation so the user can see exactly which cells will be affected. */
+  .sd-paste-highlight { background: #fef3c7 !important; box-shadow: inset 0 0 0 1px #d97706; }
   .attr-row-flex {
     display: flex;
     border-bottom: 0.5px solid var(--border-light);
@@ -1036,8 +1039,86 @@
               <span style="font-size:11px;color:var(--text-tertiary)">— values unusual relative to the data's distribution</span>
             </div>
             <div id="da-folder-stat" style="display:flex;flex-direction:column;gap:14px;padding-left:6px">
-              <!-- STAT-GROUP-ANCHOR -->
-            </div>
+
+              <!-- Statistical outliers (Z-score / IQR) -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('outlier',this)">
+                  <input type="checkbox" id="da-chk-outlier" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Statistical Outliers</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags values that fall beyond a configurable Z-score or IQR threshold — effective for amounts, quantities, or any continuous numeric field</div>
+                  </div>
+                  <svg id="da-chev-outlier" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-outlier" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <div style="display:flex;flex-wrap:wrap;gap:16px">
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Numeric column</label>
+                      <select id="da-outlier-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="">— select column —</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Method</label>
+                      <select id="da-outlier-method" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="zscore">Z-score (normal distributions)</option>
+                        <option value="iqr">IQR (skewed distributions)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Threshold</label>
+                      <input type="number" id="da-outlier-thresh" value="3" min="1" max="10" step="0.5"
+                        style="width:80px;font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                      <span style="font-size:11px;color:var(--text-tertiary);margin-left:4px">σ / IQR</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Duplicate detection -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('duplicates',this)">
+                  <input type="checkbox" id="da-chk-duplicates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Duplicate Detection</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Identifies exact or near-duplicate rows across selected key fields — useful for double payments, duplicate invoices, or repeated transactions</div>
+                  </div>
+                  <svg id="da-chev-duplicates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-duplicates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <label class="fl" style="margin-bottom:6px">Key columns (select one or more)</label>
+                  <div id="da-dup-cols" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+                </div>
+              </div>
+
+              <!-- Date anomalies -->
+              <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('dates',this)">
+                  <input type="checkbox" id="da-chk-dates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Date Anomalies</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags weekend transactions, holiday postings, after-hours timestamps, future dates, or dates outside the audit period</div>
+                  </div>
+                  <svg id="da-chev-dates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
+                <div id="da-cfg-dates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
+                  <div style="display:flex;flex-wrap:wrap;gap:16px">
+                    <div>
+                      <label class="fl" style="margin-bottom:4px">Date column</label>
+                      <select id="da-date-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
+                        <option value="">— select column —</option>
+                      </select>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-weekends" checked style="accent-color:var(--wf-navy)"> Weekend transactions</label>
+                      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-future" checked style="accent-color:var(--wf-navy)"> Future dates</label>
+                      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-outlier-dates" checked style="accent-color:var(--wf-navy)"> Statistical date outliers</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /da-folder-stat -->
 
             <!-- ═══ FOLDER: Multivariate / ML Detection ═══ -->
             <div class="da-folder-hdr" onclick="daToggleFolder('ml')" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 2px;user-select:none;margin-top:6px">
@@ -1180,57 +1261,6 @@
               </div>
             </div>
 
-            <!-- Statistical outliers (Z-score / IQR) -->
-            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
-              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('outlier',this)">
-                <input type="checkbox" id="da-chk-outlier" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
-                <div style="flex:1">
-                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Statistical Outliers</div>
-                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags values that fall beyond a configurable Z-score or IQR threshold — effective for amounts, quantities, or any continuous numeric field</div>
-                </div>
-                <svg id="da-chev-outlier" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
-              <div id="da-cfg-outlier" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
-                <div style="display:flex;flex-wrap:wrap;gap:16px">
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Numeric column</label>
-                    <select id="da-outlier-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
-                      <option value="">— select column —</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Method</label>
-                    <select id="da-outlier-method" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
-                      <option value="zscore">Z-score (normal distributions)</option>
-                      <option value="iqr">IQR (skewed distributions)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Threshold</label>
-                    <input type="number" id="da-outlier-thresh" value="3" min="1" max="10" step="0.5"
-                      style="width:80px;font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
-                    <span style="font-size:11px;color:var(--text-tertiary);margin-left:4px">σ / IQR</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Duplicate detection -->
-            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
-              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('duplicates',this)">
-                <input type="checkbox" id="da-chk-duplicates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
-                <div style="flex:1">
-                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Duplicate Detection</div>
-                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Identifies exact or near-duplicate rows across selected key fields — useful for double payments, duplicate invoices, or repeated transactions</div>
-                </div>
-                <svg id="da-chev-duplicates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
-              <div id="da-cfg-duplicates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
-                <label class="fl" style="margin-bottom:6px">Key columns (select one or more)</label>
-                <div id="da-dup-cols" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-              </div>
-            </div>
-
             <!-- Round number test -->
             <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
               <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('rounding',this)">
@@ -1285,32 +1315,7 @@
               </div>
             </div>
 
-            <!-- Date anomalies -->
-            <div class="da-method-card" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden">
-              <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer" onclick="daToggleMethod('dates',this)">
-                <input type="checkbox" id="da-chk-dates" style="width:16px;height:16px;accent-color:var(--wf-navy);cursor:pointer" onclick="event.stopPropagation()">
-                <div style="flex:1">
-                  <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Date Anomalies</div>
-                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Flags weekend transactions, holiday postings, after-hours timestamps, future dates, or dates outside the audit period</div>
-                </div>
-                <svg id="da-chev-dates" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
-              <div id="da-cfg-dates" style="display:none;border-top:0.5px solid var(--border-light);padding:14px 18px;background:var(--bg-secondary)">
-                <div style="display:flex;flex-wrap:wrap;gap:16px">
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Date column</label>
-                    <select id="da-date-col" style="font-size:12px;border:0.5px solid var(--border-medium);border-radius:5px;padding:5px 8px;background:var(--bg-primary);outline:none">
-                      <option value="">— select column —</option>
-                    </select>
-                  </div>
-                  <div style="display:flex;flex-direction:column;gap:6px">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-weekends" checked style="accent-color:var(--wf-navy)"> Weekend transactions</label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-future" checked style="accent-color:var(--wf-navy)"> Future dates</label>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="da-date-outlier-dates" checked style="accent-color:var(--wf-navy)"> Statistical date outliers</label>
-                  </div>
-                </div>
-              </div>
-            </div>
+            </div><!-- /da-folder-fraud -->
 
           </div><!-- /da-method-cards -->
         </div>
@@ -2439,6 +2444,67 @@
           <div class="sect-body" style="padding:12px 16px">
             <textarea id="wpd-test-desc" rows="5" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width: 100%; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: medium; outline: none; resize: vertical; line-height: 1.6; min-height: 80px; height: 104px;"></textarea>
           </div></div>
+
+        <!-- Section 4c: Sample Data -->
+        <div class="sect-card" id="sect-sample-data" style="overflow-x:auto">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-table"></i>Sample data</div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn-s" onclick="addSampleDataColumn()" title="Add a new column to the right" style="font-size:10px;padding:2px 8px;white-space:nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add column
+              </button>
+              <button class="btn-s" onclick="addSampleDataRowAbove()" title="Insert a new row above the selected row (or above the last row if none is selected)" style="font-size:10px;padding:2px 8px;white-space:nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                Row above
+              </button>
+              <button class="btn-s" onclick="addSampleDataRowBelow()" title="Insert a new row below the selected row (or below the last row if none is selected)" style="font-size:10px;padding:2px 8px;white-space:nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
+                Row below
+              </button>
+            </div>
+          </div>
+          <div class="sect-body" style="padding:0">
+            <div id="sd-grid-wrap" style="overflow-x:auto">
+              <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
+                <thead>
+                  <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light)">#</th>
+                    <!-- User-added column headers render here via JS -->
+                  </tr>
+                </thead>
+                <tbody id="sd-body-rows">
+                  <!-- Rows render here via JS -->
+                </tbody>
+              </table>
+            </div>
+            <div style="padding:10px 12px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
+              <button class="btn-s" onclick="addSampleDataRow()" style="font-size:11px;padding:3px 10px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add row
+              </button>
+              <span id="sd-empty-hint" style="font-size:11px;color:var(--text-tertiary);font-style:italic;display:none">Click "Add column" to start building your sample data grid.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sample Data: paste confirmation modal -->
+        <div id="sd-paste-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:460px;max-width:calc(100vw - 40px);max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Confirm paste</div>
+            </div>
+            <div style="padding:16px 20px;overflow-y:auto;flex:1">
+              <div id="sd-paste-confirm-msg" style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px"></div>
+              <div id="sd-paste-confirm-list" style="display:none;max-height:220px;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:6px;padding:6px 10px;background:var(--bg-secondary)"></div>
+            </div>
+            <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" onclick="_sdCancelPasteConfirm()" style="font-size:12px">Cancel</button>
+              <button class="btn-p" onclick="_sdConfirmPaste()" style="font-size:12px;background:#d97706;border-color:#d97706">Accept &amp; paste</button>
+            </div>
+          </div>
+        </div>
 
         <!-- Section 5: Test Attributes -->
         <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
@@ -5463,8 +5529,10 @@ function openWP(i) {
   // ── Test Attributes ──
   renderTestAttributes(w.ref);
   renderSampleFields(w.ref);
+  renderSampleDataGrid(w.ref);
   initAttrGridPaste();
   initSFGridPaste();
+  initSampleDataGridPaste();
   const tdEl = document.getElementById('wpd-test-desc');
   if (tdEl) tdEl.value = w.testDesc || '';
   renderNarrativeRefFiles(w.ref);
@@ -5485,7 +5553,7 @@ function openWP(i) {
   // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
   const fullTypes   = ['Testwork', 'Report'];
   const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
-  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
+  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-sample-data','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isFull ? '' : 'none';
@@ -5674,9 +5742,10 @@ function navigateWP(direction) {
 function showPage(name) {
   try { saveCurrentPage(); } catch(e) { console.warn('saveCurrentPage error:', e.message); }
 
-  // Hide foundations
-  const fp = document.getElementById('page-foundations');
-  if (fp) fp.style.display = 'none';
+  // Hide every top-level page first. Using [id^="page-"] (rather than only
+  // knowing about page-foundations) means a page added later — like
+  // page-data-analysis — can never be left visible underneath this one.
+  document.querySelectorAll('[id^="page-"]').forEach(function(el){ el.style.display = 'none'; });
   const sfn = document.getElementById('wf-subnav-foundations');
   if (sfn) sfn.style.display = 'none';
 
@@ -5688,7 +5757,7 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
-  if (pg) pg.classList.add('active');
+  if (pg) { pg.classList.add('active'); pg.style.display = ''; } // clear the inline 'none' so the .page/.active CSS can show it again
 
   pushNav(name);
   setWPNavEnabled(name === 'wpdetail' || name === 'workpapers');
@@ -5875,6 +5944,7 @@ function _snapshotAppState(ref) {
     ref,
     attrs:       JSON.parse(JSON.stringify(wpTestAttributes[ref] || [])),
     sf:          JSON.parse(JSON.stringify(wpSampleFields[ref]   || [])),
+    sd:          JSON.parse(JSON.stringify(wpSampleData[ref]     || {columns:[],rows:[]})),
     exc:         JSON.parse(JSON.stringify(wpExceptions[ref]     || [])),
     reviewLog:   JSON.parse(JSON.stringify(wpReviewLog[ref]      || [])),
     wpData:      JSON.parse(JSON.stringify(WORKPAPERS.find(w => w.ref === ref) || {})),
@@ -5937,6 +6007,7 @@ function _restoreSnapshot(snap) {
   // Restore workpaper data stores
   wpTestAttributes[ref] = snap.attrs;
   wpSampleFields[ref]   = snap.sf;
+  wpSampleData[ref]     = snap.sd;
   wpExceptions[ref]     = snap.exc;
   wpReviewLog[ref]      = snap.reviewLog;
 
@@ -5961,6 +6032,7 @@ function _restoreSnapshot(snap) {
   // Re-render affected UI sections
   renderTestAttributes(ref);
   renderSampleFields(ref);
+  renderSampleDataGrid(ref);
   renderExceptions(ref);
 
   // Restore workpaper header field values in DOM
@@ -7073,6 +7145,7 @@ const SECTION_NAMES = {
   'sect-narrative':       'Process / control narrative',
   'sect-risks-controls':  'Linked risks & controls',
   'sect-test-description':        'Test description',
+  'sect-sample-data':             'Sample data',
   'sect-test-attributes':         'Test attributes',
   'sect-sample-field-extraction': 'Sample field extraction',
   'sect-wp-files':        'Attached workpaper files',
@@ -7569,6 +7642,7 @@ async function _saveWorkpaperToDB(w) {
     var scopeFsAccts    = [...(wpFsAccounts[w.ref]||[])];
     var testAttrs       = wpTestAttributes[w.ref] || [];
     var sampleFlds      = wpSampleFields[w.ref] || [];
+    var sampleDataVal   = wpSampleData[w.ref] || { columns:[], rows:[] };
     var excpts          = Object.values(wpExceptions).filter(function(e){ return e && e.wpRef===w.ref; });
     await fetch('/api/workpapers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7600,6 +7674,7 @@ async function _saveWorkpaperToDB(w) {
         scope_fs_accounts:     scopeFsAccts,
         test_attributes:       testAttrs,
         sample_fields:         sampleFlds,
+        sample_data:           sampleDataVal,
         exceptions:            excpts
       })
     });
@@ -7678,6 +7753,7 @@ async function _loadWorkpapersFromDB() {
         if (Array.isArray(row.scope_fs_accounts)&& row.scope_fs_accounts.length){ wpFsAccounts[row.ref]    = new Set(row.scope_fs_accounts); }
         if (Array.isArray(row.test_attributes)  && row.test_attributes.length)  { wpTestAttributes[row.ref] = row.test_attributes; }
         if (Array.isArray(row.sample_fields)    && row.sample_fields.length)    { wpSampleFields[row.ref]   = row.sample_fields; }
+        if (row.sample_data && Array.isArray(row.sample_data.columns))         { wpSampleData[row.ref]     = row.sample_data; }
         if (Array.isArray(row.exceptions)       && row.exceptions.length)       {
           row.exceptions.forEach(function(ex){ if (ex && ex.id) wpExceptions[ex.id] = ex; });
         }
@@ -8124,9 +8200,10 @@ function activateAuditsSection() {
   document.querySelectorAll('.wf-nav-item').forEach(n => {
     if (n.textContent.trim() === 'Audits') n.classList.add('active');
   });
-  // Hide foundations
+  // Hide every top-level page (not just Foundations) so pages added later —
+  // like Data Analysis — can never be left visible underneath Audits.
+  document.querySelectorAll('[id^="page-"]').forEach(function(el){ el.style.display = 'none'; });
   document.getElementById('wf-subnav-foundations').style.display = 'none';
-  document.getElementById('page-foundations').style.display = 'none';
   // Show audits sub-nav
   document.getElementById('wf-subnav').style.display = 'flex';
   // Re-populate the sub-nav dropdowns without navigating away
@@ -8209,6 +8286,21 @@ var _daColumns    = [];    // array of column names
 var _daFileName   = '';
 var _daResults    = [];    // array of {method, flags:[{row,col,value,reason}]}
 var _daActiveSection = 'upload';
+var _daMLEngine = 'js'; // 'js' | 'python' — set by _daCheckMLService() on module load
+
+// Ask the server whether the Python ML microservice is configured. Called once
+// when Data Analysis is first opened; failure is silent (stays on JS engine).
+function _daCheckMLService() {
+  fetch('/api/ml/status').then(function(r){ return r.json(); }).then(function(data){
+    _daMLEngine = data.configured ? 'python' : 'js';
+    var badge = document.getElementById('da-ml-engine-badge');
+    if (badge) {
+      badge.textContent = _daMLEngine === 'python' ? 'Python engine' : 'JS engine';
+      badge.style.background = _daMLEngine === 'python' ? '#f0fdf4' : '#eff6ff';
+      badge.style.color      = _daMLEngine === 'python' ? '#166534' : '#1e40af';
+    }
+  }).catch(function(){ /* stay on JS engine — this is the safe default */ });
+}
 
 function activateDataAnalysis() {
   document.querySelectorAll('.wf-nav-item').forEach(function(n){ n.classList.remove('active'); });
@@ -8221,6 +8313,7 @@ function activateDataAnalysis() {
   document.getElementById('wf-subnav').style.display='none';
   document.getElementById('wf-subnav-foundations').style.display='none';
   showDASection(_daActiveSection);
+  _daCheckMLService();
 }
 
 function showDASection(sec) {
@@ -8314,6 +8407,16 @@ function daToggleMethod(method, headerEl) {
   chk.checked = !open; // auto-check when expanded
 }
 
+// ── Toggle folder group (Statistical / ML / Fraud) ────────────────────────────
+function daToggleFolder(name) {
+  var body = document.getElementById('da-folder-' + name);
+  var chev = document.getElementById('da-fold-'   + name);
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'flex';
+  if (chev) chev.style.transform = open ? '' : 'rotate(90deg)';
+}
+
 // ── Populate column dropdowns ─────────────────────────────────────────────────
 function _daPopulateColumnDropdowns() {
   var numeric = _daColumns.filter(function(c){
@@ -8344,6 +8447,23 @@ function _daPopulateColumnDropdowns() {
         '<input type="checkbox" class="da-dup-chk" value="'+escHtml(c)+'" style="accent-color:var(--wf-navy)">' + escHtml(c) + '</label>';
     }).join('');
   }
+
+  // Multivariate/ML methods — numeric-only feature checklists (need 2+ dims)
+  function fillFeatureChecklist(id, chkClass) {
+    var div = document.getElementById(id);
+    if (!div) return;
+    if (!numeric.length) {
+      div.innerHTML = '<span style="font-size:11px;color:var(--text-tertiary);font-style:italic">No numeric columns detected in this dataset.</span>';
+      return;
+    }
+    div.innerHTML = numeric.map(function(c){
+      return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:4px;padding:3px 8px;cursor:pointer">' +
+        '<input type="checkbox" class="'+chkClass+'" value="'+escHtml(c)+'" style="accent-color:var(--wf-navy)">' + escHtml(c) + '</label>';
+    }).join('');
+  }
+  fillFeatureChecklist('da-iforest-cols', 'da-iforest-chk');
+  fillFeatureChecklist('da-mahal-cols',   'da-mahal-chk');
+  fillFeatureChecklist('da-lof-cols',     'da-lof-chk');
 }
 
 // ── Data Profile ─────────────────────────────────────────────────────────────
@@ -8402,19 +8522,31 @@ function _daBuildProfile() {
 }
 
 // ── Anomaly Detection Engine ──────────────────────────────────────────────────
-function daRunAnalysis() {
+async function daRunAnalysis() {
   if (!_daData.length) { alert('No data loaded.'); return; }
   _daResults = [];
-  var methods = ['benford','outlier','duplicates','rounding','gaps','dates'];
+  var methods = ['benford','outlier','duplicates','rounding','gaps','dates','iforest','mahal','lof'];
   var anyChecked = methods.some(function(m){ return document.getElementById('da-chk-'+m)?.checked; });
   if (!anyChecked) { alert('Select at least one detection method.'); return; }
 
-  if (document.getElementById('da-chk-benford')?.checked)    _daRunBenford();
-  if (document.getElementById('da-chk-outlier')?.checked)    _daRunOutliers();
-  if (document.getElementById('da-chk-duplicates')?.checked) _daRunDuplicates();
-  if (document.getElementById('da-chk-rounding')?.checked)   _daRunRounding();
-  if (document.getElementById('da-chk-gaps')?.checked)       _daRunGaps();
-  if (document.getElementById('da-chk-dates')?.checked)      _daRunDates();
+  var runBtn = document.getElementById('da-run-btn');
+  if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running…'; }
+
+  try {
+    if (document.getElementById('da-chk-outlier')?.checked)    _daRunOutliers();
+    if (document.getElementById('da-chk-duplicates')?.checked) _daRunDuplicates();
+    if (document.getElementById('da-chk-dates')?.checked)      _daRunDates();
+    // ML methods try the Python service first (if configured), then fall back
+    // to the JS engine on any failure — never block the user on a network issue.
+    if (document.getElementById('da-chk-iforest')?.checked)    await _daRunIForest();
+    if (document.getElementById('da-chk-mahal')?.checked)      await _daRunMahalanobis();
+    if (document.getElementById('da-chk-lof')?.checked)        await _daRunLOF();
+    if (document.getElementById('da-chk-benford')?.checked)    _daRunBenford();
+    if (document.getElementById('da-chk-rounding')?.checked)   _daRunRounding();
+    if (document.getElementById('da-chk-gaps')?.checked)       _daRunGaps();
+  } finally {
+    if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Analysis'; }
+  }
 
   _daRenderResults();
   showDASection('results');
@@ -8523,6 +8655,293 @@ function _daRunDates() {
     summary: flags.length + ' date anomal' + (flags.length!==1?'ies':'y') + ' detected' });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  MULTIVARIATE / ML DETECTION — JS engine
+//  Each algorithm below was verified standalone against known test cases
+//  (planted outliers, hand-computed matrix inverses, cluster-density fixtures)
+//  before being wired into the app. When the Python microservice is configured,
+//  these are bypassed in favor of server-side scikit-learn equivalents — see
+//  _daMLEnginePreference().
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Shared: build a numeric feature matrix from checked columns ───────────────
+function _daFeatureMatrix(checklistClass) {
+  var cols = Array.from(document.querySelectorAll('.'+checklistClass+':checked')).map(function(c){return c.value;});
+  if (cols.length < 2) return null; // multivariate methods need 2+ dimensions
+  var rowIdx = [], raw = [];
+  _daData.forEach(function(r,i){
+    var vec = cols.map(function(c){ return parseFloat(r[c]); });
+    if (vec.every(function(v){ return !isNaN(v); })) { rowIdx.push(i); raw.push(vec); }
+  });
+  if (raw.length < 10) return null; // not enough complete rows to model
+  // z-score normalize each dimension so no single large-magnitude column dominates
+  var d = cols.length, n = raw.length;
+  var means = [], sds = [];
+  for (var j=0;j<d;j++) {
+    var col = raw.map(function(r){ return r[j]; });
+    var m = col.reduce(function(a,b){return a+b;},0)/n;
+    var sd = Math.sqrt(col.reduce(function(a,v){return a+Math.pow(v-m,2);},0)/n) || 1;
+    means.push(m); sds.push(sd);
+  }
+  var norm = raw.map(function(r){ return r.map(function(v,j){ return (v-means[j])/sds[j]; }); });
+  return { cols:cols, rowIdx:rowIdx, raw:raw, norm:norm, n:n, d:d };
+}
+
+// ── Shared: call the Python ML microservice, normalize its response ──────────
+// Returns null on ANY failure (network, 4xx/5xx, malformed body) so callers can
+// fall back to the JS engine unconditionally — a down Python service must never
+// block the user from running an analysis.
+async function _daCallMLService(method, fm, params) {
+  try {
+    var res = await fetch('/api/ml/unsupervised', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: method, features: fm.norm, row_ids: fm.rowIdx, params: params })
+    });
+    if (!res.ok) return null;
+    var data = await res.json();
+    if (!data || !Array.isArray(data.scores)) return null;
+    return data;
+  } catch(e) {
+    console.warn('[ML service] ' + method + ' call failed, falling back to JS engine:', e.message);
+    return null;
+  }
+}
+// Builds a _daResults entry from a Python service response, given a function
+// that formats the per-row reason string from {row_id, score, percentile}.
+function _daBuildResultFromPython(methodLabel, fm, pyResult, reasonFn, summarySuffix) {
+  var flaggedSet = new Set(pyResult.flagged_row_ids || []);
+  var flags = [];
+  fm.rowIdx.forEach(function(origIdx, i){
+    if (flaggedSet.has(origIdx)) {
+      var row = { score: pyResult.scores[i], percentile: pyResult.percentile_rank[i] };
+      flags.push({ row: origIdx+1, value: pyResult.scores[i].toFixed(3), reason: reasonFn(row) });
+    }
+  });
+  flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
+  return { method: methodLabel, columns: fm.cols.join(', '), flags: flags,
+    summary: flags.length + ' row(s) ' + summarySuffix };
+}
+
+// ── Isolation Forest ────────────────────────────────────────────────────────
+function _daIF_buildTree(data, maxDepth, depth) {
+  if (depth >= maxDepth || data.length <= 1) return { isLeaf:true, size:data.length };
+  var d = data[0].length;
+  var feat = Math.floor(Math.random()*d);
+  var vals = data.map(function(r){ return r[feat]; });
+  var min = Math.min.apply(null,vals), max = Math.max.apply(null,vals);
+  if (min === max) return { isLeaf:true, size:data.length };
+  var splitVal = min + Math.random()*(max-min);
+  var left = data.filter(function(r){ return r[feat] < splitVal; });
+  var right = data.filter(function(r){ return r[feat] >= splitVal; });
+  if (!left.length || !right.length) return { isLeaf:true, size:data.length };
+  return { isLeaf:false, feat:feat, splitVal:splitVal,
+    left:_daIF_buildTree(left,maxDepth,depth+1), right:_daIF_buildTree(right,maxDepth,depth+1) };
+}
+function _daIF_c(n) {
+  if (n <= 1) return 0;
+  return 2*(Math.log(n-1)+0.5772156649) - (2*(n-1)/n);
+}
+function _daIF_pathLength(point, node, depth) {
+  if (node.isLeaf) return depth + _daIF_c(node.size);
+  return point[node.feat] < node.splitVal
+    ? _daIF_pathLength(point, node.left, depth+1)
+    : _daIF_pathLength(point, node.right, depth+1);
+}
+function _daIsolationForestScore(rows, numTrees, sampleSize) {
+  var n = rows.length;
+  sampleSize = Math.min(sampleSize, n);
+  var maxDepth = Math.ceil(Math.log2(Math.max(sampleSize,2)));
+  var trees = [];
+  for (var t=0;t<numTrees;t++) {
+    var idx = rows.map(function(_,i){return i;});
+    for (var i=idx.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var tmp=idx[i];idx[i]=idx[j];idx[j]=tmp; }
+    var sample = idx.slice(0,sampleSize).map(function(i){ return rows[i]; });
+    trees.push(_daIF_buildTree(sample, maxDepth, 0));
+  }
+  var cN = _daIF_c(sampleSize);
+  return rows.map(function(point){
+    var avgPath = trees.reduce(function(s,tree){ return s+_daIF_pathLength(point,tree,0); },0)/trees.length;
+    return Math.pow(2, -avgPath/cN); // ~1 = anomalous, ~0.5 = normal
+  });
+}
+async function _daRunIForest() {
+  var fm = _daFeatureMatrix('da-iforest-chk');
+  if (!fm) { _daResults.push({method:'Isolation Forest', flags:[], summary:'Select at least 2 numeric columns with 10+ complete rows to run this method.'}); return; }
+  var contam = parseFloat(document.getElementById('da-iforest-contam')?.value) || 0.05;
+  var trees  = parseInt(document.getElementById('da-iforest-trees')?.value) || 100;
+
+  if (_daMLEngine === 'python') {
+    var pyResult = await _daCallMLService('isolation_forest', fm, { contamination: contam, n_estimators: trees });
+    if (pyResult) {
+      _daResults.push(_daBuildResultFromPython('Isolation Forest', fm, pyResult,
+        function(row){ return 'Isolation score ' + row.score.toFixed(3) + ' (top ' + (contam*100) + '% most isolated)'; },
+        'flagged by the model at ' + (contam*100) + '% contamination across ' + fm.cols.length + ' feature(s), ' + trees + ' trees (Python/scikit-learn engine)'));
+      return;
+    }
+    // fall through to JS engine on any failure
+  }
+
+  var sampleSize = Math.min(256, fm.n);
+  var scores = _daIsolationForestScore(fm.norm, trees, sampleSize);
+  var ranked = scores.map(function(s,i){ return {s:s, i:i}; }).sort(function(a,b){ return b.s-a.s; });
+  var numFlag = Math.max(1, Math.round(fm.n * contam));
+  var flags = ranked.slice(0, numFlag).map(function(x){
+    return { row: fm.rowIdx[x.i]+1, value: x.s.toFixed(3), reason:'Isolation score '+x.s.toFixed(3)+' (top '+(contam*100)+'% most isolated)' };
+  });
+  _daResults.push({ method:'Isolation Forest', columns:fm.cols.join(', '), flags:flags,
+    summary: flags.length + ' row(s) flagged as the top ' + (contam*100) + '% most easily isolated across ' + fm.cols.length + ' feature(s) (' + trees + ' trees, JS engine)' });
+}
+
+// ── Mahalanobis Distance ────────────────────────────────────────────────────
+function _daInvertMatrix(m) {
+  var n = m.length;
+  var A = m.map(function(row,i){ return row.concat(row.map(function(_,j){ return i===j?1:0; })); });
+  for (var col=0; col<n; col++) {
+    var pivotRow = col;
+    for (var r=col+1;r<n;r++) if (Math.abs(A[r][col]) > Math.abs(A[pivotRow][col])) pivotRow = r;
+    if (Math.abs(A[pivotRow][col]) < 1e-9) {
+      for (var i=0;i<n;i++) A[i][i] += 1e-6; // ridge regularization for near-singular covariance
+      pivotRow = col;
+      for (r=col+1;r<n;r++) if (Math.abs(A[r][col]) > Math.abs(A[pivotRow][col])) pivotRow = r;
+    }
+    var tmpRow = A[col]; A[col] = A[pivotRow]; A[pivotRow] = tmpRow;
+    var pivot = A[col][col];
+    for (var jx=0;jx<2*n;jx++) A[col][jx] /= pivot;
+    for (var rr=0;rr<n;rr++) {
+      if (rr===col) continue;
+      var factor = A[rr][col];
+      for (jx=0;jx<2*n;jx++) A[rr][jx] -= factor*A[col][jx];
+    }
+  }
+  return A.map(function(row){ return row.slice(n); });
+}
+function _daMahalanobisDistances(rows) {
+  var n = rows.length, d = rows[0].length;
+  var means = [];
+  for (var j=0;j<d;j++) means.push(rows.reduce(function(s,r){return s+r[j];},0)/n);
+  var cov = Array.from({length:d}, function(){ return new Array(d).fill(0); });
+  rows.forEach(function(r){
+    for (var a=0;a<d;a++) for (var b=0;b<d;b++) cov[a][b] += (r[a]-means[a])*(r[b]-means[b]);
+  });
+  for (var a=0;a<d;a++) for (var b=0;b<d;b++) cov[a][b] /= (n-1);
+  var inv = _daInvertMatrix(cov);
+  return rows.map(function(r){
+    var diff = r.map(function(x,i){ return x-means[i]; });
+    var Minv = inv.map(function(row){ return row.reduce(function(s,x,i){ return s+x*diff[i]; },0); });
+    var d2 = diff.reduce(function(s,x,i){ return s+x*Minv[i]; },0);
+    return Math.sqrt(Math.max(0,d2));
+  });
+}
+// Chi-square critical values for common percentiles, by degrees of freedom (1-10).
+// Used to translate "flag threshold percentile" into a Mahalanobis-distance cutoff
+// without needing a full chi-square inverse-CDF implementation.
+var _daChiSqCrit = {
+  1:{0.95:3.841,0.975:5.024,0.99:6.635}, 2:{0.95:5.991,0.975:7.378,0.99:9.210},
+  3:{0.95:7.815,0.975:9.348,0.99:11.345}, 4:{0.95:9.488,0.975:11.143,0.99:13.277},
+  5:{0.95:11.070,0.975:12.833,0.99:15.086}, 6:{0.95:12.592,0.975:14.449,0.99:16.812},
+  7:{0.95:14.067,0.975:16.013,0.99:18.475}, 8:{0.95:15.507,0.975:17.535,0.99:20.090},
+  9:{0.95:16.919,0.975:19.023,0.99:21.666}, 10:{0.95:18.307,0.975:20.483,0.99:23.209}
+};
+async function _daRunMahalanobis() {
+  var fm = _daFeatureMatrix('da-mahal-chk');
+  if (!fm) { _daResults.push({method:'Mahalanobis Distance', flags:[], summary:'Select at least 2 numeric columns with 10+ complete rows to run this method.'}); return; }
+  var pct = parseFloat(document.getElementById('da-mahal-pct')?.value) || 0.975;
+
+  if (_daMLEngine === 'python') {
+    var pyResult = await _daCallMLService('mahalanobis', fm, { percentile: pct });
+    if (pyResult) {
+      _daResults.push(_daBuildResultFromPython('Mahalanobis Distance', fm, pyResult,
+        function(row){ return 'Distance ' + row.score.toFixed(2) + ' exceeds the ' + (pct*100) + 'th percentile cutoff'; },
+        'exceed the ' + (pct*100) + 'th percentile multivariate distance across ' + fm.cols.length + ' feature(s) (Python/scikit-learn robust covariance estimator — not subject to the masking effect below)'));
+      return;
+    }
+  }
+
+  var dists = _daMahalanobisDistances(fm.norm);
+  var dof = Math.min(fm.d, 10);
+  var critChiSq = (_daChiSqCrit[dof] && _daChiSqCrit[dof][pct]) || _daChiSqCrit[10][pct];
+  var cutoff = Math.sqrt(critChiSq);
+  var flags = [];
+  dists.forEach(function(dist,i){
+    if (dist > cutoff) flags.push({ row: fm.rowIdx[i]+1, value: dist.toFixed(2), reason:'Distance '+dist.toFixed(2)+' exceeds '+(pct*100)+'th percentile cutoff ('+cutoff.toFixed(2)+')' });
+  });
+  flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
+  _daResults.push({ method:'Mahalanobis Distance', columns:fm.cols.join(', '), flags:flags,
+    summary: flags.length + ' row(s) exceed the ' + (pct*100) + 'th percentile multivariate distance across ' + fm.cols.length + ' feature(s) (JS engine). Note: an extreme outlier can itself distort the reference distribution (the "masking effect") — cross-check against Isolation Forest or LOF, or configure the Python service for a robust estimator.' });
+}
+
+// ── Local Outlier Factor ────────────────────────────────────────────────────
+function _daEuclidean(a,b) {
+  var s=0; for (var i=0;i<a.length;i++) s += Math.pow(a[i]-b[i],2);
+  return Math.sqrt(s);
+}
+function _daLOF(rows, k) {
+  var n = rows.length;
+  k = Math.min(k, n-1);
+  var dist = Array.from({length:n}, function(){ return new Array(n).fill(0); });
+  for (var i=0;i<n;i++) for (var j=i+1;j<n;j++) {
+    var d = _daEuclidean(rows[i], rows[j]);
+    dist[i][j]=d; dist[j][i]=d;
+  }
+  var kNeighbors = [];
+  for (i=0;i<n;i++) {
+    var others = rows.map(function(_,idx){return idx;}).filter(function(idx){ return idx!==i; })
+      .sort(function(a,b){ return dist[i][a]-dist[i][b]; });
+    kNeighbors.push(others.slice(0,k));
+  }
+  var kDist = kNeighbors.map(function(nbrs,idx){ return dist[idx][nbrs[k-1]]; });
+  function reachDist(i,j) { return Math.max(kDist[j], dist[i][j]); }
+  var lrd = [];
+  for (i=0;i<n;i++) {
+    var sumReach = kNeighbors[i].reduce(function(s,j){ return s+reachDist(i,j); },0);
+    lrd.push(sumReach===0 ? Infinity : k/sumReach);
+  }
+  var lof = [];
+  for (i=0;i<n;i++) {
+    var ratioSum = kNeighbors[i].reduce(function(s,j){ return s + (lrd[i]===0?0:lrd[j]/lrd[i]); },0);
+    lof.push(ratioSum/k);
+  }
+  return lof;
+}
+// LOF is O(n²) — cap the working set for browser performance. Beyond this size,
+// the Python service (which can use a KD-tree) is the appropriate engine.
+var DA_LOF_MAX_ROWS = 3000;
+async function _daRunLOF() {
+  var fm = _daFeatureMatrix('da-lof-chk');
+  if (!fm) { _daResults.push({method:'Local Outlier Factor', flags:[], summary:'Select at least 2 numeric columns with 10+ complete rows to run this method.'}); return; }
+  var k = parseInt(document.getElementById('da-lof-k')?.value) || 20;
+  var thresh = parseFloat(document.getElementById('da-lof-thresh')?.value) || 2.0;
+
+  if (_daMLEngine === 'python') {
+    var pyResult = await _daCallMLService('lof', fm, { n_neighbors: k });
+    if (pyResult) {
+      _daResults.push(_daBuildResultFromPython('Local Outlier Factor', fm, pyResult,
+        function(row){ return 'LOF ' + row.score.toFixed(2) + ' — local density far below neighbors'; },
+        'flagged as local density outliers among their ' + k + ' nearest neighbors across ' + fm.cols.length + ' feature(s) (Python/scikit-learn engine, no row-count cap)'));
+      return;
+    }
+    // fall through to the JS engine, which IS subject to the row cap below
+  }
+
+  // The JS engine's O(n²) pairwise-distance computation is only safe up to a
+  // few thousand rows in-browser. This cap does not apply to the Python path
+  // above, which is why Python is tried first regardless of dataset size.
+  if (fm.n > DA_LOF_MAX_ROWS) {
+    _daResults.push({method:'Local Outlier Factor', flags:[],
+      summary: 'Dataset has ' + fm.n.toLocaleString() + ' complete rows, which exceeds the ' + DA_LOF_MAX_ROWS.toLocaleString() + '-row limit for the in-browser LOF engine. Configure the Python analysis service (ML_SERVICE_URL) to remove this limit.'});
+    return;
+  }
+  var scores = _daLOF(fm.norm, k);
+  var flags = [];
+  scores.forEach(function(s,i){
+    if (s > thresh) flags.push({ row: fm.rowIdx[i]+1, value: s.toFixed(2), reason:'LOF '+s.toFixed(2)+' exceeds threshold '+thresh+' (local density far below neighbors)' });
+  });
+  flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
+  _daResults.push({ method:'Local Outlier Factor', columns:fm.cols.join(', '), flags:flags,
+    summary: flags.length + ' row(s) have local density more than ' + thresh + 'x sparser than their ' + k + ' nearest neighbors across ' + fm.cols.length + ' feature(s) (JS engine)' });
+}
+
 // ── Results rendering ─────────────────────────────────────────────────────────
 function _daRenderResults() {
   var content  = document.getElementById('da-results-content');
@@ -8619,10 +9038,13 @@ function daExportXLSX() {
 function activateFoundations() {
   _initFoundationsData();
 
-  // Hide all audit pages and subnav
+  // Hide all audit pages, Data Analysis, and subnav. [id^="page-"] catches
+  // every top-level page including ones (like Data Analysis) that aren't
+  // managed via the .page/.active class.
   const sn = document.getElementById('wf-subnav');
   if (sn) sn.style.display = 'none';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('[id^="page-"]').forEach(function(el){ el.style.display = 'none'; });
 
   // Update nav
   document.querySelectorAll('.wf-nav-item').forEach(n => {
@@ -19427,6 +19849,484 @@ function deleteMemFile(ref, bucket, idx) {
 function showUploadError(msg) {
   document.getElementById('dup-ref-msg').innerHTML = msg;
   document.getElementById('dup-ref-overlay').style.display = 'flex';
+}
+
+/* ══════════════════════════════════════
+   SAMPLE DATA GRID
+══════════════════════════════════════ */
+
+// Per-workpaper sample data grid, keyed by wp ref.
+// Shape: { columns: [{id, title}], rows: [{num, cells: {colId: value}}] }
+// The first column (auto-numbered "#") is implicit and never stored in
+// `columns` — it's rendered from each row's position, not user data.
+// Paste model: single-cell anchor, no multi-cell range selection — see the
+// comment above initSampleDataGridPaste() for the reasoning.
+// Per-workpaper global sample store, keyed by ref.
+const wpSampleData = {};
+
+// Tracks which row is "selected" per workpaper, for Add row above/below.
+// If nothing has been clicked yet (undefined), both buttons treat the LAST
+// row as selected, per spec. Cleared whenever a different workpaper opens.
+const _sdSelectedRow = {};
+
+function _daSampleDataFor(ref) {
+  if (!wpSampleData[ref]) wpSampleData[ref] = { columns: [], rows: [] };
+  return wpSampleData[ref];
+}
+
+// Resolves "the selected row index" per the spec's fallback rule: if no row
+// has been explicitly selected, the last row counts as selected. Returns -1
+// only when there are zero rows (nothing to select).
+function _sdResolveSelectedIndex(ref) {
+  var data = _daSampleDataFor(ref);
+  if (!data.rows.length) return -1;
+  var sel = _sdSelectedRow[ref];
+  if (sel === undefined || sel === null || sel < 0 || sel >= data.rows.length) {
+    return data.rows.length - 1; // fallback: last row
+  }
+  return sel;
+}
+
+function _sdSelectRow(ref, idx) {
+  _sdSelectedRow[ref] = idx;
+  renderSampleDataGrid(ref); // re-render so highlight moves — cheap at typical sample sizes
+}
+
+// Renders the grid from wpSampleData[ref] into #sd-hdr-row / #sd-body-rows.
+// The "#" column is never stored — it's just each row's 1-based position,
+// so inserting/deleting rows automatically renumbers everything.
+function renderSampleDataGrid(ref) {
+  var data = _daSampleDataFor(ref);
+  var hdrRow  = document.getElementById('sd-hdr-row');
+  var bodyEl  = document.getElementById('sd-body-rows');
+  var hintEl  = document.getElementById('sd-empty-hint');
+  if (!hdrRow || !bodyEl) return;
+
+  var selectedIdx = _sdResolveSelectedIndex(ref);
+
+  // Rebuild header: keep the "#" cell (first child), replace the rest
+  while (hdrRow.children.length > 1) hdrRow.removeChild(hdrRow.lastChild);
+  data.columns.forEach(function(col){
+    var th = document.createElement('th');
+    th.style.cssText = 'min-width:140px;position:relative;font-size:10px;font-weight:600;padding:5px 8px;text-align:left;border-right:0.5px solid var(--border-light)';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = col.title || '';
+    input.placeholder = '(untitled column)';
+    input.setAttribute('aria-label', 'Column header');
+    input.className = 'sd-col-hdr-input';
+    input.dataset.colId = col.id;
+    input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:normal;padding:2px 4px';
+    input.oninput = function(){ col.title = this.value; };
+    input.onblur  = function(){ saveSampleDataGrid(ref); };
+    var delBtn = document.createElement('button');
+    delBtn.title = 'Remove column';
+    delBtn.className = 'icon-btn';
+    delBtn.style.cssText = 'position:absolute;right:2px;top:2px;width:18px;height:18px';
+    delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    delBtn.onclick = function(){ removeSampleDataColumn(ref, col.id); };
+    th.appendChild(input);
+    th.appendChild(delBtn);
+    hdrRow.appendChild(th);
+  });
+
+  // Rebuild body rows
+  bodyEl.innerHTML = '';
+  data.rows.forEach(function(row, i){
+    var tr = document.createElement('tr');
+    tr.className = 'sd-row';
+    tr.dataset.rowIdx = i;
+    var isSelected = (i === selectedIdx);
+    tr.style.borderBottom = '0.5px solid var(--border-light)';
+    tr.style.background = isSelected ? 'var(--wf-blue-50, #eff6ff)' : '';
+    tr.onclick = function(){ _sdSelectRow(ref, i); };
+
+    var numTd = document.createElement('td');
+    numTd.textContent = i + 1; // auto-generated, next number — never user-editable
+    numTd.style.cssText = 'width:44px;min-width:44px;text-align:center;font-size:12px;padding:6px 8px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);' +
+      (isSelected ? 'color:var(--wf-navy);font-weight:700' : 'color:var(--text-tertiary)');
+    tr.appendChild(numTd);
+    data.columns.forEach(function(col, colIdx){
+      var td = document.createElement('td');
+      td.style.cssText = 'min-width:140px;padding:0;border-right:0.5px solid var(--border-light)';
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'sd-cell-input';
+      input.dataset.rowIdx = i;
+      input.dataset.colIdx = colIdx;
+      input.value = (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '';
+      input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:12px;color:var(--text-primary);padding:6px 8px';
+      input.oninput = function(){ if(!row.cells) row.cells = {}; row.cells[col.id] = this.value; };
+      input.onblur  = function(){ saveSampleDataGrid(ref); };
+      // Focusing a cell selects its row (without a full re-render, so typing
+      // isn't interrupted) — clicking elsewhere in the row still re-renders
+      // via the <tr> handler above for the visual highlight.
+      input.onfocus = function(){ _sdSelectedRow[ref] = i; };
+      td.appendChild(input);
+      tr.appendChild(td);
+    });
+    var actionTd = document.createElement('td');
+    actionTd.style.cssText = 'width:32px;padding:2px;text-align:center';
+    var rowDelBtn = document.createElement('button');
+    rowDelBtn.title = 'Remove row';
+    rowDelBtn.className = 'icon-btn';
+    rowDelBtn.style.cssText = 'width:22px;height:22px';
+    rowDelBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+    rowDelBtn.onclick = function(e){ e.stopPropagation(); removeSampleDataRow(ref, i); };
+    actionTd.appendChild(rowDelBtn);
+    tr.appendChild(actionTd);
+    bodyEl.appendChild(tr);
+  });
+
+  if (hintEl) hintEl.style.display = data.columns.length ? 'none' : '';
+}
+
+// Adds a new column to the right of the "#" column (and to the right of any
+// existing user columns). Title defaults to blank; the user can optionally
+// type a header. Pressing "Add column" repeatedly keeps appending columns.
+function addSampleDataColumn(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  pushUndo(ref);
+  var data = _daSampleDataFor(ref);
+  var newId = 'col_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+  data.columns.push({ id: newId, title: '' });
+  // Ensure every existing row has a (blank) slot for the new column so
+  // exports/renders don't need to special-case "missing" cells.
+  data.rows.forEach(function(row){ if(!row.cells) row.cells = {}; row.cells[newId] = ''; });
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+  // Focus the new column's header input so the user can name it immediately
+  var hdrRow = document.getElementById('sd-hdr-row');
+  if (hdrRow && hdrRow.lastChild) {
+    var input = hdrRow.lastChild.querySelector('input');
+    if (input) input.focus();
+  }
+}
+
+function removeSampleDataColumn(ref, colId) {
+  var data = _daSampleDataFor(ref);
+  var col = data.columns.find(function(c){ return c.id === colId; });
+  var label = col && col.title ? '"' + col.title + '"' : 'this column';
+  if (!confirm('Remove ' + label + '? This will delete its data from every row.')) return;
+  pushUndo(ref);
+  data.columns = data.columns.filter(function(c){ return c.id !== colId; });
+  data.rows.forEach(function(row){ if (row.cells) delete row.cells[colId]; });
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Adds a new row at the end. The "#" value is never stored — it's always
+// the row's position, so this just appends an empty cell-set and re-renders.
+function addSampleDataRow(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  pushUndo(ref);
+  var data = _daSampleDataFor(ref);
+  var cells = {};
+  data.columns.forEach(function(col){ cells[col.id] = ''; });
+  data.rows.push({ cells: cells });
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Builds an empty cell-set matching the grid's current columns.
+function _sdEmptyCells(data) {
+  var cells = {};
+  data.columns.forEach(function(col){ cells[col.id] = ''; });
+  return cells;
+}
+
+// Inserts a new row immediately above the selected row. Per spec, if no row
+// has been explicitly selected, the LAST row is treated as selected — so
+// "above" in that case inserts just before the last row, not at the very top.
+// Because the "#" column is derived from position at render time (never
+// stored), inserting anywhere and re-rendering automatically renumbers every
+// row below it — there is no separate renumbering step to run.
+function addSampleDataRowAbove(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  var data = _daSampleDataFor(ref);
+  var insertAt = data.rows.length ? _sdResolveSelectedIndex(ref) : 0;
+  pushUndo(ref);
+  data.rows.splice(insertAt, 0, { cells: _sdEmptyCells(data) });
+  _sdSelectedRow[ref] = insertAt; // the newly inserted row becomes selected
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Inserts a new row immediately below the selected row (or below the last
+// row, per the same fallback rule).
+function addSampleDataRowBelow(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  var data = _daSampleDataFor(ref);
+  var insertAt = data.rows.length ? _sdResolveSelectedIndex(ref) + 1 : 0;
+  pushUndo(ref);
+  data.rows.splice(insertAt, 0, { cells: _sdEmptyCells(data) });
+  _sdSelectedRow[ref] = insertAt;
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+function removeSampleDataRow(ref, rowIndex) {
+  var data = _daSampleDataFor(ref);
+  if (!confirm('Remove row ' + (rowIndex+1) + '?')) return;
+  pushUndo(ref);
+  data.rows.splice(rowIndex, 1);
+  // Keep the selection sane — clamp to the last remaining row if the
+  // selected/deleted row no longer exists.
+  if (_sdSelectedRow[ref] !== undefined && _sdSelectedRow[ref] >= data.rows.length) {
+    _sdSelectedRow[ref] = data.rows.length - 1;
+  }
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Persists the current grid to the DB via the existing per-workpaper save path.
+function saveSampleDataGrid(ref) {
+  var w = WORKPAPERS.find(function(x){ return x.ref === ref; });
+  if (w) _saveWorkpaperToDB(w);
+  _wfSaved();
+}
+
+// ── Excel paste support ───────────────────────────────────────────────────────
+// Same pattern as initAttrGridPaste: listen for paste anywhere in the section,
+// only intercept it when the clipboard looks like tab-separated tabular data
+// (i.e. an Excel/Sheets range), and otherwise let normal single-cell paste
+// behavior proceed untouched.
+// Pure analysis: given the grid, pasted data, and target position, determine
+// (a) how many rows/columns must be added for the paste to fit, and (b) which
+// existing cells inside the paste's target range already contain a non-blank
+// value. No mutation — used to decide whether to show a confirmation prompt
+// before touching the grid at all.
+function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
+  var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
+  var neededCols = startColIdx + widestRow;
+  var neededRows = startRowIdx + grid.length;
+  var colsToAdd = Math.max(0, neededCols - data.columns.length);
+  var rowsToAdd = Math.max(0, neededRows - data.rows.length);
+
+  // Conflict scan covers only the overlap between the paste's target range
+  // and cells that already exist — a cell in a row/column that doesn't exist
+  // yet isn't "overwritten," it's part of the expansion case above.
+  var conflicts = [];
+  grid.forEach(function(pastedRow, ri){
+    var rowIdx = startRowIdx + ri;
+    if (rowIdx >= data.rows.length) return;
+    var existingRow = data.rows[rowIdx];
+    pastedRow.forEach(function(cellVal, ci){
+      var colIdx = startColIdx + ci;
+      if (colIdx >= data.columns.length) return;
+      var col = data.columns[colIdx];
+      var existingVal = existingRow.cells && existingRow.cells[col.id];
+      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+        conflicts.push({ row: rowIdx, col: colIdx, colTitle: col.title || '(untitled column)', value: existingVal });
+      }
+    });
+  });
+
+  return {
+    colsToAdd: colsToAdd,
+    rowsToAdd: rowsToAdd,
+    needsExpansion: colsToAdd > 0 || rowsToAdd > 0,
+    conflicts: conflicts,
+    hasConflicts: conflicts.length > 0,
+  };
+}
+
+// Mutates `data` to actually write the pasted grid into place, expanding rows
+// and columns as needed. Called only after the user has confirmed (or when
+// no confirmation was needed because nothing would be expanded/overwritten).
+function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
+  var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
+  var neededCols = startColIdx + widestRow;
+  while (data.columns.length < neededCols) {
+    var newId = 'col_' + Date.now() + '_' + Math.floor(Math.random()*100000) + '_' + data.columns.length;
+    data.columns.push({ id: newId, title: '' });
+    data.rows.forEach(function(row){ if(!row.cells) row.cells = {}; row.cells[newId] = ''; });
+  }
+  var neededRows = startRowIdx + grid.length;
+  while (data.rows.length < neededRows) {
+    data.rows.push({ cells: _sdEmptyCells(data) });
+  }
+  grid.forEach(function(pastedRow, ri){
+    var targetRow = data.rows[startRowIdx + ri];
+    if (!targetRow.cells) targetRow.cells = {};
+    pastedRow.forEach(function(cellVal, ci){
+      var col = data.columns[startColIdx + ci];
+      if (!col) return; // shouldn't happen given the expansion loop above, but stay safe
+      targetRow.cells[col.id] = cellVal.trim();
+    });
+  });
+}
+
+// State for the pending-paste confirmation modal — holds everything needed to
+// either apply or discard the paste once the user responds.
+var _sdPendingPaste = null;
+
+// ── Paste model: single-cell anchor, clipboard shape wins ─────────────────────
+// This grid has no Excel-style multi-cell RANGE selection (drag/shift-click to
+// highlight a block of cells) — each cell is an independent <input>, and
+// "selecting" a cell just gives it browser focus. That's an intentional scope
+// decision, not an oversight: the paste destination is always derived purely
+// from (1) whichever single cell has focus when the paste happens, and (2) the
+// row/column shape of the clipboard content itself. There is no pre-existing
+// "selected area" a paste could disagree in size with — so the mismatch case
+// that matters here is clipboard-vs-EXISTING-GRID (handled below via
+// _sdAnalyzePaste's expansion/overwrite checks), not clipboard-vs-selection.
+// If real range selection is added later, this is the function to extend with
+// a size-mismatch comparison against the selected range.
+function initSampleDataGridPaste() {
+  var card = document.getElementById('sect-sample-data');
+  if (!card || card._pasteBound) return;
+  card._pasteBound = true;
+
+  card.addEventListener('paste', function(e){
+    var active = document.activeElement;
+    if (!card.contains(active)) return;
+
+    var text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (!text || !text.includes('\t')) return; // single-cell paste — let the browser handle it
+
+    e.preventDefault();
+
+    var ref = getWPRef ? getWPRef() : null;
+    if (!ref) return;
+    var data = _daSampleDataFor(ref);
+
+    var pastedRows = text.replace(/\r/g, '').split('\n');
+    if (pastedRows.length && pastedRows[pastedRows.length-1] === '') pastedRows.pop();
+    if (!pastedRows.length) return;
+    var grid = pastedRows.map(function(row){ return row.split('\t'); });
+
+    var startRowIdx = data.rows.length;
+    var startColIdx = data.columns.length ? data.columns.length : 0;
+    if (active.classList.contains('sd-cell-input')) {
+      startRowIdx = parseInt(active.dataset.rowIdx, 10);
+      startColIdx = parseInt(active.dataset.colIdx, 10);
+    } else if (active.classList.contains('sd-col-hdr-input')) {
+      var colId = active.dataset.colId;
+      var idx = data.columns.findIndex(function(c){ return c.id === colId; });
+      startColIdx = idx >= 0 ? idx : data.columns.length;
+      startRowIdx = 0;
+    }
+    if (isNaN(startRowIdx) || startRowIdx < 0) startRowIdx = data.rows.length;
+    if (isNaN(startColIdx) || startColIdx < 0) startColIdx = data.columns.length;
+
+    var analysis = _sdAnalyzePaste(data, grid, startRowIdx, startColIdx);
+
+    if (!analysis.needsExpansion && !analysis.hasConflicts) {
+      // Nothing to warn about — apply immediately, same as before.
+      pushUndo(ref);
+      _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx);
+      _sdSelectedRow[ref] = Math.min(startRowIdx + grid.length - 1, data.rows.length - 1);
+      renderSampleDataGrid(ref);
+      saveSampleDataGrid(ref);
+      return;
+    }
+
+    // Something needs the user's attention — hold the paste and prompt.
+    _sdPendingPaste = { ref: ref, data: data, grid: grid, startRowIdx: startRowIdx, startColIdx: startColIdx, analysis: analysis };
+    _sdShowPasteConfirm(analysis, startRowIdx, startColIdx, grid);
+  });
+}
+
+// Builds and shows the confirmation modal, highlighting the target cell range
+// (including cells that don't exist yet, so the user sees the full footprint
+// of the paste) and listing any cells that already contain values.
+function _sdShowPasteConfirm(analysis, startRowIdx, startColIdx, grid) {
+  var overlay = document.getElementById('sd-paste-confirm-overlay');
+  if (!overlay) return;
+
+  var msgParts = [];
+  if (analysis.needsExpansion) {
+    var pieces = [];
+    if (analysis.rowsToAdd > 0) pieces.push(analysis.rowsToAdd + ' new row' + (analysis.rowsToAdd!==1?'s':''));
+    if (analysis.colsToAdd > 0) pieces.push(analysis.colsToAdd + ' new column' + (analysis.colsToAdd!==1?'s':''));
+    msgParts.push('This paste is larger than the current grid and will add ' + pieces.join(' and ') + '.');
+  }
+  if (analysis.hasConflicts) {
+    msgParts.push(analysis.conflicts.length + ' cell' + (analysis.conflicts.length!==1?'s':'') + ' in the paste area already contain' + (analysis.conflicts.length!==1?'':'s') + ' data and will be overwritten.');
+  }
+  document.getElementById('sd-paste-confirm-msg').textContent = msgParts.join(' ');
+
+  // Detail list of overwritten cells, capped so a huge paste doesn't produce
+  // an unreadable wall of text.
+  var listEl = document.getElementById('sd-paste-confirm-list');
+  if (analysis.hasConflicts) {
+    var shown = analysis.conflicts.slice(0, 25);
+    listEl.innerHTML = shown.map(function(c){
+      return '<div style="padding:3px 0;border-bottom:0.5px solid var(--border-light);font-size:12px">' +
+        '<span style="color:var(--text-tertiary)">Row ' + (c.row+1) + ', ' + escHtml(c.colTitle) + ':</span> ' +
+        '<span style="font-weight:600;color:#dc2626">"' + escHtml(String(c.value)) + '"</span> will be overwritten</div>';
+    }).join('') + (analysis.conflicts.length > 25 ? '<div style="padding:4px 0;font-size:11px;color:var(--text-tertiary);font-style:italic">…and ' + (analysis.conflicts.length-25) + ' more</div>' : '');
+    listEl.style.display = '';
+  } else {
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
+  }
+
+  // Highlight the full target range in the live grid behind the modal —
+  // including rows/columns that don't exist yet, rendered as ghost cells —
+  // so the user can see exactly where the paste will land before deciding.
+  _sdHighlightPasteRange(startRowIdx, startColIdx, grid);
+
+  overlay.style.display = 'flex';
+}
+
+// Draws a temporary highlight over the cells a pending paste would affect.
+// Existing cells get a highlight class; a footprint extending past the
+// current grid is represented by temporary ghost rows/cells appended to the
+// DOM only (not to the data model) so the user can see the full shape of the
+// incoming paste, including rows/columns that don't exist yet.
+function _sdHighlightPasteRange(startRowIdx, startColIdx, grid) {
+  document.querySelectorAll('.sd-paste-highlight, .sd-paste-ghost').forEach(function(el){ el.remove(); });
+  document.querySelectorAll('.sd-cell-input, .sd-col-hdr-input').forEach(function(el){ el.classList.remove('sd-cell-conflict'); });
+
+  var bodyEl = document.getElementById('sd-body-rows');
+  if (!bodyEl) return;
+  var existingRows = Array.from(bodyEl.querySelectorAll('.sd-row'));
+  var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
+
+  grid.forEach(function(pastedRow, ri){
+    var rowIdx = startRowIdx + ri;
+    var tr = existingRows[rowIdx];
+    if (tr) {
+      // Highlight the real cells that fall within the paste's column span.
+      var cells = Array.from(tr.querySelectorAll('.sd-cell-input'));
+      for (var ci = 0; ci < widestRow; ci++) {
+        var colIdx = startColIdx + ci;
+        var input = cells[colIdx];
+        if (input) {
+          var wrapTd = input.closest('td');
+          if (wrapTd) wrapTd.classList.add('sd-paste-highlight');
+        }
+      }
+    }
+  });
+}
+
+function _sdCancelPasteConfirm() {
+  var overlay = document.getElementById('sd-paste-confirm-overlay');
+  if (overlay) overlay.style.display = 'none';
+  document.querySelectorAll('.sd-paste-highlight, .sd-paste-ghost').forEach(function(el){ el.remove(); });
+  document.querySelectorAll('.sd-paste-highlight').forEach(function(el){ el.classList.remove('sd-paste-highlight'); });
+  _sdPendingPaste = null;
+}
+
+function _sdConfirmPaste() {
+  var p = _sdPendingPaste;
+  if (!p) return;
+  pushUndo(p.ref);
+  _sdApplyPastedGrid(p.data, p.grid, p.startRowIdx, p.startColIdx);
+  _sdSelectedRow[p.ref] = Math.min(p.startRowIdx + p.grid.length - 1, p.data.rows.length - 1);
+  document.querySelectorAll('.sd-paste-highlight').forEach(function(el){ el.classList.remove('sd-paste-highlight'); });
+  var overlay = document.getElementById('sd-paste-confirm-overlay');
+  if (overlay) overlay.style.display = 'none';
+  renderSampleDataGrid(p.ref);
+  saveSampleDataGrid(p.ref);
+  _sdPendingPaste = null;
 }
 
 /* ══════════════════════════════════════
