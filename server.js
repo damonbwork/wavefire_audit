@@ -478,7 +478,19 @@ app.use((req, res, next) => {
 
 // 50mb of JSON per request is a cheap memory-exhaustion DoS. Uploads are parsed
 // in the browser and never POSTed as JSON, so this can be far smaller.
-app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+//
+// /api/ai/analyze is deliberately excluded here: it carries a base64-encoded
+// PDF/image in its JSON body for document extraction, which needs a larger
+// limit than every other route (see AI_ANALYZE_BODY_LIMIT below). Express
+// runs body-parsing middleware in registration order and only once per
+// request — if this global parser ran for that route too, it would already
+// have enforced the 2mb cap (and populated req.body) before the route's own,
+// larger-limit parser ever got a chance to run, silently defeating it. This
+// skip is what makes the route-level override in that handler actually work.
+app.use(function(req, res, next) {
+  if (req.path === '/api/ai/analyze') return next();
+  express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' })(req, res, next);
+});
 
 // The AI proxy spends real money per call and is unauthenticated. Until auth
 // lands, cap request volume per IP so a single caller cannot drain the budget.
@@ -1001,7 +1013,16 @@ app.post('/api/tenant-ai-config', async (req, res) => {
 });
 
 // ── AI Proxy — routes analysis requests to the configured provider ─────────────
-app.post('/api/ai/analyze', aiRateLimit, async (req, res) => {
+// This route carries a base64-encoded PDF/image in its JSON body (document
+// extraction — see _sdExtractFromOneFile client-side), which the global 2mb
+// limit (tightened for security elsewhere) is too small for: base64 inflates
+// a file to ~1.37x its size, so a real-world scanned PDF over ~1.4MB would be
+// silently rejected by Express with a 413 before ever reaching the AI call —
+// the exact failure this override fixes. A dedicated, larger limit here is
+// safe: it's the same 2mb-vs-larger tradeoff, just scoped to the one route
+// that legitimately needs it instead of loosened globally.
+const AI_ANALYZE_BODY_LIMIT = process.env.AI_ANALYZE_BODY_LIMIT || '15mb';
+app.post('/api/ai/analyze', express.json({ limit: AI_ANALYZE_BODY_LIMIT }), aiRateLimit, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { messages, max_tokens, system } = req.body;
 
