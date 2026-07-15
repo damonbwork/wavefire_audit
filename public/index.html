@@ -2338,7 +2338,7 @@
             <!-- Assessment entities — workpaper level -->
             <div style="padding-bottom:14px;border-bottom:0.5px solid var(--border-light)">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Assessment entities</div>
+                <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Linked assessment entities</div>
                 <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openWPEntityDialog()">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
@@ -2356,18 +2356,16 @@
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
-              <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden">
-                <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-                  <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
-                  <thead>
-                    <tr style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
-                      <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Risk</th>
-                      <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Linked internal controls</th>
-                    </tr>
-                  </thead>
-                  <tbody id="risks-tbody"></tbody>
-                </table>
-              </div>
+              <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+                <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+                <thead>
+                  <tr style="border-bottom:0.5px solid var(--border-light)">
+                    <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Risk</th>
+                    <th style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;text-align:left">Linked internal controls</th>
+                  </tr>
+                </thead>
+                <tbody id="risks-tbody"></tbody>
+              </table>
             </div>
 
             <!-- Linked Financial Statement Accounts & Footnotes -->
