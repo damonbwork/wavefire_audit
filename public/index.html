@@ -2356,7 +2356,8 @@
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
-              <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+              <div id="risks-empty-msg" style="display:none;font-size:12px;color:var(--text-tertiary);font-style:italic;min-height:24px">None linked — click "Add / edit" to link risks and controls</div>
+              <table id="risks-table" style="width:100%;border-collapse:collapse;table-layout:fixed">
                 <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
                 <thead>
                   <tr style="border-bottom:0.5px solid var(--border-light)">
@@ -2486,7 +2487,7 @@
             </div>
           </div>
           <div class="sect-body" style="padding:0">
-            <div id="sd-grid-wrap" style="overflow-x:auto">
+            <div id="sd-grid-wrap" style="overflow-x:auto;position:relative">
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
                   <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
@@ -2502,12 +2503,27 @@
                   <!-- Rows render here via JS -->
                 </tbody>
               </table>
-              <!-- Search Guidance dialog for a column flagged for extraction -->
+              <!-- Shared column toolbar — one instance for the whole grid,
+                   positioned over whichever column header is currently
+                   selected. Replaces per-column move/delete buttons. Hidden
+                   by default; shown and repositioned by _sdSelectColumn(). -->
+              <div id="sd-col-toolbar" style="display:none;position:absolute;z-index:5;gap:1px;background:var(--bg-primary);border:0.5px solid var(--border-medium);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);padding:2px">
+                <button id="sd-col-toolbar-left" class="icon-btn" title="Move column left" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarMoveColumn('left')">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <button id="sd-col-toolbar-right" class="icon-btn" title="Move column right" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarMoveColumn('right')">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button id="sd-col-toolbar-delete" class="icon-btn" title="Remove column" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarDeleteColumn()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <!-- Search/data guidance dialog — available for any Sample Data column -->
               <div id="sd-guidance-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
                 <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:460px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
                   <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
-                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Extract: <span id="sd-guidance-colname"></span></div>
-                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Wavefire will search the attached sample files for this data element and fill it in automatically.</div>
+                    <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Column: <span id="sd-guidance-colname"></span></div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">If this column is flagged for extraction, Wavefire will use this guidance when searching the attached sample files.</div>
                   </div>
                   <div style="padding:16px 20px">
                     <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:block;margin-bottom:6px">Search Guidance <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
@@ -2535,15 +2551,9 @@
             </button>
           </div>
           <div style="padding:14px 16px;border-top:0.5px solid var(--border-light);display:flex;align-items:flex-start;gap:14px;background:var(--bg-secondary)">
-            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="readSampleFilesIntoGrid()" id="sd-readfiles-btn">
-              <i class="ti ti-sparkles"></i>Read Sample Files
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="readSampleFilesIntoGrid()" id="sd-readfiles-btn" title="For each of the Sample Data fields with the Extract button checked, the application will search all attached sample files and attempt to populate the data. If the Sample Data grid includes user entered sample data, the application will attempt to populate the Extract field data from the Attached Sample Files.  If the Attached Sample Files contain more sample records than currently entered in the sample grid, you be prompted whether to add them.">
+              <i class="ti ti-sparkles"></i>Extract Sample Data
             </button>
-            <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
-              Reads every attached sample file. If the grid below is empty, builds it from scratch — one row per
-              sample record found. If rows already exist, fills in blank cells for those rows using the file
-              contents and any Search Guidance entered for extract-flagged columns. If the files appear to
-              contain more sample records than are currently in the grid, you'll be asked whether to add them.
-            </p>
           </div>
         </div>
 
@@ -4241,11 +4251,15 @@ auditor's assessment.
           </div>
           <span id="ctrl-selected-count" style="font-size:12px;color:var(--text-secondary);white-space:nowrap">0 selected</span>
         </div>
-        <!-- Audit-controls filter — shown in wp-scope mode -->
-        <div id="ctrl-audit-filter-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--text-tertiary)">Show:</span>
-          <button id="ctrl-filter-all" onclick="setCtrlFilter('all')" class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">All</button>
-          <button id="ctrl-filter-audit" onclick="setCtrlFilter('audit')" class="btn-s" style="font-size:10px;padding:1px 7px">In this audit</button>
+        <!-- Column headers for the two-checkbox layout — workpaper mode only.
+             "Linked to Audit" reflects the parent audit's own selections and
+             is read-only here (editing audit-level links belongs on the audit
+             page's own dialog); "Linked to Workpaper" is this dialog's actual
+             editable selection, same as _ctrlDialogTemp always was. -->
+        <div id="ctrl-wp-columns-header" style="display:none;align-items:center;gap:12px;padding:0 20px 0 52px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-tertiary)">
+          <div style="flex:1"></div>
+          <div style="width:74px;text-align:center">Linked to Audit</div>
+          <div style="width:74px;text-align:center">Linked to Workpaper</div>
         </div>
       </div>
       <div style="flex:1;overflow-y:auto" id="ctrl-list-container"></div>
@@ -5547,27 +5561,32 @@ function openWP(i) {
 
   // ── Risks & Controls section ──
   const risksTable = document.getElementById('risks-tbody');
+  const risksTableEl = document.getElementById('risks-table');
+  const risksEmptyMsg = document.getElementById('risks-empty-msg');
   if (risksTable && w.risks) {
-    risksTable.innerHTML = w.risks.map((r, ri) => {
-      const isLast = ri === w.risks.length - 1;
-      const ctrlHtml = (r.controls || []).map(cid => {
-        const cd = CONTROLS[cid];
-        const label = cd ? `${cid}: ${cd.title}` : cid;
-        return `<span class="ctrl-tag" data-ctrl-id="${cid}" onmouseenter="showCtrlTooltip(event,'${cid}')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">${label}</span>`;
-      }).join('');
-      const rd = RISKS[r.id];
-      const rLabel = rd ? rd.title : r.label;
-      return `<tr${isLast ? '' : ' style="border-bottom:0.5px solid var(--border-light)"'}>
-        <td style="padding:9px 12px;vertical-align:top">
-          <span class="risk-tag" data-risk-id="${r.id}" onmouseenter="showRiskTooltip(event,'${r.id}')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)">
-            <span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">${r.id}</span>${rLabel}
-          </span>
-        </td>
-        <td style="padding:9px 12px;vertical-align:top">
-          <div style="display:flex;flex-wrap:wrap;gap:4px">${ctrlHtml}</div>
-        </td>
-      </tr>`;
-    }).join('');
+    const hasRisks = w.risks.length > 0;
+    if (risksTableEl) risksTableEl.style.display = hasRisks ? '' : 'none';
+    if (risksEmptyMsg) risksEmptyMsg.style.display = hasRisks ? 'none' : '';
+    risksTable.innerHTML = !hasRisks ? '' : w.risks.map((r, ri) => {
+          const isLast = ri === w.risks.length - 1;
+          const ctrlHtml = (r.controls || []).map(cid => {
+            const cd = CONTROLS[cid];
+            const label = cd ? `${cid}: ${cd.title}` : cid;
+            return `<span class="ctrl-tag" data-ctrl-id="${cid}" onmouseenter="showCtrlTooltip(event,'${cid}')" onmouseleave="hideCtrlTooltip()" onmousemove="moveCtrlTooltip(event)">${label}</span>`;
+          }).join('');
+          const rd = RISKS[r.id];
+          const rLabel = rd ? rd.title : r.label;
+          return `<tr${isLast ? '' : ' style="border-bottom:0.5px solid var(--border-light)"'}>
+            <td style="padding:9px 12px;vertical-align:top">
+              <span class="risk-tag" data-risk-id="${r.id}" onmouseenter="showRiskTooltip(event,'${r.id}')" onmouseleave="hideRiskTooltip()" onmousemove="moveRiskTooltip(event)">
+                <span style="font-size:10px;font-weight:700;opacity:0.7;margin-right:5px">${r.id}</span>${rLabel}
+              </span>
+            </td>
+            <td style="padding:9px 12px;vertical-align:top">
+              <div style="display:flex;flex-wrap:wrap;gap:4px">${ctrlHtml}</div>
+            </td>
+          </tr>`;
+        }).join('');
   }
 
   // ── Scope fields ──
@@ -14061,13 +14080,13 @@ function openAuditControlsDialog() {
   // Reuse the controls picker, seed with audit-level selections
   _ctrlDialogTemp = new Set(auditLinkedControls[auditName]);
   document.getElementById('ctrl-search-input').value = '';
-  _ctrlFilter = 'all';
-  const filterRow = document.getElementById('ctrl-audit-filter-row');
-  if (filterRow) filterRow.style.display = 'none';
+  const colHeader = document.getElementById('ctrl-wp-columns-header');
+  if (colHeader) colHeader.style.display = 'none';
+  // Set mode BEFORE rendering — renderControlsList branches its row layout
+  // on this, and audit mode keeps the original single-checkbox appearance.
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'audit';
   renderControlsList('');
   updateCtrlCount();
-  // Override apply to save at audit level
-  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'audit';
   document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
 }
@@ -15090,19 +15109,13 @@ function openControlsDialog() {
   staticCtrls.forEach(id => wpLinkedControls[ref].add(id));
   _ctrlDialogTemp = new Set(wpLinkedControls[ref]);
   document.getElementById('ctrl-search-input').value = '';
-  _ctrlFilter = 'all';
-  const filterRow = document.getElementById('ctrl-audit-filter-row');
-  if (filterRow) filterRow.style.display = 'flex';
-  ['all','audit'].forEach(m => {
-    const btn = document.getElementById('ctrl-filter-' + m);
-    if (!btn) return;
-    btn.style.background  = m === 'all' ? 'var(--wf-navy)' : '';
-    btn.style.color       = m === 'all' ? '#fff' : '';
-    btn.style.borderColor = m === 'all' ? 'var(--wf-navy)' : '';
-  });
+  const colHeader = document.getElementById('ctrl-wp-columns-header');
+  if (colHeader) colHeader.style.display = 'flex';
+  // Set mode BEFORE rendering — renderControlsList branches its row layout
+  // (two checkboxes vs. one) on this.
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'wp';
   renderControlsList('');
   updateCtrlCount();
-  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'wp';
   document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
 }
@@ -15120,19 +15133,6 @@ function updateCtrlCount() {
   if (el) el.textContent = `${_ctrlDialogTemp.size} control${_ctrlDialogTemp.size !== 1 ? 's' : ''} selected`;
 }
 
-let _ctrlFilter = 'all'; // 'all' or 'audit'
-
-function setCtrlFilter(mode) {
-  _ctrlFilter = mode;
-  ['all','audit'].forEach(m => {
-    const btn = document.getElementById('ctrl-filter-' + m);
-    if (!btn) return;
-    if (m === mode) { btn.style.background = 'var(--wf-navy)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--wf-navy)'; }
-    else             { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
-  });
-  filterControlsDialog();
-}
-
 function renderControlsList(query) {
   const container = document.getElementById('ctrl-list-container');
   if (!container) return;
@@ -15141,6 +15141,8 @@ function renderControlsList(query) {
   const w           = WORKPAPERS[currentWPIndex];
   const auditName   = w?.auditName;
   const auditCtrls  = auditLinkedControls[auditName] || new Set();
+  const mode        = document.getElementById('ctrl-dialog-overlay')?.dataset.mode || 'wp';
+  const isWpMode    = mode === 'wp';
 
   // Use live _fndControls from Foundations if populated, otherwise fall back to static CONTROLS
   const liveControls = (typeof _fndControls !== 'undefined' && _fndControls.length)
@@ -15161,12 +15163,8 @@ function renderControlsList(query) {
       });
   });
 
-  if (_ctrlFilter === 'audit') {
-    filtered = filtered.filter(c => auditCtrls.has(c.id));
-  }
-
   if (!filtered.length) {
-    container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">${_ctrlFilter === 'audit' ? 'No audit-linked controls match.' : 'No controls match your search.'}</div>`;
+    container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">No controls match your search.</div>`;
     return;
   }
 
@@ -15185,20 +15183,13 @@ function renderControlsList(query) {
         const r = (typeof _fndRisks!=='undefined'&&_fndRisks.find(x=>x.id===rid)) || RISKS[rid];
         return r ? `<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:0.5px solid #fca5a5;border-radius:4px;padding:1px 6px;white-space:nowrap">${rid}</span>` : '';
       }).join('');
-      const auditBadge = inAudit ? `<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border:0.5px solid #93c5fd;border-radius:3px;padding:0 5px;margin-left:6px;white-space:nowrap">In audit</span>` : '';
       const owners = [c.ctrl_owner, c.proc_owner].filter(Boolean).join(' · ');
 
-      return `<div onclick="toggleCtrl('${c.id}')"
-        style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked?'background:#f0fdf4':''}"
-        onmouseover="this.style.background='${checked?'#dcfce7':'#f8fafc'}'" onmouseout="this.style.background='${checked?'#f0fdf4':''}'">
-        <div id="ctrl-cb-${c.id}" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked?'var(--wf-navy)':'var(--border-medium)'};background:${checked?'var(--wf-navy)':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:all 0.1s">
-          ${checked?'<i class="ti ti-check" style="font-size:10px;color:#fff"></i>':''}
-        </div>
+      const infoBlock = `
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap">
             <span style="font-size:11px;font-weight:700;color:var(--wf-blue)">${escHtml(c.id)}</span>
             <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${escHtml(c.name||c.title||'')}</span>
-            ${auditBadge}
           </div>
           ${c.objective ? `<div style="font-size:11px;color:var(--wf-navy);font-style:italic;margin-bottom:3px">${escHtml(c.objective.slice(0,100))}</div>` : ''}
           <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;line-height:1.4">${escHtml((c.description||'').slice(0,130))}${(c.description||'').length>130?'…':''}</div>
@@ -15206,7 +15197,38 @@ function renderControlsList(query) {
             ${riskTags ? `<span style="font-size:10px;color:var(--text-tertiary)">Risks:</span>${riskTags}` : ''}
             ${owners ? `<span style="font-size:10px;color:var(--text-tertiary);margin-left:4px">Owners: ${escHtml(owners)}</span>` : ''}
           </div>
+        </div>`;
+
+      if (isWpMode) {
+        // Two independent checkboxes: audit-linkage is READ-ONLY here (it's
+        // set from the audit page's own dialog, not this one) — no onclick,
+        // no hover state, so it can't be mistaken for an editable control.
+        // Workpaper-linkage is the actual editable selection, same toggleCtrl
+        // mechanism as before.
+        const auditCb = `<div style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${inAudit?'var(--wf-blue)':'var(--border-medium)'};background:${inAudit?'var(--wf-blue)':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:${inAudit?'1':'0.5'}" title="${inAudit?'Linked at the audit level':'Not linked at the audit level'}">
+          ${inAudit?'<i class="ti ti-check" style="font-size:10px;color:#fff"></i>':''}
+        </div>`;
+        const wpCb = `<div id="ctrl-cb-${c.id}" onclick="event.stopPropagation();toggleCtrl('${c.id}')" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked?'var(--wf-navy)':'var(--border-medium)'};background:${checked?'var(--wf-navy)':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:all 0.1s" title="Click to ${checked?'unlink from':'link to'} this workpaper">
+          ${checked?'<i class="ti ti-check" style="font-size:10px;color:#fff"></i>':''}
+        </div>`;
+        return `<div onclick="toggleCtrl('${c.id}')"
+          style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked?'background:#f0fdf4':''}"
+          onmouseover="this.style.background='${checked?'#dcfce7':'#f8fafc'}'" onmouseout="this.style.background='${checked?'#f0fdf4':''}'">
+          ${infoBlock}
+          <div style="width:74px;display:flex;align-items:center;justify-content:center;padding-top:2px">${auditCb}</div>
+          <div style="width:74px;display:flex;align-items:center;justify-content:center;padding-top:2px">${wpCb}</div>
+        </div>`;
+      }
+
+      // Audit mode / new-audit-ctrl mode: original single-checkbox layout,
+      // unchanged — the two-column view only applies to the workpaper dialog.
+      return `<div onclick="toggleCtrl('${c.id}')"
+        style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:0.5px solid var(--border-light);cursor:pointer;transition:background 0.1s;${checked?'background:#f0fdf4':''}"
+        onmouseover="this.style.background='${checked?'#dcfce7':'#f8fafc'}'" onmouseout="this.style.background='${checked?'#f0fdf4':''}'">
+        <div id="ctrl-cb-${c.id}" style="width:16px;height:16px;border-radius:3px;border:1.5px solid ${checked?'var(--wf-navy)':'var(--border-medium)'};background:${checked?'var(--wf-navy)':'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;transition:all 0.1s">
+          ${checked?'<i class="ti ti-check" style="font-size:10px;color:#fff"></i>':''}
         </div>
+        ${infoBlock}
       </div>`;
     }).join('');
 
@@ -15365,12 +15387,18 @@ function _showCtrlEntitySuggestion(ref, suggestedMap) {
 
 function renderRCTable(ref, controlIds, riskIds) {
   const tbody = document.getElementById('risks-tbody');
+  const tableEl = document.getElementById('risks-table');
+  const emptyMsg = document.getElementById('risks-empty-msg');
   if (!tbody) return;
 
   if (!riskIds.size) {
-    tbody.innerHTML = `<tr><td colspan="2" style="padding:14px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:13px">No risks &amp; controls linked. Click "Add / edit" to link controls.</td></tr>`;
+    if (tableEl) tableEl.style.display = 'none';
+    if (emptyMsg) emptyMsg.style.display = '';
+    tbody.innerHTML = '';
     return;
   }
+  if (tableEl) tableEl.style.display = '';
+  if (emptyMsg) emptyMsg.style.display = 'none';
 
   tbody.innerHTML = [...riskIds].map(riskId => {
     const risk = RISKS[riskId];
@@ -15876,12 +15904,11 @@ let _newAuditFs       = new Set();
 function openNewAuditControlsDialog() {
   _ctrlDialogTemp = new Set(_newAuditControls);
   document.getElementById('ctrl-search-input').value = '';
-  _ctrlFilter = 'all';
-  const filterRow = document.getElementById('ctrl-audit-filter-row');
-  if (filterRow) filterRow.style.display = 'none';
+  const colHeader = document.getElementById('ctrl-wp-columns-header');
+  if (colHeader) colHeader.style.display = 'none';
+  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'new-audit-ctrl';
   renderControlsList('');
   updateCtrlCount();
-  document.getElementById('ctrl-dialog-overlay').dataset.mode = 'new-audit-ctrl';
   document.getElementById('ctrl-dialog-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById('ctrl-search-input').focus(), 50);
 }
@@ -20813,6 +20840,15 @@ const wpSampleData = {
 // row as selected, per spec. Cleared whenever a different workpaper opens.
 const _sdSelectedRow = {};
 
+// Tracks which COLUMN is selected per workpaper, for the shared move/delete
+// toolbar (a single floating toolbar rather than duplicate buttons on every
+// column header). null/undefined = no column selected = toolbar hidden.
+// Clicking a header selects it; clicking the same header again, clicking a
+// different column, or clicking anywhere else in the workpaper all clear or
+// redirect this — see _sdToggleColumnSelection() and the document-level
+// deselect listener below.
+const _sdSelectedColumn = {};
+
 function _daSampleDataFor(ref) {
   if (!wpSampleData[ref]) wpSampleData[ref] = { columns: [], rows: [] };
   return wpSampleData[ref];
@@ -20896,8 +20932,12 @@ function renderSampleDataGrid(ref) {
   data.columns.forEach(function(col, colIdx){
     if (col.width == null) col.width = SD_DEFAULT_COL_WIDTH; // legacy columns created before this feature
     var th = document.createElement('th');
-    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 60px 5px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;' +
-      (col.extract ? 'cursor:pointer;background:#eff6ff' : '');
+    th.id = 'sd-th-' + col.id;
+    th.dataset.colId = col.id;
+    var isSelectedCol = (_sdSelectedColumn[ref] === col.id);
+    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 8px 6px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
+      (isSelectedCol ? 'background:#dbeafe;' : (col.extract ? 'background:#eff6ff;' : '')) +
+      'cursor:pointer';
     var input = document.createElement('input');
     input.type = 'text';
     input.value = col.title || '';
@@ -20905,48 +20945,40 @@ function renderSampleDataGrid(ref) {
     input.setAttribute('aria-label', 'Column header');
     input.className = 'sd-col-hdr-input';
     input.dataset.colId = col.id;
-    input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:normal;padding:2px 4px';
+    input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:normal;padding:2px 4px;display:block';
     input.oninput = function(){ col.title = this.value; };
     input.onblur  = function(){ saveSampleDataGrid(ref); };
-    if (col.extract) {
-      // When flagged for extraction, clicking anywhere in the header (except
-      // directly interacting with the title text itself) opens the guidance
-      // dialog rather than editing the title inline.
-      th.title = 'Click to set search guidance for automatic extraction';
-      th.onclick = function(e){ if (e.target !== input) _sdOpenGuidanceDialog(ref, col.id); };
-      input.onclick = function(){ _sdOpenGuidanceDialog(ref, col.id); };
-      input.readOnly = true;
-    }
-    // Move-left / move-right — index 0 is always the leftmost real column
-    // (the "#" column isn't part of this array), so disabling at the array
-    // edges is exactly "can't move left of the auto-number field."
-    var btnWrap = document.createElement('div');
-    btnWrap.style.cssText = 'position:absolute;right:2px;top:2px;display:flex;gap:1px';
-    var leftBtn = document.createElement('button');
-    leftBtn.title = 'Move column left';
-    leftBtn.className = 'icon-btn';
-    leftBtn.style.cssText = 'width:18px;height:18px';
-    leftBtn.disabled = (colIdx === 0);
-    if (leftBtn.disabled) leftBtn.style.opacity = '0.3';
-    leftBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
-    leftBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataColumn(ref, col.id, 'left'); };
-    var rightBtn = document.createElement('button');
-    rightBtn.title = 'Move column right';
-    rightBtn.className = 'icon-btn';
-    rightBtn.style.cssText = 'width:18px;height:18px';
-    rightBtn.disabled = (colIdx === data.columns.length - 1);
-    if (rightBtn.disabled) rightBtn.style.opacity = '0.3';
-    rightBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-    rightBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataColumn(ref, col.id, 'right'); };
-    var delBtn = document.createElement('button');
-    delBtn.title = 'Remove column';
-    delBtn.className = 'icon-btn';
-    delBtn.style.cssText = 'width:18px;height:18px';
-    delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-    delBtn.onclick = function(e){ e.stopPropagation(); removeSampleDataColumn(ref, col.id); };
-    btnWrap.appendChild(leftBtn);
-    btnWrap.appendChild(rightBtn);
-    btnWrap.appendChild(delBtn);
+    // Clicking anywhere in the header cell selects the column (showing the
+    // shared move/delete toolbar over it) — this is now consistent for every
+    // column, extract-flagged or not. Clicking directly into the title text
+    // instead focuses it for editing, same as any other text field; Guidance
+    // access moved to its own dedicated button below the title (see
+    // guidanceBtn), so there's no longer a click-target conflict between
+    // "edit the title" and "open guidance" on the same cell.
+    th.onclick = function(e){ if (e.target !== input && e.target !== guidanceBtn) _sdSelectColumn(ref, col.id); };
+    input.onclick = function(e){ e.stopPropagation(); };
+
+    // Guidance button — available for every column, not just extract-flagged
+    // ones, so notes can be kept on a column before deciding to flag it.
+    // Two visual states: muted/outline when no guidance is stored yet, a
+    // filled accent color once guidance has been entered — so the presence
+    // of guidance is visible at a glance without opening the dialog.
+    var hasGuidance = !!(col.searchGuidance && col.searchGuidance.trim());
+    var guidanceBtn = document.createElement('button');
+    guidanceBtn.type = 'button';
+    guidanceBtn.className = 'sd-guidance-btn';
+    guidanceBtn.dataset.colId = col.id;
+    guidanceBtn.style.cssText = 'margin-top:4px;width:100%;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;' +
+      (hasGuidance
+        ? 'background:var(--wf-navy);color:#fff;border:0.5px solid var(--wf-navy)'
+        : 'background:transparent;color:var(--text-tertiary);border:0.5px dashed var(--border-medium)');
+    // Hover shows the guidance text itself (falling back to a neutral prompt
+    // when none is set yet) via the native title tooltip — no extra JS/CSS
+    // needed for the hover preview.
+    guidanceBtn.title = hasGuidance ? col.searchGuidance : 'No search guidance yet — click to add';
+    guidanceBtn.textContent = hasGuidance ? 'Guidance ✓' : 'Guidance';
+    guidanceBtn.onclick = function(e){ e.stopPropagation(); _sdOpenGuidanceDialog(ref, col.id); };
+
     // Drag handle on the right edge of the header cell — same interaction
     // pattern as the Test Attributes grid's column resize (startAttrColResize),
     // adapted to this table's per-column-id width storage.
@@ -20956,10 +20988,15 @@ function renderSampleDataGrid(ref) {
     resizeHandle.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;background:transparent;z-index:2';
     resizeHandle.onmousedown = function(e){ e.stopPropagation(); startSampleDataColResize(e, ref, col); };
     th.appendChild(input);
-    th.appendChild(btnWrap);
+    th.appendChild(guidanceBtn);
     th.appendChild(resizeHandle);
     hdrRow.appendChild(th);
   });
+
+  // Reposition the shared toolbar if a column is currently selected — the
+  // header cells were just rebuilt, so any previous position is stale.
+  _sdRepositionColumnToolbar(ref);
+  _sdEnsureColumnDeselectListener();
 
   // Rebuild the "Extract data from sample files" checkbox row
   if (extractRow) {
@@ -21155,8 +21192,114 @@ function removeSampleDataColumn(ref, colId) {
   pushUndo(ref);
   data.columns = data.columns.filter(function(c){ return c.id !== colId; });
   data.rows.forEach(function(row){ if (row.cells) delete row.cells[colId]; });
+  if (_sdSelectedColumn[ref] === colId) _sdSelectedColumn[ref] = null; // the selected column no longer exists
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
+}
+
+// ── Shared column toolbar: selection, positioning, and its button actions ────
+// One toolbar element for the whole grid (see the HTML above the table),
+// shown over whichever column header is selected instead of duplicating
+// move/delete buttons on every column.
+
+// Click a column header: same column twice -> deselect; anything else
+// (nothing selected, or a different column) -> select the clicked one.
+// Verified against this exact rule before wiring in (see the toggle-logic
+// tests: nothing->A selects A, A->A deselects, A->B switches directly).
+function _sdSelectColumn(ref, colId) {
+  _sdSelectedColumn[ref] = (_sdSelectedColumn[ref] === colId) ? null : colId;
+  _sdApplyColumnSelectionHighlight(ref);
+  _sdRepositionColumnToolbar(ref);
+}
+
+function _sdDeselectColumn(ref) {
+  if (!_sdSelectedColumn[ref]) return; // nothing to do — avoids an unnecessary re-render/reflow
+  _sdSelectedColumn[ref] = null;
+  _sdApplyColumnSelectionHighlight(ref);
+  _sdRepositionColumnToolbar(ref);
+}
+
+// Updates just the selected-column highlight background on existing <th>
+// elements — mirrors _sdUpdateRowHighlight's non-destructive approach (see
+// that function's comment for why a full renderSampleDataGrid() call here
+// would be wrong: it would tear down and rebuild every header input,
+// dropping focus/in-progress edits for no reason on a simple selection
+// change).
+function _sdApplyColumnSelectionHighlight(ref) {
+  var data = _daSampleDataFor(ref);
+  data.columns.forEach(function(col){
+    var th = document.getElementById('sd-th-' + col.id);
+    if (!th) return;
+    var isSelected = (_sdSelectedColumn[ref] === col.id);
+    th.style.background = isSelected ? '#dbeafe' : (col.extract ? '#eff6ff' : '');
+  });
+}
+
+// Positions the shared toolbar directly above the selected column's header
+// (overlapping its top edge slightly, like a callout), or hides it if
+// nothing is selected. Called after selecting/deselecting and after every
+// full re-render (header cells are recreated on render, so any previous
+// position is stale).
+function _sdRepositionColumnToolbar(ref) {
+  var toolbar = document.getElementById('sd-col-toolbar');
+  var wrap = document.getElementById('sd-grid-wrap');
+  if (!toolbar || !wrap) return;
+  var colId = _sdSelectedColumn[ref];
+  if (!colId) { toolbar.style.display = 'none'; return; }
+  var th = document.getElementById('sd-th-' + colId);
+  if (!th) { toolbar.style.display = 'none'; return; }
+
+  var data = _daSampleDataFor(ref);
+  var colIdx = data.columns.findIndex(function(c){ return c.id === colId; });
+  var leftBtn = document.getElementById('sd-col-toolbar-left');
+  var rightBtn = document.getElementById('sd-col-toolbar-right');
+  if (leftBtn)  { leftBtn.disabled  = (colIdx <= 0); leftBtn.style.opacity  = leftBtn.disabled  ? '0.3' : ''; }
+  if (rightBtn) { rightBtn.disabled = (colIdx === data.columns.length - 1); rightBtn.style.opacity = rightBtn.disabled ? '0.3' : ''; }
+
+  // th.offsetLeft/offsetTop are relative to the nearest positioned ancestor,
+  // which is #sd-grid-wrap (position:relative) — exactly the toolbar's own
+  // containing block, so no additional scroll-offset math is needed.
+  toolbar.style.left = (th.offsetLeft + th.offsetWidth - 74) + 'px';
+  toolbar.style.top  = Math.max(0, th.offsetTop - 28) + 'px';
+  toolbar.style.display = 'flex';
+}
+
+function _sdToolbarMoveColumn(direction) {
+  var ref = getWPRef ? getWPRef() : null;
+  var colId = ref && _sdSelectedColumn[ref];
+  if (!ref || !colId) return;
+  moveSampleDataColumn(ref, colId, direction);
+  // moveSampleDataColumn re-renders the whole grid, which already calls
+  // _sdRepositionColumnToolbar — the selection itself (_sdSelectedColumn) is
+  // untouched by a move, so the toolbar stays open, now over the column's
+  // new position.
+}
+
+function _sdToolbarDeleteColumn() {
+  var ref = getWPRef ? getWPRef() : null;
+  var colId = ref && _sdSelectedColumn[ref];
+  if (!ref || !colId) return;
+  removeSampleDataColumn(ref, colId); // clears _sdSelectedColumn itself on delete, then re-renders
+}
+
+// Click-elsewhere-to-deselect: a single document-level listener (registered
+// once, not per-render, to avoid piling up duplicate listeners on every
+// grid re-render) that clears the column selection whenever a click lands
+// outside both the header row and the toolbar itself. Registered lazily on
+// first use rather than at load time, since the grid may not exist yet when
+// the script first runs.
+var _sdColDeselectListenerBound = false;
+function _sdEnsureColumnDeselectListener() {
+  if (_sdColDeselectListenerBound) return;
+  _sdColDeselectListenerBound = true;
+  document.addEventListener('click', function(e){
+    var ref = getWPRef ? getWPRef() : null;
+    if (!ref || !_sdSelectedColumn[ref]) return; // nothing selected — nothing to do
+    var withinHeader = e.target.closest && e.target.closest('#sd-hdr-row');
+    var withinToolbar = e.target.closest && e.target.closest('#sd-col-toolbar');
+    if (withinHeader || withinToolbar) return; // handled by the header/toolbar's own click logic
+    _sdDeselectColumn(ref);
+  });
 }
 
 // Swaps a column with its left/right neighbor in the columns array. Cell data
@@ -21310,10 +21453,9 @@ function toggleSampleDataExtractFlag(ref, colId, checked) {
   }
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
-  // Immediately prompt for guidance when the user turns extraction on — this
-  // is the "may need to click somewhere in the header" step, offered right
-  // away rather than requiring a second click, though the header remains
-  // clickable afterward to revise it.
+  // Immediately prompt for guidance when the user turns extraction on — a
+  // helpful nudge at the moment it's most relevant, though the column's
+  // Guidance button remains available afterward to revise it at any time.
   if (col.extract) _sdOpenGuidanceDialog(ref, colId);
 }
 
@@ -21324,7 +21466,7 @@ var _sdGuidancePending = null;
 function _sdOpenGuidanceDialog(ref, colId) {
   var data = _daSampleDataFor(ref);
   var col = data.columns.find(function(c){ return c.id === colId; });
-  if (!col || !col.extract) return; // guidance only applies to flagged columns
+  if (!col) return; // guidance is now available for any column, extract-flagged or not
   _sdGuidancePending = { ref: ref, colId: colId };
   document.getElementById('sd-guidance-colname').textContent = col.title || '(untitled column)';
   document.getElementById('sd-guidance-textarea').value = col.searchGuidance || '';
@@ -21338,15 +21480,20 @@ function _sdCloseGuidanceDialog() {
 
 function _sdSaveGuidanceDialog() {
   if (!_sdGuidancePending) return;
-  var data = _daSampleDataFor(_sdGuidancePending.ref);
+  var ref = _sdGuidancePending.ref;
+  var data = _daSampleDataFor(ref);
   var col = data.columns.find(function(c){ return c.id === _sdGuidancePending.colId; });
   if (col) {
-    pushUndo(_sdGuidancePending.ref);
+    pushUndo(ref);
     col.searchGuidance = document.getElementById('sd-guidance-textarea').value;
-    saveSampleDataGrid(_sdGuidancePending.ref);
+    saveSampleDataGrid(ref);
   }
   document.getElementById('sd-guidance-overlay').style.display = 'none';
   _sdGuidancePending = null;
+  // Re-render so the Guidance button immediately reflects the new state
+  // (muted vs. highlighted, and its hover-preview text) rather than waiting
+  // for some unrelated action to trigger the next render.
+  if (ref) renderSampleDataGrid(ref);
 }
 
 // Adds a new row at the end. The "#" value is never stored — it's always
