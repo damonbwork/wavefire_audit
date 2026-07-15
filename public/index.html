@@ -2470,7 +2470,7 @@
         <!-- Section 4c: Sample Data -->
         <div class="sect-card" id="sect-sample-data" style="overflow-x:auto">
           <div class="sect-hdr">
-            <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-table"></i>Sample data</div>
+            <div class="sect-hdr-title" style="flex:1;min-width:0" title="The Sample Data below is used to identify selected samples for attribute testing.  Add rows or columns to the Sample Data grid below and enter or copy/paste identifying sample information. Optionally add column headers. Optionally extract sample data from the attached sample files."><i class="ti ti-table"></i>Sample data</div>
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn-s" onclick="addSampleDataColumn()" title="Add a new column to the right" style="font-size:10px;padding:2px 8px;white-space:nowrap">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -2490,13 +2490,17 @@
             <div id="sd-grid-wrap" style="overflow-x:auto;position:relative">
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
-                  <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
-                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light)">#</th>
-                    <!-- User-added column headers render here via JS -->
-                  </tr>
                   <tr id="sd-extract-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
                     <th style="width:44px;min-width:44px;flex-shrink:0;font-size:9px;font-weight:600;color:var(--text-tertiary);padding:5px 4px;text-align:right;border-right:0.5px solid var(--border-light);white-space:nowrap">Extract data from sample files</th>
                     <!-- One checkbox cell per column renders here via JS -->
+                  </tr>
+                  <tr id="sd-guidance-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:9px;font-weight:600;color:var(--text-tertiary);padding:5px 4px;text-align:right;border-right:0.5px solid var(--border-light);white-space:nowrap">Guidance</th>
+                    <!-- One guidance button per extract-flagged column renders here via JS -->
+                  </tr>
+                  <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light)">#</th>
+                    <!-- User-added column headers render here via JS -->
                   </tr>
                 </thead>
                 <tbody id="sd-body-rows">
@@ -2523,7 +2527,7 @@
                 <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:460px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
                   <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
                     <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Column: <span id="sd-guidance-colname"></span></div>
-                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">If this column is flagged for extraction, Wavefire will use this guidance when searching the attached sample files.</div>
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Wavefire will search the attached sample files for this data element and fill it in automatically.</div>
                   </div>
                   <div style="padding:16px 20px">
                     <label style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:block;margin-bottom:6px">Search Guidance <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
@@ -20919,10 +20923,11 @@ function _sdUpdateRowHighlight(ref) {
 // so inserting/deleting rows automatically renumbers everything.
 function renderSampleDataGrid(ref) {
   var data = _daSampleDataFor(ref);
-  var hdrRow     = document.getElementById('sd-hdr-row');
-  var extractRow = document.getElementById('sd-extract-row');
-  var bodyEl     = document.getElementById('sd-body-rows');
-  var hintEl     = document.getElementById('sd-empty-hint');
+  var hdrRow      = document.getElementById('sd-hdr-row');
+  var extractRow  = document.getElementById('sd-extract-row');
+  var guidanceRow = document.getElementById('sd-guidance-row');
+  var bodyEl      = document.getElementById('sd-body-rows');
+  var hintEl      = document.getElementById('sd-empty-hint');
   if (!hdrRow || !bodyEl) return;
 
   var selectedIdx = _sdResolveSelectedIndex(ref);
@@ -20935,49 +20940,30 @@ function renderSampleDataGrid(ref) {
     th.id = 'sd-th-' + col.id;
     th.dataset.colId = col.id;
     var isSelectedCol = (_sdSelectedColumn[ref] === col.id);
-    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 8px 6px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
+    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
       (isSelectedCol ? 'background:#dbeafe;' : (col.extract ? 'background:#eff6ff;' : '')) +
       'cursor:pointer';
-    var input = document.createElement('input');
-    input.type = 'text';
+    // A <textarea>, not an <input> — an <input> is a single-line control and
+    // can never wrap text no matter what CSS is applied to it (the same
+    // limitation the data cells had before they were switched to textareas
+    // earlier). rows=1 plus autoResizeTA gives it a single-line starting
+    // height that grows only when the title actually needs to wrap.
+    var input = document.createElement('textarea');
+    input.rows = 1;
     input.value = col.title || '';
     input.placeholder = '(untitled column)';
     input.setAttribute('aria-label', 'Column header');
     input.className = 'sd-col-hdr-input';
     input.dataset.colId = col.id;
-    input.style.cssText = 'width:100%;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;color:var(--text-primary);text-transform:none;letter-spacing:normal;padding:2px 4px;display:block';
-    input.oninput = function(){ col.title = this.value; };
+    input.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;font-family:inherit;color:var(--text-primary);text-transform:none;letter-spacing:normal;line-height:1.3;padding:2px 4px;box-sizing:border-box;white-space:pre-wrap;word-break:break-word';
+    input.oninput = function(){ col.title = this.value; autoResizeTA(this); };
     input.onblur  = function(){ saveSampleDataGrid(ref); };
     // Clicking anywhere in the header cell selects the column (showing the
     // shared move/delete toolbar over it) — this is now consistent for every
     // column, extract-flagged or not. Clicking directly into the title text
-    // instead focuses it for editing, same as any other text field; Guidance
-    // access moved to its own dedicated button below the title (see
-    // guidanceBtn), so there's no longer a click-target conflict between
-    // "edit the title" and "open guidance" on the same cell.
-    th.onclick = function(e){ if (e.target !== input && e.target !== guidanceBtn) _sdSelectColumn(ref, col.id); };
+    // instead focuses it for editing, same as any other text field.
+    th.onclick = function(e){ if (e.target !== input) _sdSelectColumn(ref, col.id); };
     input.onclick = function(e){ e.stopPropagation(); };
-
-    // Guidance button — available for every column, not just extract-flagged
-    // ones, so notes can be kept on a column before deciding to flag it.
-    // Two visual states: muted/outline when no guidance is stored yet, a
-    // filled accent color once guidance has been entered — so the presence
-    // of guidance is visible at a glance without opening the dialog.
-    var hasGuidance = !!(col.searchGuidance && col.searchGuidance.trim());
-    var guidanceBtn = document.createElement('button');
-    guidanceBtn.type = 'button';
-    guidanceBtn.className = 'sd-guidance-btn';
-    guidanceBtn.dataset.colId = col.id;
-    guidanceBtn.style.cssText = 'margin-top:4px;width:100%;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;' +
-      (hasGuidance
-        ? 'background:var(--wf-navy);color:#fff;border:0.5px solid var(--wf-navy)'
-        : 'background:transparent;color:var(--text-tertiary);border:0.5px dashed var(--border-medium)');
-    // Hover shows the guidance text itself (falling back to a neutral prompt
-    // when none is set yet) via the native title tooltip — no extra JS/CSS
-    // needed for the hover preview.
-    guidanceBtn.title = hasGuidance ? col.searchGuidance : 'No search guidance yet — click to add';
-    guidanceBtn.textContent = hasGuidance ? 'Guidance ✓' : 'Guidance';
-    guidanceBtn.onclick = function(e){ e.stopPropagation(); _sdOpenGuidanceDialog(ref, col.id); };
 
     // Drag handle on the right edge of the header cell — same interaction
     // pattern as the Test Attributes grid's column resize (startAttrColResize),
@@ -20988,10 +20974,15 @@ function renderSampleDataGrid(ref) {
     resizeHandle.style.cssText = 'position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;background:transparent;z-index:2';
     resizeHandle.onmousedown = function(e){ e.stopPropagation(); startSampleDataColResize(e, ref, col); };
     th.appendChild(input);
-    th.appendChild(guidanceBtn);
     th.appendChild(resizeHandle);
     hdrRow.appendChild(th);
   });
+
+  // Auto-size every column-title textarea now that they're all attached to
+  // the DOM and have real layout (scrollHeight reads incorrectly on a
+  // detached/just-created element) — this is what actually makes a long,
+  // wrapped title grow the header row's height rather than clipping.
+  Array.prototype.forEach.call(hdrRow.querySelectorAll('.sd-col-hdr-input'), function(ta){ autoResizeTA(ta); });
 
   // Reposition the shared toolbar if a column is currently selected — the
   // header cells were just rebuilt, so any previous position is stale.
@@ -21003,18 +20994,51 @@ function renderSampleDataGrid(ref) {
     while (extractRow.children.length > 1) extractRow.removeChild(extractRow.lastChild);
     data.columns.forEach(function(col){
       var th = document.createElement('th');
-      th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;font-weight:400;padding:4px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box';
+      th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;font-weight:400;padding:4px 8px;text-align:center;border-right:0.5px solid var(--border-light);box-sizing:border-box';
       var label = document.createElement('label');
-      label.style.cssText = 'display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:10px;color:var(--text-tertiary)';
+      label.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:100%;cursor:pointer';
       var chk = document.createElement('input');
       chk.type = 'checkbox';
       chk.checked = !!col.extract;
+      chk.title = 'Extract data from sample files for this column';
+      chk.setAttribute('aria-label', 'Extract data from sample files for ' + (col.title || 'this column'));
       chk.style.cssText = 'accent-color:var(--wf-navy);cursor:pointer';
       chk.onchange = function(){ toggleSampleDataExtractFlag(ref, col.id, this.checked); };
       label.appendChild(chk);
-      label.appendChild(document.createTextNode('Extract'));
       th.appendChild(label);
       extractRow.appendChild(th);
+    });
+  }
+
+  // Rebuild the Guidance row — one button per EXTRACT-FLAGGED column only;
+  // a non-extract column gets a blank cell (guidance has no meaning without
+  // the extract flag, so no button is rendered there at all, matching the
+  // earlier "genuinely absent, not just disabled" decision). Two visual
+  // states: muted/dashed outline when no guidance is stored yet, filled
+  // accent color once guidance has been entered, so its presence is visible
+  // without opening the dialog. Hovering shows the guidance text itself via
+  // the native title tooltip.
+  if (guidanceRow) {
+    while (guidanceRow.children.length > 1) guidanceRow.removeChild(guidanceRow.lastChild);
+    data.columns.forEach(function(col){
+      var th = document.createElement('th');
+      th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;font-weight:400;padding:4px 8px;text-align:center;border-right:0.5px solid var(--border-light);box-sizing:border-box';
+      if (col.extract) {
+        var hasGuidance = !!(col.searchGuidance && col.searchGuidance.trim());
+        var guidanceBtn = document.createElement('button');
+        guidanceBtn.type = 'button';
+        guidanceBtn.className = 'sd-guidance-btn';
+        guidanceBtn.dataset.colId = col.id;
+        guidanceBtn.style.cssText = 'width:100%;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;' +
+          (hasGuidance
+            ? 'background:var(--wf-navy);color:#fff;border:0.5px solid var(--wf-navy)'
+            : 'background:transparent;color:var(--text-tertiary);border:0.5px dashed var(--border-medium)');
+        guidanceBtn.title = hasGuidance ? col.searchGuidance : 'No search guidance yet — click to add';
+        guidanceBtn.textContent = hasGuidance ? '✓' : '—';
+        guidanceBtn.onclick = function(e){ e.stopPropagation(); _sdOpenGuidanceDialog(ref, col.id); };
+        th.appendChild(guidanceBtn);
+      }
+      guidanceRow.appendChild(th);
     });
   }
 
@@ -21367,11 +21391,17 @@ function startSampleDataColResize(e, ref, col) {
       if (cell) cell.style.width = newW + 'px';
     });
     if (extractRowCellFor(col)) extractRowCellFor(col).style.width = newW + 'px';
+    if (guidanceRowCellFor(col)) guidanceRowCellFor(col).style.width = newW + 'px';
   }
   function extractRowCellFor(col) {
     var idx = data.columns.indexOf(col);
     var extractRow = document.getElementById('sd-extract-row');
     return extractRow ? extractRow.children[idx+1] : null;
+  }
+  function guidanceRowCellFor(col) {
+    var idx = data.columns.indexOf(col);
+    var guidanceRow = document.getElementById('sd-guidance-row');
+    return guidanceRow ? guidanceRow.children[idx+1] : null;
   }
   function onUp() {
     document.removeEventListener('mousemove', onMove);
@@ -21466,7 +21496,7 @@ var _sdGuidancePending = null;
 function _sdOpenGuidanceDialog(ref, colId) {
   var data = _daSampleDataFor(ref);
   var col = data.columns.find(function(c){ return c.id === colId; });
-  if (!col) return; // guidance is now available for any column, extract-flagged or not
+  if (!col || !col.extract) return; // guidance only applies to extract-flagged columns
   _sdGuidancePending = { ref: ref, colId: colId };
   document.getElementById('sd-guidance-colname').textContent = col.title || '(untitled column)';
   document.getElementById('sd-guidance-textarea').value = col.searchGuidance || '';
