@@ -958,6 +958,10 @@
               <div class="pt">Upload Data</div>
               <div class="ps">Upload an Excel or CSV file to begin analysis. Rows become records; columns become fields.</div>
             </div>
+            <button class="btn-s" onclick="daOpenDatasetManager()" style="font-size:12px;flex-shrink:0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              Manage saved datasets
+            </button>
           </div>
 
           <!-- Drop zone -->
@@ -978,7 +982,10 @@
             <div style="display:flex;align-items:center;gap:12px">
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--wf-navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
               <div style="flex:1">
-                <div style="font-size:14px;font-weight:700;color:var(--text-primary)" id="da-file-name">—</div>
+                <div style="font-size:14px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px">
+                  <span id="da-file-name">—</span>
+                  <span id="da-dataset-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#f0fdf4;color:#166534" title="Labels for this file are saved to your workspace">Saved</span>
+                </div>
                 <div style="font-size:12px;color:var(--text-tertiary)" id="da-file-meta">—</div>
               </div>
               <button class="btn-p" onclick="showDASection('profile')" style="font-size:12px">
@@ -994,6 +1001,22 @@
             <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Select sheet to analyse</label>
             <select id="da-sheet-select" onchange="daLoadSheet(this.value)"
               style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 12px;background:var(--bg-secondary);color:var(--text-primary);outline:none;max-width:300px"></select>
+          </div>
+        </div>
+
+        <!-- Dataset Manager modal -->
+        <div id="da-dataset-manager-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10003;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+            <div style="padding:18px 22px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text-primary)">Saved datasets</div>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">Datasets are saved automatically when uploaded, so labels persist across sessions. Purge any you no longer need.</div>
+              </div>
+              <button class="icon-btn" onclick="daCloseDatasetManager()" style="width:26px;height:26px"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="da-dataset-list" style="overflow-y:auto;flex:1;padding:8px 0">
+              <div style="padding:30px;text-align:center;color:var(--text-tertiary);font-size:12px">Loading…</div>
+            </div>
           </div>
         </div>
 
@@ -2507,6 +2530,68 @@
               <span id="sd-empty-hint" style="font-size:11px;color:var(--text-tertiary);font-style:italic;display:none">Click "Add column" to start building your sample data grid.</span>
             </div>
           </div>
+          <div style="padding:10px 12px;border-top:0.5px solid var(--border-light)">
+            <button class="btn-s" onclick="exportSampleDataXLSX()" style="font-size:11px;padding:3px 10px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download sample data (Excel)
+            </button>
+          </div>
+          <div style="padding:14px 16px;border-top:0.5px solid var(--border-light);display:flex;align-items:flex-start;gap:14px;background:var(--bg-secondary)">
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="readSampleFilesIntoGrid()" id="sd-readfiles-btn">
+              <i class="ti ti-sparkles"></i>Read Sample Files
+            </button>
+            <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
+              Reads every attached sample file. If the grid below is empty, builds it from scratch — one row per
+              sample record found. If rows already exist, fills in blank cells for those rows using the file
+              contents and any Search Guidance entered for extract-flagged columns. If the files appear to
+              contain more sample records than are currently in the grid, you'll be asked whether to add them.
+            </p>
+          </div>
+        </div>
+
+        <!-- Read Sample Files: progress / status modal -->
+        <div id="sd-readfiles-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10001;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:480px;max-width:92vw;padding:26px 24px;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+            <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px" id="sd-readfiles-title">Reading sample files…</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px" id="sd-readfiles-status">Preparing…</div>
+            <div style="background:var(--bg-secondary);border-radius:99px;height:8px;overflow:hidden;margin-bottom:16px">
+              <div id="sd-readfiles-progress" style="width:0%;height:100%;background:#ea580c;border-radius:99px;transition:width 0.3s"></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" id="sd-readfiles-close-btn" onclick="_sdCloseReadFilesModal()" style="font-size:12px">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Read Sample Files: propose-additional-rows confirmation modal -->
+        <div id="sd-addrows-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:560px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+            <div style="padding:20px 24px 14px">
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Additional sample records found</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-addrows-msg"></div>
+            </div>
+            <div id="sd-addrows-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr style="background:var(--bg-secondary)">
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Source file</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Summary</th>
+                </tr></thead>
+                <tbody id="sd-addrows-list"></tbody>
+              </table>
+            </div>
+            <div id="sd-addrows-toolarge-wrap" style="display:none;padding:16px 24px;text-align:center">
+              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">The list is long — download it as Excel to review before deciding.</div>
+              <button class="btn-s" onclick="_sdDownloadProposedRows()" style="font-size:12px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download proposed additions (Excel)
+              </button>
+            </div>
+            <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" onclick="_sdDeclineAddRows()" style="font-size:12px">Don't add rows</button>
+              <button class="btn-p" onclick="_sdAcceptAddRows()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add these rows</button>
+            </div>
+          </div>
         </div>
 
         <!-- Sample Data: paste confirmation modal -->
@@ -2854,7 +2939,7 @@ signed by the appropriate parties before the check date.</textarea>
           </div></div>
 
         <!-- Section 5b: Sample Field Extraction -->
-        <div class="sect-card" id="sect-sample-field-extraction">
+        <div class="sect-card" id="sect-sample-field-extraction" style="display:none">
           <div class="sect-hdr">
             <div class="sect-hdr-title" style="position:relative;cursor:default" onmouseenter="document.getElementById('sf-tooltip').style.display='block'" onmouseleave="document.getElementById('sf-tooltip').style.display='none'">
               <i class="ti ti-table-column"></i>Sample field extraction
@@ -5574,7 +5659,7 @@ function openWP(i) {
   // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
   const fullTypes   = ['Testwork', 'Report'];
   const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
-  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-sample-data','sect-test-attributes','sect-sample-field-extraction','sect-sample-files','sect-analyze','sect-exceptions'];
+  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-sample-data','sect-test-attributes','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = isFull ? '' : 'none';
@@ -7794,6 +7879,39 @@ async function _loadWorkpapersFromDB() {
   if (!window._hasBackend) return; // no backend in artifact viewer — skip all DB loads
   try {
     await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]);
+
+    // ── One-time seed: PRS Audits sample-data extraction columns ─────────────
+    // wpSampleData["WP-2026-FIN-002"] is pre-populated in-memory (see its
+    // declaration above) with one column per existing Sample Field Extraction
+    // row, each flagged extract:true with its search guidance carried over.
+    // _loadWorkpapersFromDB() above already OVERWRITES wpSampleData[ref] with
+    // whatever Postgres returns for that ref, if anything — so by this point,
+    // wpSampleData["WP-2026-FIN-002"] reflects the DB's real state, not
+    // necessarily the seed. Only write the seed to Postgres if the DB came
+    // back with no sample_data columns of its own; this prevents ever
+    // clobbering real edits a user may have already made to this workpaper's
+    // grid, while still guaranteeing the seed lands in Postgres on any
+    // deployment where it hasn't been saved yet (not just first-ever deploy).
+    try {
+      const prsRef = 'WP-2026-FIN-002';
+      const dbHasSampleData = wpSampleData[prsRef] && Array.isArray(wpSampleData[prsRef].columns) && wpSampleData[prsRef].columns.length > 0
+        && wpSampleData[prsRef].columns.some(function(c){ return c.id && c.id.indexOf('sd_prs_col_') !== 0; });
+      // The check above only counts it as "already has real data" if at least
+      // one column ISN'T one of this seed's own ids — so if Postgres has
+      // nothing yet, _loadWorkpapersFromDB() will have left the in-memory
+      // seed untouched (no DB row overwrote it), and this condition is false.
+      const seedStillPresent = wpSampleData[prsRef] && wpSampleData[prsRef].columns &&
+        wpSampleData[prsRef].columns.length === 12 &&
+        wpSampleData[prsRef].columns.every(function(c){ return c.id && c.id.indexOf('sd_prs_col_') === 0; });
+      if (seedStillPresent && !dbHasSampleData) {
+        const w = WORKPAPERS.find(function(x){ return x.ref === prsRef; });
+        if (w) {
+          await _saveWorkpaperToDB(w);
+          console.log('[Seed] Wrote PRS Audits sample-data extraction columns to Postgres for', prsRef);
+        }
+      }
+    } catch(e) { console.warn('[Seed] PRS sample-data seed failed:', e.message); }
+
     // Load RCM, FS accounts, objectives and entities
     if (typeof _loadRCMFromDB === 'function') await _loadRCMFromDB();
     if (typeof _loadFSAccountsFromDB === 'function') await _loadFSAccountsFromDB();
@@ -8305,9 +8423,22 @@ function _initFoundationsData() {
 var _daData       = [];    // array of row objects
 var _daColumns    = [];    // array of column names
 var _daFileName   = '';
+var _daCurrentDatasetId  = null; // Postgres da_datasets.id for the currently-loaded file, once registered
+var _daCurrentFileHash   = null;
+var _daDatasetRegistering = false; // guards against double-registration if the user re-triggers upload quickly
 var _daResults    = [];    // array of {method, flags:[{row,col,value,reason}]}
 var _daActiveSection = 'upload';
 var _daMLEngine = 'js'; // 'js' | 'python' — set by _daCheckMLService() on module load
+
+// Row labels for the unsupervised -> supervised labeling workflow. Keyed by
+// row number, value is 'anomaly' | 'normal'. Deliberately independent of
+// which method/threshold/slider position produced the review — a label is a
+// human judgment about a ROW, not about a particular run's parameters, so it
+// must never be reset or hidden just because the slider moved (verified by
+// the sticky-label test design: moving the threshold only changes which rows
+// are in the current review BAND, never touches this store). In-session only
+// for now — see the note above _daPersistLabel() for the persistence gap.
+var _daLabels = {};
 
 // Ask the server whether the Python ML microservice is configured. Called once
 // when Data Analysis is first opened; failure is silent (stays on JS engine).
@@ -8363,6 +8494,7 @@ function daHandleFiles(files) {
   var reader = new FileReader();
   reader.onload = function(e) {
     var data = new Uint8Array(e.target.result);
+    window._daRawFileBytes = e.target.result; // kept for SHA-256 hashing on registration
     var wb   = XLSX.read(data, { type:'array', cellDates:true });
     if (wb.SheetNames.length > 1) {
       // Show sheet selector
@@ -8400,10 +8532,15 @@ function daLoadSheet(sheetName) {
   _daBuildProfile();
   // Pre-populate column dropdowns if already on anomaly tab
   _daPopulateColumnDropdowns();
+  // Register (or re-link to) a Postgres dataset so labels can persist — see
+  // the note above _daRegisterDataset() for the design. Fire-and-forget: the
+  // user can keep working immediately, registration happens in the background.
+  if (window._daRawFileBytes) _daRegisterDataset(window._daRawFileBytes);
 }
 
 function daReset() {
   _daData=[]; _daColumns=[]; _daFileName=''; _daResults=[];
+  _daCurrentDatasetId=null; _daCurrentFileHash=null; _daLabels={}; _daSliderState={};
   window._daWorkbook = null;
   document.getElementById('da-file-info').style.display='none';
   document.getElementById('da-sheet-selector').style.display='none';
@@ -8414,6 +8551,151 @@ function daReset() {
   document.getElementById('da-profile-content').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No data loaded.</div>';
   document.getElementById('da-results-content').innerHTML='<div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No analysis run yet.</div>';
   showDASection('upload');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DATASET REGISTRATION — Postgres persistence for labels
+// ══════════════════════════════════════════════════════════════════════════════
+// A dataset is registered automatically (not opt-in) the moment a sheet
+// finishes loading, so labeling can persist without an extra click — the
+// safety valve is the purge affordance in the Dataset Manager (daOpenDatasetManager),
+// not a save prompt. Re-uploading the same file is idempotent: the server
+// matches by SHA-256 file_hash and returns the existing dataset id rather
+// than creating a duplicate, restoring that dataset's prior labels.
+
+async function _daSha256Hex(arrayBuffer) {
+  var hashBuf = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  var bytes = new Uint8Array(hashBuf);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
+}
+
+// Registers (or re-links to) a dataset in Postgres for the currently-loaded
+// file. Called once per file load. Silently no-ops on any failure — dataset
+// registration failing should never block the user from analyzing data,
+// it just means labels won't persist for this session (same degraded-but-
+// functional behavior _daPersistLabel already had before this existed).
+async function _daRegisterDataset(fileBytes) {
+  if (_daDatasetRegistering) return;
+  _daDatasetRegistering = true;
+  try {
+    var hash = await _daSha256Hex(fileBytes);
+    _daCurrentFileHash = hash;
+    var res = await fetch('/api/da/datasets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: _daFileName,
+        filename: _daFileName,
+        file_hash: hash,
+        row_count: _daData.length,
+        col_count: _daColumns.length,
+      })
+    });
+    if (!res.ok) { _daDatasetRegistering = false; return; }
+    var body = await res.json();
+    _daCurrentDatasetId = body.id;
+    if (body.existing) {
+      // Re-uploaded a file we've seen before — restore its prior labels so
+      // the auditor picks up exactly where they left off, rather than
+      // re-labeling rows they already reviewed in an earlier session.
+      await _daRestoreLabelsFromServer(body.id);
+    }
+    _daUpdateDatasetBadge();
+  } catch (e) {
+    console.warn('[Data Analysis] dataset registration failed (labels will not persist this session):', e.message);
+  } finally {
+    _daDatasetRegistering = false;
+  }
+}
+
+async function _daRestoreLabelsFromServer(datasetId) {
+  try {
+    var res = await fetch('/api/da/datasets/' + datasetId + '/labels');
+    if (!res.ok) return;
+    var rows = await res.json();
+    _daLabels = {};
+    rows.forEach(function(r){
+      if (r.label === 'anomaly' || r.label === 'normal') _daLabels[r.row_index] = r.label;
+    });
+  } catch (e) {
+    console.warn('[Data Analysis] failed to restore prior labels:', e.message);
+  }
+}
+
+function _daUpdateDatasetBadge() {
+  var el = document.getElementById('da-dataset-badge');
+  if (!el) return;
+  el.style.display = _daCurrentDatasetId ? '' : 'none';
+  el.title = _daCurrentDatasetId ? 'Labels for this file are saved to your workspace' : '';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DATASET MANAGER — list saved datasets, purge ones no longer needed
+// ══════════════════════════════════════════════════════════════════════════════
+function daOpenDatasetManager() {
+  document.getElementById('da-dataset-manager-overlay').style.display = 'flex';
+  _daRefreshDatasetList();
+}
+function daCloseDatasetManager() {
+  document.getElementById('da-dataset-manager-overlay').style.display = 'none';
+}
+
+async function _daRefreshDatasetList() {
+  var listEl = document.getElementById('da-dataset-list');
+  listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-tertiary);font-size:12px">Loading…</div>';
+  try {
+    var res = await fetch('/api/da/datasets');
+    var datasets = res.ok ? await res.json() : [];
+    _daRenderDatasetList(datasets);
+  } catch (e) {
+    listEl.innerHTML = '<div style="padding:30px;text-align:center;color:#dc2626;font-size:12px">Could not load saved datasets.</div>';
+  }
+}
+
+function _daRenderDatasetList(datasets) {
+  var listEl = document.getElementById('da-dataset-list');
+  if (!datasets.length) {
+    listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-tertiary);font-size:12px;font-style:italic">No saved datasets yet — upload a file to create one.</div>';
+    return;
+  }
+  listEl.innerHTML = datasets.map(function(d){
+    var isCurrent = d.id === _daCurrentDatasetId;
+    var lastUsed = d.last_used ? new Date(d.last_used).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '—';
+    return '<div style="display:flex;align-items:center;gap:12px;padding:12px 22px;border-bottom:0.5px solid var(--border-light)' +
+      (isCurrent ? ';background:#eff6ff' : '') + '">' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(d.name || d.filename) +
+          (isCurrent ? ' <span style="font-size:10px;font-weight:700;color:var(--wf-navy)">— currently loaded</span>' : '') +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">' +
+          (d.row_count||0).toLocaleString() + ' rows · ' + (d.col_count||0) + ' cols · ' +
+          (d.label_count||0) + ' label' + (d.label_count!==1?'s':'') + ' · ' +
+          (d.run_count||0) + ' run' + (d.run_count!==1?'s':'') + ' · last used ' + lastUsed +
+        '</div>' +
+      '</div>' +
+      '<button class="btn-s" style="font-size:11px;padding:4px 10px;color:#dc2626;border-color:#fecaca" onclick="_daPurgeDataset(\''+d.id+'\',\''+escJs(d.name||d.filename||'')+'\')">Purge</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function _daPurgeDataset(datasetId, displayName) {
+  if (!confirm('Permanently delete "' + displayName + '"? This removes its saved column settings, labels, and model run history. This cannot be undone.')) return;
+  try {
+    var res = await fetch('/api/da/datasets/' + datasetId, { method: 'DELETE' });
+    if (!res.ok) { alert('Could not delete this dataset.'); return; }
+    if (datasetId === _daCurrentDatasetId) {
+      // The dataset backing the currently-loaded file was just purged —
+      // drop the local link so any further label activity doesn't silently
+      // try to write to a row_index for a dataset that no longer exists.
+      _daCurrentDatasetId = null;
+      _daUpdateDatasetBadge();
+    }
+    _daRefreshDatasetList();
+  } catch (e) {
+    alert('Could not delete this dataset: ' + e.message);
+  }
 }
 
 // ── Toggle method config panel ────────────────────────────────────────────────
@@ -8611,17 +8893,21 @@ function _daRunOutliers() {
   var vals   = d.values.map(function(x){return x.val;});
   var mean   = vals.reduce(function(a,b){return a+b;},0)/vals.length;
   var flags  = [];
+  var flaggedRowSet = {};
   if (method==='zscore') {
     var sd = Math.sqrt(vals.map(function(v){return Math.pow(v-mean,2);}).reduce(function(a,b){return a+b;},0)/vals.length);
     if (!sd) return;
-    d.values.forEach(function(x){ var z=Math.abs((x.val-mean)/sd); if(z>thresh) flags.push({row:x.row+1, value:x.val, score:'Z='+z.toFixed(2), reason:'Z-score '+z.toFixed(2)+' > '+thresh}); });
+    d.values.forEach(function(x){ var z=Math.abs((x.val-mean)/sd); if(z>thresh) { flags.push({row:x.row+1, value:x.val, score:'Z='+z.toFixed(2), reason:'Z-score '+z.toFixed(2)+' > '+thresh}); flaggedRowSet[x.row+1]=true; } });
   } else {
     var sorted = [...vals].sort(function(a,b){return a-b;});
     var q1 = sorted[Math.floor(sorted.length*0.25)], q3=sorted[Math.floor(sorted.length*0.75)], iqr=q3-q1;
     var lo=q1-thresh*iqr, hi=q3+thresh*iqr;
-    d.values.forEach(function(x){ if(x.val<lo||x.val>hi) flags.push({row:x.row+1, value:x.val, score:'IQR', reason:'Outside '+lo.toFixed(2)+' – '+hi.toFixed(2)}); });
+    d.values.forEach(function(x){ if(x.val<lo||x.val>hi) { flags.push({row:x.row+1, value:x.val, score:'IQR', reason:'Outside '+lo.toFixed(2)+' – '+hi.toFixed(2)}); flaggedRowSet[x.row+1]=true; } });
   }
-  _daResults.push({ method:'Statistical Outliers', column:d.col, flags:flags,
+  // Full population (every evaluated row, not just flagged ones) — needed to
+  // plot the outliers in context against the rest of the distribution.
+  var allPoints = d.values.map(function(x){ return { row:x.row+1, value:x.val, flagged: !!flaggedRowSet[x.row+1] }; });
+  _daResults.push({ method:'Statistical Outliers', column:d.col, flags:flags, allPoints:allPoints,
     summary: flags.length + ' outlier' + (flags.length!==1?'s':'') + ' detected using ' + (method==='zscore'?'Z-score':'IQR') + ' method (threshold: ' + thresh + ')' });
 }
 
@@ -8629,20 +8915,31 @@ function _daRunDuplicates() {
   var keyCols = Array.from(document.querySelectorAll('.da-dup-chk:checked')).map(function(c){return c.value;});
   if (!keyCols.length) { _daResults.push({method:'Duplicate Detection',flags:[],summary:'No key columns selected.'}); return; }
   var seen={}, flags=[];
+  var flaggedRowSet = {};
   _daData.forEach(function(r,i){
     var key = keyCols.map(function(c){return String(r[c]||'');}).join('|');
-    if (seen[key]!==undefined) { flags.push({row:i+1, key:key, firstRow:seen[key]+1}); }
+    if (seen[key]!==undefined) { flags.push({row:i+1, key:key, firstRow:seen[key]+1}); flaggedRowSet[i+1]=true; }
     else seen[key]=i;
   });
-  _daResults.push({ method:'Duplicate Detection', columns:keyCols.join(', '), flags:flags,
+  // No natural numeric value for duplicates — allPoints uses row index on
+  // both axes (a simple position marker) so the click-to-select scatter
+  // still works, without implying a numeric magnitude that doesn't exist.
+  var allPoints = _daData.map(function(r,i){ return { row:i+1, value:i+1, flagged: !!flaggedRowSet[i+1] }; });
+  _daResults.push({ method:'Duplicate Detection', columns:keyCols.join(', '), flags:flags, allPoints:allPoints,
     summary: flags.length ? flags.length + ' duplicate row' + (flags.length!==1?'s':'') + ' detected across key: ' + keyCols.join(', ') : 'No duplicates found' });
 }
 
 function _daRunRounding() {
   var d = _daNumericCol('da-round-col'); if (!d) return;
   var div = parseFloat(document.getElementById('da-round-divisor')?.value)||1000;
-  var flags = d.values.filter(function(x){ return x.val!==0 && x.val%div===0; });
-  _daResults.push({ method:'Round Number Test', column:d.col, divisor:div, flags:flags,
+  var flaggedRowSet = {};
+  var flags = d.values.filter(function(x){
+    var isFlagged = x.val!==0 && x.val%div===0;
+    if (isFlagged) flaggedRowSet[x.row+1] = true;
+    return isFlagged;
+  }).map(function(x){ return { row:x.row+1, value:x.val, raw:x.raw }; });
+  var allPoints = d.values.map(function(x){ return { row:x.row+1, value:x.val, flagged: !!flaggedRowSet[x.row+1] }; });
+  _daResults.push({ method:'Round Number Test', column:d.col, divisor:div, flags:flags, allPoints:allPoints,
     summary: flags.length + ' value' + (flags.length!==1?'s':'') + ' exactly divisible by ' + div.toLocaleString() + ' (' + ((flags.length/d.values.length*100).toFixed(1)) + '% of non-zero values)' });
 }
 
@@ -8665,14 +8962,21 @@ function _daRunDates() {
   var chkFuture= document.getElementById('da-date-future')?.checked;
   var chkOlr   = document.getElementById('da-date-outlier-dates')?.checked;
   var flags=[], now=new Date();
+  var flaggedRowSet = {};
+  var allPoints = [];
   _daData.forEach(function(r,i){
     var raw=r[col]; if(!raw) return;
     var d = raw instanceof Date ? raw : new Date(raw);
     if(isNaN(d)) return;
-    if(chkWkend && (d.getDay()===0||d.getDay()===6)) flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Weekend ('+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+')'});
-    if(chkFuture && d>now) flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Future date'});
+    var wasFlagged = false;
+    if(chkWkend && (d.getDay()===0||d.getDay()===6)) { flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Weekend ('+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+')'}); wasFlagged = true; }
+    if(chkFuture && d>now) { flags.push({row:i+1, date:d.toLocaleDateString(), reason:'Future date'}); wasFlagged = true; }
+    // Value plotted is the date as a Unix timestamp (ms) — a real, orderable
+    // numeric axis for the timeline scatter, converted back to a readable
+    // date only for display in the detail panel.
+    allPoints.push({ row:i+1, value:d.getTime(), dateLabel:d.toLocaleDateString(), flagged: wasFlagged });
   });
-  _daResults.push({ method:'Date Anomalies', column:col, flags:flags,
+  _daResults.push({ method:'Date Anomalies', column:col, flags:flags, allPoints:allPoints,
     summary: flags.length + ' date anomal' + (flags.length!==1?'ies':'y') + ' detected' });
 }
 
@@ -8733,14 +9037,17 @@ async function _daCallMLService(method, fm, params) {
 function _daBuildResultFromPython(methodLabel, fm, pyResult, reasonFn, summarySuffix) {
   var flaggedSet = new Set(pyResult.flagged_row_ids || []);
   var flags = [];
+  var allPoints = [];
   fm.rowIdx.forEach(function(origIdx, i){
-    if (flaggedSet.has(origIdx)) {
+    var isFlagged = flaggedSet.has(origIdx);
+    allPoints.push({ row: origIdx+1, value: pyResult.scores[i], flagged: isFlagged });
+    if (isFlagged) {
       var row = { score: pyResult.scores[i], percentile: pyResult.percentile_rank[i] };
       flags.push({ row: origIdx+1, value: pyResult.scores[i].toFixed(3), reason: reasonFn(row) });
     }
   });
   flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
-  return { method: methodLabel, columns: fm.cols.join(', '), flags: flags,
+  return { method: methodLabel, columns: fm.cols.join(', '), flags: flags, allPoints: allPoints,
     summary: flags.length + ' row(s) ' + summarySuffix };
 }
 
@@ -8807,10 +9114,13 @@ async function _daRunIForest() {
   var scores = _daIsolationForestScore(fm.norm, trees, sampleSize);
   var ranked = scores.map(function(s,i){ return {s:s, i:i}; }).sort(function(a,b){ return b.s-a.s; });
   var numFlag = Math.max(1, Math.round(fm.n * contam));
+  var flaggedIdxSet = {};
+  ranked.slice(0, numFlag).forEach(function(x){ flaggedIdxSet[x.i] = true; });
   var flags = ranked.slice(0, numFlag).map(function(x){
     return { row: fm.rowIdx[x.i]+1, value: x.s.toFixed(3), reason:'Isolation score '+x.s.toFixed(3)+' (top '+(contam*100)+'% most isolated)' };
   });
-  _daResults.push({ method:'Isolation Forest', columns:fm.cols.join(', '), flags:flags,
+  var allPoints = scores.map(function(s,i){ return { row: fm.rowIdx[i]+1, value: s, flagged: !!flaggedIdxSet[i] }; });
+  _daResults.push({ method:'Isolation Forest', columns:fm.cols.join(', '), flags:flags, allPoints:allPoints,
     summary: flags.length + ' row(s) flagged as the top ' + (contam*100) + '% most easily isolated across ' + fm.cols.length + ' feature(s) (' + trees + ' trees, JS engine)' });
 }
 
@@ -8884,11 +9194,13 @@ async function _daRunMahalanobis() {
   var critChiSq = (_daChiSqCrit[dof] && _daChiSqCrit[dof][pct]) || _daChiSqCrit[10][pct];
   var cutoff = Math.sqrt(critChiSq);
   var flags = [];
+  var flaggedIdxSet = {};
   dists.forEach(function(dist,i){
-    if (dist > cutoff) flags.push({ row: fm.rowIdx[i]+1, value: dist.toFixed(2), reason:'Distance '+dist.toFixed(2)+' exceeds '+(pct*100)+'th percentile cutoff ('+cutoff.toFixed(2)+')' });
+    if (dist > cutoff) { flags.push({ row: fm.rowIdx[i]+1, value: dist.toFixed(2), reason:'Distance '+dist.toFixed(2)+' exceeds '+(pct*100)+'th percentile cutoff ('+cutoff.toFixed(2)+')' }); flaggedIdxSet[i]=true; }
   });
   flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
-  _daResults.push({ method:'Mahalanobis Distance', columns:fm.cols.join(', '), flags:flags,
+  var allPoints = dists.map(function(dist,i){ return { row: fm.rowIdx[i]+1, value: dist, flagged: !!flaggedIdxSet[i] }; });
+  _daResults.push({ method:'Mahalanobis Distance', columns:fm.cols.join(', '), flags:flags, allPoints:allPoints,
     summary: flags.length + ' row(s) exceed the ' + (pct*100) + 'th percentile multivariate distance across ' + fm.cols.length + ' feature(s) (JS engine). Note: an extreme outlier can itself distort the reference distribution (the "masking effect") — cross-check against Isolation Forest or LOF, or configure the Python service for a robust estimator.' });
 }
 
@@ -8955,11 +9267,13 @@ async function _daRunLOF() {
   }
   var scores = _daLOF(fm.norm, k);
   var flags = [];
+  var flaggedIdxSet = {};
   scores.forEach(function(s,i){
-    if (s > thresh) flags.push({ row: fm.rowIdx[i]+1, value: s.toFixed(2), reason:'LOF '+s.toFixed(2)+' exceeds threshold '+thresh+' (local density far below neighbors)' });
+    if (s > thresh) { flags.push({ row: fm.rowIdx[i]+1, value: s.toFixed(2), reason:'LOF '+s.toFixed(2)+' exceeds threshold '+thresh+' (local density far below neighbors)' }); flaggedIdxSet[i]=true; }
   });
   flags.sort(function(a,b){ return parseFloat(b.value)-parseFloat(a.value); });
-  _daResults.push({ method:'Local Outlier Factor', columns:fm.cols.join(', '), flags:flags,
+  var allPoints = scores.map(function(s,i){ return { row: fm.rowIdx[i]+1, value: s, flagged: !!flaggedIdxSet[i] }; });
+  _daResults.push({ method:'Local Outlier Factor', columns:fm.cols.join(', '), flags:flags, allPoints:allPoints,
     summary: flags.length + ' row(s) have local density more than ' + thresh + 'x sparser than their ' + k + ' nearest neighbors across ' + fm.cols.length + ' feature(s) (JS engine)' });
 }
 
@@ -8970,18 +9284,24 @@ function _daRenderResults() {
   var totalFlags = _daResults.reduce(function(s,r){ return s+(r.flags||[]).length; },0);
   if (sub) sub.textContent = _daResults.length + ' method' + (_daResults.length!==1?'s':'')+' run · ' + totalFlags + ' flag' + (totalFlags!==1?'s':'') + ' found';
 
-  var html = _daResults.map(function(res) {
+  var html = _daResults.map(function(res, resIdx) {
     var flags  = res.flags||[];
     var color  = flags.length ? '#dc2626' : '#16a34a';
     var badge  = '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+(flags.length?'#fef2f2':'#f0fdf4')+';color:'+color+'">'+flags.length+' flag'+(flags.length!==1?'s':'')+'</span>';
+    var cardId = 'da-res-card-' + resIdx;
 
     var tableHtml = '';
     if (flags.length && res.method==="Benford's Law") {
+      // Benford's is a digit-distribution result, not a per-row anomaly —
+      // there is no individual "outlier row" to click/select here, so no
+      // chart or row-selection is offered for this method.
       tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">' +
         '<thead><tr style="background:var(--bg-secondary)"><th style="padding:5px 8px;text-align:left">Digit</th><th style="padding:5px 8px;text-align:right">Observed</th><th style="padding:5px 8px;text-align:right">Expected</th><th style="padding:5px 8px;text-align:right">Deviation</th><th style="padding:5px 8px;text-align:right">Count</th></tr></thead><tbody>' +
         flags.map(function(f){ return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px">'+f.digit+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.observed+'</td><td style="padding:5px 8px;text-align:right">'+f.expected+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.deviation+'</td><td style="padding:5px 8px;text-align:right">'+f.count+'</td></tr>'; }).join('') +
         '</tbody></table>';
     } else if (flags.length && res.method==='Sequence Gap Analysis') {
+      // Gaps describe a missing RANGE, not a single existing row — same
+      // reasoning as Benford's: no single row to select here.
       tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">' +
         '<thead><tr style="background:var(--bg-secondary)"><th style="padding:5px 8px;text-align:left">From</th><th style="padding:5px 8px;text-align:left">To</th><th style="padding:5px 8px;text-align:right">Missing</th></tr></thead><tbody>' +
         flags.slice(0,50).map(function(f){ return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px">'+f.from+'</td><td style="padding:5px 8px">'+f.to+'</td><td style="padding:5px 8px;text-align:right;color:#dc2626">'+f.missing+'</td></tr>'; }).join('') +
@@ -8993,23 +9313,50 @@ function _daRenderResults() {
         flags.slice(0,100).map(function(f){
           var val   = f.value!=null?f.value:(f.key||f.date||'');
           var reason= f.reason||(f.firstRow?'Duplicate of row '+f.firstRow:'');
-          return '<tr style="border-top:0.5px solid var(--border-light)"><td style="padding:5px 8px;color:var(--text-tertiary)">'+f.row+'</td><td style="padding:5px 8px;font-weight:600">'+String(val).slice(0,60)+'</td><td style="padding:5px 8px;color:#dc2626">'+escHtml(reason)+'</td></tr>';
+          return '<tr data-row="'+f.row+'" data-card="'+cardId+'" onclick="_daSelectResultRow(\''+cardId+'\','+f.row+')" style="border-top:0.5px solid var(--border-light);cursor:pointer" class="da-flag-row">' +
+            '<td style="padding:5px 8px;color:var(--text-tertiary)">'+f.row+'</td><td style="padding:5px 8px;font-weight:600">'+String(val).slice(0,60)+'</td><td style="padding:5px 8px;color:#dc2626">'+escHtml(reason)+'</td></tr>';
         }).join('') +
         (flags.length>100?'<tr><td colspan="3" style="padding:8px;text-align:center;color:var(--text-tertiary)">…and '+(flags.length-100)+' more</td></tr>':'') +
         '</tbody></table>';
     }
 
-    return '<div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden;margin-bottom:14px">' +
-      '<div style="padding:14px 18px;display:flex;align-items:center;gap:10px;border-bottom:'+( flags.length?'0.5px solid var(--border-light)':'none')+ '">' +
+    // Visualization: only for methods with plottable per-row points
+    // (allPoints present) AND at least one flag — a clean result has nothing
+    // to visualize, and Benford's/Gaps never populate allPoints at all since
+    // they aren't per-row anomaly methods. Below a small population size, a
+    // 24-bin histogram is meaningless (mostly empty bins) — offer scatter
+    // only in that case rather than a second, uselessly-sparse tab.
+    var DA_MIN_POINTS_FOR_DISTRIBUTION = 15;
+    var chartHtml = (flags.length && res.allPoints && res.allPoints.length)
+      ? (res.allPoints.length >= DA_MIN_POINTS_FOR_DISTRIBUTION
+          ? _daBuildChartWithSelector(res, cardId)
+          : _daBuildScatterChart(res, cardId))
+      : '';
+
+    // Threshold-driven labeling queue: only for the multivariate/ML methods
+    // (Isolation Forest, Mahalanobis, LOF) — these are the ones meant to feed
+    // supervised training later. Statistical/fraud methods produce flags too,
+    // but weren't designed as a labeling-seeding step in the unsupervised ->
+    // supervised workflow, so the slider is scoped to just these three.
+    var ML_LABELING_METHODS = ['Isolation Forest', 'Mahalanobis Distance', 'Local Outlier Factor'];
+    var labelingHtml = (ML_LABELING_METHODS.indexOf(res.method) !== -1 && res.allPoints && res.allPoints.length >= 2)
+      ? _daBuildLabelingSlider(res, cardId, resIdx)
+      : '';
+
+    return '<div id="'+cardId+'" data-result-idx="'+resIdx+'" style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden;margin-bottom:14px">' +
+      '<div style="padding:14px 18px;display:flex;align-items:center;gap:10px;border-bottom:'+( flags.length||labelingHtml?'0.5px solid var(--border-light)':'none')+ '">' +
         '<div style="flex:1">' +
           '<div style="font-size:14px;font-weight:700;color:var(--text-primary)">'+res.method+'</div>' +
           (res.column?'<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Column: '+escHtml(res.column)+(res.columns?'s: '+escHtml(res.columns):'')+'</div>':'') +
         '</div>' +
         badge +
       '</div>' +
-      (flags.length?
+      (flags.length||labelingHtml?
         '<div style="padding:12px 18px">' +
           '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">'+escHtml(res.summary)+'</div>' +
+          chartHtml +
+          labelingHtml +
+          '<div id="'+cardId+'-detail" style="display:none"></div>' +
           tableHtml +
         '</div>'
       : '<div style="padding:12px 18px;font-size:12px;color:#16a34a">'+escHtml(res.summary)+'</div>') +
@@ -9021,7 +9368,549 @@ function _daRenderResults() {
   document.getElementById('da-export-xlsx-btn').style.display = _daResults.length ? 'inline-flex' : 'none';
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  VISUALIZATION — scatter plot + click-to-select + full-row detail panel
+// ══════════════════════════════════════════════════════════════════════════════
+// Every statistical/ML method that produces per-row anomaly flags also
+// captures `allPoints` (every evaluated row, not just the flagged ones) so
+// the chart can show outliers in context rather than floating in isolation.
+// Benford's Law and Sequence Gap Analysis are digit-distribution / missing-
+// range results respectively — neither has an individual "outlier row," so
+// neither populates allPoints and neither gets a chart (checked by the
+// caller in _daRenderResults before this is ever invoked).
+
+// Pure coordinate mapping — data value -> SVG pixel position. Verified
+// standalone (known-point placement, degenerate zero-span data, single-point
+// dataset) before being wired into the chart builder below.
+function _daScatterCoords(points, width, height, padding) {
+  var xs = points.map(function(p){ return p.row; });
+  var ys = points.map(function(p){ return p.value; });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var xSpan = (xMax - xMin) || 1;
+  var ySpan = (yMax - yMin) || 1;
+  var plotW = width - padding*2, plotH = height - padding*2;
+  return points.map(function(p){
+    var px = padding + ((p.row - xMin) / xSpan) * plotW;
+    var py = padding + (1 - (p.value - yMin) / ySpan) * plotH; // SVG y grows downward
+    return { row: p.row, value: p.value, dateLabel: p.dateLabel, flagged: p.flagged, px: px, py: py };
+  });
+}
+
+// Builds an inline SVG scatter (no external chart library — self-contained,
+// no network dependency, consistent with how icons were built elsewhere in
+// this app). Non-flagged points render small and muted; flagged points
+// render larger, colored, and are click targets. Bounded to a reasonable
+// point count for render performance — beyond that, only flagged points plus
+// a light sample of the background population are drawn, since the point of
+// the chart is to show outliers in context, not to render every row.
+var DA_CHART_MAX_BACKGROUND_POINTS = 800;
+function _daBuildScatterChart(res, cardId) {
+  var W = 640, H = 200, PAD = 28;
+  var all = res.allPoints;
+  var flaggedPts = all.filter(function(p){ return p.flagged; });
+  var bgPts = all.filter(function(p){ return !p.flagged; });
+  if (bgPts.length > DA_CHART_MAX_BACKGROUND_POINTS) {
+    // Evenly-spaced sample rather than the first N, so the background still
+    // represents the full row range instead of just the start of the file.
+    var stride = Math.ceil(bgPts.length / DA_CHART_MAX_BACKGROUND_POINTS);
+    bgPts = bgPts.filter(function(_,i){ return i % stride === 0; });
+  }
+  var plotSet = bgPts.concat(flaggedPts);
+  var coords = _daScatterCoords(plotSet, W, H, PAD);
+
+  var isDateMethod = res.method === 'Date Anomalies';
+  var yAxisLabel = isDateMethod ? '' : (res.method === 'Duplicate Detection' ? '' : 'value');
+
+  var points = coords.map(function(c){
+    var r = c.flagged ? 4.5 : 2.5;
+    var fill = c.flagged ? '#dc2626' : '#94a3b8';
+    var opacity = c.flagged ? '1' : '0.45';
+    return '<circle class="da-chart-pt" data-card="'+cardId+'" data-row="'+c.row+'" cx="'+c.px.toFixed(1)+'" cy="'+c.py.toFixed(1)+'" r="'+r+'" fill="'+fill+'" fill-opacity="'+opacity+'" ' +
+      (c.flagged ? 'style="cursor:pointer" onclick="_daSelectResultRow(\''+cardId+'\','+c.row+')"' : '') +
+      '><title>Row '+c.row+(isDateMethod && c.dateLabel ? ' — '+c.dateLabel : ' — '+ (typeof c.value==='number' ? c.value.toLocaleString(undefined,{maximumFractionDigits:3}) : c.value)) +'</title></circle>';
+  }).join('');
+
+  var sampledNote = (all.filter(function(p){return !p.flagged;}).length > DA_CHART_MAX_BACKGROUND_POINTS)
+    ? '<span style="font-size:10px;color:var(--text-tertiary);margin-left:8px">(background sampled for display — all '+flaggedPts.length+' flagged point(s) shown)</span>' : '';
+
+  return '<div style="margin:8px 0 4px;border:0.5px solid var(--border-light);border-radius:8px;padding:8px 10px;background:var(--bg-secondary)">' +
+    '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Row position vs. '+(isDateMethod?'date':'value')+' — click a red point to inspect'+sampledNote+'</div>' +
+    '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px;display:block" preserveAspectRatio="none">' +
+      '<line x1="'+PAD+'" y1="'+(H-PAD)+'" x2="'+(W-PAD)+'" y2="'+(H-PAD)+'" stroke="var(--border-medium)" stroke-width="1"/>' +
+      '<line x1="'+PAD+'" y1="'+PAD+'" x2="'+PAD+'" y2="'+(H-PAD)+'" stroke="var(--border-medium)" stroke-width="1"/>' +
+      points +
+    '</svg>' +
+  '</div>';
+}
+
+// Bins allPoints by value into equal-width buckets, tracking flagged and
+// unflagged counts separately per bucket so the bar can render as a
+// dual-color stack — consistent with the scatter chart's red=flagged,
+// grey=unflagged convention. Verified standalone (bin-loss, max-value
+// overflow, zero-span/all-identical data, single point) before use here.
+function _daBuildHistogramBins(allPoints, numBins) {
+  var values = allPoints.map(function(p){ return p.value; });
+  var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  var span = (max - min) || 1;
+  var binWidth = span / numBins;
+  var bins = [];
+  for (var i = 0; i < numBins; i++) {
+    bins.push({ lo: min + i*binWidth, hi: min + (i+1)*binWidth, flaggedCount: 0, normalCount: 0 });
+  }
+  allPoints.forEach(function(p){
+    var idx = binWidth > 0 ? Math.floor((p.value - min) / binWidth) : 0;
+    if (idx >= numBins) idx = numBins - 1; // exact max value would otherwise overflow past the last bin
+    if (idx < 0) idx = 0;
+    if (p.flagged) bins[idx].flaggedCount++; else bins[idx].normalCount++;
+  });
+  return bins;
+}
+
+// Score-distribution histogram — the "how many anomalies, and where's the
+// natural cutoff" view from the original design discussion. Each bar is
+// split into a grey (normal) base and a red (flagged) cap, so the flagged
+// tail is visible in context rather than as a separate chart.
+var DA_HISTOGRAM_BINS = 24;
+function _daBuildHistogramChart(res, cardId) {
+  var W = 640, H = 200, PAD = 28;
+  var bins = _daBuildHistogramBins(res.allPoints, DA_HISTOGRAM_BINS);
+  var maxCount = Math.max.apply(null, bins.map(function(b){ return b.flaggedCount + b.normalCount; })) || 1;
+  var plotW = W - PAD*2, plotH = H - PAD*2;
+  var barW = plotW / bins.length;
+  var barGap = Math.max(0.5, barW * 0.08);
+
+  var bars = bins.map(function(b, i){
+    var total = b.flaggedCount + b.normalCount;
+    var totalH = (total / maxCount) * plotH;
+    var flaggedH = total > 0 ? (b.flaggedCount / total) * totalH : 0;
+    var normalH  = totalH - flaggedH;
+    var x = PAD + i*barW + barGap/2;
+    var w = Math.max(0.5, barW - barGap);
+    var normalY  = (H - PAD) - normalH;
+    var flaggedY = normalY - flaggedH;
+    var mid = ((b.lo + b.hi) / 2);
+    var title = '<title>' + mid.toLocaleString(undefined,{maximumFractionDigits:3}) + ' range: ' + total + ' row(s)' + (b.flaggedCount ? ' (' + b.flaggedCount + ' flagged)' : '') + '</title>';
+    var rects = '';
+    if (normalH > 0)  rects += '<rect x="'+x.toFixed(1)+'" y="'+normalY.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+normalH.toFixed(1)+'" fill="#94a3b8" fill-opacity="0.45">'+title+'</rect>';
+    if (flaggedH > 0) rects += '<rect x="'+x.toFixed(1)+'" y="'+flaggedY.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+flaggedH.toFixed(1)+'" fill="#dc2626">'+title+'</rect>';
+    return rects;
+  }).join('');
+
+  return '<div style="margin:8px 0 4px;border:0.5px solid var(--border-light);border-radius:8px;padding:8px 10px;background:var(--bg-secondary)">' +
+    '<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Score distribution — red segment shows flagged rows within each range</div>' +
+    '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:'+H+'px;display:block" preserveAspectRatio="none">' +
+      '<line x1="'+PAD+'" y1="'+(H-PAD)+'" x2="'+(W-PAD)+'" y2="'+(H-PAD)+'" stroke="var(--border-medium)" stroke-width="1"/>' +
+      '<line x1="'+PAD+'" y1="'+PAD+'" x2="'+PAD+'" y2="'+(H-PAD)+'" stroke="var(--border-medium)" stroke-width="1"/>' +
+      bars +
+    '</svg>' +
+  '</div>';
+}
+
+// ── View selector: lets the user switch which chart a result card shows ──────
+// Per-card choice, defaulting to scatter (the original/only view). Stored
+// separately from _daSliderState since it's a display preference, not
+// analysis state, and should survive independently of threshold changes.
+var _daChartView = {}; // cardId -> 'scatter' | 'distribution'
+
+function _daBuildChartWithSelector(res, cardId) {
+  if (!_daChartView[cardId]) _daChartView[cardId] = 'scatter';
+  var view = _daChartView[cardId];
+  var chartBody = view === 'distribution'
+    ? _daBuildHistogramChart(res, cardId)
+    : _daBuildScatterChart(res, cardId);
+
+  function tabBtn(key, label) {
+    var active = view === key;
+    return '<button onclick="_daSwitchChartView(\''+cardId+'\',\''+key+'\')" style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:6px;border:0.5px solid ' +
+      (active ? 'var(--wf-navy)' : 'var(--border-light)') + ';background:' + (active ? 'var(--wf-navy)' : 'transparent') + ';color:' + (active ? '#fff' : 'var(--text-secondary)') + ';cursor:pointer">' + label + '</button>';
+  }
+
+  return '<div class="da-chart-selector" data-card="'+cardId+'">' +
+    '<div style="display:flex;gap:6px;margin-bottom:2px">' +
+      tabBtn('scatter', 'Scatter') +
+      tabBtn('distribution', 'Distribution') +
+    '</div>' +
+    '<div id="'+cardId+'-chartbody">' + chartBody + '</div>' +
+  '</div>';
+}
+
+function _daSwitchChartView(cardId, view) {
+  _daChartView[cardId] = view;
+  var resIdx = parseInt((document.getElementById(cardId) || {}).dataset && document.getElementById(cardId).dataset.resultIdx, 10);
+  var res = isNaN(resIdx) ? null : _daResults[resIdx];
+  if (!res) return;
+  var bodyEl = document.getElementById(cardId + '-chartbody');
+  if (bodyEl) bodyEl.innerHTML = view === 'distribution' ? _daBuildHistogramChart(res, cardId) : _daBuildScatterChart(res, cardId);
+  // Re-render the tab buttons' active state too.
+  var selectorEl = document.querySelector('.da-chart-selector[data-card="'+cardId+'"] div');
+  if (selectorEl) {
+    var btns = selectorEl.querySelectorAll('button');
+    btns.forEach(function(btn){
+      var isThisOne = btn.textContent.trim().toLowerCase() === view;
+      btn.style.border = '0.5px solid ' + (isThisOne ? 'var(--wf-navy)' : 'var(--border-light)');
+      btn.style.background = isThisOne ? 'var(--wf-navy)' : 'transparent';
+      btn.style.color = isThisOne ? '#fff' : 'var(--text-secondary)';
+    });
+  }
+}
+
+// Currently-selected {cardId, row} — used so the chart and table stay in
+// sync, and so re-rendering (e.g. after a response is recorded) can restore
+// the same selection rather than losing it.
+var _daSelectedResult = null;
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  UNSUPERVISED -> SUPERVISED LABELING: threshold slider + boundary-band queue
+// ══════════════════════════════════════════════════════════════════════════════
+// Design (per the earlier conversation): the slider is exploratory, not
+// committal — moving it only changes how many rows are ABOVE the line, and
+// nothing is labeled until the auditor explicitly reviews rows and clicks
+// Confirm/Not an anomaly. The review queue defaults to a BAND around the
+// threshold (rows nearest the line), not the entire flagged set, since
+// that's where a human's judgment actually adds value — a row scored in the
+// 99th percentile is anomalous regardless of exactly where the line sits.
+// Per-card slider state (threshold + band width), independent of _daLabels.
+var _daSliderState = {}; // cardId -> { threshold, bandWidth }
+
+// Pure percentile-rank conversion — verified standalone (ordering,
+// single-point dataset, evenly-spread values) before being wired in here.
+function _daPercentileRanks(allPoints) {
+  var sorted = allPoints.slice().sort(function(a,b){ return a.value - b.value; });
+  var n = sorted.length;
+  var rankByRow = {};
+  sorted.forEach(function(p, i){ rankByRow[p.row] = n > 1 ? i / (n - 1) : 0; });
+  return allPoints.map(function(p){
+    var copy = {}; for (var k in p) copy[k] = p[k];
+    copy.pct = rankByRow[p.row];
+    return copy;
+  });
+}
+
+function _daCountAboveThreshold(pointsWithPct, threshold) {
+  var c = 0;
+  for (var i = 0; i < pointsWithPct.length; i++) if (pointsWithPct[i].pct >= threshold) c++;
+  return c;
+}
+
+// Rows within bandWidth percentile-points of the threshold line, nearest
+// first. This — not the full flagged set — is what the review queue shows
+// by default.
+function _daBoundaryBand(pointsWithPct, threshold, bandWidth) {
+  var lo = threshold - bandWidth, hi = threshold + bandWidth;
+  return pointsWithPct.filter(function(p){ return p.pct >= lo && p.pct <= hi; })
+    .sort(function(a,b){ return b.pct - a.pct; });
+}
+
+function _daBuildLabelingSlider(res, cardId, resIdx) {
+  if (!_daSliderState[cardId]) {
+    // Default the slider to wherever the method's own run-time threshold
+    // landed, so it starts consistent with the flags already shown above,
+    // then the auditor can move it from there.
+    var flaggedCount = (res.allPoints || []).filter(function(p){ return p.flagged; }).length;
+    var n = res.allPoints.length;
+    var defaultThreshold = n > 0 ? Math.max(0, 1 - (flaggedCount / n)) : 0.9;
+    _daSliderState[cardId] = { threshold: defaultThreshold, bandWidth: 0.05 };
+  }
+  var state = _daSliderState[cardId];
+  var ranked = _daPercentileRanks(res.allPoints);
+  var aboveCount = _daCountAboveThreshold(ranked, state.threshold);
+  var totalCount = ranked.length;
+  var pctLabel = Math.round((1 - state.threshold) * 100);
+
+  return '<div class="da-labeling-slider" data-card="'+cardId+'" style="margin:10px 0;border:0.5px solid var(--border-light);border-radius:8px;padding:12px 14px;background:var(--bg-secondary)">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px">Anomaly threshold — for supervised labeling</div>' +
+      '<div style="font-size:12px;color:var(--text-secondary)"><span id="'+cardId+'-abovecount" style="font-weight:700;color:var(--wf-navy)">'+aboveCount+'</span> of '+totalCount+' rows above threshold (top <span id="'+cardId+'-pctlabel">'+pctLabel+'</span>%)</div>' +
+    '</div>' +
+    '<input type="range" id="'+cardId+'-slider" min="0" max="1" step="0.01" value="'+state.threshold+'" ' +
+      'oninput="_daSliderMoved(\''+cardId+'\','+resIdx+',this.value)" style="width:100%;accent-color:var(--wf-navy)">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:10px">' +
+      '<div style="font-size:11px;color:var(--text-tertiary)">Review band: ±<span id="'+cardId+'-bandlabel">5</span> percentile-points around the line' +
+        ' <button class="icon-btn" title="Narrow band" onclick="_daAdjustBand(\''+cardId+'\','+resIdx+',-0.02)" style="width:18px;height:18px;display:inline-flex;vertical-align:middle;margin-left:4px"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' +
+        ' <button class="icon-btn" title="Widen band" onclick="_daAdjustBand(\''+cardId+'\','+resIdx+',0.02)" style="width:18px;height:18px;display:inline-flex;vertical-align:middle"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn-s" onclick="_daOpenLabelingQueue(\''+cardId+'\','+resIdx+')" style="font-size:11px;padding:4px 10px">Review boundary rows</button>' +
+        '<button class="btn-s" onclick="_daOpenLabelingQueue(\''+cardId+'\','+resIdx+',true)" style="font-size:11px;padding:4px 10px">Review all flagged</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="'+cardId+'-labelsummary" style="font-size:11px;color:var(--text-tertiary);margin-top:8px">' + _daLabelSummaryText() + '</div>' +
+    '<div id="'+cardId+'-queue" style="display:none;margin-top:10px"></div>' +
+  '</div>';
+}
+
+// Slider moved: recompute the above-threshold count live. Does NOT touch any
+// label — purely exploratory, per the design (nothing is committed until the
+// auditor reviews a row in the queue).
+function _daSliderMoved(cardId, resIdx, rawValue) {
+  var threshold = parseFloat(rawValue);
+  if (isNaN(threshold)) return;
+  if (!_daSliderState[cardId]) _daSliderState[cardId] = { threshold: threshold, bandWidth: 0.05 };
+  _daSliderState[cardId].threshold = threshold;
+  var res = _daResults[resIdx];
+  if (!res) return;
+  var ranked = _daPercentileRanks(res.allPoints);
+  var aboveCount = _daCountAboveThreshold(ranked, threshold);
+  var countEl = document.getElementById(cardId + '-abovecount');
+  var pctEl   = document.getElementById(cardId + '-pctlabel');
+  if (countEl) countEl.textContent = aboveCount;
+  if (pctEl) pctEl.textContent = Math.round((1 - threshold) * 100);
+  // If the queue is currently open, refresh it in place so it reflects the
+  // new band immediately rather than requiring a second click.
+  var queueEl = document.getElementById(cardId + '-queue');
+  if (queueEl && queueEl.style.display !== 'none' && queueEl.dataset.open === '1') {
+    _daRenderLabelingQueue(cardId, resIdx, queueEl.dataset.reviewAll === '1');
+  }
+}
+
+function _daAdjustBand(cardId, resIdx, delta) {
+  if (!_daSliderState[cardId]) _daSliderState[cardId] = { threshold: 0.9, bandWidth: 0.05 };
+  var state = _daSliderState[cardId];
+  state.bandWidth = Math.max(0.01, Math.min(0.25, state.bandWidth + delta));
+  var bandEl = document.getElementById(cardId + '-bandlabel');
+  if (bandEl) bandEl.textContent = Math.round(state.bandWidth * 100);
+  var queueEl = document.getElementById(cardId + '-queue');
+  if (queueEl && queueEl.style.display !== 'none' && queueEl.dataset.open === '1') {
+    _daRenderLabelingQueue(cardId, resIdx, queueEl.dataset.reviewAll === '1');
+  }
+}
+
+function _daOpenLabelingQueue(cardId, resIdx, reviewAll) {
+  var queueEl = document.getElementById(cardId + '-queue');
+  if (!queueEl) return;
+  queueEl.dataset.open = '1';
+  queueEl.dataset.reviewAll = reviewAll ? '1' : '0';
+  queueEl.style.display = '';
+  _daRenderLabelingQueue(cardId, resIdx, !!reviewAll);
+}
+
+function _daLabelSummaryText() {
+  var vals = Object.values ? Object.values(_daLabels) : Object.keys(_daLabels).map(function(k){ return _daLabels[k]; });
+  var anomaly = vals.filter(function(v){ return v==='anomaly'; }).length;
+  var normal  = vals.filter(function(v){ return v==='normal'; }).length;
+  return (anomaly+normal) + ' row' + ((anomaly+normal)!==1?'s':'') + ' labeled so far (' + anomaly + ' anomaly, ' + normal + ' normal) — carries over across every method and threshold change.';
+}
+
+function _daRenderLabelingQueue(cardId, resIdx, reviewAll) {
+  var queueEl = document.getElementById(cardId + '-queue');
+  if (!queueEl) return;
+  var res = _daResults[resIdx];
+  if (!res) return;
+  var state = _daSliderState[cardId] || { threshold: 0.9, bandWidth: 0.05 };
+  var ranked = _daPercentileRanks(res.allPoints);
+  var queueRows = reviewAll
+    ? ranked.filter(function(p){ return p.pct >= state.threshold; }).sort(function(a,b){ return b.pct-a.pct; })
+    : _daBoundaryBand(ranked, state.threshold, state.bandWidth);
+
+  if (!queueRows.length) {
+    queueEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic;padding:10px 0">No rows in ' + (reviewAll?'the flagged set':'the current review band') + ' at this threshold.</div>';
+    return;
+  }
+
+  var rowsHtml = queueRows.map(function(p){
+    var existing = _daLabels[p.row] || null;
+    var valDisplay = typeof p.value === 'number' ? p.value.toLocaleString(undefined,{maximumFractionDigits:3}) : p.value;
+    return '<div class="da-queue-row" data-row="'+p.row+'" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:0.5px solid var(--border-light)' +
+      (existing ? ';background:'+(existing==='anomaly'?'#fef2f2':'#f0fdf4') : '') + '">' +
+      '<div style="width:52px;font-size:11px;color:var(--text-tertiary)">Row '+p.row+'</div>' +
+      '<div style="width:70px;font-size:11px;color:var(--text-secondary)">pct '+(p.pct*100).toFixed(1)+'</div>' +
+      '<div style="flex:1;font-size:11px;color:var(--text-secondary)">value: '+escHtml(String(valDisplay))+'</div>' +
+      (existing ?
+        '<div style="font-size:11px;font-weight:700;color:'+(existing==='anomaly'?'#dc2626':'#16a34a')+'">' + (existing==='anomaly'?'✓ Confirmed anomaly':'✓ Marked normal') + '</div>' +
+        '<button class="btn-s" onclick="_daClearLabel('+p.row+',\''+cardId+'\','+resIdx+')" style="font-size:10px;padding:2px 8px">Undo</button>'
+      :
+        '<button class="btn-s" onclick="_daRecordLabel('+p.row+',\'anomaly\',\''+cardId+'\','+resIdx+')" style="font-size:10px;padding:3px 9px;background:#fef2f2;color:#dc2626;border-color:#fecaca">Anomaly</button>' +
+        '<button class="btn-s" onclick="_daRecordLabel('+p.row+',\'normal\',\''+cardId+'\','+resIdx+')" style="font-size:10px;padding:3px 9px;background:#f0fdf4;color:#16a34a;border-color:#bbf7d0">Not an anomaly</button>' +
+        '<button class="btn-s" onclick="_daSkipLabel('+p.row+',\''+cardId+'\','+resIdx+')" style="font-size:10px;padding:3px 9px">Skip</button>'
+      ) +
+    '</div>';
+  }).join('');
+
+  var reviewedInQueue = queueRows.filter(function(p){ return !!_daLabels[p.row]; }).length;
+
+  queueEl.innerHTML =
+    '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">' + reviewedInQueue + ' of ' + queueRows.length + ' reviewed in this ' + (reviewAll?'set':'band') + '</div>' +
+    '<div style="max-height:320px;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:6px">' + rowsHtml + '</div>';
+}
+
+// Records a label. Skip is deliberately NOT a label — it leaves the row
+// unreviewed (present in _daLabels only if the auditor explicitly chose
+// Anomaly or Normal), consistent with the design decision that the
+// supervised model should only train on rows a human actually judged.
+function _daRecordLabel(row, label, cardId, resIdx) {
+  _daLabels[row] = label;
+  _daPersistLabel(row, label);
+  _daRenderLabelingQueue(cardId, resIdx, document.getElementById(cardId+'-queue')?.dataset.reviewAll === '1');
+  var summaryEl = document.getElementById(cardId + '-labelsummary');
+  if (summaryEl) summaryEl.textContent = _daLabelSummaryText();
+}
+
+function _daClearLabel(row, cardId, resIdx) {
+  delete _daLabels[row];
+  _daPersistLabel(row, null);
+  _daRenderLabelingQueue(cardId, resIdx, document.getElementById(cardId+'-queue')?.dataset.reviewAll === '1');
+  var summaryEl = document.getElementById(cardId + '-labelsummary');
+  if (summaryEl) summaryEl.textContent = _daLabelSummaryText();
+}
+
+// Skip just moves focus along visually — since Skip records nothing, there is
+// nothing to persist or undo; this only re-renders so the reviewed-count
+// stays accurate to what's actually in _daLabels.
+function _daSkipLabel(row, cardId, resIdx) {
+  _daRenderLabelingQueue(cardId, resIdx, document.getElementById(cardId+'-queue')?.dataset.reviewAll === '1');
+}
+
+// Persists a single label to Postgres, now that datasets register
+// automatically on upload (_daRegisterDataset). Silently no-ops if
+// registration hasn't completed yet or failed — the label still lives in
+// the in-memory _daLabels store either way, so nothing is lost from the
+// user's perspective; it just won't survive a reload until a dataset id
+// exists. labelOrNull=null means "clear this label" (row unlabeled again).
+async function _daPersistLabel(row, labelOrNull) {
+  if (!_daCurrentDatasetId) return;
+  try {
+    if (labelOrNull === null) {
+      await fetch('/api/da/datasets/' + _daCurrentDatasetId + '/labels/' + row, { method: 'DELETE' });
+    } else {
+      await fetch('/api/da/datasets/' + _daCurrentDatasetId + '/labels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ row_index: row, label: labelOrNull })
+      });
+    }
+  } catch (e) {
+    console.warn('[Data Analysis] label persist failed for row ' + row + ' (kept in-session only):', e.message);
+  }
+}
+
+function _daSelectResultRow(cardId, row) {
+  _daSelectedResult = { cardId: cardId, row: row };
+  _daRenderSelection();
+}
+
+function _daClearResultSelection(cardId) {
+  if (_daSelectedResult && _daSelectedResult.cardId === cardId) _daSelectedResult = null;
+  _daRenderSelection();
+}
+
+// Applies the current selection's visual state (highlighted table row,
+// highlighted chart point, open detail panel) without a full re-render of
+// the results list — matches the pattern used elsewhere in this app
+// (_sdUpdateRowHighlight) to avoid disrupting anything else on the page.
+function _daRenderSelection() {
+  document.querySelectorAll('.da-flag-row').forEach(function(tr){
+    tr.style.background = '';
+  });
+  document.querySelectorAll('.da-chart-pt').forEach(function(pt){
+    // Reset any point previously enlarged for "selected" emphasis back to
+    // its normal flagged/unflagged radius.
+    var wasFlagged = pt.getAttribute('fill') === '#dc2626' || pt.dataset.selected === '1';
+    pt.setAttribute('r', wasFlagged ? '4.5' : '2.5');
+    pt.removeAttribute('stroke');
+    pt.removeAttribute('stroke-width');
+    delete pt.dataset.selected;
+  });
+  document.querySelectorAll('[id$="-detail"]').forEach(function(d){ d.style.display = 'none'; d.innerHTML=''; });
+
+  if (!_daSelectedResult) return;
+  var cardId = _daSelectedResult.cardId, row = _daSelectedResult.row;
+
+  var tr = document.querySelector('.da-flag-row[data-card="'+cardId+'"][data-row="'+row+'"]');
+  if (tr) tr.style.background = '#fef3c7';
+
+  var pt = document.querySelector('.da-chart-pt[data-card="'+cardId+'"][data-row="'+row+'"]');
+  if (pt) { pt.setAttribute('r', '6.5'); pt.setAttribute('stroke', '#78350f'); pt.setAttribute('stroke-width', '2'); pt.dataset.selected = '1'; }
+
+  _daRenderDetailPanel(cardId, row);
+}
+
+// Builds and shows the full-row detail panel for the selected row: every
+// column's value from the ORIGINAL uploaded data (_daData), not just the
+// value the flagged method happened to compute — plus the outlier
+// response control (Confirm outlier / Not an outlier / Needs review).
+function _daRenderDetailPanel(cardId, row) {
+  var panel = document.getElementById(cardId + '-detail');
+  if (!panel) return;
+  var dataRow = _daData[row - 1]; // row is 1-based; _daData is 0-based
+  var resIdx = parseInt(document.getElementById(cardId)?.dataset.resultIdx, 10);
+  var res = _daResults[resIdx];
+  var flag = res && res.flags ? res.flags.find(function(f){ return f.row === row; }) : null;
+  var currentResponse = flag ? flag.userResponse : null;
+
+  var fieldsHtml = dataRow
+    ? _daColumns.map(function(col){
+        var v = dataRow[col];
+        return '<div style="display:flex;gap:8px;padding:3px 0;border-bottom:0.5px solid var(--border-light);font-size:11px">' +
+          '<div style="width:38%;color:var(--text-tertiary);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(col)+'</div>' +
+          '<div style="flex:1;color:var(--text-primary);word-break:break-word">'+escHtml(v==null?'':String(v))+'</div>' +
+        '</div>';
+      }).join('')
+    : '<div style="font-size:11px;color:var(--text-tertiary);font-style:italic">Row data not available.</div>';
+
+  function respBtn(value, label, activeColor) {
+    var active = currentResponse === value;
+    return '<button onclick="_daSetOutlierResponse(\''+cardId+'\','+row+',\''+value+'\')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid '+(active?activeColor:'var(--border-medium)')+';background:'+(active?activeColor:'var(--bg-primary)')+';color:'+(active?'#fff':'var(--text-secondary)')+';cursor:pointer;font-weight:600">'+label+'</button>';
+  }
+
+  panel.innerHTML =
+    '<div style="border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin:8px 0 12px;background:#fffbeb">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<div style="font-size:12px;font-weight:700;color:#92400e">Row '+row+' — full record</div>' +
+        '<button onclick="_daClearResultSelection(\''+cardId+'\')" class="icon-btn" style="width:20px;height:20px" title="Close">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      (flag && flag.reason ? '<div style="font-size:11px;color:#92400e;margin-bottom:8px">Flagged: '+escHtml(flag.reason)+'</div>' : '') +
+      '<div style="max-height:220px;overflow-y:auto;background:var(--bg-primary);border-radius:6px;padding:6px 10px;margin-bottom:10px">' + fieldsHtml + '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="font-size:11px;font-weight:600;color:#92400e;margin-right:2px">Is this an outlier?</span>' +
+        respBtn('confirmed_outlier', 'Confirm outlier', '#dc2626') +
+        respBtn('not_outlier', 'Not an outlier', '#16a34a') +
+        respBtn('needs_review', 'Needs review', '#d97706') +
+      '</div>' +
+    '</div>';
+  panel.style.display = '';
+}
+
+// Records the user's judgment on a flagged row directly on that result's
+// flag object (res.flags[i].userResponse) — scoped to the specific METHOD
+// that flagged it, since the same row could be flagged by more than one
+// method and the user's judgment may legitimately differ between them.
+function _daSetOutlierResponse(cardId, row, response) {
+  var resIdx = parseInt(document.getElementById(cardId)?.dataset.resultIdx, 10);
+  var res = _daResults[resIdx];
+  if (!res || !res.flags) return;
+  var flag = res.flags.find(function(f){ return f.row === row; });
+  if (!flag) return;
+  flag.userResponse = response;
+  flag.userResponseAt = new Date().toISOString();
+  // Re-render just the detail panel (button active-state) and table-row
+  // tint — a full grid re-render isn't needed and would lose scroll position.
+  _daRenderSelection();
+  _daUpdateFlagRowResponseTint(cardId, row, response);
+}
+
+// Small visual cue in the flags table itself (not just the detail panel) so
+// a reviewer scanning the table can see at a glance which rows already have
+// a recorded response, without needing to click each one.
+function _daUpdateFlagRowResponseTint(cardId, row, response) {
+  var tr = document.querySelector('.da-flag-row[data-card="'+cardId+'"][data-row="'+row+'"]');
+  if (!tr) return;
+  var dot = tr.querySelector('.da-resp-dot');
+  if (!dot) {
+    dot = document.createElement('span');
+    dot.className = 'da-resp-dot';
+    dot.style.cssText = 'display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px';
+    var firstCell = tr.querySelector('td');
+    if (firstCell) firstCell.appendChild(dot);
+  }
+  var colorMap = { confirmed_outlier:'#dc2626', not_outlier:'#16a34a', needs_review:'#d97706' };
+  dot.style.background = colorMap[response] || 'transparent';
+  dot.title = response === 'confirmed_outlier' ? 'Confirmed outlier' : response === 'not_outlier' ? 'Marked not an outlier' : 'Needs review';
+}
+
+
 function daExportCSV() {
   var rows = [['Method','Column','Row','Value','Reason']];
   _daResults.forEach(function(res){
@@ -16360,8 +17249,10 @@ async function analyzeWithClaude() {
   analysisResults = [];
   let processed = 0;
 
-  // Gather sample field extraction fields and options — must be before analyzeOneFile is defined
-  const sampleFields = (wpSampleFields[ref] || []).filter(f => f.name);
+  // Fields to extract now come from the Sample Data grid's extract-flagged
+  // columns (title + Search Guidance) — this replaces the old Sample Field
+  // Extraction section as the source. Must be before analyzeOneFile is defined.
+  const sampleFields = _sdFieldsForAnalysis(ref);
   const opts = _analysisOptions || {};
   const wp   = WORKPAPERS[currentWPIndex];
 
@@ -17019,7 +17910,7 @@ function downloadTestGuidance() {
   const wp          = WORKPAPERS[currentWPIndex];
   const opts        = _analysisOptions || {};
   const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
-  const sampleFields = (wpSampleFields[ref]  || []).filter(f => f.name);
+  const sampleFields = _sdFieldsForAnalysis(ref);
   const now         = new Date();
   const dateStr     = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const timeStr     = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -17381,13 +18272,13 @@ function _doExportWorkpaperXLSX() {
   } else { rows.push(['No test attributes defined']); }
   rows.push(blank());
 
-  // ── SAMPLE FIELD EXTRACTION ────────────────────────────────────────
-  rows.push(secHdr('SAMPLE FIELD EXTRACTION'));
-  const sfields = (wpSampleFields[ref] || []).filter(f => f.name);
+  // ── SAMPLE DATA (extract-flagged columns) ───────────────────────────
+  rows.push(secHdr('SAMPLE DATA — EXTRACT FLAGGED COLUMNS'));
+  const sfields = _sdFieldsForAnalysis(ref);
   if (sfields.length) {
     rows.push(colHdr('#', 'Field Name', 'Search Guidance'));
     sfields.forEach((f, i) => rows.push([i+1, f.name, f.desc || '']));
-  } else { rows.push(['No sample fields defined']); }
+  } else { rows.push(['No columns flagged for extraction in the Sample Data grid']); }
   rows.push(blank());
 
   // ── ATTACHED WORKPAPER FILES ───────────────────────────────────────
@@ -17443,7 +18334,7 @@ function _doExportWorkpaperXLSX() {
 
   // Bold section headers
   const sectionNames = new Set(['WORKPAPER INFORMATION','PROCESS / CONTROL NARRATIVE','LINKED RISKS & CONTROLS',
-    'ASSESSMENT ENTITIES','TEST ATTRIBUTES','SAMPLE FIELD EXTRACTION','ATTACHED WORKPAPER FILES',
+    'ASSESSMENT ENTITIES','TEST ATTRIBUTES','SAMPLE DATA — EXTRACT FLAGGED COLUMNS','ATTACHED WORKPAPER FILES',
     'ATTACHED SAMPLE FILES','EXCEPTIONS','REVIEW NOTES','CHANGE LOG']);
   rows.forEach((r, ri) => {
     if (sectionNames.has(r[0])) {
@@ -17487,7 +18378,7 @@ async function exportToXlsx(attachOnly = false) {
   const now  = new Date();
   const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
-  const xlsxFields  = (wpSampleFields[ref]     || []).filter(f => f.name);
+  const xlsxFields  = _sdFieldsForAnalysis(ref);
 
   // ── Tick marks ──
   const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
@@ -19883,7 +20774,41 @@ function showUploadError(msg) {
 // Paste model: single-cell anchor, no multi-cell range selection — see the
 // comment above initSampleDataGridPaste() for the reasoning.
 // Per-workpaper global sample store, keyed by ref.
-const wpSampleData = {};
+//
+// PRS Audits / WP-2026-FIN-002 is pre-seeded here: one column per row already
+// defined in wpSampleFields["WP-2026-FIN-002"] (see the Sample Field
+// Extraction section above), each created with `extract: true` and its
+// `searchGuidance` copied verbatim from that row's `desc` field (left blank
+// where the source guidance was blank — it's optional, not every field had
+// guidance entered). Width is the literal 180 (matching SD_DEFAULT_COL_WIDTH's
+// value) rather than a reference to that constant, since this object is
+// declared before SD_DEFAULT_COL_WIDTH exists later in the script —
+// referencing it here would throw at page-load time. Column ids use a
+// stable "sd_prs_col_N" scheme (matching
+// each source row's `num`) rather than the timestamp-based ids the UI
+// generates for user-added columns, so this seed is reproducible rather than
+// depending on wall-clock time. No data rows are included — this only
+// creates the column definitions, matching what was requested; the grid
+// starts with 0 rows for the user to add as needed.
+const wpSampleData = {
+  "WP-2026-FIN-002": {
+    columns: [
+      { id:"sd_prs_col_1",  title:"COID",                                        extract:true, searchGuidance:"Use the workpaper \"COID\" if it exists to look up the number corresponding to the facility name.  If not found return an empty cell", width:180 },
+      { id:"sd_prs_col_2",  title:"Facility",                                    extract:true, searchGuidance:"Search the sample document for the name of the hospital", width:180 },
+      { id:"sd_prs_col_3",  title:"Vendor Name",                                 extract:true, searchGuidance:"Search the sample document for the name of the vendor", width:180 },
+      { id:"sd_prs_col_4",  title:"Check #",                                     extract:true, searchGuidance:"Search the sample document for the check # of the check", width:180 },
+      { id:"sd_prs_col_5",  title:"Check Date",                                  extract:true, searchGuidance:"", width:180 },
+      { id:"sd_prs_col_6",  title:"Check Amount",                                extract:true, searchGuidance:"Search the sample document for the amount of the check", width:180 },
+      { id:"sd_prs_col_7",  title:"Contract Effective Date",                     extract:true, searchGuidance:"Search the sample document for the date of the first amendment, if any", width:180 },
+      { id:"sd_prs_col_8",  title:"Date of Service",                             extract:true, searchGuidance:"", width:180 },
+      { id:"sd_prs_col_9",  title:"Need to look in DocuSign for auto renew approval?", extract:true, searchGuidance:"", width:180 },
+      { id:"sd_prs_col_10", title:"OG/Amend Signed Date",                        extract:true, searchGuidance:"Search the sample document for the date of the first amendment, if any", width:180 },
+      { id:"sd_prs_col_11", title:"OG/Amend Legal/Ops Approval Date",            extract:true, searchGuidance:"", width:180 },
+      { id:"sd_prs_col_12", title:"36 month renewal Calc",                       extract:true, searchGuidance:"Search the sample document for the calculation of renewal amounts", width:180 },
+    ],
+    rows: [],
+  },
+};
 
 // Tracks which row is "selected" per workpaper, for Add row above/below.
 // If nothing has been clicked yet (undefined), both buttons treat the LAST
@@ -19893,6 +20818,27 @@ const _sdSelectedRow = {};
 function _daSampleDataFor(ref) {
   if (!wpSampleData[ref]) wpSampleData[ref] = { columns: [], rows: [] };
   return wpSampleData[ref];
+}
+
+// ── Sample Data grid as the source for Analyze & Create Workpaper ────────────
+// This is the completion of decommissioning the old Sample Field Extraction
+// section: Analyze & Create Workpaper (analyzeWithClaude), the pre-analysis
+// Test Guidance download, and the post-analysis Excel export all previously
+// read wpSampleFields[ref] (name/desc pairs) to decide which fields to
+// extract from each sample file. They now call this instead, which reads the
+// Sample Data grid's columns and reshapes them into the exact same {name,
+// desc} shape those call sites already expect — so only the SOURCE changes,
+// none of the downstream prompt-building, JSON-parsing, or Excel-writing
+// logic needs to change. Extract-flagged columns are what's returned (only
+// those are meant to be filled from sample files); a column's title becomes
+// `name` and its searchGuidance becomes `desc`, matching wpSampleFields'
+// {name, desc} exactly. Untitled extract-flagged columns are skipped (an
+// empty name can't be matched against anything the AI returns).
+function _sdFieldsForAnalysis(ref) {
+  var data = _daSampleDataFor(ref);
+  return data.columns
+    .filter(function(col){ return col.extract && col.title && col.title.trim(); })
+    .map(function(col){ return { name: col.title, desc: col.searchGuidance || '' }; });
 }
 
 // Resolves "the selected row index" per the spec's fallback rule: if no row
@@ -20479,7 +21425,439 @@ function saveSampleDataGrid(ref) {
   _wfSaved();
 }
 
-// ── Excel paste support ───────────────────────────────────────────────────────
+// Exports the Sample Data grid to an .xlsx file: one column per user-defined
+// grid column (in their current left-to-right order), one row per grid row,
+// with the auto-numbered "#" included as its own leading column since it's
+// meaningful context once the data is outside the app. An untitled column
+// falls back to a positional label ("Column 2") rather than exporting a
+// blank header.
+function exportSampleDataXLSX(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  var data = _daSampleDataFor(ref);
+  if (!data.columns.length || !data.rows.length) {
+    alert('There is no sample data to export yet — add at least one column and one row first.');
+    return;
+  }
+
+  var headers = ['#'].concat(data.columns.map(function(col, idx){
+    return col.title && col.title.trim() ? col.title : 'Column ' + (idx + 1);
+  }));
+  var aoa = [headers].concat(data.rows.map(function(row, i){
+    return [i + 1].concat(data.columns.map(function(col){
+      return (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '';
+    }));
+  }));
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  // Width hints: narrow for "#", then a reasonable default per data column
+  // (character width, not px — matches the convention used elsewhere in the
+  // app's XLSX exports). This is independent of the on-screen column
+  // pixel widths set via the grid's own resize handles.
+  ws['!cols'] = [{ wch: 5 }].concat(data.columns.map(function(){ return { wch: 24 }; }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Sample Data');
+
+  var now  = new Date();
+  var ts   = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  var hhmm = String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  XLSX.writeFile(wb, (ref || 'SampleData') + '_SampleData_' + ts + '_' + hhmm + '.xlsx');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  READ SAMPLE FILES — AI-driven extraction into the Sample Data grid
+// ══════════════════════════════════════════════════════════════════════════════
+// Three behaviors depending on the grid's current state, all driven by a
+// single call to Claude per sample file:
+//   1. Grid has no columns/rows  -> build the grid from scratch (columns +
+//      rows) based on what the AI finds in the files.
+//   2. Grid already has columns/rows -> use existing column titles + any
+//      Search Guidance on extract-flagged columns to fill in blank cells for
+//      the EXISTING rows only; never invents new columns in this mode.
+//   3. Either way, if the AI's read of the files implies more sample records
+//      exist than are currently in the grid, those are held back and the
+//      user is asked whether to add them as new rows — never auto-added.
+// The threshold in point 3 forks the UI: <=20 proposed rows are listed
+// inline for review; >20 are offered as an Excel download instead, and the
+// accept/decline choice still waits for the user regardless of which path.
+
+var SD_ADDROWS_INLINE_LIMIT = 20;
+var _sdReadFilesCancelled = false;
+var _sdProposedRows = null; // set while the add-rows confirmation is open
+
+function _sdSetReadProgress(pct, statusText) {
+  if (_sdReadFilesCancelled) return;
+  var bar = document.getElementById('sd-readfiles-progress');
+  if (pct != null && bar) bar.style.width = pct + '%';
+  var statusEl = document.getElementById('sd-readfiles-status');
+  if (statusEl) statusEl.textContent = statusText;
+}
+
+function _sdCloseReadFilesModal() {
+  _sdReadFilesCancelled = true;
+  var overlay = document.getElementById('sd-readfiles-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// Entry point — bound to the orange "Read Sample Files" button.
+async function readSampleFilesIntoGrid(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+
+  var memFiles = (inMemoryFiles[ref] && inMemoryFiles[ref].sample) || [];
+  var staticSampleFiles = (WORKPAPERS[currentWPIndex] && WORKPAPERS[currentWPIndex].sampleFiles) || [];
+  if (memFiles.length === 0 && staticSampleFiles.length === 0) {
+    alert('Please attach at least one sample file before reading them into the grid.');
+    return;
+  }
+  // Only real, uploaded File objects can actually be read and sent to Claude —
+  // static demo entries (no .file) have no bytes to read in the browser.
+  var readableFiles = memFiles.filter(function(e){ return e && e.file; });
+  if (readableFiles.length === 0) {
+    alert('The attached sample file(s) can\'t be read in this session (no file content available). Upload the file(s) again and try once more.');
+    return;
+  }
+
+  var data = _daSampleDataFor(ref);
+  var buildingFromScratch = (data.columns.length === 0 || data.rows.length === 0);
+
+  _sdReadFilesCancelled = false;
+  var overlay = document.getElementById('sd-readfiles-overlay');
+  var titleEl = document.getElementById('sd-readfiles-title');
+  var closeBtn = document.getElementById('sd-readfiles-close-btn');
+  if (overlay) overlay.style.display = 'flex';
+  if (titleEl) titleEl.textContent = buildingFromScratch
+    ? 'Building sample data from files…'
+    : 'Reading sample files…';
+  if (closeBtn) { closeBtn.textContent = 'Cancel'; closeBtn.onclick = _sdCloseReadFilesModal; }
+  _sdSetReadProgress(0, 'Preparing ' + readableFiles.length + ' file' + (readableFiles.length!==1?'s':'') + '…');
+
+  var perFileResults = [];
+  var failures = [];
+
+  for (var i = 0; i < readableFiles.length; i++) {
+    if (_sdReadFilesCancelled) return;
+    var entry = readableFiles[i];
+    _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
+    try {
+      var result = await _sdExtractFromOneFile(entry, data, buildingFromScratch);
+      perFileResults.push({ file: entry.name, result: result });
+    } catch (err) {
+      failures.push({ file: entry.name, error: err.message || String(err) });
+    }
+  }
+
+  if (_sdReadFilesCancelled) return;
+  _sdSetReadProgress(95, 'Merging results into the grid…');
+
+  var merge = _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch);
+
+  if (overlay) overlay.style.display = 'none';
+
+  if (failures.length) {
+    console.warn('[Read Sample Files] ' + failures.length + ' file(s) failed:', failures);
+  }
+
+  // Apply whatever could be merged immediately (new columns if building from
+  // scratch, and filled-in values for existing rows) — this part never
+  // requires confirmation, since it either creates the grid where none
+  // existed or only fills in blanks, it doesn't touch anything the user
+  // already entered.
+  if (merge.appliedAnyChange) {
+    pushUndo(ref);
+    if (merge.newColumns.length) data.columns = data.columns.concat(merge.newColumns);
+    merge.rowUpdates.forEach(function(u){
+      var row = data.rows[u.rowIndex];
+      if (!row) return;
+      if (!row.cells) row.cells = {};
+      Object.keys(u.values).forEach(function(colId){
+        // Never overwrite a cell that already has a value — this call only
+        // fills blanks, whether building from scratch or completing existing
+        // rows, per the requested behavior.
+        if (row.cells[colId] === undefined || row.cells[colId] === '') {
+          row.cells[colId] = u.values[colId];
+        }
+      });
+    });
+    if (merge.newRowsForScratchBuild.length) {
+      merge.newRowsForScratchBuild.forEach(function(r){ data.rows.push(r); });
+    }
+    renderSampleDataGrid(ref);
+    saveSampleDataGrid(ref);
+  }
+
+  var failureNote = failures.length ? (' (' + failures.length + ' file(s) could not be read: ' +
+    failures.map(function(f){return f.file;}).join(', ') + ')') : '';
+
+  // The "found more records than are in the grid" case always needs explicit
+  // user approval before anything is added — held separately from the
+  // fill-in-blanks merge above.
+  if (merge.proposedAdditions.length) {
+    _sdShowAddRowsPrompt(ref, merge.proposedAdditions, failureNote);
+  } else if (!merge.appliedAnyChange) {
+    alert('Read ' + readableFiles.length + ' file(s), but no usable sample data was found.' + failureNote);
+  } else {
+    alert('Sample data updated from ' + readableFiles.length + ' file(s).' + failureNote);
+  }
+}
+
+// Builds the prompt and calls Claude for a single sample file, requesting a
+// strict JSON response so it can be parsed deterministically.
+async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
+  var base64 = await fileToBase64(entry.file);
+  var ext = (entry.name.split('.').pop() || '').toLowerCase();
+  var mediaType = null;
+  if (ext === 'pdf') mediaType = 'application/pdf';
+  else if (['png','jpg','jpeg','gif','webp'].includes(ext)) mediaType = ext === 'jpg' ? 'image/jpeg' : 'image/' + ext;
+  if (!mediaType) {
+    throw new Error('Unsupported file type (.' + ext + ') — only PDF and image sample files can currently be read directly. Excel/Word sample files aren\'t supported by this feature yet.');
+  }
+  var contentBlockType = mediaType === 'application/pdf' ? 'document' : 'image';
+
+  var existingCols = data.columns.map(function(c){
+    return { title: c.title || '(untitled)', guidance: c.searchGuidance || '' };
+  });
+
+  var instructions;
+  if (buildingFromScratch) {
+    instructions =
+      'You are reading a sample document to help build a data-extraction grid for an audit workpaper.\n' +
+      'Identify every distinct sample record (e.g. an invoice, a transaction, a line item) visible in this file.\n' +
+      'Propose column names for the data fields that appear consistently across records (e.g. "Vendor Name", "Amount", "Date").\n' +
+      'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
+      '{"columns":[{"title":"Field Name"}],"rows":[{"values":{"Field Name":"extracted value"},"summary":"one-line description of this record"}]}';
+  } else {
+    instructions =
+      'You are filling in a data-extraction grid for an audit workpaper from a sample document.\n' +
+      'The grid already has these columns (title and optional search guidance for what to look for):\n' +
+      JSON.stringify(existingCols) + '\n' +
+      'Find values for these columns from this file. Also note if this file appears to contain sample records ' +
+      'that are NOT already represented in the grid (additional rows beyond what exists).\n' +
+      'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
+      '{"rows":[{"isNew":true,"values":{"Field Name":"extracted value"},"summary":"one-line description of this record"}]}\n' +
+      '(Every row you return is treated as describing a NEW sample record found in this file — the caller matches ' +
+      'it against existing rows itself, so just report every record you can find with its extracted values.)';
+  }
+
+  var messages = [{
+    role: 'user',
+    content: [
+      { type: contentBlockType, source: { type: 'base64', media_type: mediaType, data: base64 } },
+      { type: 'text', text: instructions }
+    ]
+  }];
+
+  var apiResult = await _callAI(messages, 3000);
+  var text = (apiResult.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
+  if (!text) throw new Error('Claude returned an empty response for ' + entry.name + '.');
+
+  var parsed = _sdParseExtractionJSON(text);
+  if (!parsed) throw new Error('Claude\'s response for ' + entry.name + ' was not valid JSON.');
+  return parsed;
+}
+
+// Strict JSON extraction from a model response — handles a ```json fenced
+// block or a bare JSON object, same pattern used by the existing Analyze
+// feature (analyzeOneFile) for consistency, but standalone here rather than
+// reusing that function directly since the response shapes differ.
+function _sdParseExtractionJSON(text) {
+  var jsonMatch = text.match(/```json\s*([\s\S]*?)```|(\{[\s\S]*\})/);
+  var jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[2]).trim() : text.trim();
+  try {
+    var parsed = JSON.parse(jsonStr);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!Array.isArray(parsed.rows)) parsed.rows = [];
+    if (!Array.isArray(parsed.columns)) parsed.columns = [];
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Picks the column used to match an AI-extracted record against an existing
+// grid row. Extract-flagged columns are always blank until filled, so they
+// can never serve as a natural identifier — the first NON-extract column is
+// used; if every column happens to be extract-flagged, falls back to the
+// first column rather than refusing to match at all.
+function _sdPickKeyColumn(data) {
+  for (var i = 0; i < data.columns.length; i++) {
+    if (!data.columns[i].extract) return data.columns[i];
+  }
+  return data.columns[0] || null;
+}
+
+// Finds an existing row whose key-column value matches the AI's extracted
+// value for that same column (case-insensitive, whitespace-tolerant — OCR
+// and minor formatting differences shouldn't cause a false "not found").
+// Returns -1 if no key column, no AI value for it, or no match — callers
+// treat -1 as "this is a new record, not a fill for an existing row."
+function _sdFindMatchingRow(data, keyCol, aiValues) {
+  if (!keyCol) return -1;
+  var aiKeyVal = aiValues[keyCol.title];
+  if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '') return -1;
+  for (var i = 0; i < data.rows.length; i++) {
+    var row = data.rows[i];
+    var existingVal = row.cells && row.cells[keyCol.id];
+    if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '' &&
+        String(existingVal).trim().toLowerCase() === String(aiKeyVal).trim().toLowerCase()) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Combines every file's extraction result into one plan: new columns (only
+// when building from scratch), fills for existing rows (matched by key
+// column), brand-new rows (only in scratch-build mode, where there's nothing
+// to match against yet), and proposed additions (fill mode only — records
+// the AI found that don't match any existing row, which always require
+// explicit user approval before anything is added to the grid).
+function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch) {
+  var newColumns = [];
+  var rowUpdates = [];
+  var newRowsForScratchBuild = [];
+  var proposedAdditions = [];
+
+  if (buildingFromScratch) {
+    var seenTitles = {};
+    data.columns.forEach(function(c){ seenTitles[c.title] = c; });
+    var colCounter = 0;
+    perFileResults.forEach(function(fr){
+      (fr.result.columns || []).forEach(function(c){
+        if (c.title && !seenTitles[c.title]) {
+          var col = { id: 'col_' + Date.now() + '_' + (colCounter++), title: c.title, extract: false, width: 180 };
+          seenTitles[c.title] = col;
+          newColumns.push(col);
+        }
+      });
+    });
+    var allCols = data.columns.concat(newColumns);
+    perFileResults.forEach(function(fr){
+      (fr.result.rows || []).forEach(function(r){
+        var cells = {};
+        allCols.forEach(function(col){
+          if (r.values && r.values[col.title] !== undefined) cells[col.id] = r.values[col.title];
+        });
+        newRowsForScratchBuild.push({ cells: cells });
+      });
+    });
+  } else {
+    var keyCol = _sdPickKeyColumn(data);
+    perFileResults.forEach(function(fr){
+      (fr.result.rows || []).forEach(function(r){
+        var matchIdx = _sdFindMatchingRow(data, keyCol, r.values || {});
+        if (matchIdx >= 0) {
+          var cellsByColId = {};
+          data.columns.forEach(function(col){
+            if (r.values && r.values[col.title] !== undefined) cellsByColId[col.id] = r.values[col.title];
+          });
+          rowUpdates.push({ rowIndex: matchIdx, values: cellsByColId });
+        } else {
+          proposedAdditions.push({ sourceFile: fr.file, summary: r.summary || '(no summary provided)', values: r.values || {} });
+        }
+      });
+    });
+  }
+
+  return {
+    newColumns: newColumns,
+    rowUpdates: rowUpdates,
+    newRowsForScratchBuild: newRowsForScratchBuild,
+    proposedAdditions: proposedAdditions,
+    appliedAnyChange: newColumns.length > 0 || rowUpdates.length > 0 || newRowsForScratchBuild.length > 0,
+  };
+}
+
+// ── Propose-additional-rows confirmation (size-forked: inline list vs Excel) ──
+
+function _sdShowAddRowsPrompt(ref, proposedAdditions, failureNote) {
+  _sdProposedRows = { ref: ref, additions: proposedAdditions };
+  var msgEl = document.getElementById('sd-addrows-msg');
+  var listWrap = document.getElementById('sd-addrows-list-wrap');
+  var tooLargeWrap = document.getElementById('sd-addrows-toolarge-wrap');
+  var listEl = document.getElementById('sd-addrows-list');
+  var overlay = document.getElementById('sd-addrows-overlay');
+
+  var n = proposedAdditions.length;
+  if (msgEl) msgEl.textContent = 'Found ' + n + ' sample record' + (n!==1?'s':'') +
+    ' in the attached files that ' + (n!==1?'don\'t':'doesn\'t') + ' match anything already in the grid.' +
+    (failureNote || '') + ' Add ' + (n!==1?'them':'it') + ' as new row' + (n!==1?'s':'') + '?';
+
+  if (n > SD_ADDROWS_INLINE_LIMIT) {
+    // Too many to usefully list inline — offer a download instead, and still
+    // wait for the user's accept/decline choice either way.
+    if (listWrap) listWrap.style.display = 'none';
+    if (tooLargeWrap) tooLargeWrap.style.display = '';
+  } else {
+    if (listWrap) listWrap.style.display = '';
+    if (tooLargeWrap) tooLargeWrap.style.display = 'none';
+    if (listEl) {
+      listEl.innerHTML = proposedAdditions.map(function(a, i){
+        return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
+          '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (i+1) + '</td>' +
+          '<td style="padding:5px 8px">' + escHtml(a.sourceFile) + '</td>' +
+          '<td style="padding:5px 8px">' + escHtml(a.summary) + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  }
+
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function _sdDeclineAddRows() {
+  var overlay = document.getElementById('sd-addrows-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _sdProposedRows = null;
+}
+
+function _sdAcceptAddRows() {
+  var pending = _sdProposedRows;
+  var overlay = document.getElementById('sd-addrows-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (!pending) return;
+  var ref = pending.ref;
+  var data = _daSampleDataFor(ref);
+  pushUndo(ref);
+  pending.additions.forEach(function(a){
+    var cells = {};
+    data.columns.forEach(function(col){
+      if (a.values && a.values[col.title] !== undefined) cells[col.id] = a.values[col.title];
+    });
+    data.rows.push({ cells: cells });
+  });
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+  _sdProposedRows = null;
+}
+
+// Downloads the proposed additions as an Excel file — used both when the
+// list exceeds the inline-display threshold and as a general convenience.
+// Columns are the union of value keys the AI actually returned across all
+// proposed rows (order of first appearance), plus source file and summary.
+function _sdDownloadProposedRows() {
+  if (!_sdProposedRows) return;
+  var additions = _sdProposedRows.additions;
+  var colTitles = [];
+  var seen = {};
+  additions.forEach(function(a){
+    Object.keys(a.values || {}).forEach(function(t){ if (!seen[t]) { seen[t]=true; colTitles.push(t); } });
+  });
+  var headers = ['#', 'Source file', 'Summary'].concat(colTitles);
+  var aoa = [headers].concat(additions.map(function(a, i){
+    return [i+1, a.sourceFile, a.summary].concat(colTitles.map(function(t){ return (a.values && a.values[t] !== undefined) ? a.values[t] : ''; }));
+  }));
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:22},{wch:30}].concat(colTitles.map(function(){ return {wch:22}; }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Proposed Additions');
+  var now = new Date();
+  var ts = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  var hhmm = String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  XLSX.writeFile(wb, 'ProposedSampleAdditions_' + ts + '_' + hhmm + '.xlsx');
+}
+
+
 // Same pattern as initAttrGridPaste: listen for paste anywhere in the section,
 // only intercept it when the clipboard looks like tab-separated tabular data
 // (i.e. an Excel/Sheets range), and otherwise let normal single-cell paste
