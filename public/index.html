@@ -20940,7 +20940,7 @@ function renderSampleDataGrid(ref) {
     th.id = 'sd-th-' + col.id;
     th.dataset.colId = col.id;
     var isSelectedCol = (_sdSelectedColumn[ref] === col.id);
-    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 8px;text-align:left;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
+    th.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;position:relative;font-size:10px;font-weight:600;padding:5px 8px;text-align:center;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
       (isSelectedCol ? 'background:#dbeafe;' : (col.extract ? 'background:#eff6ff;' : '')) +
       'cursor:pointer';
     // A <textarea>, not an <input> — an <input> is a single-line control and
@@ -20955,7 +20955,7 @@ function renderSampleDataGrid(ref) {
     input.setAttribute('aria-label', 'Column header');
     input.className = 'sd-col-hdr-input';
     input.dataset.colId = col.id;
-    input.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;font-family:inherit;color:var(--text-primary);text-transform:none;letter-spacing:normal;line-height:1.3;padding:2px 4px;box-sizing:border-box;white-space:pre-wrap;word-break:break-word';
+    input.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:11px;font-weight:600;font-family:inherit;color:var(--text-primary);text-transform:none;letter-spacing:normal;line-height:1.3;padding:2px 4px;box-sizing:border-box;white-space:pre-wrap;word-break:break-word;text-align:center';
     input.oninput = function(){ col.title = this.value; autoResizeTA(this); };
     input.onblur  = function(){ saveSampleDataGrid(ref); };
     // Clicking anywhere in the header cell selects the column (showing the
@@ -21029,12 +21029,19 @@ function renderSampleDataGrid(ref) {
         guidanceBtn.type = 'button';
         guidanceBtn.className = 'sd-guidance-btn';
         guidanceBtn.dataset.colId = col.id;
-        guidanceBtn.style.cssText = 'display:inline-block;min-width:20px;font-size:9px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;border:0.5px solid transparent;' +
+        guidanceBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:2px 5px;border-radius:4px;cursor:pointer;box-sizing:border-box;border:0.5px solid transparent;' +
           (hasGuidance
-            ? 'background:#eff6ff;color:var(--wf-navy)'      // subtle light blue once guidance is entered
-            : 'background:var(--bg-secondary);color:var(--text-tertiary)'); // visible shading while empty
+            ? 'background:#eff6ff'      // subtle light blue once guidance is entered
+            : 'background:var(--bg-secondary)'); // visible shading while empty
         guidanceBtn.title = hasGuidance ? col.searchGuidance : 'No search guidance yet — click to add';
-        guidanceBtn.textContent = hasGuidance ? '✓' : '—';
+        // Inline SVG rather than a font icon (ti-notes) — an icon-only button
+        // with no text fallback would render as an empty box if the icon
+        // font's glyph fails to load, the same failure mode fixed elsewhere
+        // in this file. Color reflects whether guidance has been entered:
+        // navy when set, a muted grey outline when still empty.
+        guidanceBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="' +
+          (hasGuidance ? 'var(--wf-navy)' : 'var(--text-tertiary)') +
+          '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
         guidanceBtn.onclick = function(e){ e.stopPropagation(); _sdOpenGuidanceDialog(ref, col.id); };
         th.appendChild(guidanceBtn);
       }
@@ -21762,7 +21769,7 @@ async function readSampleFilesIntoGrid(ref) {
   }
 
   var failureNote = failures.length ? (' (' + failures.length + ' file(s) could not be read: ' +
-    failures.map(function(f){return f.file;}).join(', ') + ')') : '';
+    failures.map(function(f){return f.file + ' — ' + f.error;}).join('; ') + ')') : '';
 
   // The "found more records than are in the grid" case always needs explicit
   // user approval before anything is added — held separately from the
