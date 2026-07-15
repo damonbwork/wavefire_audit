@@ -21029,10 +21029,10 @@ function renderSampleDataGrid(ref) {
         guidanceBtn.type = 'button';
         guidanceBtn.className = 'sd-guidance-btn';
         guidanceBtn.dataset.colId = col.id;
-        guidanceBtn.style.cssText = 'width:100%;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;' +
+        guidanceBtn.style.cssText = 'display:inline-block;min-width:20px;font-size:9px;font-weight:600;line-height:1;padding:2px 5px;border-radius:4px;cursor:pointer;text-align:center;box-sizing:border-box;border:0.5px solid transparent;' +
           (hasGuidance
-            ? 'background:var(--wf-navy);color:#fff;border:0.5px solid var(--wf-navy)'
-            : 'background:transparent;color:var(--text-tertiary);border:0.5px dashed var(--border-medium)');
+            ? 'background:#eff6ff;color:var(--wf-navy)'      // subtle light blue once guidance is entered
+            : 'background:var(--bg-secondary);color:var(--text-tertiary)'); // visible shading while empty
         guidanceBtn.title = hasGuidance ? col.searchGuidance : 'No search guidance yet — click to add';
         guidanceBtn.textContent = hasGuidance ? '✓' : '—';
         guidanceBtn.onclick = function(e){ e.stopPropagation(); _sdOpenGuidanceDialog(ref, col.id); };
