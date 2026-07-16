@@ -21680,9 +21680,21 @@ function _sdCloseReadFilesModal() {
 }
 
 // Entry point — bound to the orange "Read Sample Files" button.
+// Guards against re-entrant runs: the real Claude API call can take 10+
+// seconds per file with no visible progress on the button itself (only the
+// modal shows progress, and only after this function has already started) —
+// an easy, natural thing to accidentally trigger twice by re-clicking while
+// waiting. Two concurrent runs would independently read/decide/write against
+// the same shared `data` object with no coordination between them, which is
+// unsafe regardless of what specific corruption it might cause.
+var _sdExtractionInProgress = {}; // ref -> true while a run is active
 async function readSampleFilesIntoGrid(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
+  if (_sdExtractionInProgress[ref]) {
+    console.warn('[Extract Sample Data] Ignored a click — extraction is already running for this workpaper.');
+    return;
+  }
 
   var memFiles = (inMemoryFiles[ref] && inMemoryFiles[ref].sample) || [];
   var staticSampleFiles = (WORKPAPERS[currentWPIndex] && WORKPAPERS[currentWPIndex].sampleFiles) || [];
@@ -21726,93 +21738,107 @@ async function readSampleFilesIntoGrid(ref) {
     return;
   }
 
-  _sdReadFilesCancelled = false;
-  var overlay = document.getElementById('sd-readfiles-overlay');
-  var titleEl = document.getElementById('sd-readfiles-title');
-  var closeBtn = document.getElementById('sd-readfiles-close-btn');
-  if (overlay) overlay.style.display = 'flex';
-  if (titleEl) titleEl.textContent = 'Reading sample files…';
-  if (closeBtn) { closeBtn.textContent = 'Cancel'; closeBtn.onclick = _sdCloseReadFilesModal; }
-  _sdSetReadProgress(0, 'Preparing ' + readableFiles.length + ' file' + (readableFiles.length!==1?'s':'') + '…');
+  // From here on, real work begins — set the re-entrancy flag and visibly
+  // disable the button so a second click can't start a concurrent run, and
+  // guarantee both are cleared on every exit path (success, early return
+  // from cancellation, or a thrown error) via try/finally rather than
+  // duplicating cleanup at each return statement individually.
+  _sdExtractionInProgress[ref] = true;
+  var readfilesBtn = document.getElementById('sd-readfiles-btn');
+  if (readfilesBtn) { readfilesBtn.disabled = true; readfilesBtn.style.opacity = '0.6'; readfilesBtn.style.cursor = 'not-allowed'; }
 
-  var perFileResults = [];
-  var failures = [];
-  var columnCountBeforeExtraction = data.columns.length; // see assertion below
+  try {
+    _sdReadFilesCancelled = false;
+    var overlay = document.getElementById('sd-readfiles-overlay');
+    var titleEl = document.getElementById('sd-readfiles-title');
+    var closeBtn = document.getElementById('sd-readfiles-close-btn');
+    if (overlay) overlay.style.display = 'flex';
+    if (titleEl) titleEl.textContent = 'Reading sample files…';
+    if (closeBtn) { closeBtn.textContent = 'Cancel'; closeBtn.onclick = _sdCloseReadFilesModal; }
+    _sdSetReadProgress(0, 'Preparing ' + readableFiles.length + ' file' + (readableFiles.length!==1?'s':'') + '…');
 
-  for (var i = 0; i < readableFiles.length; i++) {
-    if (_sdReadFilesCancelled) return;
-    var entry = readableFiles[i];
-    _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
-    try {
-      var result = await _sdExtractFromOneFile(entry, data);
-      perFileResults.push({ file: entry.name, result: result });
-    } catch (err) {
-      failures.push({ file: entry.name, error: err.message || String(err) });
+    var perFileResults = [];
+    var failures = [];
+    var columnCountBeforeExtraction = data.columns.length; // see assertion below
+
+    for (var i = 0; i < readableFiles.length; i++) {
+      if (_sdReadFilesCancelled) return;
+      var entry = readableFiles[i];
+      _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
+      try {
+        var result = await _sdExtractFromOneFile(entry, data);
+        perFileResults.push({ file: entry.name, result: result });
+      } catch (err) {
+        failures.push({ file: entry.name, error: err.message || String(err) });
+      }
     }
-  }
 
-  if (_sdReadFilesCancelled) return;
-  _sdSetReadProgress(95, 'Merging results into the grid…');
+    if (_sdReadFilesCancelled) return;
+    _sdSetReadProgress(95, 'Merging results into the grid…');
 
-  var merge = _sdMergeExtractionResults(ref, data, perFileResults);
+    var merge = _sdMergeExtractionResults(ref, data, perFileResults);
 
-  // Hard assertion: this function must NEVER change the column count, under
-  // any circumstance, per an explicit requirement — column invention was
-  // removed from the extraction pipeline entirely. If the count has changed
-  // anyway by this point, something is creating columns through a path this
-  // code doesn't control or know about; surface that loudly and immediately
-  // rather than let it pass silently, since a silent failure here is exactly
-  // what made this bug hard to pin down.
-  if (data.columns.length !== columnCountBeforeExtraction) {
-    console.error('[Extract Sample Data] COLUMN COUNT CHANGED during extraction: ' +
-      columnCountBeforeExtraction + ' -> ' + data.columns.length +
-      '. This should be impossible — extraction never creates columns. ' +
-      'Column titles now: ' + data.columns.map(function(c){return c.title;}).join(', '));
-    alert('Warning: the column count changed unexpectedly during extraction (' +
-      columnCountBeforeExtraction + ' \u2192 ' + data.columns.length +
-      ' columns). This should not happen. Please check the browser console (F12) ' +
-      'and report this — it indicates a bug outside the normal extraction path.');
-  }
+    // Hard assertion: this function must NEVER change the column count, under
+    // any circumstance, per an explicit requirement — column invention was
+    // removed from the extraction pipeline entirely. If the count has changed
+    // anyway by this point, something is creating columns through a path this
+    // code doesn't control or know about; surface that loudly and immediately
+    // rather than let it pass silently, since a silent failure here is exactly
+    // what made this bug hard to pin down.
+    if (data.columns.length !== columnCountBeforeExtraction) {
+      console.error('[Extract Sample Data] COLUMN COUNT CHANGED during extraction: ' +
+        columnCountBeforeExtraction + ' -> ' + data.columns.length +
+        '. This should be impossible — extraction never creates columns. ' +
+        'Column titles now: ' + data.columns.map(function(c){return c.title;}).join(', '));
+      alert('Warning: the column count changed unexpectedly during extraction (' +
+        columnCountBeforeExtraction + ' \u2192 ' + data.columns.length +
+        ' columns). This should not happen. Please check the browser console (F12) ' +
+        'and report this — it indicates a bug outside the normal extraction path.');
+    }
 
-  if (overlay) overlay.style.display = 'none';
+    if (overlay) overlay.style.display = 'none';
 
-  if (failures.length) {
-    console.warn('[Read Sample Files] ' + failures.length + ' file(s) failed:', failures);
-  }
+    if (failures.length) {
+      console.warn('[Read Sample Files] ' + failures.length + ' file(s) failed:', failures);
+    }
 
-  // Apply blank-filling for existing rows immediately — this never requires
-  // confirmation, since it only fills in blanks and never touches anything
-  // the user already entered, and never adds a column or a row on its own.
-  if (merge.appliedAnyChange) {
-    pushUndo(ref);
-    merge.rowUpdates.forEach(function(u){
-      var row = data.rows[u.rowIndex];
-      if (!row) return;
-      if (!row.cells) row.cells = {};
-      Object.keys(u.values).forEach(function(colId){
-        // Never overwrite a cell that already has a value — this call only
-        // fills blanks in existing rows, per the requested behavior.
-        if (row.cells[colId] === undefined || row.cells[colId] === '') {
-          row.cells[colId] = u.values[colId];
-        }
+    // Apply blank-filling for existing rows immediately — this never requires
+    // confirmation, since it only fills in blanks and never touches anything
+    // the user already entered, and never adds a column or a row on its own.
+    if (merge.appliedAnyChange) {
+      pushUndo(ref);
+      merge.rowUpdates.forEach(function(u){
+        var row = data.rows[u.rowIndex];
+        if (!row) return;
+        if (!row.cells) row.cells = {};
+        Object.keys(u.values).forEach(function(colId){
+          // Never overwrite a cell that already has a value — this call only
+          // fills blanks in existing rows, per the requested behavior.
+          if (row.cells[colId] === undefined || row.cells[colId] === '') {
+            row.cells[colId] = u.values[colId];
+          }
+        });
       });
-    });
-    renderSampleDataGrid(ref);
-    saveSampleDataGrid(ref);
-  }
+      renderSampleDataGrid(ref);
+      saveSampleDataGrid(ref);
+    }
 
-  var failureNote = failures.length ? (' (' + failures.length + ' file(s) could not be read: ' +
-    failures.map(function(f){return f.file + ' — ' + f.error;}).join('; ') + ')') : '';
+    var failureNote = failures.length ? (' (' + failures.length + ' file(s) could not be read: ' +
+      failures.map(function(f){return f.file + ' — ' + f.error;}).join('; ') + ')') : '';
 
-  // The "found more records than are in the grid" case always needs explicit
-  // user approval before anything is added — held separately from the
-  // fill-in-blanks merge above.
-  if (merge.proposedAdditions.length) {
-    _sdShowAddRowsPrompt(ref, merge.proposedAdditions, failureNote);
-  } else if (!merge.appliedAnyChange) {
-    alert('Read ' + readableFiles.length + ' file(s), but no usable sample data was found.' + failureNote);
-  } else {
-    alert('Sample data updated from ' + readableFiles.length + ' file(s).' + failureNote);
+    // The "found more records than are in the grid" case always needs explicit
+    // user approval before anything is added — held separately from the
+    // fill-in-blanks merge above.
+    if (merge.proposedAdditions.length) {
+      _sdShowAddRowsPrompt(ref, merge.proposedAdditions, failureNote);
+    } else if (!merge.appliedAnyChange) {
+      alert('Read ' + readableFiles.length + ' file(s), but no usable sample data was found.' + failureNote);
+    } else {
+      alert('Sample data updated from ' + readableFiles.length + ' file(s).' + failureNote);
+    }
+  } finally {
+    _sdExtractionInProgress[ref] = false;
+    if (readfilesBtn) { readfilesBtn.disabled = false; readfilesBtn.style.opacity = ''; readfilesBtn.style.cursor = ''; }
   }
 }
 
