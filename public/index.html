@@ -21710,28 +21710,30 @@ async function readSampleFilesIntoGrid(ref) {
   }
 
   var data = _daSampleDataFor(ref);
-  // Build-from-scratch (letting the AI invent its own column names) should
-  // ONLY happen when the grid has no columns at all to work from. A grid
-  // with columns already defined — even with zero rows yet, which is the
-  // normal state right after checking Extract on a column before any data
-  // has been pulled in — must always fill into those existing columns
-  // instead. Previously this also triggered scratch-build whenever rows was
-  // empty, which meant setting up columns and flagging them for extraction,
-  // then running extraction before adding any rows, caused the AI to ignore
-  // those columns entirely and invent new ones — exactly the behavior this
-  // fixes. Rows are still added as needed either way, via the existing
-  // proposed-additions/user-confirmation flow below (see the `else` branch
-  // of _sdMergeExtractionResults) — only column invention is gated out here.
-  var buildingFromScratch = (data.columns.length === 0);
+  // Extraction NEVER invents columns, under any circumstance — not even when
+  // the grid has zero columns. The user must define and flag columns for
+  // extraction themselves first; this button only ever fills values into
+  // columns that already exist. It can still add ROWS, but only when there's
+  // already at least one row of user-entered data to match new records
+  // against — matching is what distinguishes "this record already exists,
+  // fill in its blanks" from "this is a new record, propose adding it" (see
+  // _sdMergeExtractionResults). With zero existing rows there's nothing to
+  // match against, so rather than guess, ask the user to add a first row.
+  if (data.columns.length === 0) {
+    alert('Add at least one column to the Sample Data grid first, then check "Extract" on the columns you want filled in from the sample files.');
+    return;
+  }
+  if (data.rows.length === 0) {
+    alert('Add at least one row of sample data first (even partially filled in) so extraction has something to match new records against.');
+    return;
+  }
 
   _sdReadFilesCancelled = false;
   var overlay = document.getElementById('sd-readfiles-overlay');
   var titleEl = document.getElementById('sd-readfiles-title');
   var closeBtn = document.getElementById('sd-readfiles-close-btn');
   if (overlay) overlay.style.display = 'flex';
-  if (titleEl) titleEl.textContent = buildingFromScratch
-    ? 'Building sample data from files…'
-    : 'Reading sample files…';
+  if (titleEl) titleEl.textContent = 'Reading sample files…';
   if (closeBtn) { closeBtn.textContent = 'Cancel'; closeBtn.onclick = _sdCloseReadFilesModal; }
   _sdSetReadProgress(0, 'Preparing ' + readableFiles.length + ' file' + (readableFiles.length!==1?'s':'') + '…');
 
@@ -21743,7 +21745,7 @@ async function readSampleFilesIntoGrid(ref) {
     var entry = readableFiles[i];
     _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
     try {
-      var result = await _sdExtractFromOneFile(entry, data, buildingFromScratch);
+      var result = await _sdExtractFromOneFile(entry, data);
       perFileResults.push({ file: entry.name, result: result });
     } catch (err) {
       failures.push({ file: entry.name, error: err.message || String(err) });
@@ -21753,7 +21755,7 @@ async function readSampleFilesIntoGrid(ref) {
   if (_sdReadFilesCancelled) return;
   _sdSetReadProgress(95, 'Merging results into the grid…');
 
-  var merge = _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch);
+  var merge = _sdMergeExtractionResults(ref, data, perFileResults);
 
   if (overlay) overlay.style.display = 'none';
 
@@ -21761,30 +21763,23 @@ async function readSampleFilesIntoGrid(ref) {
     console.warn('[Read Sample Files] ' + failures.length + ' file(s) failed:', failures);
   }
 
-  // Apply whatever could be merged immediately (new columns if building from
-  // scratch, and filled-in values for existing rows) — this part never
-  // requires confirmation, since it either creates the grid where none
-  // existed or only fills in blanks, it doesn't touch anything the user
-  // already entered.
+  // Apply blank-filling for existing rows immediately — this never requires
+  // confirmation, since it only fills in blanks and never touches anything
+  // the user already entered, and never adds a column or a row on its own.
   if (merge.appliedAnyChange) {
     pushUndo(ref);
-    if (merge.newColumns.length) data.columns = data.columns.concat(merge.newColumns);
     merge.rowUpdates.forEach(function(u){
       var row = data.rows[u.rowIndex];
       if (!row) return;
       if (!row.cells) row.cells = {};
       Object.keys(u.values).forEach(function(colId){
         // Never overwrite a cell that already has a value — this call only
-        // fills blanks, whether building from scratch or completing existing
-        // rows, per the requested behavior.
+        // fills blanks in existing rows, per the requested behavior.
         if (row.cells[colId] === undefined || row.cells[colId] === '') {
           row.cells[colId] = u.values[colId];
         }
       });
     });
-    if (merge.newRowsForScratchBuild.length) {
-      merge.newRowsForScratchBuild.forEach(function(r){ data.rows.push(r); });
-    }
     renderSampleDataGrid(ref);
     saveSampleDataGrid(ref);
   }
@@ -21806,7 +21801,7 @@ async function readSampleFilesIntoGrid(ref) {
 
 // Builds the prompt and calls Claude for a single sample file, requesting a
 // strict JSON response so it can be parsed deterministically.
-async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
+async function _sdExtractFromOneFile(entry, data) {
   var base64 = await fileToBase64(entry.file);
   var ext = (entry.name.split('.').pop() || '').toLowerCase();
   var mediaType = null;
@@ -21821,46 +21816,27 @@ async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
     return { title: c.title || '(untitled)', guidance: c.searchGuidance || '' };
   });
 
-  // Hard safeguard, independent of whatever the caller passed in: this
-  // function must NEVER send the column-inventing prompt if the grid
-  // already has columns, full stop. Re-derive from the actual data right
-  // here rather than trusting buildingFromScratch alone — if the two ever
-  // disagree, that itself is a bug worth knowing about loudly rather than
-  // silently inventing columns over whatever the user already built.
-  var actuallyBuildingFromScratch = (data.columns.length === 0);
-  if (buildingFromScratch !== actuallyBuildingFromScratch) {
-    console.error('[Extract Sample Data] buildingFromScratch flag (' + buildingFromScratch +
-      ') disagreed with the grid\'s actual column count (' + data.columns.length +
-      ') — using the safe value (fill existing columns, never invent new ones) and ignoring the flag.');
-  }
-  buildingFromScratch = actuallyBuildingFromScratch;
-
-  var instructions;
-  if (buildingFromScratch) {
-    instructions =
-      'You are reading a sample document to help build a data-extraction grid for an audit workpaper.\n' +
-      'Identify every distinct sample record (e.g. an invoice, a transaction, a line item) visible in this file.\n' +
-      'Propose column names for the data fields that appear consistently across records (e.g. "Vendor Name", "Amount", "Date").\n' +
-      'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
-      '{"columns":[{"title":"Field Name"}],"rows":[{"values":{"Field Name":"extracted value"},"summary":"one-line description of this record"}]}';
-  } else {
-    instructions =
-      'You are filling in a data-extraction grid for an audit workpaper from a sample document.\n' +
-      'The grid already has these columns (title and optional search guidance for what to look for):\n' +
-      JSON.stringify(existingCols) + '\n' +
-      'Find values for ONLY these existing columns from this file — do not propose or invent any new columns; ' +
-      'the "values" object must never contain a key that is not one of the column titles above. Also note if this ' +
-      'file appears to contain sample records that are NOT already represented in the grid (additional rows ' +
-      'beyond what exists).\n' +
-      'IMPORTANT: for every record you report, include an entry in "values" for EVERY column listed above — ' +
-      'do not omit a column just because you could not find it. If you searched for a column\'s data element ' +
-      'in this record and genuinely could not find it, set that column\'s value to JSON null (not an empty ' +
-      'string, not omitted) so the caller can distinguish "searched and found nothing" from "not yet attempted".\n' +
-      'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
-      '{"rows":[{"isNew":true,"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"}]}\n' +
-      '(Every row you return is treated as describing a NEW sample record found in this file — the caller matches ' +
-      'it against existing rows itself, so just report every record you can find with its extracted values.)';
-  }
+  // There is only ever one extraction mode now: fill values into the
+  // columns that already exist. This function has no path that asks the AI
+  // to propose or invent a column, under any circumstance — the caller
+  // (readSampleFilesIntoGrid) already refuses to run at all if the grid has
+  // zero columns, so data.columns is guaranteed non-empty here regardless.
+  var instructions =
+    'You are filling in a data-extraction grid for an audit workpaper from a sample document.\n' +
+    'The grid already has these columns (title and optional search guidance for what to look for):\n' +
+    JSON.stringify(existingCols) + '\n' +
+    'Find values for ONLY these existing columns from this file — do not propose or invent any new columns; ' +
+    'the "values" object must never contain a key that is not one of the column titles above. Also note if this ' +
+    'file appears to contain sample records that are NOT already represented in the grid (additional rows ' +
+    'beyond what exists).\n' +
+    'IMPORTANT: for every record you report, include an entry in "values" for EVERY column listed above — ' +
+    'do not omit a column just because you could not find it. If you searched for a column\'s data element ' +
+    'in this record and genuinely could not find it, set that column\'s value to JSON null (not an empty ' +
+    'string, not omitted) so the caller can distinguish "searched and found nothing" from "not yet attempted".\n' +
+    'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
+    '{"rows":[{"isNew":true,"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"}]}\n' +
+    '(Every row you return is treated as describing a NEW sample record found in this file — the caller matches ' +
+    'it against existing rows itself, so just report every record you can find with its extracted values.)';
 
   var messages = [{
     role: 'user',
@@ -21876,6 +21852,11 @@ async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
 
   var parsed = _sdParseExtractionJSON(text);
   if (!parsed) throw new Error('Claude\'s response for ' + entry.name + ' was not valid JSON.');
+  // Hard safeguard: even though the prompt above never asks for a "columns"
+  // proposal, strip any "columns" key the model might still return anyway
+  // (models don't always follow instructions perfectly) so nothing calling
+  // this function could ever act on an invented column list.
+  if (parsed.columns) delete parsed.columns;
   return parsed;
 }
 
@@ -21890,7 +21871,9 @@ function _sdParseExtractionJSON(text) {
     var parsed = JSON.parse(jsonStr);
     if (!parsed || typeof parsed !== 'object') return null;
     if (!Array.isArray(parsed.rows)) parsed.rows = [];
-    if (!Array.isArray(parsed.columns)) parsed.columns = [];
+    // No "columns" normalization — extraction never invents columns anymore,
+    // so nothing downstream reads that field even if a model still returns
+    // one; _sdExtractFromOneFile explicitly discards it as a safeguard.
     return parsed;
   } catch (e) {
     return null;
@@ -21949,83 +21932,45 @@ function _sdValueOrNotFound(v) {
   return searchedButNotFound ? 'Not Found' : v;
 }
 
-function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch) {
-  // Same hard safeguard as _sdExtractFromOneFile: never trust the caller's
-  // flag alone for the decision that gates column invention. If the grid
-  // already has columns, new columns must never be created here, regardless
-  // of what was passed in.
-  var actuallyBuildingFromScratch = (data.columns.length === 0);
-  if (buildingFromScratch !== actuallyBuildingFromScratch) {
-    console.error('[Extract Sample Data] buildingFromScratch flag (' + buildingFromScratch +
-      ') disagreed with the grid\'s actual column count (' + data.columns.length +
-      ') at merge time — using the safe value.');
-  }
-  buildingFromScratch = actuallyBuildingFromScratch;
-
-  var newColumns = [];
+// Merges every file's extraction result into a plan: fills for existing rows
+// (matched by key column) and proposed new rows for records that don't match
+// anything already in the grid. This function NEVER creates a column, under
+// any circumstance — that capability has been removed entirely, not just
+// gated. It also assumes the caller (readSampleFilesIntoGrid) has already
+// verified data.columns.length > 0 and data.rows.length > 0 before calling,
+// since matching a "new" record requires something existing to compare
+// against; this function doesn't re-check that itself, callers must.
+function _sdMergeExtractionResults(ref, data, perFileResults) {
   var rowUpdates = [];
-  var newRowsForScratchBuild = [];
   var proposedAdditions = [];
 
-  if (buildingFromScratch) {
-    var seenTitles = {};
-    data.columns.forEach(function(c){ seenTitles[c.title] = c; });
-    var colCounter = 0;
-    perFileResults.forEach(function(fr){
-      (fr.result.columns || []).forEach(function(c){
-        if (c.title && !seenTitles[c.title]) {
-          var col = { id: 'col_' + Date.now() + '_' + (colCounter++), title: c.title, extract: false, width: 180 };
-          seenTitles[c.title] = col;
-          newColumns.push(col);
-        }
-      });
-    });
-    var allCols = data.columns.concat(newColumns);
-    perFileResults.forEach(function(fr){
-      (fr.result.rows || []).forEach(function(r){
-        var cells = {};
-        allCols.forEach(function(col){
-          if (!r.values || r.values[col.title] === undefined) return;
-          // Defense-in-depth: the scratch-build prompt doesn't ask for a
-          // null signal the way fill-mode's does, but a model can still
-          // return one regardless of instructions — never let a raw null
-          // leak into a cell and render as the literal text "null".
-          cells[col.id] = _sdValueOrNotFound(r.values[col.title]);
+  var keyCol = _sdPickKeyColumn(data);
+  perFileResults.forEach(function(fr){
+    (fr.result.rows || []).forEach(function(r){
+      var matchIdx = _sdFindMatchingRow(data, keyCol, r.values || {});
+      if (matchIdx >= 0) {
+        var cellsByColId = {};
+        data.columns.forEach(function(col){
+          if (!r.values || !(col.title in r.values)) return; // key genuinely absent — not attempted, leave blank
+          // The prompt asks Claude to report JSON null when it searched for
+          // a column's data element and genuinely could not find it, as
+          // opposed to omitting the key entirely (not attempted). Both null
+          // and an empty/whitespace-only string count as "searched, found
+          // nothing" — a model doesn't always follow "use null" precisely,
+          // so treat either as the same explicit not-found signal.
+          cellsByColId[col.id] = _sdValueOrNotFound(r.values[col.title]);
         });
-        newRowsForScratchBuild.push({ cells: cells });
-      });
+        rowUpdates.push({ rowIndex: matchIdx, values: cellsByColId });
+      } else {
+        proposedAdditions.push({ sourceFile: fr.file, summary: r.summary || '(no summary provided)', values: r.values || {} });
+      }
     });
-  } else {
-    var keyCol = _sdPickKeyColumn(data);
-    perFileResults.forEach(function(fr){
-      (fr.result.rows || []).forEach(function(r){
-        var matchIdx = _sdFindMatchingRow(data, keyCol, r.values || {});
-        if (matchIdx >= 0) {
-          var cellsByColId = {};
-          data.columns.forEach(function(col){
-            if (!r.values || !(col.title in r.values)) return; // key genuinely absent — not attempted, leave blank
-            // The prompt asks Claude to report JSON null when it searched for
-            // a column's data element and genuinely could not find it, as
-            // opposed to omitting the key entirely (not attempted). Both null
-            // and an empty/whitespace-only string count as "searched, found
-            // nothing" — a model doesn't always follow "use null" precisely,
-            // so treat either as the same explicit not-found signal.
-            cellsByColId[col.id] = _sdValueOrNotFound(r.values[col.title]);
-          });
-          rowUpdates.push({ rowIndex: matchIdx, values: cellsByColId });
-        } else {
-          proposedAdditions.push({ sourceFile: fr.file, summary: r.summary || '(no summary provided)', values: r.values || {} });
-        }
-      });
-    });
-  }
+  });
 
   return {
-    newColumns: newColumns,
     rowUpdates: rowUpdates,
-    newRowsForScratchBuild: newRowsForScratchBuild,
     proposedAdditions: proposedAdditions,
-    appliedAnyChange: newColumns.length > 0 || rowUpdates.length > 0 || newRowsForScratchBuild.length > 0,
+    appliedAnyChange: rowUpdates.length > 0,
   };
 }
 
