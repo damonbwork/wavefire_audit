@@ -21084,13 +21084,22 @@ function renderSampleDataGrid(ref) {
       ta.dataset.rowIdx = i;
       ta.dataset.colIdx = colIdx;
       ta.rows = 1;
-      ta.value = col.extract ? '' : ((row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '');
+      // Previously this forced the value to '' for every extract-flagged
+      // column unconditionally, which meant a successfully extracted value
+      // (written into row.cells by _sdMergeExtractionResults) never actually
+      // displayed — only the "Auto-extracted" placeholder ever showed, for
+      // every extract-flagged cell regardless of whether extraction had run.
+      // Now the real stored value (found data, or the literal "Not Found"
+      // when extraction searched and came up empty) is shown; the
+      // placeholder only appears for a cell nothing has been written to yet.
+      var cellVal = (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '';
+      ta.value = cellVal;
       ta.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:12px;font-family:inherit;line-height:1.4;color:var(--text-primary);padding:6px 8px;box-sizing:border-box;' +
         (col.extract ? 'color:var(--text-tertiary);font-style:italic;cursor:not-allowed' : '') +
         (row.height != null ? 'height:'+row.height+'px;' : ''); // manual override clips here — see note above
       if (col.extract) {
         ta.disabled = true;
-        ta.placeholder = 'Auto-extracted';
+        ta.placeholder = 'Auto-extracted'; // shown only while cellVal is empty (nothing written yet)
       } else {
         ta.oninput = function(){
           if(!row.cells) row.cells = {};
@@ -21815,8 +21824,12 @@ async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
       JSON.stringify(existingCols) + '\n' +
       'Find values for these columns from this file. Also note if this file appears to contain sample records ' +
       'that are NOT already represented in the grid (additional rows beyond what exists).\n' +
+      'IMPORTANT: for every record you report, include an entry in "values" for EVERY column listed above — ' +
+      'do not omit a column just because you could not find it. If you searched for a column\'s data element ' +
+      'in this record and genuinely could not find it, set that column\'s value to JSON null (not an empty ' +
+      'string, not omitted) so the caller can distinguish "searched and found nothing" from "not yet attempted".\n' +
       'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
-      '{"rows":[{"isNew":true,"values":{"Field Name":"extracted value"},"summary":"one-line description of this record"}]}\n' +
+      '{"rows":[{"isNew":true,"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"}]}\n' +
       '(Every row you return is treated as describing a NEW sample record found in this file — the caller matches ' +
       'it against existing rows itself, so just report every record you can find with its extracted values.)';
   }
@@ -21931,7 +21944,16 @@ function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratc
         if (matchIdx >= 0) {
           var cellsByColId = {};
           data.columns.forEach(function(col){
-            if (r.values && r.values[col.title] !== undefined) cellsByColId[col.id] = r.values[col.title];
+            if (!r.values || !(col.title in r.values)) return; // key genuinely absent — not attempted, leave blank
+            var v = r.values[col.title];
+            // The prompt asks Claude to report JSON null when it searched for
+            // a column's data element and genuinely could not find it, as
+            // opposed to omitting the key entirely (not attempted). Both null
+            // and an empty/whitespace-only string count as "searched, found
+            // nothing" — a model doesn't always follow "use null" precisely,
+            // so treat either as the same explicit not-found signal.
+            var searchedButNotFound = (v === null) || (typeof v === 'string' && v.trim() === '');
+            cellsByColId[col.id] = searchedButNotFound ? 'Not Found' : v;
           });
           rowUpdates.push({ rowIndex: matchIdx, values: cellsByColId });
         } else {
