@@ -21063,8 +21063,11 @@ function renderSampleDataGrid(ref) {
     tr.appendChild(numTd);
     data.columns.forEach(function(col, colIdx){
       var td = document.createElement('td');
-      td.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;padding:0;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top;' +
-        (col.extract ? 'background:#f8fafc' : '');
+      td.style.cssText = 'width:'+col.width+'px;min-width:'+SD_MIN_COL_WIDTH+'px;padding:0;border-right:0.5px solid var(--border-light);box-sizing:border-box;vertical-align:top';
+      // No background shading here — previously every extract-flagged cell
+      // got a light grey fill unconditionally, including cells holding a
+      // literal "Not Found" result, which is exactly the case that should
+      // read like normal cell content rather than looking specially marked.
       // A <textarea> (not <input>) is required so cell content can wrap and
       // its natural height can be measured via scrollHeight — an <input> has
       // a fixed single-line height regardless of content length.
