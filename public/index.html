@@ -21710,7 +21710,19 @@ async function readSampleFilesIntoGrid(ref) {
   }
 
   var data = _daSampleDataFor(ref);
-  var buildingFromScratch = (data.columns.length === 0 || data.rows.length === 0);
+  // Build-from-scratch (letting the AI invent its own column names) should
+  // ONLY happen when the grid has no columns at all to work from. A grid
+  // with columns already defined — even with zero rows yet, which is the
+  // normal state right after checking Extract on a column before any data
+  // has been pulled in — must always fill into those existing columns
+  // instead. Previously this also triggered scratch-build whenever rows was
+  // empty, which meant setting up columns and flagging them for extraction,
+  // then running extraction before adding any rows, caused the AI to ignore
+  // those columns entirely and invent new ones — exactly the behavior this
+  // fixes. Rows are still added as needed either way, via the existing
+  // proposed-additions/user-confirmation flow below (see the `else` branch
+  // of _sdMergeExtractionResults) — only column invention is gated out here.
+  var buildingFromScratch = (data.columns.length === 0);
 
   _sdReadFilesCancelled = false;
   var overlay = document.getElementById('sd-readfiles-overlay');
@@ -21822,8 +21834,10 @@ async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
       'You are filling in a data-extraction grid for an audit workpaper from a sample document.\n' +
       'The grid already has these columns (title and optional search guidance for what to look for):\n' +
       JSON.stringify(existingCols) + '\n' +
-      'Find values for these columns from this file. Also note if this file appears to contain sample records ' +
-      'that are NOT already represented in the grid (additional rows beyond what exists).\n' +
+      'Find values for ONLY these existing columns from this file — do not propose or invent any new columns; ' +
+      'the "values" object must never contain a key that is not one of the column titles above. Also note if this ' +
+      'file appears to contain sample records that are NOT already represented in the grid (additional rows ' +
+      'beyond what exists).\n' +
       'IMPORTANT: for every record you report, include an entry in "values" for EVERY column listed above — ' +
       'do not omit a column just because you could not find it. If you searched for a column\'s data element ' +
       'in this record and genuinely could not find it, set that column\'s value to JSON null (not an empty ' +
@@ -21907,6 +21921,20 @@ function _sdFindMatchingRow(data, keyCol, aiValues) {
 // to match against yet), and proposed additions (fill mode only — records
 // the AI found that don't match any existing row, which always require
 // explicit user approval before anything is added to the grid).
+// Translates a raw value the AI reported for a column into what should
+// actually be stored in the cell: the value itself if real, or the literal
+// text "Not Found" if the AI explicitly signaled it searched and found
+// nothing (JSON null), or returned an empty/whitespace-only string (a model
+// doesn't always follow the "use null" instruction to the letter, so both
+// count as the same explicit not-found signal). Used identically wherever an
+// AI-reported value is written into a cell — scratch-build rows, fill-mode
+// row updates, and accepted proposed-row additions — so all three paths stay
+// in sync rather than risk drifting apart as separate inline copies.
+function _sdValueOrNotFound(v) {
+  var searchedButNotFound = (v === null) || (typeof v === 'string' && v.trim() === '');
+  return searchedButNotFound ? 'Not Found' : v;
+}
+
 function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch) {
   var newColumns = [];
   var rowUpdates = [];
@@ -21931,7 +21959,12 @@ function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratc
       (fr.result.rows || []).forEach(function(r){
         var cells = {};
         allCols.forEach(function(col){
-          if (r.values && r.values[col.title] !== undefined) cells[col.id] = r.values[col.title];
+          if (!r.values || r.values[col.title] === undefined) return;
+          // Defense-in-depth: the scratch-build prompt doesn't ask for a
+          // null signal the way fill-mode's does, but a model can still
+          // return one regardless of instructions — never let a raw null
+          // leak into a cell and render as the literal text "null".
+          cells[col.id] = _sdValueOrNotFound(r.values[col.title]);
         });
         newRowsForScratchBuild.push({ cells: cells });
       });
@@ -21945,15 +21978,13 @@ function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratc
           var cellsByColId = {};
           data.columns.forEach(function(col){
             if (!r.values || !(col.title in r.values)) return; // key genuinely absent — not attempted, leave blank
-            var v = r.values[col.title];
             // The prompt asks Claude to report JSON null when it searched for
             // a column's data element and genuinely could not find it, as
             // opposed to omitting the key entirely (not attempted). Both null
             // and an empty/whitespace-only string count as "searched, found
             // nothing" — a model doesn't always follow "use null" precisely,
             // so treat either as the same explicit not-found signal.
-            var searchedButNotFound = (v === null) || (typeof v === 'string' && v.trim() === '');
-            cellsByColId[col.id] = searchedButNotFound ? 'Not Found' : v;
+            cellsByColId[col.id] = _sdValueOrNotFound(r.values[col.title]);
           });
           rowUpdates.push({ rowIndex: matchIdx, values: cellsByColId });
         } else {
@@ -22026,7 +22057,13 @@ function _sdAcceptAddRows() {
   pending.additions.forEach(function(a){
     var cells = {};
     data.columns.forEach(function(col){
-      if (a.values && a.values[col.title] !== undefined) cells[col.id] = a.values[col.title];
+      if (!a.values || a.values[col.title] === undefined) return; // key genuinely absent — not attempted, leave blank
+      // Same "searched but found nothing" translation applied when filling
+      // existing rows (see _sdMergeExtractionResults) — without this, an
+      // accepted new row would store the raw null (or empty string) the AI
+      // reported, which renders as the literal text "null" in the cell
+      // rather than the intended "Not Found".
+      cells[col.id] = _sdValueOrNotFound(a.values[col.title]);
     });
     data.rows.push({ cells: cells });
   });
