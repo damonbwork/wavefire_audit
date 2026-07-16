@@ -19504,17 +19504,6 @@ function openDocxAtBookmark(fileId, bookmarkName) {
 /* ══════════════════════════════════════
    EXCEL NAMED RANGES — Quick Links
 ══════════════════════════════════════ */
-async function loadSheetJS() {
-  if (window.XLSX) return window.XLSX;
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload = () => resolve(window.XLSX);
-    s.onerror = () => reject(new Error('Failed to load SheetJS from CDN.'));
-    document.head.appendChild(s);
-  });
-}
-
 async function parseXlsxNamedRanges(fileId, ref, idx) {
   const panel = document.getElementById('bmpanel-' + fileId);
   const entry = inMemoryFiles[ref]?.sample?.[idx];
@@ -21748,6 +21737,7 @@ async function readSampleFilesIntoGrid(ref) {
 
   var perFileResults = [];
   var failures = [];
+  var columnCountBeforeExtraction = data.columns.length; // see assertion below
 
   for (var i = 0; i < readableFiles.length; i++) {
     if (_sdReadFilesCancelled) return;
@@ -21765,6 +21755,24 @@ async function readSampleFilesIntoGrid(ref) {
   _sdSetReadProgress(95, 'Merging results into the grid…');
 
   var merge = _sdMergeExtractionResults(ref, data, perFileResults);
+
+  // Hard assertion: this function must NEVER change the column count, under
+  // any circumstance, per an explicit requirement — column invention was
+  // removed from the extraction pipeline entirely. If the count has changed
+  // anyway by this point, something is creating columns through a path this
+  // code doesn't control or know about; surface that loudly and immediately
+  // rather than let it pass silently, since a silent failure here is exactly
+  // what made this bug hard to pin down.
+  if (data.columns.length !== columnCountBeforeExtraction) {
+    console.error('[Extract Sample Data] COLUMN COUNT CHANGED during extraction: ' +
+      columnCountBeforeExtraction + ' -> ' + data.columns.length +
+      '. This should be impossible — extraction never creates columns. ' +
+      'Column titles now: ' + data.columns.map(function(c){return c.title;}).join(', '));
+    alert('Warning: the column count changed unexpectedly during extraction (' +
+      columnCountBeforeExtraction + ' \u2192 ' + data.columns.length +
+      ' columns). This should not happen. Please check the browser console (F12) ' +
+      'and report this — it indicates a bug outside the normal extraction path.');
+  }
 
   if (overlay) overlay.style.display = 'none';
 
@@ -22044,9 +22052,17 @@ function _sdShowAddRowsPrompt(ref, proposedAdditions, failureNote) {
 }
 
 function _sdDeclineAddRows() {
+  var pending = _sdProposedRows;
   var overlay = document.getElementById('sd-addrows-overlay');
   if (overlay) overlay.style.display = 'none';
   _sdProposedRows = null;
+  // Declining the proposed additions still needs to show whatever the
+  // fill-in-blanks merge already applied to existing rows before this dialog
+  // even appeared (see readSampleFilesIntoGrid) — that data was written into
+  // `data` immediately and unconditionally, but without this render call the
+  // grid would keep showing its pre-extraction state until something
+  // unrelated happened to trigger the next redraw.
+  if (pending && pending.ref) renderSampleDataGrid(pending.ref);
 }
 
 function _sdAcceptAddRows() {
