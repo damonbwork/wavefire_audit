@@ -21821,6 +21821,20 @@ async function _sdExtractFromOneFile(entry, data, buildingFromScratch) {
     return { title: c.title || '(untitled)', guidance: c.searchGuidance || '' };
   });
 
+  // Hard safeguard, independent of whatever the caller passed in: this
+  // function must NEVER send the column-inventing prompt if the grid
+  // already has columns, full stop. Re-derive from the actual data right
+  // here rather than trusting buildingFromScratch alone — if the two ever
+  // disagree, that itself is a bug worth knowing about loudly rather than
+  // silently inventing columns over whatever the user already built.
+  var actuallyBuildingFromScratch = (data.columns.length === 0);
+  if (buildingFromScratch !== actuallyBuildingFromScratch) {
+    console.error('[Extract Sample Data] buildingFromScratch flag (' + buildingFromScratch +
+      ') disagreed with the grid\'s actual column count (' + data.columns.length +
+      ') — using the safe value (fill existing columns, never invent new ones) and ignoring the flag.');
+  }
+  buildingFromScratch = actuallyBuildingFromScratch;
+
   var instructions;
   if (buildingFromScratch) {
     instructions =
@@ -21936,6 +21950,18 @@ function _sdValueOrNotFound(v) {
 }
 
 function _sdMergeExtractionResults(ref, data, perFileResults, buildingFromScratch) {
+  // Same hard safeguard as _sdExtractFromOneFile: never trust the caller's
+  // flag alone for the decision that gates column invention. If the grid
+  // already has columns, new columns must never be created here, regardless
+  // of what was passed in.
+  var actuallyBuildingFromScratch = (data.columns.length === 0);
+  if (buildingFromScratch !== actuallyBuildingFromScratch) {
+    console.error('[Extract Sample Data] buildingFromScratch flag (' + buildingFromScratch +
+      ') disagreed with the grid\'s actual column count (' + data.columns.length +
+      ') at merge time — using the safe value.');
+  }
+  buildingFromScratch = actuallyBuildingFromScratch;
+
   var newColumns = [];
   var rowUpdates = [];
   var newRowsForScratchBuild = [];
