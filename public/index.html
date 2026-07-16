@@ -21714,27 +21714,18 @@ async function readSampleFilesIntoGrid(ref) {
   // Extraction NEVER invents columns, under any circumstance — not even when
   // the grid has zero columns. The user must define and flag columns for
   // extraction themselves first; this button only ever fills values into
-  // columns that already exist. It can still add ROWS, but only when the
-  // grid already has real user-entered data in it BEFORE extraction runs —
-  // that existing data is what lets the app distinguish "this record already
-  // exists, fill in its blanks" from "this is new data the AI found related
-  // to what's already here, propose adding it" (see _sdMergeExtractionResults
-  // / _sdFindMatchingRow). A row that exists but is entirely blank doesn't
-  // count — matching would have nothing to compare against, so every found
-  // record would incorrectly look "new" regardless of whether it actually
-  // is. Checking for real content, not just row count, is what makes "only
-  // if there was pre-existing user data" true in substance, not just in form.
+  // columns that already exist.
+  //
+  // Rows are a different story: a grid with zero existing rows is a fully
+  // supported starting state, not an error. In that case every record the
+  // AI finds is naturally treated as new (see _sdFindMatchingRow — matching
+  // against an empty rows array always correctly returns "no match" for
+  // everything), so it's routed through the propose-and-confirm flow below
+  // rather than silently added. If the grid already has real data, matching
+  // records fill in blanks instead of being proposed again — both cases
+  // fall out of the same merge logic without a special-case here.
   if (data.columns.length === 0) {
     alert('Add at least one column to the Sample Data grid first, then check "Extract" on the columns you want filled in from the sample files.');
-    return;
-  }
-  var hasRealData = data.rows.some(function(row){
-    return row.cells && Object.keys(row.cells).some(function(colId){
-      return row.cells[colId] !== undefined && row.cells[colId] !== null && String(row.cells[colId]).trim() !== '';
-    });
-  });
-  if (!hasRealData) {
-    alert('Add at least one row of real sample data first (not just a blank row) so extraction has something to match new records against.');
     return;
   }
 
