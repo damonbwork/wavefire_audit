@@ -21937,15 +21937,84 @@ function _sdParseExtractionJSON(text) {
 // the user rather than machine-extracted). Falls back to the first
 // non-extract column, then the first column of any kind, if nothing is
 // populated yet.
+// Picks the column used to match an AI-extracted record against an existing
+// grid row. The disqualifying condition is a column being BLANK across every
+// row — not whether it happens to be flagged for extraction. An
+// extract-flagged column is usually blank on a first run (nothing to match
+// yet), which is why earlier logic excluded extract-flagged columns
+// entirely — but that's wrong once a column like "Check #" already has real
+// values in it (whether entered manually or from an earlier extraction),
+// which is exactly the common case: a natural identifier column IS often
+// one the user also wants auto-filled/verified for other rows. Prefer ANY
+// column — extract-flagged or not — that has a non-blank value in at least
+// one existing row; among those, prefer a non-extract one only as a
+// tie-breaker (its value is more likely to have been deliberately entered by
+// the user rather than machine-extracted). Falls back to the first
+// non-extract column, then the first column of any kind, if nothing is
+// populated yet.
+//
+// Critically, the literal text "Not Found" does NOT count as populated data
+// here, even though it's a non-blank string. It's the marker written when
+// extraction searched a field and came up empty (see _sdValueOrNotFound) —
+// exactly the least reliable, least identifier-like value a column could
+// hold, and treating it as "this column has real data" was causing a
+// concrete bug: a free-text column with no real answer (e.g. a yes/no
+// question the AI can never determine) would fill up with "Not Found" on
+// the first run, get chosen as the match key on the second run purely
+// because it was "non-blank," and since the AI reports that same field as
+// null every time (there's still no real answer), matching would
+// immediately fail and duplicate the record as a new row on every
+// subsequent run.
+// Picks the column used to match an AI-extracted record against an existing
+// grid row. Preference order, strongest signal first:
+//   1. A column whose populated values are UNIQUE across existing rows —
+//      this is real evidence it behaves like an identifier (e.g. "Check #",
+//      where no two checks share a number), regardless of its extract flag.
+//      A shared, non-unique field like "Facility" (the same value on every
+//      check from one vendor) must NOT be picked ahead of a true identifier,
+//      since matching on it would incorrectly merge genuinely different
+//      records that just happen to share that one value — the exact false
+//      -positive this uniqueness check exists to prevent.
+//   2. With fewer than 2 rows, uniqueness can't be demonstrated yet (it
+//      takes at least two data points to show they're distinct) — the most
+//      common real case being exactly one existing row. Among columns that
+//      have data, prefer one whose TITLE reads like an identifier ("Check
+//      #", "Invoice Number", "Reference ID") over a merely descriptive one
+//      ("Facility", "Vendor Name") that's expected to repeat across many
+//      records. This is a heuristic, not certain — it's here because with
+//      only one data point there is no way to observe uniqueness directly,
+//      so a reasonable guess beats an arbitrary one (column order).
+//   3. Any non-extract column with at least one real (non-blank,
+//      non-"Not Found") value, if nothing scored via title.
+//   4. Any column at all with real data.
+//   5. The first non-extract column, then the first column of any kind, if
+//      nothing has any data yet (a first-ever run on an empty grid).
+// The literal text "Not Found" never counts as real data at any tier — it's
+// the marker for "searched, found nothing" (see _sdValueOrNotFound), not a
+// value that could ever meaningfully identify or distinguish a record.
 function _sdPickKeyColumn(data) {
-  function hasData(col) {
-    return data.rows.some(function(row){
-      return row.cells && row.cells[col.id] !== undefined && String(row.cells[col.id]).trim() !== '';
-    });
+  function realValuesFor(col) {
+    return data.rows
+      .map(function(row){ return row.cells && row.cells[col.id]; })
+      .filter(function(v){ return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'not found'; })
+      .map(function(v){ return String(v).trim().toLowerCase(); });
   }
+  function hasData(col) { return realValuesFor(col).length > 0; }
+  function isUnique(col) {
+    var vals = realValuesFor(col);
+    if (vals.length < 2) return false; // need at least 2 rows to demonstrate uniqueness at all
+    return new Set(vals).size === vals.length;
+  }
+  var IDENTIFIER_HINTS = /#|number|no\.?\b|\bid\b|reference|invoice|check\s*#|account\s*#/i;
+  function looksLikeIdentifier(col) { return IDENTIFIER_HINTS.test(col.title || ''); }
+
+  var uniqueCol = data.columns.find(isUnique);
+  if (uniqueCol) return uniqueCol;
+  var populatedIdentifierLike = data.columns.find(function(c){ return hasData(c) && looksLikeIdentifier(c); });
+  if (populatedIdentifierLike) return populatedIdentifierLike;
   var populatedNonExtract = data.columns.find(function(c){ return !c.extract && hasData(c); });
   if (populatedNonExtract) return populatedNonExtract;
-  var populatedAny = data.columns.find(function(c){ return hasData(c); });
+  var populatedAny = data.columns.find(hasData);
   if (populatedAny) return populatedAny;
   var firstNonExtract = data.columns.find(function(c){ return !c.extract; });
   if (firstNonExtract) return firstNonExtract;
@@ -21957,14 +22026,21 @@ function _sdPickKeyColumn(data) {
 // and minor formatting differences shouldn't cause a false "not found").
 // Returns -1 if no key column, no AI value for it, or no match — callers
 // treat -1 as "this is a new record, not a fill for an existing row."
+// The literal text "Not Found" is never treated as a valid value to match
+// against on either side of the comparison — it's the marker for "searched,
+// found nothing" (see _sdValueOrNotFound), not a real identifier, so two
+// different records that both lack the same field must never appear to
+// "match" each other on that basis.
 function _sdFindMatchingRow(data, keyCol, aiValues) {
   if (!keyCol) return -1;
   var aiKeyVal = aiValues[keyCol.title];
-  if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '') return -1;
+  if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '' ||
+      String(aiKeyVal).trim().toLowerCase() === 'not found') return -1;
   for (var i = 0; i < data.rows.length; i++) {
     var row = data.rows[i];
     var existingVal = row.cells && row.cells[keyCol.id];
     if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '' &&
+        String(existingVal).trim().toLowerCase() !== 'not found' &&
         String(existingVal).trim().toLowerCase() === String(aiKeyVal).trim().toLowerCase()) {
       return i;
     }
@@ -21972,12 +22048,11 @@ function _sdFindMatchingRow(data, keyCol, aiValues) {
   return -1;
 }
 
-// Combines every file's extraction result into one plan: new columns (only
-// when building from scratch), fills for existing rows (matched by key
-// column), brand-new rows (only in scratch-build mode, where there's nothing
-// to match against yet), and proposed additions (fill mode only — records
-// the AI found that don't match any existing row, which always require
-// explicit user approval before anything is added to the grid).
+// Combines every file's extraction result into one plan: fills for existing
+// rows (matched by key column) and proposed additions for records that
+// don't match anything already in the grid (which always require explicit
+// user approval — see _sdShowAddRowsPrompt/_sdAcceptAddRows — before
+// anything is added). This never creates a column, under any circumstance.
 // Translates a raw value the AI reported for a column into what should
 // actually be stored in the cell: the value itself if real, or the literal
 // text "Not Found" if the AI explicitly signaled it searched and found
