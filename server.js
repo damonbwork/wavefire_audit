@@ -949,7 +949,18 @@ app.post('/api/workpapers', async (req, res) => {
         linked_entities=EXCLUDED.linked_entities, fs_accounts=EXCLUDED.fs_accounts,
         scope_entities=EXCLUDED.scope_entities, scope_fs_accounts=EXCLUDED.scope_fs_accounts,
         test_attributes=EXCLUDED.test_attributes, sample_fields=EXCLUDED.sample_fields,
-        sample_data=EXCLUDED.sample_data,
+        -- sample_data is deliberately NOT overwritten on update anymore: the
+        -- client no longer sends it at all (User Provided Sample Data now
+        -- lives in sample_data_columns/sample_data_rows instead), and this
+        -- legacy column's remaining, still-real content is what the one-time
+        -- PRS Sample-Data-to-Extracted-Data migration reads from. Always
+        -- writing req.body's (now permanently absent) sample_data here would
+        -- silently wipe that column to its empty default on every ordinary
+        -- workpaper save, destroying the migration's source data before it
+        -- ever got a chance to run. Preserving the existing value on UPDATE,
+        -- while still writing whatever's provided (or the default) on first
+        -- INSERT, keeps this column's content stable until the migration
+        -- that depends on it is retired.
         exceptions=EXCLUDED.exceptions, updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
