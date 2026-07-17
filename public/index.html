@@ -2468,10 +2468,12 @@
           </div></div>
 
         <!-- Section 4c: Sample Data -->
-        <div class="sect-card" id="sect-sample-data" style="overflow-x:auto">
-          <div class="sect-hdr">
-            <div class="sect-hdr-title" style="flex:1;min-width:0" title="Enter or copy/paste sample data you already have from outside the application. Add rows or columns as needed."><i class="ti ti-table"></i>User Provided Sample Data</div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
+        <div id="sect-sample-data-group">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:6px"><i class="ti ti-table"></i>Sample Data</div>
+          <div class="sect-card" id="sect-sample-data" style="overflow-x:auto">
+            <div class="sect-hdr">
+              <div class="sect-hdr-title" style="flex:1;min-width:0" title="Enter or copy/paste sample data you already have from outside the application. Add rows or columns as needed."><i class="ti ti-table"></i>Sample Data Provided by User</div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn-s" onclick="addSampleDataColumn()" title="Add a new column to the right" style="font-size:10px;padding:2px 8px;white-space:nowrap">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add column
@@ -2484,6 +2486,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
                 Row below
               </button>
+              <button class="btn-s" onclick="undoAnnotation()" title="Undo the last change (including a paste)" style="font-size:10px;padding:2px 8px;white-space:nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg>
+                Undo
+              </button>
             </div>
           </div>
           <div class="sect-body" style="padding:0">
@@ -2491,7 +2497,7 @@
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
                   <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
-                    <th style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light)">#</th>
+                    <th id="sd-numcol-hdr" style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
                     <!-- User-added column headers render here via JS -->
                   </tr>
                 </thead>
@@ -2512,6 +2518,22 @@
                 </button>
                 <button id="sd-col-toolbar-delete" class="icon-btn" title="Remove column" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarDeleteColumn()">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <!-- Shared row toolbar — same pattern as the column toolbar
+                   above, anchored near the "#" header and repositioned over
+                   whichever row's number cell is currently selected. Only
+                   the selected row exposes move/delete controls now; no
+                   per-row buttons are rendered at all. -->
+              <div id="sd-row-toolbar" style="display:none;position:absolute;z-index:5;flex-direction:column;gap:1px;background:var(--bg-primary);border:0.5px solid var(--border-medium);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.12);padding:2px">
+                <button id="sd-row-toolbar-up" class="icon-btn" title="Move row up" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarMoveRow('up')">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                </button>
+                <button id="sd-row-toolbar-down" class="icon-btn" title="Move row down" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarMoveRow('down')">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>
+                </button>
+                <button id="sd-row-toolbar-delete" class="icon-btn" title="Remove row" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarDeleteRow()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                 </button>
               </div>
             </div>
@@ -2539,7 +2561,7 @@
              User Provided Sample Data grid. -->
         <div class="sect-card" id="sect-extracted-data" style="overflow-x:auto;margin-top:16px">
           <div class="sect-hdr">
-            <div class="sect-hdr-title" style="flex:1;min-width:0" title="Define the data fields you want extracted from the attached sample files. Optionally add guidance to help the search."><i class="ti ti-list-details"></i>Extracted Data</div>
+            <div class="sect-hdr-title" style="flex:1;min-width:0" title="Define the data fields you want extracted from the attached sample files. Optionally add guidance to help the search."><i class="ti ti-list-details"></i>Sample Data Extracted from Sample Files</div>
             <button class="btn-s" onclick="addExtractedDataField()" style="font-size:10px;padding:2px 8px;white-space:nowrap">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add field
@@ -2586,6 +2608,7 @@
               <thead><tr id="extdata-results-hdr" style="background:var(--bg-secondary)"></tr></thead>
               <tbody id="extdata-results-body"></tbody>
             </table>
+          </div>
           </div>
         </div>
 
@@ -20973,6 +20996,8 @@ function _sdResolveSelectedIndex(ref) {
 function _sdSelectRow(ref, idx) {
   _sdSelectedRow[ref] = idx;
   _sdUpdateRowHighlight(ref);
+  _sdRepositionRowToolbar(ref);
+  _sdEnsureRowDeselectListener();
 }
 
 // Updates only the visual highlight (row background + "#" cell styling) on
@@ -21116,41 +21141,16 @@ function renderSampleDataGrid(ref) {
         if (row.height == null) _sdApplyRowHeight(ref, i); // auto rows grow live as the user types
       };
       ta.onblur  = function(){ saveSampleDataGrid(ref); };
-      ta.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); };
+      ta.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); _sdRepositionRowToolbar(ref); _sdEnsureRowDeselectListener(); };
       td.appendChild(ta);
       tr.appendChild(td);
     });
+    // Action cell now holds ONLY the row-height resize handle — the
+    // up/down/delete buttons that used to live here on every row are gone,
+    // replaced by the single shared row toolbar (see _sdRepositionRowToolbar)
+    // that appears above the number cell only when that row is selected.
     var actionTd = document.createElement('td');
-    actionTd.style.cssText = 'width:76px;padding:2px;text-align:center;white-space:nowrap;vertical-align:top;position:relative';
-    var upBtn = document.createElement('button');
-    upBtn.title = 'Move row up';
-    upBtn.className = 'icon-btn';
-    upBtn.style.cssText = 'width:20px;height:20px';
-    upBtn.disabled = (i === 0);
-    if (upBtn.disabled) upBtn.style.opacity = '0.3';
-    upBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
-    upBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataRow(ref, i, 'up'); };
-    var downBtn = document.createElement('button');
-    downBtn.title = 'Move row down';
-    downBtn.className = 'icon-btn';
-    downBtn.style.cssText = 'width:20px;height:20px';
-    downBtn.disabled = (i === data.rows.length - 1);
-    if (downBtn.disabled) downBtn.style.opacity = '0.3';
-    downBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>';
-    downBtn.onclick = function(e){ e.stopPropagation(); moveSampleDataRow(ref, i, 'down'); };
-    var rowDelBtn = document.createElement('button');
-    rowDelBtn.title = 'Remove row';
-    rowDelBtn.className = 'icon-btn';
-    rowDelBtn.style.cssText = 'width:20px;height:20px';
-    rowDelBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
-    rowDelBtn.onclick = function(e){ e.stopPropagation(); removeSampleDataRow(ref, i); };
-    actionTd.appendChild(upBtn);
-    actionTd.appendChild(downBtn);
-    actionTd.appendChild(rowDelBtn);
-    // Drag handle for row height — deliberately confined to this action cell
-    // (not stretched across the whole row) so it can't intercept clicks meant
-    // for the data cells elsewhere in the row; it's still easily discoverable
-    // in the same corner as the row's other controls.
+    actionTd.style.cssText = 'width:20px;padding:0;text-align:center;white-space:nowrap;vertical-align:top;position:relative';
     var rowResizeHandle = document.createElement('div');
     rowResizeHandle.className = 'sd-row-resize';
     rowResizeHandle.title = 'Drag to resize row height';
@@ -21168,6 +21168,12 @@ function renderSampleDataGrid(ref) {
   // Auto-size every row that hasn't been manually overridden, now that all
   // cells for this render pass exist in the DOM and can be measured.
   data.rows.forEach(function(row, i){ if (row.height == null) _sdApplyRowHeight(ref, i); });
+
+  // Reposition the row toolbar (if a row is selected) now that body rows
+  // exist — this must run after the body rebuild above, unlike the column
+  // toolbar's reposition which only needs the header and runs earlier.
+  _sdRepositionRowToolbar(ref);
+  _sdEnsureRowDeselectListener();
 }
 
 // Computes and applies the height for one row. For an "auto" row (no manual
@@ -21279,7 +21285,7 @@ function _sdApplyColumnSelectionHighlight(ref) {
     var th = document.getElementById('sd-th-' + col.id);
     if (!th) return;
     var isSelected = (_sdSelectedColumn[ref] === col.id);
-    th.style.background = isSelected ? '#dbeafe' : (col.extract ? '#eff6ff' : '');
+    th.style.background = isSelected ? '#dbeafe' : '';
   });
 }
 
@@ -21347,6 +21353,78 @@ function _sdEnsureColumnDeselectListener() {
     var withinToolbar = e.target.closest && e.target.closest('#sd-col-toolbar');
     if (withinHeader || withinToolbar) return; // handled by the header/toolbar's own click logic
     _sdDeselectColumn(ref);
+  });
+}
+
+// ── Shared row toolbar: same pattern as the column toolbar above, anchored
+// to the selected row's number cell instead of a column header. Selecting a
+// row is already handled by _sdSelectRow (clicking the row, including its
+// number cell); this just adds the floating up/down/delete controls that
+// appear alongside that existing selection, and clears when a different
+// row — or nothing — is selected.
+
+function _sdRepositionRowToolbar(ref) {
+  var toolbar = document.getElementById('sd-row-toolbar');
+  var wrap = document.getElementById('sd-grid-wrap');
+  if (!toolbar || !wrap) return;
+  var idx = _sdResolveSelectedIndex(ref);
+  var data = _daSampleDataFor(ref);
+  // Only show the toolbar for an EXPLICIT selection, not the "last row"
+  // fallback _sdResolveSelectedIndex uses for Add-row-above/below — showing
+  // move/delete controls on a row the user never actually clicked would be
+  // confusing and unrequested.
+  var explicitIdx = _sdSelectedRow[ref];
+  if (explicitIdx === undefined || explicitIdx === null || !data.rows.length) { toolbar.style.display = 'none'; return; }
+  var tr = document.querySelector('#sd-body-rows .sd-row[data-row-idx="' + explicitIdx + '"]');
+  if (!tr) { toolbar.style.display = 'none'; return; }
+  var numTd = tr.firstElementChild;
+  if (!numTd) { toolbar.style.display = 'none'; return; }
+
+  var upBtn = document.getElementById('sd-row-toolbar-up');
+  var downBtn = document.getElementById('sd-row-toolbar-down');
+  if (upBtn)   { upBtn.disabled   = (explicitIdx <= 0); upBtn.style.opacity   = upBtn.disabled   ? '0.3' : ''; }
+  if (downBtn) { downBtn.disabled = (explicitIdx === data.rows.length - 1); downBtn.style.opacity = downBtn.disabled ? '0.3' : ''; }
+
+  // numTd.offsetLeft/offsetTop are relative to #sd-grid-wrap (position:relative),
+  // same containing block the toolbar itself uses — no extra scroll math needed.
+  toolbar.style.left = Math.max(0, numTd.offsetLeft - 28) + 'px';
+  toolbar.style.top  = numTd.offsetTop + 'px';
+  toolbar.style.display = 'flex';
+}
+
+function _sdToolbarMoveRow(direction) {
+  var ref = getWPRef ? getWPRef() : null;
+  var idx = ref && _sdSelectedRow[ref];
+  if (!ref || idx === undefined || idx === null) return;
+  moveSampleDataRow(ref, idx, direction);
+  // moveSampleDataRow already updates _sdSelectedRow to follow the row to
+  // its new position and re-renders, which re-triggers the toolbar
+  // reposition below via renderSampleDataGrid's own call.
+}
+
+function _sdToolbarDeleteRow() {
+  var ref = getWPRef ? getWPRef() : null;
+  var idx = ref && _sdSelectedRow[ref];
+  if (!ref || idx === undefined || idx === null) return;
+  removeSampleDataRow(ref, idx); // confirms, clamps selection, re-renders
+}
+
+// Same click-elsewhere-to-deselect pattern as the column toolbar, kept as an
+// independent listener (rather than merged into the column one) so a future
+// change to one doesn't have to reason about the other's unrelated state.
+var _sdRowDeselectListenerBound = false;
+function _sdEnsureRowDeselectListener() {
+  if (_sdRowDeselectListenerBound) return;
+  _sdRowDeselectListenerBound = true;
+  document.addEventListener('click', function(e){
+    var ref = getWPRef ? getWPRef() : null;
+    if (!ref || _sdSelectedRow[ref] === undefined || _sdSelectedRow[ref] === null) return;
+    var withinBody = e.target.closest && e.target.closest('#sd-body-rows');
+    var withinToolbar = e.target.closest && e.target.closest('#sd-row-toolbar');
+    if (withinBody || withinToolbar) return; // handled by the row/toolbar's own click logic
+    _sdSelectedRow[ref] = null;
+    _sdUpdateRowHighlight(ref);
+    _sdRepositionRowToolbar(ref);
   });
 }
 
@@ -21763,6 +21841,32 @@ async function readSampleFilesIntoGrid(ref) {
       });
     });
 
+    // Deduplicate EXACT matches before writing anything — if the AI reports
+    // the same record more than once (e.g. because a single real-world
+    // transaction is documented in more than one place within the file,
+    // like an original contract and a later amendment both describing the
+    // same check), keep only the first occurrence. This only removes a
+    // record when EVERY field's resolved value (after the same "Not Found"
+    // normalization used everywhere else — see _sdValueOrNotFound) matches
+    // another record from the same source file exactly; a record that
+    // differs in even one field (e.g. a genuinely different date found in
+    // the amendment vs. the original contract) is real information about
+    // the source document and is always kept, never silently collapsed.
+    var seenSignatures = {};
+    var dedupedRecords = [];
+    var duplicatesRemoved = 0;
+    allRecords.forEach(function(r){
+      var cells = {};
+      fields.forEach(function(f){
+        if (r.values && r.values[f.title] !== undefined) cells[f.title] = _sdValueOrNotFound(r.values[f.title]);
+      });
+      var signature = r.sourceFile + '||' + fields.map(function(f){ return cells[f.title] !== undefined ? cells[f.title] : ''; }).join('||');
+      if (seenSignatures[signature]) { duplicatesRemoved++; return; }
+      seenSignatures[signature] = true;
+      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells });
+    });
+    allRecords = dedupedRecords;
+
     if (allRecords.length === 0) {
       alert('Read ' + readableFiles.length + ' file(s), but no usable sample data was found.' + failureNote);
       return;
@@ -21772,19 +21876,17 @@ async function readSampleFilesIntoGrid(ref) {
     // modes — this is what makes the Excel download and the results preview
     // always show the complete picture regardless of which mode produced it.
     wpExtractedDataRecords[ref] = allRecords.map(function(r){
-      var cells = {};
-      fields.forEach(function(f){
-        if (r.values && r.values[f.title] !== undefined) cells[f.title] = _sdValueOrNotFound(r.values[f.title]);
-      });
-      return { cells: cells, sourceFile: r.sourceFile };
+      return { cells: r.cells, sourceFile: r.sourceFile };
     });
     saveExtractedDataRecordsToDB(ref);
     renderExtractedDataResults(ref);
 
+    var dedupNote = duplicatesRemoved > 0 ? (' (' + duplicatesRemoved + ' exact duplicate' + (duplicatesRemoved!==1?'s':'') + ' removed.)') : '';
+
     if (!appendMode) {
       // Mode B: independent. Nothing further to do — the grid above was
       // never touched, even though it may already have data.
-      alert('Extracted ' + allRecords.length + ' record' + (allRecords.length!==1?'s':'') + ' from ' + readableFiles.length + ' file(s).' + failureNote);
+      alert('Extracted ' + allRecords.length + ' record' + (allRecords.length!==1?'s':'') + ' from ' + readableFiles.length + ' file(s).' + dedupNote + failureNote);
       return;
     }
 
@@ -21835,7 +21937,7 @@ async function readSampleFilesIntoGrid(ref) {
       msg += ' ' + unmatchedCount + ' record' + (unmatchedCount!==1?'s':'') + ' found in the files didn\'t match any existing row and ' +
         (unmatchedCount!==1?'were':'was') + ' not added — see the extraction results below for the full list.';
     }
-    alert(msg + failureNote);
+    alert(msg + dedupNote + failureNote);
   } finally {
     _sdExtractionInProgress[ref] = false;
     if (readfilesBtn) { readfilesBtn.disabled = false; readfilesBtn.style.opacity = ''; readfilesBtn.style.cursor = ''; }
@@ -21856,7 +21958,7 @@ async function _sdExtractFromOneFile(entry, fields) {
   var contentBlockType = mediaType === 'application/pdf' ? 'document' : 'image';
 
   var fieldDefs = fields.map(function(f){
-    return { title: f.title || '(untitled)', guidance: f.guidance || '' };
+    return { title: f.title || '(untitled)', description: f.desc || '', guidance: f.guidance || '' };
   });
 
   // Extraction reads from the Extracted Data field list now, not grid
@@ -21864,7 +21966,8 @@ async function _sdExtractFromOneFile(entry, fields) {
   // Data grid at all. It never invents a field beyond what's listed here.
   var instructions =
     'You are extracting data for an audit workpaper from a sample document.\n' +
-    'These are the fields to search for (title and optional guidance for what to look for):\n' +
+    'These are the fields to search for (title, optional description of what the field represents, ' +
+    'and optional guidance for where/how to find it):\n' +
     JSON.stringify(fieldDefs) + '\n' +
     'Find values for ONLY these fields from this file — do not propose or invent any new fields; ' +
     'the "values" object must never contain a key that is not one of the field titles above.\n' +
@@ -22097,25 +22200,16 @@ function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
   // and cells that already exist — a cell in a row/column that doesn't exist
   // yet isn't "overwritten," it's part of the expansion case above.
   var conflicts = [];
-  // Columns flagged "Extract data from sample files" disallow manual entry —
-  // a paste that lands on one of these needs to be blocked outright rather
-  // than silently accepted and then invisibly discarded by the disabled input.
-  var lockedCols = [];
-  var seenLockedIds = {};
   grid.forEach(function(pastedRow, ri){
     var rowIdx = startRowIdx + ri;
     pastedRow.forEach(function(cellVal, ci){
       var colIdx = startColIdx + ci;
-      if (colIdx >= data.columns.length) return; // column doesn't exist yet — no lock to check
+      if (colIdx >= data.columns.length) return; // column doesn't exist yet — no conflict to check
       var col = data.columns[colIdx];
-      if (col.extract && !seenLockedIds[col.id]) {
-        seenLockedIds[col.id] = true;
-        lockedCols.push({ col: colIdx, colTitle: col.title || '(untitled column)' });
-      }
       if (rowIdx >= data.rows.length) return; // row doesn't exist yet — expansion case, not a conflict
       var existingRow = data.rows[rowIdx];
       var existingVal = existingRow.cells && existingRow.cells[col.id];
-      if (!col.extract && existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
         conflicts.push({ row: rowIdx, col: colIdx, colTitle: col.title || '(untitled column)', value: existingVal });
       }
     });
@@ -22127,18 +22221,12 @@ function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
     needsExpansion: colsToAdd > 0 || rowsToAdd > 0,
     conflicts: conflicts,
     hasConflicts: conflicts.length > 0,
-    lockedCols: lockedCols,
-    hasLockedCols: lockedCols.length > 0,
   };
 }
 
 // Mutates `data` to actually write the pasted grid into place, expanding rows
 // and columns as needed. Called only after the user has confirmed (or when
 // no confirmation was needed because nothing would be expanded/overwritten).
-// Cells in a column flagged for extraction are skipped — paste never writes
-// into a locked column; callers should already have blocked this via
-// _sdAnalyzePaste().hasLockedCols before reaching here, this is a second
-// line of defense, not the primary gate.
 function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
   var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
   var neededCols = startColIdx + widestRow;
@@ -22157,7 +22245,6 @@ function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
     pastedRow.forEach(function(cellVal, ci){
       var col = data.columns[startColIdx + ci];
       if (!col) return; // shouldn't happen given the expansion loop above, but stay safe
-      if (col.extract) return; // locked column — never write pasted data here
       targetRow.cells[col.id] = cellVal.trim();
     });
   });
@@ -22224,17 +22311,6 @@ function initSampleDataGridPaste() {
     if (isNaN(startColIdx) || startColIdx < 0) startColIdx = data.columns.length;
 
     var analysis = _sdAnalyzePaste(data, grid, startRowIdx, startColIdx);
-
-    if (analysis.hasLockedCols) {
-      // Extract-flagged columns disallow manual entry entirely — there is no
-      // "accept and overwrite" option here, unlike expansion/conflict
-      // warnings, because the pasted values would have nowhere valid to go.
-      var names = analysis.lockedCols.map(function(c){ return c.colTitle; }).join(', ');
-      alert('Can\'t paste into "' + names + '" — ' + (analysis.lockedCols.length>1?'these columns are':'this column is') +
-        ' set to "Extract data from sample files" and will be filled in automatically. Uncheck the extract flag for ' +
-        (analysis.lockedCols.length>1?'these columns':'this column') + ' first if you want to enter values manually.');
-      return;
-    }
 
     if (!analysis.needsExpansion && !analysis.hasConflicts) {
       // Nothing to warn about — apply immediately, same as before.
