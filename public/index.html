@@ -5653,7 +5653,13 @@ function openWP(i) {
   // ── Test Attributes ──
   renderTestAttributes(w.ref);
   renderSampleFields(w.ref);
-  renderSampleDataGrid(w.ref);
+  // Fire-and-forget async loads from Postgres — openWP itself stays
+  // synchronous (too many other things depend on that), and each of these
+  // renders its own section once its data actually arrives rather than
+  // blocking the rest of the page on a network round-trip.
+  loadSampleDataFromDB(w.ref);
+  loadExtractedDataFromDB(w.ref);
+  loadExtractedDataRecordsFromDB(w.ref);
   initAttrGridPaste();
   initSFGridPaste();
   initSampleDataGridPaste();
@@ -7766,7 +7772,6 @@ async function _saveWorkpaperToDB(w) {
     var scopeFsAccts    = [...(wpFsAccounts[w.ref]||[])];
     var testAttrs       = wpTestAttributes[w.ref] || [];
     var sampleFlds      = wpSampleFields[w.ref] || [];
-    var sampleDataVal   = wpSampleData[w.ref] || { columns:[], rows:[] };
     var excpts          = Object.values(wpExceptions).filter(function(e){ return e && e.wpRef===w.ref; });
     await fetch('/api/workpapers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7798,7 +7803,6 @@ async function _saveWorkpaperToDB(w) {
         scope_fs_accounts:     scopeFsAccts,
         test_attributes:       testAttrs,
         sample_fields:         sampleFlds,
-        sample_data:           sampleDataVal,
         exceptions:            excpts
       })
     });
@@ -7929,6 +7933,35 @@ async function _loadWorkpapersFromDB() {
         }
       }
     } catch(e) { console.warn('[Seed] PRS sample-data seed failed:', e.message); }
+
+    // ── One-time migration: PRS Audits Sample Data columns -> Extracted Data ──
+    // The old design flagged individual Sample Data grid columns for
+    // extraction (checkbox + guidance per column). The new design separates
+    // that entirely into its own Extracted Data list (Title / Description /
+    // Guidance), and the grid no longer has any extract-flag concept at all.
+    // This is a ONE-TIME move of what already exists in wpSampleData's 12
+    // seeded columns into that new list — Title gets the column title,
+    // Description is left blank (there was no separate description field on
+    // the old columns), Guidance gets the old searchGuidance text verbatim,
+    // including the columns where it was genuinely blank.
+    //
+    // Guarded the same way the seed above is: only runs if Extracted Data is
+    // still genuinely empty for this workpaper (so it can never clobber real
+    // edits made after this migration already ran once), and only touches
+    // this one specific workpaper, not every workpaper in the system.
+    try {
+      const prsRef = 'WP-2026-FIN-002';
+      await loadExtractedDataFromDB(prsRef); // populate wpExtractedData[prsRef] from Postgres first
+      const alreadyMigrated = wpExtractedData[prsRef] && wpExtractedData[prsRef].length > 0;
+      const sourceColumns = (wpSampleData[prsRef] && wpSampleData[prsRef].columns) || [];
+      if (!alreadyMigrated && sourceColumns.length > 0) {
+        wpExtractedData[prsRef] = sourceColumns.map(function(c){
+          return { title: c.title || '', desc: '', guidance: c.searchGuidance || '' };
+        });
+        await saveExtractedDataToDB(prsRef);
+        console.log('[Migration] Moved ' + sourceColumns.length + ' Sample Data columns into Extracted Data for', prsRef);
+      }
+    } catch(e) { console.warn('[Migration] Sample Data -> Extracted Data migration failed:', e.message); }
 
     // Load RCM, FS accounts, objectives and entities
     if (typeof _loadRCMFromDB === 'function') await _loadRCMFromDB();
@@ -20876,6 +20909,33 @@ function _daSampleDataFor(ref) {
   return wpSampleData[ref];
 }
 
+// Loads the User Provided Sample Data grid from the new sample_data_columns
+// / sample_data_rows Postgres tables (replacing the old workpapers.sample_data
+// JSONB blob). _daSampleDataFor stays a synchronous in-memory accessor —
+// nothing about it changes — this just populates the same wpSampleData[ref]
+// object it already reads from, from a different source, once per
+// workpaper-open. Column/row shape from the API (col_index/row_index,
+// system_added, cells) is translated into the exact in-memory shape the
+// render function and every other grid function already expect.
+async function loadSampleDataFromDB(ref) {
+  try {
+    const res = await fetch('/api/sample-data/' + encodeURIComponent(ref));
+    const data = res.ok ? await res.json() : { columns: [], rows: [] };
+    wpSampleData[ref] = {
+      columns: (data.columns || []).map(c => ({
+        id: c.id, title: c.title || '', width: c.width || SD_DEFAULT_COL_WIDTH, systemAdded: !!c.system_added
+      })),
+      rows: (data.rows || []).map(r => ({
+        cells: r.cells || {}, height: r.row_height != null ? r.row_height : null
+      })),
+    };
+  } catch(e) {
+    console.warn('[Sample Data] load failed:', e.message);
+    if (!wpSampleData[ref]) wpSampleData[ref] = { columns: [], rows: [] };
+  }
+  renderSampleDataGrid(ref);
+}
+
 // ── Sample Data grid as the source for Analyze & Create Workpaper ────────────
 // This is the completion of decommissioning the old Sample Field Extraction
 // section: Analyze & Create Workpaper (analyzeWithClaude), the pre-analysis
@@ -21501,9 +21561,45 @@ function removeSampleDataRow(ref, rowIndex) {
 }
 
 // Persists the current grid to the DB via the existing per-workpaper save path.
-function saveSampleDataGrid(ref) {
-  var w = WORKPAPERS.find(function(x){ return x.ref === ref; });
-  if (w) _saveWorkpaperToDB(w);
+async function saveSampleDataGrid(ref) {
+  var data = _daSampleDataFor(ref);
+  try {
+    var res = await fetch('/api/sample-data/' + encodeURIComponent(ref), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        columns: data.columns.map(function(c){ return { id: c.id||null, title: c.title||'', width: c.width||SD_DEFAULT_COL_WIDTH, systemAdded: !!c.systemAdded }; }),
+        rows: data.rows.map(function(r){ return { cells: r.cells||{}, height: r.height!=null?r.height:null }; }),
+      })
+    });
+    if (!res.ok) { console.warn('[Sample Data] save returned', res.status); _wfSaved(); return; }
+
+    // The server returns every column with its REAL, now-persisted id —
+    // either the one this client already had, or a freshly generated one
+    // for a column that had none yet (e.g. just created via "+ Add column",
+    // never saved before). Sync data.columns/data.rows to match: without
+    // this, a brand-new column's id would never stabilize — every save
+    // would look like "no id yet" again next time, and any values already
+    // typed into that column's cells (keyed by the OLD, unsaved id) would
+    // become orphaned the moment a reload pulled the real one from Postgres.
+    var body = await res.json();
+    if (body && Array.isArray(body.columns) && body.columns.length === data.columns.length) {
+      for (var i = 0; i < data.columns.length; i++) {
+        var oldId = data.columns[i].id;
+        var newId = body.columns[i].id;
+        if (oldId === newId) continue;
+        data.columns[i].id = newId;
+        data.rows.forEach(function(row){
+          if (row.cells && Object.prototype.hasOwnProperty.call(row.cells, oldId)) {
+            row.cells[newId] = row.cells[oldId];
+            delete row.cells[oldId];
+          }
+        });
+      }
+    }
+  } catch(e) {
+    console.warn('[Sample Data] save failed (kept in-session only):', e.message);
+  }
   _wfSaved();
 }
 
