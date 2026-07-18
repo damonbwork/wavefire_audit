@@ -2532,7 +2532,7 @@
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
                   <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
-                    <th id="sd-numcol-hdr" style="width:28px;min-width:28px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 2px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
+                    <th id="sd-numcol-hdr" style="width:6px;min-width:6px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 1px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
                     <!-- User-added column headers render here via JS -->
                   </tr>
                 </thead>
@@ -21271,7 +21271,7 @@ function renderSampleDataGrid(ref) {
 
     var numTd = document.createElement('td');
     numTd.textContent = i + 1; // auto-generated, next number — never user-editable
-    numTd.style.cssText = 'width:28px;min-width:28px;text-align:center;font-size:12px;padding:6px 2px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;cursor:pointer;' +
+    numTd.style.cssText = 'width:6px;min-width:6px;text-align:center;font-size:12px;padding:6px 1px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;cursor:pointer;' +
       (isSelected ? 'color:var(--wf-navy);font-weight:700' : 'color:var(--text-tertiary)');
     numTd.onclick = function(e){
       e.stopPropagation();
@@ -21380,7 +21380,7 @@ function _sdApplyRowHeight(ref, rowIndex) {
 // section (see #sect-test-attributes [data-col="title"], width:180px) as a
 // visual reference point only — the two grids are not linked, so a later
 // resize of one has no effect on the other.
-var SD_DEFAULT_COL_WIDTH = 70;
+var SD_DEFAULT_COL_WIDTH = 180;
 var SD_MIN_COL_WIDTH     = 60;
 var SD_MIN_ROW_HEIGHT    = 30; // approx. one line of 12px text plus cell padding
 
@@ -22026,6 +22026,32 @@ async function readSampleFilesIntoGrid(ref) {
 
   var appendCheckbox = document.getElementById('extdata-append-checkbox');
   var appendMode = !!(appendCheckbox && appendCheckbox.checked);
+
+  // Re-validate NOW, not just at the moment the checkbox was originally
+  // checked — the grid can be cleared or emptied afterward (e.g. via
+  // "Clear Sample Data," deleting rows individually, or removing extracted
+  // columns) while the checkbox itself stays checked, since nothing
+  // currently un-checks it automatically. Running Mode A against an
+  // empty grid isn't an error exactly — every record correctly comes back
+  // unmatched, since there's genuinely nothing to correlate against — but
+  // it looks exactly like a mysterious failure: results populate, no
+  // columns ever appear, no explanation. Catching it here and falling back
+  // to Mode B (with a clear explanation) is far more useful than letting
+  // that confusing-but-technically-correct outcome happen silently.
+  if (appendMode) {
+    var gridForValidation = _daSampleDataFor(ref);
+    var stillHasRealData = (gridForValidation.rows || []).some(function(row){
+      return row.cells && Object.keys(row.cells).some(function(colId){
+        var v = row.cells[colId];
+        return v !== undefined && v !== null && String(v).trim() !== '';
+      });
+    });
+    if (!stillHasRealData) {
+      appendMode = false;
+      if (appendCheckbox) appendCheckbox.checked = false;
+      alert('The Sample Data grid above no longer has any data to match against, so "Add extracted data to the Sample Data grid above" has been unchecked. Extraction will run independently instead — add sample data to the grid first if you want results appended there.');
+    }
+  }
 
   // Built only in Mode A — Mode B's contract is "zero interaction with the
   // grid above, even if it already has data," so it must never even SEE the
