@@ -2751,6 +2751,37 @@
           </div>
         </div>
 
+        <!-- Unmatched-records confirmation — shown when Mode A finds records
+             that don't corroborate ANY existing grid row. Previously these
+             were only mentioned in the summary alert text, with no way to
+             actually act on them; this offers to add each one as a genuinely
+             new row (extracted field values only — there's no existing
+             user-entered row to carry data over from, unlike the duplicate-
+             row case in the multi-match modal above). -->
+        <div id="sd-unmatched-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+            <div style="padding:20px 24px 14px">
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Sample records with no matching row</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-unmatched-msg"></div>
+            </div>
+            <div id="sd-unmatched-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr style="background:var(--bg-secondary)">
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Source file</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Extracted values</th>
+                </tr></thead>
+                <tbody id="sd-unmatched-list"></tbody>
+              </table>
+            </div>
+            <div id="sd-unmatched-toolarge-note" style="display:none;padding:10px 24px;font-size:11px;color:var(--text-tertiary);font-style:italic">Showing the first 20 — additional unmatched records beyond this will follow the same choice.</div>
+            <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" onclick="_sdDeclineUnmatched()" style="font-size:12px">Don't add rows</button>
+              <button class="btn-p" onclick="_sdConfirmUnmatched()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add as new rows</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Section 5: Test Attributes -->
         <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
           <div class="sect-hdr">
@@ -22116,16 +22147,21 @@ async function readSampleFilesIntoGrid(ref) {
       failures.map(function(f){return f.file + ' — ' + f.error;}).join('; ') + ')') : '';
 
     // Flatten every found record across every file into one list, each
-    // tagged with its source file — used by both modes below. matchesRow is
-    // the model's own judgment (Mode A only — see _sdExtractFromOneFile)
-    // about which user-entered grid row, if any, this record corroborates;
-    // it's a 1-based row NUMBER from the prompt, translated to a 0-based
-    // array index here so it lines up directly with gridData.rows.
+    // tagged with its source file — used by both modes below. matchesRows
+    // is the model's own judgment (Mode A only — see _sdExtractFromOneFile)
+    // about which user-entered grid row(s), if any, this record corroborates
+    // — genuinely plural: a record CAN legitimately match more than one row
+    // (e.g. two sample rows the auditor entered for the same check), and
+    // this must never be collapsed down to just one. Row numbers from the
+    // prompt are 1-based; translated to 0-based array indices here so they
+    // line up directly with gridData.rows.
     var allRecords = [];
     perFileResults.forEach(function(fr){
       (fr.result.rows || []).forEach(function(r){
-        var matchesRowIndex = (typeof r.matchesRow === 'number' && r.matchesRow >= 1) ? (r.matchesRow - 1) : null;
-        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndex: matchesRowIndex });
+        var matchesRowIndexes = Array.isArray(r.matchesRows)
+          ? r.matchesRows.filter(function(n){ return typeof n === 'number' && n >= 1; }).map(function(n){ return n - 1; })
+          : [];
+        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndexes: matchesRowIndexes });
       });
     });
 
@@ -22151,7 +22187,7 @@ async function readSampleFilesIntoGrid(ref) {
       var signature = r.sourceFile + '||' + fields.map(function(f){ return cells[f.title] !== undefined ? cells[f.title] : ''; }).join('||');
       if (seenSignatures[signature]) { duplicatesRemoved++; return; }
       seenSignatures[signature] = true;
-      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells, matchesRowIndex: r.matchesRowIndex });
+      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells, matchesRowIndexes: r.matchesRowIndexes });
     });
     allRecords = dedupedRecords;
 
@@ -22193,42 +22229,33 @@ async function readSampleFilesIntoGrid(ref) {
     // Matched records get their field values written as new, system-added
     // columns; records the AI didn't attribute to any row are never
     // silently added — only surfaced via a notice, since Mode A's contract
-    // is "enrich existing rows," not "add rows." If more than one record is
-    // attributed to the SAME row (e.g. two different documents both
-    // genuinely corroborate it), the first is filled normally and the
-    // others are offered via the existing duplicate-row confirmation modal,
-    // exactly as when a single record's values happened to match multiple
-    // rows under the old approach.
     var gridData = _daSampleDataFor(ref);
 
-    var byRow = {}; // rowIndex -> array of records the AI attributed to it
-    var unmatchedCount = 0;
-    allRecords.forEach(function(r){
-      if (r.matchesRowIndex === null || r.matchesRowIndex === undefined || !gridData.rows[r.matchesRowIndex]) {
-        unmatchedCount++;
-        return;
-      }
-      if (!byRow[r.matchesRowIndex]) byRow[r.matchesRowIndex] = [];
-      byRow[r.matchesRowIndex].push(r);
-    });
-
     var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
-    var multiMatches = [];  // { record, rowIndexes } — first filled immediately, the rest offered as duplicates of that same row
-    Object.keys(byRow).forEach(function(rowIndexStr){
-      var rowIndex = parseInt(rowIndexStr, 10);
-      var records = byRow[rowIndexStr];
-      singleMatches.push({ record: records[0], rowIndex: rowIndex });
-      if (records.length > 1) {
-        // Reuses the existing multi-match modal's shape (record + array of
-        // row indexes) by treating "N records claiming the same row" as
-        // equivalent to "1 record claiming N rows" for duplication purposes
-        // — each additional record becomes its own duplicated row, sourced
-        // from the same original row, exactly as the modal already expects.
-        for (var k = 1; k < records.length; k++) {
-          multiMatches.push({ record: records[k], rowIndexes: [rowIndex, rowIndex] });
-        }
+    var multiMatches = [];  // { record, rowIndexes } — first index filled immediately, every additional index offered as a duplicate
+    var unmatchedRecords = [];
+    allRecords.forEach(function(r){
+      // Keep only indexes that genuinely point at a real row — the AI can
+      // occasionally report a stale or out-of-range number despite the
+      // instructions, so this is a defensive filter, not the primary gate.
+      var validIndexes = (r.matchesRowIndexes || []).filter(function(idx){ return gridData.rows[idx]; });
+      if (validIndexes.length === 0) { unmatchedRecords.push(r); return; }
+
+      // The FIRST row this record matches is filled in immediately, exactly
+      // like an ordinary single match always has been — no prompt needed
+      // for that part. EVERY ADDITIONAL row this SAME record also
+      // corroborates (validIndexes[1] onward) is a genuine "this record
+      // applies to more than one existing sample" case — per the explicit
+      // correction that a record CAN legitimately match multiple rows
+      // (e.g. two sample rows entered for the same check), each of those
+      // additional rows must be offered as a duplicate, never silently
+      // dropped and never silently picked for the user.
+      singleMatches.push({ record: r, rowIndex: validIndexes[0] });
+      if (validIndexes.length > 1) {
+        multiMatches.push({ record: r, rowIndexes: validIndexes });
       }
     });
+    var unmatchedCount = unmatchedRecords.length;
     var matchedCount = singleMatches.length;
 
     if (matchedCount > 0) {
@@ -22268,8 +22295,8 @@ async function readSampleFilesIntoGrid(ref) {
       msg += 'None matched an existing row in the grid above, so nothing was added there.';
     }
     if (unmatchedCount > 0) {
-      msg += ' ' + unmatchedCount + ' record' + (unmatchedCount!==1?'s':'') + ' found in the files didn\'t match any existing row and ' +
-        (unmatchedCount!==1?'were':'was') + ' not added — see the extraction results below for the full list.';
+      msg += ' ' + unmatchedCount + ' record' + (unmatchedCount!==1?'s':'') + ' found in the files didn\'t match any existing row — ' +
+        'you\'ll be asked next whether to add ' + (unmatchedCount!==1?'them':'it') + ' as ' + (unmatchedCount!==1?'new rows':'a new row') + '.';
     }
     if (multiMatches.length > 0) {
       var extraRowCount = multiMatches.reduce(function(sum, m){ return sum + (m.rowIndexes.length - 1); }, 0);
@@ -22278,8 +22305,19 @@ async function readSampleFilesIntoGrid(ref) {
     }
     alert(msg + dedupNote + failureNote);
 
-    if (multiMatches.length > 0) {
-      _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData);
+    // Sequenced, not simultaneous: both modals are full-screen fixed
+    // overlays at the same z-index, so showing them back-to-back would
+    // visually stack rather than queue — one would silently hide behind the
+    // other with no indication a second decision is still pending. The
+    // unmatched-records prompt (if any) is shown first; the multi-match
+    // prompt (if any) is deferred until that one is actually resolved.
+    var showMultiMatchIfAny = function(){
+      if (multiMatches.length > 0) _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData);
+    };
+    if (unmatchedRecords.length > 0) {
+      _sdShowUnmatchedPrompt(ref, unmatchedRecords, fields, gridData, showMultiMatchIfAny);
+    } else {
+      showMultiMatchIfAny();
     }
   } finally {
     _sdExtractionInProgress[ref] = false;
@@ -22323,8 +22361,13 @@ async function _sdExtractFromOneFile(entry, fields, userRows) {
     JSON.stringify(fieldDefs) + '\n' +
     'Find values for ONLY these fields from this file — do not propose or invent any new fields; ' +
     'the "values" object must never contain a key that is not one of the field titles above.\n' +
-    'Identify every distinct sample record (e.g. an invoice, a transaction, a line item) visible in this file, ' +
-    'and report each one separately.\n' +
+    'Identify every distinct sample record (e.g. an invoice, a transaction, a line item, an original contract ' +
+    'AND any separate amendment to it) visible in this file, and report each one separately — this includes ' +
+    'cases where two records describe the same underlying check or transaction but come from different parts ' +
+    'of the document (e.g. an original agreement\'s terms and a later amendment\'s terms), which are still two ' +
+    'distinct records to report, not one. Decide how many distinct records exist in this file FIRST, entirely ' +
+    'on its own, before considering anything about correlation to rows below — correlation never reduces how ' +
+    'many records you report; it only labels each one you\'ve already identified.\n' +
     'IMPORTANT: for every record you report, include an entry in "values" for EVERY field listed above — ' +
     'do not omit a field just because you could not find it. If you searched for a field\'s data element ' +
     'in this record and genuinely could not find it, set that field\'s value to JSON null (not an empty ' +
@@ -22333,18 +22376,23 @@ async function _sdExtractFromOneFile(entry, fields, userRows) {
       'ADDITIONALLY, the auditor has already entered these sample rows by hand, each with its own actual data ' +
       '(not field names — the real values the auditor typed in, e.g. an actual check number or an actual date):\n' +
       JSON.stringify(userRowDefs) + '\n' +
-      'For each record you report from this file, determine whether it corroborates one of these rows: read the ' +
-      'document and check whether EVERY one of that row\'s values is genuinely present and in agreement somewhere ' +
-      'in this record\'s data, even if the document doesn\'t use the same label or exact formatting the auditor used ' +
-      '(e.g. a check number written with or without leading zeros, or a date written in a different format, still ' +
-      'counts as agreeing if it is the same underlying check/date). ALL of a row\'s populated values must agree — ' +
-      'if even one is contradicted or genuinely absent from this record, that row does not match. A record may ' +
-      'match at most one row. If a record corroborates one of these rows, set "matchesRow" to that row\'s ' +
-      '"rowNumber"; if it doesn\'t genuinely and fully match any of them, set "matchesRow" to null.\n'
+      'For EACH record you already identified above (this labeling step never changes which or how many records ' +
+      'you report), determine EVERY row it corroborates: read the document and, for each row listed above, check ' +
+      'whether ALL of that row\'s values are genuinely present and in agreement somewhere in this record\'s data, ' +
+      'even if the document doesn\'t use the same label or exact formatting the auditor used (e.g. a check number ' +
+      'written with or without leading zeros, or a date written in a different format, still counts as agreeing ' +
+      'if it is the same underlying check/date). ALL of a row\'s populated values must agree for that row to count ' +
+      '— if even one is contradicted or genuinely absent from this record, that specific row does not match, even ' +
+      'if others do. A record can genuinely corroborate MORE THAN ONE row (e.g. two different sample rows the ' +
+      'auditor entered for the same check) — report every row number it agrees with, not just one; do not stop ' +
+      'after finding the first match. Multiple DIFFERENT records may also each independently match the SAME row ' +
+      '— both directions are normal and expected, not an error. Set "matchesRows" to an array of every row number ' +
+      '(from "rowNumber" above) this record corroborates — an empty array [] if it doesn\'t genuinely and fully ' +
+      'match any of them.\n'
       : '') +
     'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
     '{"rows":[{"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"' +
-    (userRowDefs.length ? ',"matchesRow":<row number or null>' : '') + '}]}';
+    (userRowDefs.length ? ',"matchesRows":[<row number, ...>]' : '') + '}]}';
 
   var messages = [{
     role: 'user',
@@ -22696,6 +22744,95 @@ function _sdConfirmMultiMatch() {
   _sdPendingMultiMatch = null;
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
+}
+
+// State for the pending unmatched-records confirmation.
+var _sdPendingUnmatched = null;
+
+// Shows the "add as new rows" confirmation for records that corroborate NO
+// existing grid row.
+function _sdShowUnmatchedPrompt(ref, unmatchedRecords, fields, gridData, onResolved) {
+  var overlay = document.getElementById('sd-unmatched-overlay');
+  if (!overlay) { if (onResolved) onResolved(); return; }
+
+  _sdPendingUnmatched = { ref: ref, records: unmatchedRecords, fields: fields, gridData: gridData, onResolved: onResolved };
+
+  var n = unmatchedRecords.length;
+  document.getElementById('sd-unmatched-msg').textContent =
+    'Wavefire found ' + n + ' sample record' + (n!==1?'s':'') + ' in the attached files that ' +
+    (n!==1?"don't":"doesn't") + ' match any row already in the grid above. Add ' + (n!==1?'them':'it') +
+    ' as ' + (n!==1?'new rows':'a new row') + '? Only the extracted values found will be filled in — ' +
+    'you can add the rest of the sample data by hand afterward.';
+
+  var shown = unmatchedRecords.slice(0, 20);
+  var listEl = document.getElementById('sd-unmatched-list');
+  listEl.innerHTML = shown.map(function(r, i){
+    var extractedSummary = fields.map(function(f){
+      var v = r.values && r.values[f.title];
+      return (v !== undefined && v !== null && String(v).trim() !== '') ? (f.title + ': ' + v) : null;
+    }).filter(Boolean).slice(0, 4).join(', ');
+    return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
+      '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (i+1) + '</td>' +
+      '<td style="padding:5px 8px;color:var(--text-tertiary);font-style:italic">' + escHtml(r.sourceFile||'') + '</td>' +
+      '<td style="padding:5px 8px">' + escHtml(extractedSummary) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('sd-unmatched-toolarge-note').style.display = unmatchedRecords.length > 20 ? '' : 'none';
+
+  overlay.style.display = 'flex';
+}
+
+function _sdDeclineUnmatched() {
+  var pending = _sdPendingUnmatched;
+  var overlay = document.getElementById('sd-unmatched-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _sdPendingUnmatched = null;
+  if (pending && pending.onResolved) pending.onResolved();
+}
+
+function _sdConfirmUnmatched() {
+  var pending = _sdPendingUnmatched;
+  var overlay = document.getElementById('sd-unmatched-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (!pending) return;
+
+  var ref = pending.ref, gridData = pending.gridData, fields = pending.fields;
+  pushUndo(ref);
+
+  // Reuse an existing system-added column for each field if the matched-
+  // records pass already created one this run (or a prior run); create one
+  // now if not — same rules as the main Mode A block, so a workpaper that
+  // gets ONLY unmatched records (nothing to match against yet) still ends
+  // up with properly-flagged, correctly-titled columns rather than none.
+  var fieldColIds = {};
+  fields.forEach(function(f){
+    var existing = gridData.columns.find(function(c){ return c.systemAdded && c.title === f.title; });
+    if (existing) { fieldColIds[f.title] = existing.id; return; }
+    var newCol = { id: 'ext_' + Date.now() + '_' + Math.floor(Math.random()*10000), title: f.title, width: SD_DEFAULT_COL_WIDTH, systemAdded: true };
+    gridData.columns.push(newCol);
+    fieldColIds[f.title] = newCol.id;
+    gridData.rows.forEach(function(row){ if (!row.cells) row.cells = {}; if (row.cells[newCol.id] === undefined) row.cells[newCol.id] = ''; });
+  });
+
+  pending.records.forEach(function(r){
+    // A brand-new row: every USER column starts genuinely blank (there's no
+    // existing row to source that data from, unlike the multi-match
+    // duplicate case above) — only the extracted field values are filled.
+    var cells = {};
+    gridData.columns.forEach(function(col){ cells[col.id] = ''; });
+    fields.forEach(function(f){
+      if (r.values && r.values[f.title] !== undefined) {
+        cells[fieldColIds[f.title]] = _sdValueOrNotFound(r.values[f.title]);
+      }
+    });
+    gridData.rows.push({ cells: cells, height: null });
+  });
+
+  _sdPendingUnmatched = null;
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+  if (pending.onResolved) pending.onResolved();
 }
 
 function _sdShowPasteConfirm(analysis, startRowIdx, startColIdx, grid) {
