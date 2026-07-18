@@ -2713,6 +2713,40 @@
           </div>
         </div>
 
+        <!-- Multi-match duplicate-row confirmation — shown when a single
+             extracted record's key values (e.g. Check # + Check Date)
+             match MORE than one existing row in the grid. Filling every
+             matched row with the same extracted values would silently
+             duplicate data across rows that may represent genuinely
+             different real-world samples sharing the same check; instead
+             the first match is filled normally (unchanged, no prompt
+             needed) and every ADDITIONAL match is offered here as a new,
+             duplicated row — same user-entered data as its source row,
+             plus this record's extracted values. -->
+        <div id="sd-multimatch-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+            <div style="padding:20px 24px 14px">
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Multiple matching rows found</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-multimatch-msg"></div>
+            </div>
+            <div id="sd-multimatch-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr style="background:var(--bg-secondary)">
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Existing row it matches</th>
+                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Extracted values to add</th>
+                </tr></thead>
+                <tbody id="sd-multimatch-list"></tbody>
+              </table>
+            </div>
+            <div id="sd-multimatch-toolarge-note" style="display:none;padding:10px 24px;font-size:11px;color:var(--text-tertiary);font-style:italic">Showing the first 20 — additional matching records beyond this will follow the same choice.</div>
+            <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" onclick="_sdDeclineMultiMatch()" style="font-size:12px">Don't duplicate</button>
+              <button class="btn-p" onclick="_sdConfirmMultiMatch()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add duplicate rows</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Section 5: Test Attributes -->
         <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
           <div class="sect-hdr">
@@ -22092,7 +22126,16 @@ async function readSampleFilesIntoGrid(ref) {
     // records get their field values written as new, system-added columns;
     // unmatched records are never silently added — only surfaced via a
     // notice, since Mode A's contract is "enrich existing rows," not "add
-    // rows."
+    // rows." A record whose key values match MORE than one existing row is
+    // a third case: filling every matched row with the same extracted
+    // values would silently duplicate that data across rows that may
+    // represent genuinely different real-world samples sharing the same
+    // check — instead the FIRST match is filled normally (same as an
+    // ordinary single match, no prompt needed for that part), and every
+    // ADDITIONAL match is offered via a confirmation modal as a new,
+    // duplicated row (the matched row's existing user-entered data, plus
+    // this record's extracted values) rather than silently picked or
+    // silently dropped.
     var gridData = _daSampleDataFor(ref);
 
     // Match FIRST, using the existing (pre-extraction) columns only — no
@@ -22102,14 +22145,17 @@ async function readSampleFilesIntoGrid(ref) {
     // matched; a run that finds zero matches must leave the grid completely
     // untouched, not add empty columns nobody asked for.
     var keyCols = _sdPickKeyColumns(gridData);
-    var matches = []; // { record, rowIndex } for every record that found a home
+    var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
+    var multiMatches = [];  // { record, rowIndexes } — first index filled immediately, the rest offered as duplicates
     var unmatchedCount = 0;
     allRecords.forEach(function(r){
-      var matchIdx = _sdFindMatchingRow(gridData, keyCols, r.values || {});
-      if (matchIdx < 0) { unmatchedCount++; return; }
-      matches.push({ record: r, rowIndex: matchIdx });
+      var rowIndexes = _sdFindAllMatchingRows(gridData, keyCols, r.values || {});
+      if (rowIndexes.length === 0) { unmatchedCount++; return; }
+      if (rowIndexes.length === 1) { singleMatches.push({ record: r, rowIndex: rowIndexes[0] }); return; }
+      multiMatches.push({ record: r, rowIndexes: rowIndexes });
+      singleMatches.push({ record: r, rowIndex: rowIndexes[0] }); // the first match is always filled immediately, same as an ordinary single match
     });
-    var matchedCount = matches.length;
+    var matchedCount = singleMatches.length;
 
     if (matchedCount > 0) {
       pushUndo(ref);
@@ -22127,7 +22173,7 @@ async function readSampleFilesIntoGrid(ref) {
         gridData.rows.forEach(function(row){ if (!row.cells) row.cells = {}; if (row.cells[newCol.id] === undefined) row.cells[newCol.id] = ''; });
       });
 
-      matches.forEach(function(m){
+      singleMatches.forEach(function(m){
         var row = gridData.rows[m.rowIndex];
         if (!row.cells) row.cells = {};
         fields.forEach(function(f){
@@ -22151,7 +22197,16 @@ async function readSampleFilesIntoGrid(ref) {
       msg += ' ' + unmatchedCount + ' record' + (unmatchedCount!==1?'s':'') + ' found in the files didn\'t match any existing row and ' +
         (unmatchedCount!==1?'were':'was') + ' not added — see the extraction results below for the full list.';
     }
+    if (multiMatches.length > 0) {
+      var extraRowCount = multiMatches.reduce(function(sum, m){ return sum + (m.rowIndexes.length - 1); }, 0);
+      msg += ' ' + multiMatches.length + ' record' + (multiMatches.length!==1?'s':'') + ' matched more than one existing row — you\'ll be asked next whether to add ' +
+        extraRowCount + ' additional duplicate row' + (extraRowCount!==1?'s':'') + ' for the extra match' + (extraRowCount!==1?'es':'') + '.';
+    }
     alert(msg + dedupNote + failureNote);
+
+    if (multiMatches.length > 0) {
+      _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData);
+    }
   } finally {
     _sdExtractionInProgress[ref] = false;
     if (readfilesBtn) { readfilesBtn.disabled = false; readfilesBtn.style.opacity = ''; readfilesBtn.style.cursor = ''; }
@@ -22392,6 +22447,41 @@ function _sdPickKeyColumns(data) {
   var ordered = unique.concat(identifierLike).concat(otherPopulated);
   var seen = {};
   return ordered.filter(function(c){ if (seen[c.id]) return false; seen[c.id]=true; return true; });
+}
+
+// Same matching logic as _sdFindMatchingRow, but returns EVERY matching row
+// index instead of stopping at the first — used to detect when a found
+// record's key values (e.g. Check # and Check Date together) match more
+// than one existing row, which needs different handling than an ordinary
+// single match (see readSampleFilesIntoGrid's Mode A block: a record with
+// multiple matches offers to duplicate the additional rows rather than
+// silently picking just one).
+function _sdFindAllMatchingRows(data, keyCols, aiValues) {
+  var cols = Array.isArray(keyCols) ? keyCols : (keyCols ? [keyCols] : []);
+  if (!cols.length) return [];
+  for (var c = 0; c < cols.length; c++) {
+    var keyCol = cols[c];
+    var aiKeyVal = aiValues[keyCol.title];
+    if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '' ||
+        String(aiKeyVal).trim().toLowerCase() === 'not found') continue; // this candidate has nothing to compare — try the next one
+    var normalizedAiVal = _sdNormalizeMatchValue(aiKeyVal);
+    var matches = [];
+    for (var i = 0; i < data.rows.length; i++) {
+      var row = data.rows[i];
+      var existingVal = row.cells && row.cells[keyCol.id];
+      if (existingVal === undefined || existingVal === null || String(existingVal).trim() === '' ||
+          String(existingVal).trim().toLowerCase() === 'not found') continue;
+      if (_sdNormalizeMatchValue(existingVal) === normalizedAiVal) matches.push(i);
+    }
+    // Same "first candidate column with anything to compare wins" rule as
+    // _sdFindMatchingRow — once one column produces any real comparison
+    // (even a single match, even zero matches), later candidate columns are
+    // not consulted. This keeps both functions' semantics aligned: they'd
+    // pick the exact same "first" match, this one just also reports any
+    // others found via that same column.
+    if (matches.length) return matches;
+  }
+  return [];
 }
 
 // Finds an existing row that matches on ANY of the given candidate columns
@@ -22643,6 +22733,101 @@ function initSampleDataGridPaste() {
 // Builds and shows the confirmation modal, highlighting the target cell range
 // (including cells that don't exist yet, so the user sees the full footprint
 // of the paste) and listing any cells that already contain values.
+// State for the pending multi-match confirmation — holds everything needed
+// to either duplicate the additional rows or decline, once the user
+// responds. Set by _sdShowMultiMatchPrompt, consumed and cleared by
+// _sdConfirmMultiMatch/_sdDeclineMultiMatch.
+var _sdPendingMultiMatch = null;
+
+// Shows the duplicate-row confirmation for every record that matched more
+// than one existing row. Each multiMatches[i].rowIndexes[0] was already
+// filled into the grid as an ordinary single match before this is called —
+// only the ADDITIONAL matches (rowIndexes[1] onward) are candidates for
+// duplication here, since the first one needs no further action.
+function _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData) {
+  var overlay = document.getElementById('sd-multimatch-overlay');
+  if (!overlay) return;
+
+  // Flatten to one candidate per ADDITIONAL match (not the first, already-
+  // filled one), each carrying enough to both preview and later apply it.
+  var candidates = [];
+  multiMatches.forEach(function(m){
+    for (var i = 1; i < m.rowIndexes.length; i++) {
+      candidates.push({ record: m.record, sourceRowIndex: m.rowIndexes[0], duplicateFromRowIndex: m.rowIndexes[i] });
+    }
+  });
+
+  _sdPendingMultiMatch = { ref: ref, candidates: candidates, fields: fields, gridData: gridData };
+
+  var n = candidates.length;
+  document.getElementById('sd-multimatch-msg').textContent =
+    'Wavefire found sample data in the attached files that matches more than one existing row in the grid above. ' +
+    'The first matching row for each was already filled in. Add ' + n + ' additional duplicate row' + (n!==1?'s':'') +
+    ' — one for each extra match — using the same user-entered data as the row it matched, plus the extracted values found for it?';
+
+  var shown = candidates.slice(0, 20);
+  var listEl = document.getElementById('sd-multimatch-list');
+  listEl.innerHTML = shown.map(function(c, i){
+    var srcRow = gridData.rows[c.duplicateFromRowIndex];
+    var srcSummary = gridData.columns.slice(0, 3).map(function(col){
+      return (srcRow.cells && srcRow.cells[col.id]) ? (col.title + ': ' + srcRow.cells[col.id]) : null;
+    }).filter(Boolean).join(', ') || '(row ' + (c.duplicateFromRowIndex+1) + ')';
+    var extractedSummary = fields.map(function(f){
+      var v = c.record.values && c.record.values[f.title];
+      return (v !== undefined && v !== null && String(v).trim() !== '') ? (f.title + ': ' + v) : null;
+    }).filter(Boolean).slice(0, 3).join(', ');
+    return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
+      '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (i+1) + '</td>' +
+      '<td style="padding:5px 8px">' + escHtml(srcSummary) + '</td>' +
+      '<td style="padding:5px 8px">' + escHtml(extractedSummary) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('sd-multimatch-toolarge-note').style.display = candidates.length > 20 ? '' : 'none';
+
+  overlay.style.display = 'flex';
+}
+
+function _sdDeclineMultiMatch() {
+  var overlay = document.getElementById('sd-multimatch-overlay');
+  if (overlay) overlay.style.display = 'none';
+  // Nothing further to do — the first match for each record was already
+  // filled in before this modal ever appeared; declining just means the
+  // additional matches are left as-is, un-duplicated.
+  _sdPendingMultiMatch = null;
+}
+
+function _sdConfirmMultiMatch() {
+  var pending = _sdPendingMultiMatch;
+  var overlay = document.getElementById('sd-multimatch-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (!pending) return;
+
+  var ref = pending.ref, gridData = pending.gridData, fields = pending.fields;
+  pushUndo(ref);
+
+  pending.candidates.forEach(function(c){
+    var sourceRow = gridData.rows[c.duplicateFromRowIndex];
+    if (!sourceRow) return; // defensive — shouldn't happen, row indexes were captured moments ago
+    // Duplicate: same user-entered cell values as the row it matched
+    // (a real, shallow copy — editing the new row afterward never affects
+    // the original), THEN overlay this record's own extracted values on
+    // top, exactly as an ordinary single-match fill would.
+    var newRow = { cells: Object.assign({}, sourceRow.cells || {}), height: null };
+    fields.forEach(function(f){
+      var col = gridData.columns.find(function(col){ return col.systemAdded && col.title === f.title; });
+      if (col && c.record.values && c.record.values[f.title] !== undefined) {
+        newRow.cells[col.id] = _sdValueOrNotFound(c.record.values[f.title]);
+      }
+    });
+    gridData.rows.push(newRow);
+  });
+
+  _sdPendingMultiMatch = null;
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
 function _sdShowPasteConfirm(analysis, startRowIdx, startColIdx, grid) {
   var overlay = document.getElementById('sd-paste-confirm-overlay');
   if (!overlay) return;
