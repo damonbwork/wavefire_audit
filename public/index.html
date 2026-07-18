@@ -5749,9 +5749,21 @@ function openWP(i) {
   // synchronous (too many other things depend on that), and each of these
   // renders its own section once its data actually arrives rather than
   // blocking the rest of the page on a network round-trip.
+  //
+  // Extracted Data fields and records are loaded together, in that order,
+  // rather than as two independent fire-and-forget calls: the results
+  // table's render depends on the field list already being loaded (it reads
+  // column titles from wpExtractedData), but previously both fetches ran
+  // concurrently with no guarantee which resolved first. If the records
+  // fetch happened to finish before the fields fetch, the results table
+  // rendered against a stale or still-empty field list — showing only the
+  // hardcoded "Source file" column with every actual data column missing —
+  // and nothing ever re-rendered it once the fields load caught up
+  // afterward, leaving it stuck that way indefinitely. The Excel download
+  // never showed this bug because it re-reads wpExtractedData fresh at
+  // click time, well after both loads had long since finished.
   loadSampleDataFromDB(w.ref);
-  loadExtractedDataFromDB(w.ref);
-  loadExtractedDataRecordsFromDB(w.ref);
+  loadExtractedDataFromDB(w.ref).then(function(){ return loadExtractedDataRecordsFromDB(w.ref); });
   initAttrGridPaste();
   initSFGridPaste();
   initSampleDataGridPaste();
@@ -21379,19 +21391,17 @@ async function removeSampleDataColumn(ref, colId) {
 // (systemAdded:true — the amber-tinted "Extracted" columns), in one action.
 // Never touches a column the user created themselves, regardless of its
 // title or content — only the systemAdded flag decides what's removed.
-async function removeAllExtractedColumns(ref) {
-  ref = ref || getWPRef?.();
-  if (!ref) return;
+// Actually performs the removal — no confirmation, no undo/render/save side
+// effects beyond mutating the data itself and clearing a stale selection.
+// Callers decide whether/how to confirm and whether/when to push undo,
+// render, and save, since this is now shared by two different entry points
+// (the button, and clearExtractedDataResults) that each have their own
+// surrounding flow. Returns the number of columns actually removed, so
+// callers can build an accurate message.
+function _sdRemoveExtractedColumnsNoConfirm(ref) {
   var data = _daSampleDataFor(ref);
   var extractedCols = data.columns.filter(function(c){ return c.systemAdded; });
-  if (!extractedCols.length) return; // nothing to remove — button should already be disabled in this state
-  var n = extractedCols.length;
-  var confirmed = await _sdShowGenericConfirm(
-    'Remove Extracted columns',
-    'Remove all ' + n + ' Extracted column' + (n!==1?'s':'') + ' from this grid? This will delete their data from every row. Columns you added yourself are not affected.'
-  );
-  if (!confirmed) return;
-  pushUndo(ref);
+  if (!extractedCols.length) return 0;
   var removedIds = {};
   extractedCols.forEach(function(c){ removedIds[c.id] = true; });
   data.columns = data.columns.filter(function(c){ return !c.systemAdded; });
@@ -21400,6 +21410,22 @@ async function removeAllExtractedColumns(ref) {
     Object.keys(removedIds).forEach(function(id){ delete row.cells[id]; });
   });
   if (_sdSelectedColumn[ref] && removedIds[_sdSelectedColumn[ref]]) _sdSelectedColumn[ref] = null; // the selected column no longer exists
+  return extractedCols.length;
+}
+
+async function removeAllExtractedColumns(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  var data = _daSampleDataFor(ref);
+  var n = data.columns.filter(function(c){ return c.systemAdded; }).length;
+  if (!n) return; // nothing to remove — button should already be disabled in this state
+  var confirmed = await _sdShowGenericConfirm(
+    'Remove Extracted columns',
+    'Remove all ' + n + ' Extracted column' + (n!==1?'s':'') + ' from this grid? This will delete their data from every row. Columns you added yourself are not affected.'
+  );
+  if (!confirmed) return;
+  pushUndo(ref);
+  _sdRemoveExtractedColumnsNoConfirm(ref);
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
 }
@@ -21770,9 +21796,10 @@ function addSampleDataRowBelow(ref) {
   saveSampleDataGrid(ref);
 }
 
-function removeSampleDataRow(ref, rowIndex) {
+async function removeSampleDataRow(ref, rowIndex) {
   var data = _daSampleDataFor(ref);
-  if (!confirm('Remove row ' + (rowIndex+1) + '?')) return;
+  var confirmed = await _sdShowGenericConfirm('Remove row', 'Remove row ' + (rowIndex+1) + '?');
+  if (!confirmed) return;
   pushUndo(ref);
   data.rows.splice(rowIndex, 1);
   // Keep the selection sane — clamp to the last remaining row if the
@@ -22857,6 +22884,13 @@ async function loadExtractedDataFromDB(ref) {
     if (!wpExtractedData[ref]) wpExtractedData[ref] = [];
   }
   renderExtractedDataFields(ref);
+  // Also re-render the results table (if it has anything to show) now that
+  // the field list is current — belt-and-suspenders alongside sequencing
+  // this load before loadExtractedDataRecordsFromDB at the call site: even
+  // if some future code path ends up calling these two loads concurrently
+  // again, the results table self-corrects the moment fields genuinely
+  // finish loading, rather than depending entirely on external ordering.
+  if (wpExtractedDataRecords[ref] && wpExtractedDataRecords[ref].length) renderExtractedDataResults(ref);
 }
 
 async function saveExtractedDataToDB(ref) {
@@ -22953,10 +22987,36 @@ async function clearExtractedDataResults(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
   if (!wpExtractedDataRecords[ref] || !wpExtractedDataRecords[ref].length) return; // nothing to clear
-  if (!confirm('Clear all extraction results shown below? This does not affect the field definitions above or the Sample Data grid.')) return;
+
+  // The results table and the grid's "Extracted" columns are two views of
+  // the SAME underlying data — every value in a system-added column came
+  // from the same records this table shows (see readSampleFilesIntoGrid).
+  // Clearing one without the other would leave them silently out of sync,
+  // which is exactly the kind of confusion this warning exists to prevent:
+  // the user needs to know clearing results also removes real columns (and
+  // their data) from the grid above, not just an on-screen list.
+  var gridData = _daSampleDataFor(ref);
+  var extractedColCount = gridData ? gridData.columns.filter(function(c){ return c.systemAdded; }).length : 0;
+
+  var message = extractedColCount > 0
+    ? 'Clear all extraction results shown below? The Sample Data grid above currently has ' + extractedColCount +
+      ' Extracted column' + (extractedColCount!==1?'s':'') + ' built from this same data — clearing the results will also remove ' +
+      (extractedColCount!==1?'those columns':'that column') + ' (and their data) from the grid above. This does not affect the field definitions above.'
+    : 'Clear all extraction results shown below? This does not affect the field definitions above or the Sample Data grid.';
+
+  var confirmed = await _sdShowGenericConfirm('Clear extraction results', message, 'Clear');
+  if (!confirmed) return;
+
   wpExtractedDataRecords[ref] = [];
   await saveExtractedDataRecordsToDB(ref);
   renderExtractedDataResults(ref);
+
+  if (extractedColCount > 0) {
+    pushUndo(ref);
+    _sdRemoveExtractedColumnsNoConfirm(ref);
+    renderSampleDataGrid(ref);
+    saveSampleDataGrid(ref);
+  }
 }
 
 // Guards the "add to grid above" checkbox: only allowed when the User
