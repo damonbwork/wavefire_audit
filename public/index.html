@@ -267,6 +267,20 @@
   tbody td { font-size: 13px; color: var(--text-primary); padding: 10px 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tm { color: var(--text-secondary); font-size: 12px; }
 
+  /* Sample Data Provided by User grid — this table has genuinely editable,
+     multi-line cells (a <textarea> per cell), not clickable list rows like
+     the generic tbody styles above assume. Without these overrides, the
+     grid inherited: a pointer/hand cursor over the whole row (masking the
+     text cursor a click into a cell should show), a hover highlight meant
+     for row-level navigation, and overflow/ellipsis/nowrap rules meant for
+     single-line list cells — all of which fought with what this grid
+     actually needs. Scoped to #sd-table specifically so nothing here
+     affects any other table on the page. */
+  #sd-table tbody tr { cursor: default; transition: none; }
+  #sd-table tbody tr:hover { background: inherit; }
+  #sd-table tbody td { padding: 0; overflow: visible; text-overflow: clip; white-space: normal; font-size: inherit; color: inherit; }
+  #sd-table .sd-cell-input { cursor: text; }
+
   /* PILLS & TAGS */
   .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 99px; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
@@ -2497,7 +2511,7 @@
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
                   <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
-                    <th id="sd-numcol-hdr" style="width:44px;min-width:44px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
+                    <th id="sd-numcol-hdr" style="width:28px;min-width:28px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 2px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
                     <!-- User-added column headers render here via JS -->
                   </tr>
                 </thead>
@@ -21112,12 +21126,25 @@ function renderSampleDataGrid(ref) {
     // needed") is applied per-cell, directly on each <textarea>, further
     // down — a <textarea> is a real form control with a genuine box model
     // that does respect a fixed height + overflow:hidden.
-    tr.onclick = function(){ _sdSelectRow(ref, i); };
+
+    // Row selection (and the toolbar it reveals) is now tied specifically to
+    // the number cell, not "a click anywhere in the row" — a click on a data
+    // cell still highlights the row via that cell's own onfocus handler
+    // below, but does NOT show the row toolbar; only clicking the number
+    // cell itself does that, and moving focus off it (to a data cell, or
+    // anywhere else) dismisses it again (see _sdEnsureRowDeselectListener
+    // and ta.onfocus).
 
     var numTd = document.createElement('td');
     numTd.textContent = i + 1; // auto-generated, next number — never user-editable
-    numTd.style.cssText = 'width:44px;min-width:44px;text-align:center;font-size:12px;padding:6px 8px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;' +
+    numTd.style.cssText = 'width:28px;min-width:28px;text-align:center;font-size:12px;padding:6px 2px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;cursor:pointer;' +
       (isSelected ? 'color:var(--wf-navy);font-weight:700' : 'color:var(--text-tertiary)');
+    numTd.onclick = function(e){
+      e.stopPropagation();
+      _sdSelectRow(ref, i);
+      _sdRepositionRowToolbar(ref);
+      _sdEnsureRowDeselectListener();
+    };
     tr.appendChild(numTd);
     data.columns.forEach(function(col, colIdx){
       var td = document.createElement('td');
@@ -21141,7 +21168,16 @@ function renderSampleDataGrid(ref) {
         if (row.height == null) _sdApplyRowHeight(ref, i); // auto rows grow live as the user types
       };
       ta.onblur  = function(){ saveSampleDataGrid(ref); };
-      ta.onfocus = function(){ _sdSelectedRow[ref] = i; _sdUpdateRowHighlight(ref); _sdRepositionRowToolbar(ref); _sdEnsureRowDeselectListener(); };
+      ta.onfocus = function(){
+        _sdSelectedRow[ref] = i;
+        _sdUpdateRowHighlight(ref);
+        // Focusing a data cell always dismisses the row toolbar — it's only
+        // ever shown by clicking the number cell itself (see numTd.onclick
+        // below), never by focusing a data cell, even though both update
+        // the same row-highlight state.
+        var toolbar = document.getElementById('sd-row-toolbar');
+        if (toolbar) toolbar.style.display = 'none';
+      };
       td.appendChild(ta);
       tr.appendChild(td);
     });
@@ -21387,8 +21423,11 @@ function _sdRepositionRowToolbar(ref) {
 
   // numTd.offsetLeft/offsetTop are relative to #sd-grid-wrap (position:relative),
   // same containing block the toolbar itself uses — no extra scroll math needed.
-  toolbar.style.left = Math.max(0, numTd.offsetLeft - 28) + 'px';
-  toolbar.style.top  = numTd.offsetTop + 'px';
+  // Floats just above the row's number cell (same "overlap the top edge"
+  // pattern the column toolbar uses above a column header) — there's no
+  // room to the left of a narrow "#" column for a toolbar to sit beside it.
+  toolbar.style.left = numTd.offsetLeft + 'px';
+  toolbar.style.top  = Math.max(0, numTd.offsetTop - 76) + 'px';
   toolbar.style.display = 'flex';
 }
 
@@ -21419,9 +21458,15 @@ function _sdEnsureRowDeselectListener() {
   document.addEventListener('click', function(e){
     var ref = getWPRef ? getWPRef() : null;
     if (!ref || _sdSelectedRow[ref] === undefined || _sdSelectedRow[ref] === null) return;
-    var withinBody = e.target.closest && e.target.closest('#sd-body-rows');
+    // Only a click on the number cell itself (the "#" column that selected
+    // this row in the first place) or on the toolbar keeps it open — a click
+    // anywhere else, including a data cell in the very same row, dismisses
+    // it. This is deliberately narrower than "anywhere in the row body,"
+    // matching the requirement that the controls disappear the moment focus
+    // moves off the first column.
+    var withinNumCell = e.target.closest && e.target.closest('#sd-body-rows .sd-row > td:first-child');
     var withinToolbar = e.target.closest && e.target.closest('#sd-row-toolbar');
-    if (withinBody || withinToolbar) return; // handled by the row/toolbar's own click logic
+    if (withinNumCell || withinToolbar) return; // handled by the row/toolbar's own click logic
     _sdSelectedRow[ref] = null;
     _sdUpdateRowHighlight(ref);
     _sdRepositionRowToolbar(ref);
