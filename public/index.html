@@ -2521,6 +2521,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg>
                 Undo paste
               </button>
+              <button class="btn-s" id="sd-remove-extracted-cols-btn" onclick="removeAllExtractedColumns()" title="Remove every column that Extract Sample Data added to this grid — does not affect columns you added yourself" disabled style="font-size:10px;padding:2px 8px;white-space:nowrap;opacity:0.4;cursor:not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                Remove all Extracted columns
+              </button>
             </div>
           </div>
           <div class="sect-body" style="padding:0">
@@ -21220,6 +21224,21 @@ function renderSampleDataGrid(ref) {
   // toolbar's reposition which only needs the header and runs earlier.
   _sdRepositionRowToolbar(ref);
   _sdEnsureRowDeselectListener();
+  _sdUpdateRemoveExtractedColsButton(ref);
+}
+
+// Enables "Remove all Extracted columns" only while the grid actually has at
+// least one system-added column right now; grays it out the moment none
+// remain, whether removed via this button, individually via the column
+// toolbar's delete action, or simply never having been created.
+function _sdUpdateRemoveExtractedColsButton(ref) {
+  var btn = document.getElementById('sd-remove-extracted-cols-btn');
+  if (!btn) return;
+  var data = ref ? _daSampleDataFor(ref) : null;
+  var hasExtracted = !!(data && data.columns.some(function(c){ return c.systemAdded; }));
+  btn.disabled = !hasExtracted;
+  btn.style.opacity = hasExtracted ? '' : '0.4';
+  btn.style.cursor = hasExtracted ? '' : 'not-allowed';
 }
 
 // Computes and applies the height for one row. For an "auto" row (no manual
@@ -21293,6 +21312,31 @@ function removeSampleDataColumn(ref, colId) {
   data.columns = data.columns.filter(function(c){ return c.id !== colId; });
   data.rows.forEach(function(row){ if (row.cells) delete row.cells[colId]; });
   if (_sdSelectedColumn[ref] === colId) _sdSelectedColumn[ref] = null; // the selected column no longer exists
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
+}
+
+// Removes every column Extract Sample Data has ever added to this grid
+// (systemAdded:true — the amber-tinted "Extracted" columns), in one action.
+// Never touches a column the user created themselves, regardless of its
+// title or content — only the systemAdded flag decides what's removed.
+function removeAllExtractedColumns(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+  var data = _daSampleDataFor(ref);
+  var extractedCols = data.columns.filter(function(c){ return c.systemAdded; });
+  if (!extractedCols.length) return; // nothing to remove — button should already be disabled in this state
+  var n = extractedCols.length;
+  if (!confirm('Remove all ' + n + ' Extracted column' + (n!==1?'s':'') + ' from this grid? This will delete their data from every row. Columns you added yourself are not affected.')) return;
+  pushUndo(ref);
+  var removedIds = {};
+  extractedCols.forEach(function(c){ removedIds[c.id] = true; });
+  data.columns = data.columns.filter(function(c){ return !c.systemAdded; });
+  data.rows.forEach(function(row){
+    if (!row.cells) return;
+    Object.keys(removedIds).forEach(function(id){ delete row.cells[id]; });
+  });
+  if (_sdSelectedColumn[ref] && removedIds[_sdSelectedColumn[ref]]) _sdSelectedColumn[ref] = null; // the selected column no longer exists
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
 }
