@@ -8038,8 +8038,11 @@ async function _loadWorkpapersFromDB() {
   } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
 }
 
-// Bootstrap — load on page ready
-(async function() {
+// Bootstrap — load on page ready. Captured as a promise (not fired purely
+// for its side effects) so launchToDefaultWP() below can wait for it to
+// genuinely finish before opening a workpaper — see the full explanation
+// there for why this ordering matters.
+var _bootstrapLoadPromise = (async function() {
   if (!window._hasBackend) return; // no backend in artifact viewer — skip all DB loads
   try {
     await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]);
@@ -24019,7 +24022,17 @@ populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default aud
 try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } catch(e) {}
 
 // ── Launch directly to PRS Audits → PRS Invoice Testwork ──
-(function launchToDefaultWP() {
+// Waits for the bootstrap load (including the one-time PRS seed/migration —
+// see _bootstrapLoadPromise above) to fully finish first. Previously this
+// ran as a synchronous IIFE immediately after bootstrap merely STARTED
+// (not finished), racing against it: openWP -> loadSampleDataFromDB could
+// complete and correctly populate this workpaper's real grid data from
+// Postgres, only for the still-in-flight migration to later run its
+// cleanup step and delete that data back out of memory, with nothing
+// afterward to trigger a fresh render — so the grid could silently end up
+// empty in memory while the DOM kept showing whatever it last rendered.
+(async function launchToDefaultWP() {
+  await _bootstrapLoadPromise;
   const targetAudit = AUDITS.find(a => a.name === 'PRS Audits');
   const targetWP    = WORKPAPERS.findIndex(w => w.name === 'PRS Invoice Testwork' && w.auditName === 'PRS Audits');
   if (targetAudit && targetWP !== -1) {
