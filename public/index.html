@@ -22027,6 +22027,26 @@ async function readSampleFilesIntoGrid(ref) {
   var appendCheckbox = document.getElementById('extdata-append-checkbox');
   var appendMode = !!(appendCheckbox && appendCheckbox.checked);
 
+  // Built only in Mode A — Mode B's contract is "zero interaction with the
+  // grid above, even if it already has data," so it must never even SEE the
+  // grid's row values, let alone send them to the AI. Each row becomes a
+  // plain {columnTitle: value} object using only its genuinely populated
+  // cells — blank cells contribute nothing to correlate against, since an
+  // empty field can't meaningfully be "matched."
+  var userRows = null;
+  if (appendMode) {
+    var gridDataForPrompt = _daSampleDataFor(ref);
+    userRows = gridDataForPrompt.rows.map(function(row){
+      var values = {};
+      gridDataForPrompt.columns.forEach(function(col){
+        if (col.systemAdded) return; // extraction's own prior output — not something the user entered, never a correlation target
+        var v = row.cells && row.cells[col.id];
+        if (v !== undefined && v !== null && String(v).trim() !== '') values[col.title || '(untitled column)'] = v;
+      });
+      return values;
+    });
+  }
+
   _sdExtractionInProgress[ref] = true;
   var readfilesBtn = document.getElementById('sd-readfiles-btn');
   if (readfilesBtn) { readfilesBtn.disabled = true; readfilesBtn.style.opacity = '0.6'; readfilesBtn.style.cursor = 'not-allowed'; }
@@ -22049,7 +22069,7 @@ async function readSampleFilesIntoGrid(ref) {
       var entry = readableFiles[i];
       _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
       try {
-        var result = await _sdExtractFromOneFile(entry, fields);
+        var result = await _sdExtractFromOneFile(entry, fields, userRows);
         perFileResults.push({ file: entry.name, result: result });
       } catch (err) {
         failures.push({ file: entry.name, error: err.message || String(err) });
@@ -22067,11 +22087,16 @@ async function readSampleFilesIntoGrid(ref) {
       failures.map(function(f){return f.file + ' — ' + f.error;}).join('; ') + ')') : '';
 
     // Flatten every found record across every file into one list, each
-    // tagged with its source file — used by both modes below.
+    // tagged with its source file — used by both modes below. matchesRow is
+    // the model's own judgment (Mode A only — see _sdExtractFromOneFile)
+    // about which user-entered grid row, if any, this record corroborates;
+    // it's a 1-based row NUMBER from the prompt, translated to a 0-based
+    // array index here so it lines up directly with gridData.rows.
     var allRecords = [];
     perFileResults.forEach(function(fr){
       (fr.result.rows || []).forEach(function(r){
-        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '' });
+        var matchesRowIndex = (typeof r.matchesRow === 'number' && r.matchesRow >= 1) ? (r.matchesRow - 1) : null;
+        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndex: matchesRowIndex });
       });
     });
 
@@ -22097,7 +22122,7 @@ async function readSampleFilesIntoGrid(ref) {
       var signature = r.sourceFile + '||' + fields.map(function(f){ return cells[f.title] !== undefined ? cells[f.title] : ''; }).join('||');
       if (seenSignatures[signature]) { duplicatesRemoved++; return; }
       seenSignatures[signature] = true;
-      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells });
+      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells, matchesRowIndex: r.matchesRowIndex });
     });
     allRecords = dedupedRecords;
 
@@ -22124,40 +22149,56 @@ async function readSampleFilesIntoGrid(ref) {
       return;
     }
 
-    // Mode A: append to the User Provided Sample Data grid. Match each
-    // found record against the grid's existing rows using the same
-    // key-column matching engine used elsewhere in this feature. Matched
-    // records get their field values written as new, system-added columns;
-    // unmatched records are never silently added — only surfaced via a
-    // notice, since Mode A's contract is "enrich existing rows," not "add
-    // rows." A record whose key values match MORE than one existing row is
-    // a third case: filling every matched row with the same extracted
-    // values would silently duplicate that data across rows that may
-    // represent genuinely different real-world samples sharing the same
-    // check — instead the FIRST match is filled normally (same as an
-    // ordinary single match, no prompt needed for that part), and every
-    // ADDITIONAL match is offered via a confirmation modal as a new,
-    // duplicated row (the matched row's existing user-entered data, plus
-    // this record's extracted values) rather than silently picked or
-    // silently dropped.
+    // Mode A: append to the User Provided Sample Data grid. Correlation is
+    // now judged by the AI itself while reading the document (see
+    // _sdExtractFromOneFile's matchesRow instruction) — it was given the
+    // user's actual entered row data and asked whether a record's content
+    // agrees with ALL of a row's populated values, regardless of what any
+    // column or field happens to be titled. This replaced an earlier
+    // approach that compared extracted field values against grid columns
+    // by matching TITLES (e.g. requiring a column titled "Check #" to line
+    // up with a field also titled "Check #"), which broke the moment the
+    // two were worded even slightly differently — the AI reading the
+    // document doesn't have that limitation.
+    //
+    // Matched records get their field values written as new, system-added
+    // columns; records the AI didn't attribute to any row are never
+    // silently added — only surfaced via a notice, since Mode A's contract
+    // is "enrich existing rows," not "add rows." If more than one record is
+    // attributed to the SAME row (e.g. two different documents both
+    // genuinely corroborate it), the first is filled normally and the
+    // others are offered via the existing duplicate-row confirmation modal,
+    // exactly as when a single record's values happened to match multiple
+    // rows under the old approach.
     var gridData = _daSampleDataFor(ref);
 
-    // Match FIRST, using the existing (pre-extraction) columns only — no
-    // system-added columns exist yet at this point, so matching can never
-    // accidentally compare against extraction's own output. Column
-    // creation is deferred until AFTER we know whether anything actually
-    // matched; a run that finds zero matches must leave the grid completely
-    // untouched, not add empty columns nobody asked for.
-    var keyCols = _sdPickKeyColumns(gridData);
-    var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
-    var multiMatches = [];  // { record, rowIndexes } — first index filled immediately, the rest offered as duplicates
+    var byRow = {}; // rowIndex -> array of records the AI attributed to it
     var unmatchedCount = 0;
     allRecords.forEach(function(r){
-      var rowIndexes = _sdFindAllMatchingRows(gridData, keyCols, r.values || {});
-      if (rowIndexes.length === 0) { unmatchedCount++; return; }
-      if (rowIndexes.length === 1) { singleMatches.push({ record: r, rowIndex: rowIndexes[0] }); return; }
-      multiMatches.push({ record: r, rowIndexes: rowIndexes });
-      singleMatches.push({ record: r, rowIndex: rowIndexes[0] }); // the first match is always filled immediately, same as an ordinary single match
+      if (r.matchesRowIndex === null || r.matchesRowIndex === undefined || !gridData.rows[r.matchesRowIndex]) {
+        unmatchedCount++;
+        return;
+      }
+      if (!byRow[r.matchesRowIndex]) byRow[r.matchesRowIndex] = [];
+      byRow[r.matchesRowIndex].push(r);
+    });
+
+    var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
+    var multiMatches = [];  // { record, rowIndexes } — first filled immediately, the rest offered as duplicates of that same row
+    Object.keys(byRow).forEach(function(rowIndexStr){
+      var rowIndex = parseInt(rowIndexStr, 10);
+      var records = byRow[rowIndexStr];
+      singleMatches.push({ record: records[0], rowIndex: rowIndex });
+      if (records.length > 1) {
+        // Reuses the existing multi-match modal's shape (record + array of
+        // row indexes) by treating "N records claiming the same row" as
+        // equivalent to "1 record claiming N rows" for duplication purposes
+        // — each additional record becomes its own duplicated row, sourced
+        // from the same original row, exactly as the modal already expects.
+        for (var k = 1; k < records.length; k++) {
+          multiMatches.push({ record: records[k], rowIndexes: [rowIndex, rowIndex] });
+        }
+      }
     });
     var matchedCount = singleMatches.length;
 
@@ -22219,7 +22260,7 @@ async function readSampleFilesIntoGrid(ref) {
 
 // Builds the prompt and calls Claude for a single sample file, requesting a
 // strict JSON response so it can be parsed deterministically.
-async function _sdExtractFromOneFile(entry, fields) {
+async function _sdExtractFromOneFile(entry, fields, userRows) {
   var base64 = await fileToBase64(entry.file);
   var ext = (entry.name.split('.').pop() || '').toLowerCase();
   var mediaType = null;
@@ -22234,9 +22275,18 @@ async function _sdExtractFromOneFile(entry, fields) {
     return { title: f.title || '(untitled)', description: f.desc || '', guidance: f.guidance || '' };
   });
 
-  // Extraction reads from the Extracted Data field list now, not grid
-  // columns — this function has no awareness of the User Provided Sample
-  // Data grid at all. It never invents a field beyond what's listed here.
+  // Extraction reads from the Extracted Data field list for what VALUES to
+  // pull out — this part is unchanged. What's new is userRows: the actual
+  // data already entered in the User Provided Sample Data grid, passed so
+  // the model itself can judge whether a record it finds in the document
+  // corroborates one of those rows, using its own reading of the document
+  // rather than a JS-side comparison after the fact. This deliberately has
+  // NOTHING to do with column/field TITLES lining up — correlation is
+  // entirely about whether the row's actual VALUES are all borne out by
+  // what's in the file, exactly as a person cross-checking a sample by eye
+  // would do it, regardless of what any column happens to be labeled.
+  var userRowDefs = (userRows || []).map(function(r, i){ return { rowNumber: i + 1, values: r }; });
+
   var instructions =
     'You are extracting data for an audit workpaper from a sample document.\n' +
     'These are the fields to search for (title, optional description of what the field represents, ' +
@@ -22250,8 +22300,22 @@ async function _sdExtractFromOneFile(entry, fields) {
     'do not omit a field just because you could not find it. If you searched for a field\'s data element ' +
     'in this record and genuinely could not find it, set that field\'s value to JSON null (not an empty ' +
     'string, not omitted) so the caller can distinguish "searched and found nothing" from "not yet attempted".\n' +
+    (userRowDefs.length ?
+      'ADDITIONALLY, the auditor has already entered these sample rows by hand, each with its own actual data ' +
+      '(not field names — the real values the auditor typed in, e.g. an actual check number or an actual date):\n' +
+      JSON.stringify(userRowDefs) + '\n' +
+      'For each record you report from this file, determine whether it corroborates one of these rows: read the ' +
+      'document and check whether EVERY one of that row\'s values is genuinely present and in agreement somewhere ' +
+      'in this record\'s data, even if the document doesn\'t use the same label or exact formatting the auditor used ' +
+      '(e.g. a check number written with or without leading zeros, or a date written in a different format, still ' +
+      'counts as agreeing if it is the same underlying check/date). ALL of a row\'s populated values must agree — ' +
+      'if even one is contradicted or genuinely absent from this record, that row does not match. A record may ' +
+      'match at most one row. If a record corroborates one of these rows, set "matchesRow" to that row\'s ' +
+      '"rowNumber"; if it doesn\'t genuinely and fully match any of them, set "matchesRow" to null.\n'
+      : '') +
     'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
-    '{"rows":[{"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"}]}';
+    '{"rows":[{"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"' +
+    (userRowDefs.length ? ',"matchesRow":<row number or null>' : '') + '}]}';
 
   var messages = [{
     role: 'user',
@@ -22295,234 +22359,6 @@ function _sdParseExtractionJSON(text) {
   }
 }
 
-// Picks the column used to match an AI-extracted record against an existing
-// grid row. Extract-flagged columns are always blank until filled, so they
-// can never serve as a natural identifier — the first NON-extract column is
-// used; if every column happens to be extract-flagged, falls back to the
-// first column rather than refusing to match at all.
-// Picks the column used to match an AI-extracted record against an existing
-// grid row. The disqualifying condition is a column being BLANK across every
-// row — not whether it happens to be flagged for extraction. An
-// extract-flagged column is usually blank on a first run (nothing to match
-// yet), which is why earlier logic excluded extract-flagged columns
-// entirely — but that's wrong once a column like "Check #" already has real
-// values in it (whether entered manually or from an earlier extraction),
-// which is exactly the common case: a natural identifier column IS often
-// one the user also wants auto-filled/verified for other rows. Prefer ANY
-// column — extract-flagged or not — that has a non-blank value in at least
-// one existing row; among those, prefer a non-extract one only as a
-// tie-breaker (its value is more likely to have been deliberately entered by
-// the user rather than machine-extracted). Falls back to the first
-// non-extract column, then the first column of any kind, if nothing is
-// populated yet.
-// Picks the column used to match an AI-extracted record against an existing
-// grid row. The disqualifying condition is a column being BLANK across every
-// row — not whether it happens to be flagged for extraction. An
-// extract-flagged column is usually blank on a first run (nothing to match
-// yet), which is why earlier logic excluded extract-flagged columns
-// entirely — but that's wrong once a column like "Check #" already has real
-// values in it (whether entered manually or from an earlier extraction),
-// which is exactly the common case: a natural identifier column IS often
-// one the user also wants auto-filled/verified for other rows. Prefer ANY
-// column — extract-flagged or not — that has a non-blank value in at least
-// one existing row; among those, prefer a non-extract one only as a
-// tie-breaker (its value is more likely to have been deliberately entered by
-// the user rather than machine-extracted). Falls back to the first
-// non-extract column, then the first column of any kind, if nothing is
-// populated yet.
-//
-// Critically, the literal text "Not Found" does NOT count as populated data
-// here, even though it's a non-blank string. It's the marker written when
-// extraction searched a field and came up empty (see _sdValueOrNotFound) —
-// exactly the least reliable, least identifier-like value a column could
-// hold, and treating it as "this column has real data" was causing a
-// concrete bug: a free-text column with no real answer (e.g. a yes/no
-// question the AI can never determine) would fill up with "Not Found" on
-// the first run, get chosen as the match key on the second run purely
-// because it was "non-blank," and since the AI reports that same field as
-// null every time (there's still no real answer), matching would
-// immediately fail and duplicate the record as a new row on every
-// subsequent run.
-// Picks the column used to match an AI-extracted record against an existing
-// grid row. Preference order, strongest signal first:
-//   1. A column whose populated values are UNIQUE across existing rows —
-//      this is real evidence it behaves like an identifier (e.g. "Check #",
-//      where no two checks share a number), regardless of its extract flag.
-//      A shared, non-unique field like "Facility" (the same value on every
-//      check from one vendor) must NOT be picked ahead of a true identifier,
-//      since matching on it would incorrectly merge genuinely different
-//      records that just happen to share that one value — the exact false
-//      -positive this uniqueness check exists to prevent.
-//   2. With fewer than 2 rows, uniqueness can't be demonstrated yet (it
-//      takes at least two data points to show they're distinct) — the most
-//      common real case being exactly one existing row. Among columns that
-//      have data, prefer one whose TITLE reads like an identifier ("Check
-//      #", "Invoice Number", "Reference ID") over a merely descriptive one
-//      ("Facility", "Vendor Name") that's expected to repeat across many
-//      records. This is a heuristic, not certain — it's here because with
-//      only one data point there is no way to observe uniqueness directly,
-//      so a reasonable guess beats an arbitrary one (column order).
-//   3. Any non-extract column with at least one real (non-blank,
-//      non-"Not Found") value, if nothing scored via title.
-//   4. Any column at all with real data.
-//   5. The first non-extract column, then the first column of any kind, if
-//      nothing has any data yet (a first-ever run on an empty grid).
-// The literal text "Not Found" never counts as real data at any tier — it's
-// the marker for "searched, found nothing" (see _sdValueOrNotFound), not a
-// value that could ever meaningfully identify or distinguish a record.
-// Normalizes a value before comparing two candidate matches — case and
-// whitespace insensitive (as before), plus specifically tolerant of common
-// DATE formatting differences, since the AI's extracted date and the user's
-// typed date frequently differ only in format (e.g. "9/12/2024" vs
-// "09/12/24" vs "September 12, 2024") despite describing the exact same
-// day. Falls back to the original trimmed/lowercased string for anything
-// that isn't recognizably a date, so non-date values behave exactly as
-// before.
-function _sdNormalizeMatchValue(v) {
-  var s = String(v).trim().toLowerCase();
-  if (!s) return s;
-  // Strip punctuation commonly used as thousands separators or connective
-  // noise ($ , specifically) so "$23,250.00" and "23250.00" can still be
-  // recognized as the same amount if that ever becomes a match key.
-  var dateParsed = _sdTryParseDate(s);
-  if (dateParsed) return dateParsed; // canonical YYYY-MM-DD if it parses as a date
-  return s;
-}
-
-// Best-effort date normalizer covering the formats these sample documents
-// actually use — M/D/YYYY, M/D/YY, YYYY-MM-DD, and "Month D, YYYY" — without
-// pulling in a date-parsing library. Returns null (not a date, use the raw
-// string) rather than guessing on anything ambiguous.
-function _sdTryParseDate(s) {
-  var m;
-  // M/D/YYYY or M/D/YY (also accepts M-D-YYYY)
-  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (m) {
-    var mo = parseInt(m[1],10), da = parseInt(m[2],10), yr = parseInt(m[3],10);
-    if (yr < 100) yr += (yr < 50 ? 2000 : 1900); // 2-digit year heuristic
-    if (mo>=1 && mo<=12 && da>=1 && da<=31) return yr + '-' + String(mo).padStart(2,'0') + '-' + String(da).padStart(2,'0');
-  }
-  // YYYY-MM-DD already canonical
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
-  // "Month D, YYYY" or "Month D YYYY"
-  var MONTHS = {january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
-  m = s.match(/^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
-  if (m && MONTHS[m[1]]) return m[3] + '-' + String(MONTHS[m[1]]).padStart(2,'0') + '-' + String(parseInt(m[2],10)).padStart(2,'0');
-  return null;
-}
-
-// Picks EVERY plausible identifier column, ranked strongest-signal-first —
-// not just one. A record can match on ANY of these agreeing (see
-// _sdFindMatchingRow below), which is what makes "I referenced the check
-// number AND the check date" work even if, say, the check number column
-// happens to be blank for this particular existing row but the date column
-// isn't, or vice versa: whichever field actually has comparable data on
-// both sides gets a chance to confirm the match, rather than the whole
-// comparison living or dying on one column chosen in advance.
-function _sdPickKeyColumns(data) {
-  function realValuesFor(col) {
-    return data.rows
-      .map(function(row){ return row.cells && row.cells[col.id]; })
-      .filter(function(v){ return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'not found'; })
-      .map(_sdNormalizeMatchValue);
-  }
-  function hasData(col) { return realValuesFor(col).length > 0; }
-  function isUnique(col) {
-    var vals = realValuesFor(col);
-    if (vals.length < 2) return false;
-    return new Set(vals).size === vals.length;
-  }
-  var IDENTIFIER_HINTS = /#|number|no\.?\b|\bid\b|reference|invoice|check\s*#|account\s*#|date/i;
-  function looksLikeIdentifier(col) { return IDENTIFIER_HINTS.test(col.title || ''); }
-
-  // System-added columns are extraction OUTPUT, not original user-entered
-  // identifiers — never candidates to match against (matching a record
-  // against a value that extraction itself wrote would be circular).
-  var candidates = data.columns.filter(function(c){ return !c.systemAdded; });
-
-  var unique = candidates.filter(isUnique);
-  var identifierLike = candidates.filter(function(c){ return hasData(c) && looksLikeIdentifier(c) && !isUnique(c); });
-  var otherPopulated = candidates.filter(function(c){ return hasData(c) && !looksLikeIdentifier(c) && !isUnique(c); });
-
-  // Unique-demonstrated columns first (strongest signal), then
-  // identifier-titled columns, then anything else populated — de-duplicated
-  // by id while preserving this priority order.
-  var ordered = unique.concat(identifierLike).concat(otherPopulated);
-  var seen = {};
-  return ordered.filter(function(c){ if (seen[c.id]) return false; seen[c.id]=true; return true; });
-}
-
-// Same matching logic as _sdFindMatchingRow, but returns EVERY matching row
-// index instead of stopping at the first — used to detect when a found
-// record's key values (e.g. Check # and Check Date together) match more
-// than one existing row, which needs different handling than an ordinary
-// single match (see readSampleFilesIntoGrid's Mode A block: a record with
-// multiple matches offers to duplicate the additional rows rather than
-// silently picking just one).
-function _sdFindAllMatchingRows(data, keyCols, aiValues) {
-  var cols = Array.isArray(keyCols) ? keyCols : (keyCols ? [keyCols] : []);
-  if (!cols.length) return [];
-  for (var c = 0; c < cols.length; c++) {
-    var keyCol = cols[c];
-    var aiKeyVal = aiValues[keyCol.title];
-    if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '' ||
-        String(aiKeyVal).trim().toLowerCase() === 'not found') continue; // this candidate has nothing to compare — try the next one
-    var normalizedAiVal = _sdNormalizeMatchValue(aiKeyVal);
-    var matches = [];
-    for (var i = 0; i < data.rows.length; i++) {
-      var row = data.rows[i];
-      var existingVal = row.cells && row.cells[keyCol.id];
-      if (existingVal === undefined || existingVal === null || String(existingVal).trim() === '' ||
-          String(existingVal).trim().toLowerCase() === 'not found') continue;
-      if (_sdNormalizeMatchValue(existingVal) === normalizedAiVal) matches.push(i);
-    }
-    // Same "first candidate column with anything to compare wins" rule as
-    // _sdFindMatchingRow — once one column produces any real comparison
-    // (even a single match, even zero matches), later candidate columns are
-    // not consulted. This keeps both functions' semantics aligned: they'd
-    // pick the exact same "first" match, this one just also reports any
-    // others found via that same column.
-    if (matches.length) return matches;
-  }
-  return [];
-}
-
-// Finds an existing row that matches on ANY of the given candidate columns
-// (case/whitespace-insensitive, date-format-tolerant — see
-// _sdNormalizeMatchValue). A record only needs ONE column to agree; it does
-// not need every candidate column to be present or to agree, since a real
-// record's supporting fields are rarely all populated on both sides at
-// once. The literal text "Not Found" is never treated as a valid value to
-// match against on either side of the comparison — it's the marker for
-// "searched, found nothing" (see _sdValueOrNotFound), not a real
-// identifier, so two different records that both lack the same field must
-// never appear to "match" each other on that basis.
-function _sdFindMatchingRow(data, keyCols, aiValues) {
-  var cols = Array.isArray(keyCols) ? keyCols : (keyCols ? [keyCols] : []);
-  if (!cols.length) return -1;
-  for (var c = 0; c < cols.length; c++) {
-    var keyCol = cols[c];
-    var aiKeyVal = aiValues[keyCol.title];
-    if (aiKeyVal === undefined || aiKeyVal === null || String(aiKeyVal).trim() === '' ||
-        String(aiKeyVal).trim().toLowerCase() === 'not found') continue; // this candidate has nothing to compare — try the next one
-    var normalizedAiVal = _sdNormalizeMatchValue(aiKeyVal);
-    for (var i = 0; i < data.rows.length; i++) {
-      var row = data.rows[i];
-      var existingVal = row.cells && row.cells[keyCol.id];
-      if (existingVal === undefined || existingVal === null || String(existingVal).trim() === '' ||
-          String(existingVal).trim().toLowerCase() === 'not found') continue;
-      if (_sdNormalizeMatchValue(existingVal) === normalizedAiVal) return i;
-    }
-  }
-  return -1;
-}
-
-// Combines every file's extraction result into one plan: fills for existing
-// rows (matched by key column) and proposed additions for records that
-// don't match anything already in the grid (which always require explicit
-// user approval — see _sdShowAddRowsPrompt/_sdAcceptAddRows — before
-// anything is added). This never creates a column, under any circumstance.
 // Translates a raw value the AI reported for a column into what should
 // actually be stored in the cell: the value itself if real, or the literal
 // text "Not Found" if the AI explicitly signaled it searched and found
@@ -22765,9 +22601,10 @@ function _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData) {
 
   var n = candidates.length;
   document.getElementById('sd-multimatch-msg').textContent =
-    'Wavefire found sample data in the attached files that matches more than one existing row in the grid above. ' +
+    'Wavefire found more sample records in the attached files than there are unique rows for them in the grid above ' +
+    '(either one record could apply to more than one row, or more than one record was found for the same row). ' +
     'The first matching row for each was already filled in. Add ' + n + ' additional duplicate row' + (n!==1?'s':'') +
-    ' — one for each extra match — using the same user-entered data as the row it matched, plus the extracted values found for it?';
+    ' for the rest, using the same user-entered data as the row each one matched, plus the extracted values found for it?';
 
   var shown = candidates.slice(0, 20);
   var listEl = document.getElementById('sd-multimatch-list');
