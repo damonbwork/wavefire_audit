@@ -2685,6 +2685,34 @@
           </div>
         </div>
 
+        <!-- Generic in-app confirmation modal — used in place of the native
+             confirm() for actions in this section (column delete, bulk
+             remove) specifically because a real browser feature exists that
+             silently breaks confirm(): after several dialogs in quick
+             succession, Chrome offers "Prevent this page from creating
+             additional dialogs," and once checked, EVERY future confirm()
+             call on that tab silently returns false with no dialog and no
+             error — the calling code sees a plain "cancelled" and does
+             nothing, which is indistinguishable from a real bug without
+             knowing this exists. An in-app modal like this can't be
+             suppressed that way, since it's just DOM/CSS, not a native
+             browser dialog. -->
+        <div id="sd-generic-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:420px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div id="sd-generic-confirm-title" style="font-size:14px;font-weight:700;color:var(--text-primary)">Confirm</div>
+            </div>
+            <div style="padding:16px 20px">
+              <div id="sd-generic-confirm-msg" style="font-size:13px;color:var(--text-secondary);line-height:1.5"></div>
+            </div>
+            <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn-s" onclick="_sdGenericConfirmRespond(false)" style="font-size:12px">Cancel</button>
+              <button class="btn-p" id="sd-generic-confirm-ok-btn" onclick="_sdGenericConfirmRespond(true)" style="font-size:12px;background:#dc2626;border-color:#dc2626">Remove</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Section 5: Test Attributes -->
         <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
           <div class="sect-hdr">
@@ -21303,11 +21331,42 @@ function addSampleDataColumn(ref) {
   }
 }
 
-function removeSampleDataColumn(ref, colId) {
+// In-app replacement for confirm() — returns a Promise<boolean> just like
+// awaiting a real dialog would, but implemented as plain DOM/CSS so it can
+// never be silently suppressed by the browser's "prevent this page from
+// creating additional dialogs" feature (see the HTML comment above the
+// modal itself for the full explanation). okLabel defaults to "Remove"
+// since every current caller is a destructive removal; pass a different
+// label if this is ever reused for something else.
+var _sdGenericConfirmResolve = null;
+function _sdShowGenericConfirm(title, message, okLabel) {
+  return new Promise(function(resolve){
+    var overlay = document.getElementById('sd-generic-confirm-overlay');
+    var titleEl = document.getElementById('sd-generic-confirm-title');
+    var msgEl = document.getElementById('sd-generic-confirm-msg');
+    var okBtn = document.getElementById('sd-generic-confirm-ok-btn');
+    if (!overlay || !titleEl || !msgEl || !okBtn) { resolve(false); return; } // modal not present — fail safe, don't proceed
+    titleEl.textContent = title || 'Confirm';
+    msgEl.textContent = message || '';
+    okBtn.textContent = okLabel || 'Remove';
+    _sdGenericConfirmResolve = resolve;
+    overlay.style.display = 'flex';
+  });
+}
+function _sdGenericConfirmRespond(result) {
+  var overlay = document.getElementById('sd-generic-confirm-overlay');
+  if (overlay) overlay.style.display = 'none';
+  var resolve = _sdGenericConfirmResolve;
+  _sdGenericConfirmResolve = null;
+  if (resolve) resolve(result);
+}
+
+async function removeSampleDataColumn(ref, colId) {
   var data = _daSampleDataFor(ref);
   var col = data.columns.find(function(c){ return c.id === colId; });
   var label = col && col.title ? '"' + col.title + '"' : 'this column';
-  if (!confirm('Remove ' + label + '? This will delete its data from every row.')) return;
+  var confirmed = await _sdShowGenericConfirm('Remove column', 'Remove ' + label + '? This will delete its data from every row.');
+  if (!confirmed) return;
   pushUndo(ref);
   data.columns = data.columns.filter(function(c){ return c.id !== colId; });
   data.rows.forEach(function(row){ if (row.cells) delete row.cells[colId]; });
@@ -21320,14 +21379,18 @@ function removeSampleDataColumn(ref, colId) {
 // (systemAdded:true — the amber-tinted "Extracted" columns), in one action.
 // Never touches a column the user created themselves, regardless of its
 // title or content — only the systemAdded flag decides what's removed.
-function removeAllExtractedColumns(ref) {
+async function removeAllExtractedColumns(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
   var data = _daSampleDataFor(ref);
   var extractedCols = data.columns.filter(function(c){ return c.systemAdded; });
   if (!extractedCols.length) return; // nothing to remove — button should already be disabled in this state
   var n = extractedCols.length;
-  if (!confirm('Remove all ' + n + ' Extracted column' + (n!==1?'s':'') + ' from this grid? This will delete their data from every row. Columns you added yourself are not affected.')) return;
+  var confirmed = await _sdShowGenericConfirm(
+    'Remove Extracted columns',
+    'Remove all ' + n + ' Extracted column' + (n!==1?'s':'') + ' from this grid? This will delete their data from every row. Columns you added yourself are not affected.'
+  );
+  if (!confirmed) return;
   pushUndo(ref);
   var removedIds = {};
   extractedCols.forEach(function(c){ removedIds[c.id] = true; });
@@ -22850,6 +22913,19 @@ function renderExtractedDataResults(ref) {
   const hdrRow = document.getElementById('extdata-results-hdr');
   const body = document.getElementById('extdata-results-body');
   if (!wrap || !hdrRow || !body) return;
+
+  // ALWAYS clear both header and body content first, unconditionally —
+  // previously the empty-records path only hid the wrapper via
+  // style.display and returned immediately, never actually clearing
+  // hdrRow.innerHTML/body.innerHTML. The old table's full content (every
+  // column, every row) was left completely intact underneath, invisible
+  // only for as long as nothing else ever caused the wrapper to become
+  // visible again — which is exactly how stale results could reappear
+  // fully populated despite the grid having genuinely been cleared. Now
+  // there is no path through this function that can leave old content
+  // sitting in the DOM.
+  hdrRow.innerHTML = '';
+  body.innerHTML = '';
 
   if (!records.length) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
