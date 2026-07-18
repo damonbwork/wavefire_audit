@@ -8065,6 +8065,18 @@ async function _loadWorkpapersFromDB() {
         await saveExtractedDataToDB(prsRef);
         console.log('[Migration] Moved ' + sourceColumns.length + ' Sample Data columns into Extracted Data for', prsRef);
       }
+      // The seed's only purpose was feeding this one-time migration — once
+      // this block has run (whether it actually migrated anything just now,
+      // or found the migration already done from a previous session), the
+      // seed must not linger in wpSampleData any longer. It was a top-level
+      // const, evaluated immediately at page parse, sitting in
+      // wpSampleData[prsRef] before this function even ran — and the later,
+      // real loadSampleDataFromDB(prsRef) call only overwrites it on a
+      // SUCCESSFUL fetch; a failed one previously fell back to whatever was
+      // already there, letting this stale seed masquerade as real grid data
+      // indefinitely. Clearing it here means a later failed load now
+      // correctly falls back to empty instead.
+      delete wpSampleData[prsRef];
     } catch(e) { console.warn('[Migration] Sample Data -> Extracted Data migration failed:', e.message); }
 
     // Load RCM, FS accounts, objectives and entities
@@ -21035,7 +21047,18 @@ async function loadSampleDataFromDB(ref) {
     };
   } catch(e) {
     console.warn('[Sample Data] load failed:', e.message);
-    if (!wpSampleData[ref]) wpSampleData[ref] = { columns: [], rows: [] };
+    // A failed load must NEVER let stale data — including the hardcoded PRS
+    // seed object below, which is a top-level const evaluated immediately
+    // at page load and therefore already sitting in wpSampleData[ref] before
+    // this function is ever called — masquerade as current, real data.
+    // Previously this only initialized wpSampleData[ref] when nothing was
+    // there yet, silently preserving old/seed data indefinitely on any
+    // network failure, with the only sign being a console warning nobody
+    // would ever connect to it. A failed load now always resets to empty,
+    // matching what an actually-empty, successfully-loaded grid looks like
+    // — a genuine failure should look like "nothing here," not "whatever
+    // happened to be in memory before."
+    wpSampleData[ref] = { columns: [], rows: [] };
   }
   // Freshly loaded data IS the true saved state — any paste-undo history
   // held in memory from a previous view of this workpaper no longer applies
