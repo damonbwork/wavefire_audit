@@ -2580,10 +2580,14 @@
               <span id="sd-empty-hint" style="font-size:11px;color:var(--text-tertiary);font-style:italic;display:none">Click "Add column" to start building your sample data grid.</span>
             </div>
           </div>
-          <div style="padding:10px 12px;border-top:0.5px solid var(--border-light)">
+          <div style="padding:10px 12px;border-top:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
             <button class="btn-s" onclick="exportSampleDataXLSX()" style="font-size:11px;padding:3px 10px">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download sample data (Excel)
+            </button>
+            <button class="btn-s" id="sd-clear-all-btn" onclick="clearAllSampleData()" style="font-size:11px;padding:3px 10px" title="Clear all sample data for this workpaper — both the User Provided grid and the entire Extracted Data results table">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Clear Sample Data
             </button>
           </div>
         </div>
@@ -23224,6 +23228,46 @@ async function clearExtractedDataResults(ref) {
     _sdRemoveExtractedColumnsNoConfirm(ref);
     renderSampleDataGrid(ref);
     saveSampleDataGrid(ref);
+  }
+}
+
+// Full reset for this workpaper's sample data: EVERY column and row in the
+// User Provided Sample Data grid, and every record in the Extracted Data
+// results table — both user-entered data and anything extraction produced.
+// Deliberately broader than clearExtractedDataResults above (which only
+// clears results plus any Extracted columns those results are still linked
+// to) — this button is a hard reset of the whole section, not a targeted
+// undo of one extraction run.
+async function clearAllSampleData(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+
+  var gridData = _daSampleDataFor(ref);
+  var hasGridData = gridData && (gridData.columns.length > 0 || gridData.rows.length > 0);
+  var hasResults = wpExtractedDataRecords[ref] && wpExtractedDataRecords[ref].length > 0;
+  if (!hasGridData && !hasResults) return; // nothing to clear
+
+  var confirmed = await _sdShowGenericConfirm(
+    'Clear Sample Data',
+    'Clear ALL sample data for this workpaper? This removes every row and column from the Sample Data grid above (both what you entered and any Extracted columns), and clears the entire Extracted Data results table below. This cannot be undone.',
+    'Clear everything'
+  );
+  if (!confirmed) return;
+
+  if (hasGridData) {
+    pushUndo(ref);
+    gridData.columns = [];
+    gridData.rows = [];
+    _sdSelectedColumn[ref] = null;
+    _sdSelectedRow[ref] = null;
+    renderSampleDataGrid(ref);
+    saveSampleDataGrid(ref);
+  }
+
+  if (hasResults) {
+    wpExtractedDataRecords[ref] = [];
+    await saveExtractedDataRecordsToDB(ref);
+    renderExtractedDataResults(ref);
   }
 }
 
