@@ -6795,7 +6795,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   const font     = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+  const TICK_LABELS = { pass:'PASS', pass_exception:'EXC', fail:'FAIL', error:'N/A' };
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
 
   function pdfText(s) {
@@ -6827,7 +6827,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var ptH = page.getSize().height;
 
       var result = match.result || 'error';
-      var sym = TICK_SYMS[result] || '–';
+      var label = TICK_LABELS[result] || 'N/A';
       var col = TICK_COLS[result] || TICK_COLS.error;
       if (result === 'pass_exception' || result === 'fail') exNum++;
 
@@ -6835,12 +6835,24 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
       var pdfY = ptH * (1 - paraFrac);
 
-      page.drawRectangle({ x: 10, y: pdfY - 10, width: 30, height: 18, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.1, col.green*0.1, col.blue*0.1), opacity: 0.2 });
-      page.drawText(pdfText(sym), { x: 14, y: pdfY - 6, font: font, size: 12, color: col });
-      var label = (attr.attrRef || attr.num || String(ai+1)) + (exNum && (result==='fail'||result==='pass_exception') ? ' [E'+exNum+']' : '');
-      page.drawText(pdfText(label), { x: 44, y: pdfY - 5, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3) });
+      // Box sized to actually fit the label at this font size — PASS/FAIL/
+      // EXC/N/A are all 3-4 characters, comfortably within 34pt at 9pt bold.
+      var boxW = 34, boxH = 14;
+      page.drawRectangle({ x: 10, y: pdfY - boxH, width: boxW, height: boxH, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.1, col.green*0.1, col.blue*0.1), opacity: 0.2 });
+      page.drawText(pdfText(label), { x: 13, y: pdfY - boxH + 4, font: font, size: 9, color: col });
+
+      // Attribute number in brackets, on the SAME line as the tick label but
+      // with real spacing (a separate drawText call at its own x-offset,
+      // not concatenated into one string) so it never visually runs into
+      // the label the way "(PASS)" + "6" did before this fix.
+      var attrNum = attr.attrRef || attr.num || String(ai + 1);
+      var attrTag = '[' + attrNum + ']' + (exNum && (result==='fail'||result==='pass_exception') ? ' (Exception E' + exNum + ')' : '');
+      page.drawText(pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH + 4, font: font, size: 8, color: rgb(0.15,0.15,0.15) });
+
+      // Explanation on its own line below the tick+number line, not sharing
+      // horizontal space with either.
       if (match.note) {
-        page.drawText(pdfText(String(match.note).slice(0, 70)), { x: 44, y: pdfY - 14, font: fontReg, size: 6, color: rgb(0.35,0.35,0.35), maxWidth: 200 });
+        page.drawText(pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 10, font: fontReg, size: 7, color: rgb(0.35,0.35,0.35), maxWidth: 260 });
       }
       anyPlaced = true;
     });
