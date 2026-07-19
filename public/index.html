@@ -22251,8 +22251,18 @@ async function readSampleFilesIntoGrid(ref) {
     var allRecords = [];
     perFileResults.forEach(function(fr){
       (fr.result.rows || []).forEach(function(r){
-        var matchesRowIndexes = Array.isArray(r.matchesRows)
-          ? r.matchesRows.filter(function(n){ return typeof n === 'number' && n >= 1; }).map(function(n){ return n - 1; })
+        // matchesRows is REQUESTED as an array, but a model can plausibly
+        // simplify a single-element array down to a bare number when only
+        // one match applies — that's a common enough deviation that
+        // silently discarding it (treating it as "no matches at all") would
+        // make a record that genuinely matched one row appear completely
+        // unmatched instead, which is a much more consequential mistake
+        // than just being lenient about the shape. Normalize a bare number
+        // to a one-element array before filtering, rather than reject it.
+        var rawMatchesRows = r.matchesRows;
+        if (typeof rawMatchesRows === 'number') rawMatchesRows = [rawMatchesRows];
+        var matchesRowIndexes = Array.isArray(rawMatchesRows)
+          ? rawMatchesRows.filter(function(n){ return typeof n === 'number' && n >= 1; }).map(function(n){ return n - 1; })
           : [];
         allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndexes: matchesRowIndexes, sampleData: r.sampleData || {} });
       });
