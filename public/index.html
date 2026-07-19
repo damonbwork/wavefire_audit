@@ -18101,21 +18101,22 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         const row = sampleRows[fi];
         const rowEl = rows[fi];
         const sampleDesc = _describeSampleRow(row) || `Sample ${fi+1}`;
+        const sampleRowCells = Object.assign({}, row.cells || {}); // snapshot, not a live reference
         inFlight++;
 
         analyzeOneFileFast(row, rowEl, fi).then(outcome => {
           if (!_cancelled) {
             if (outcome.ok) {
-              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: outcome.results, fields: [], commentary: '' };
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: outcome.results, fields: [], commentary: '' };
               updateResultRow(rowEl, 'done', null, null);
             } else {
-              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
               failedEntries.push({ entry: row, row: rowEl, fi });
               const retryName = `_retry_${Date.now()}_${fi}`;
               window[retryName] = async () => {
                 updateResultRow(rowEl, 'loading', 'Retrying…', null);
                 const retry = await analyzeOneFileFast(row, rowEl, fi);
-                if (retry.ok) { analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: retry.results, fields: [], commentary: '' }; updateResultRow(rowEl, 'done', null, null); }
+                if (retry.ok) { analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: retry.results, fields: [], commentary: '' }; updateResultRow(rowEl, 'done', null, null); }
                 else updateResultRow(rowEl, 'error', retry.error, `${retryName}()`);
               };
               updateResultRow(rowEl, 'error', outcome.error, `${retryName}()`);
@@ -18127,7 +18128,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
           if (nextIdx >= sampleRows.length && inFlight === 0) resolveAll();
           else startNext();
         }).catch(err => {
-          analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: [], fields: [] };
+          analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: [], fields: [] };
           inFlight--;
           processed++;
           if (nextIdx >= sampleRows.length && inFlight === 0) resolveAll();
@@ -18141,7 +18142,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   // Ensure analysisResults array is dense
   for (let i = 0; i < sampleRows.length; i++) {
-    if (!analysisResults[i]) analysisResults[i] = { fileName: allFileNamesJoined, sampleDesc: _describeSampleRow(sampleRows[i]) || `Sample ${i+1}`, results: [], fields: [] };
+    if (!analysisResults[i]) analysisResults[i] = { fileName: allFileNamesJoined, sampleDesc: _describeSampleRow(sampleRows[i]) || `Sample ${i+1}`, sampleRowCells: Object.assign({}, sampleRows[i].cells || {}), results: [], fields: [] };
   }
 
   // For static (demo) sample files — generate plausible mock results
@@ -18857,7 +18858,16 @@ async function exportToXlsx(attachOnly = false) {
   const now  = new Date();
   const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
-  const xlsxFields  = _sdFieldsForAnalysis(ref);
+  // Every column currently in the Sample Data grid (user-entered AND
+  // extraction-added alike) — placed immediately after "Sample File" and
+  // before the Test Attribute columns in the exported layout below. This
+  // replaces a dead reference to _sdFieldsForAnalysis, which filtered on a
+  // column property (col.extract) that no longer exists on any column in
+  // the current grid design and had therefore always silently returned an
+  // empty list — meaning this whole section had produced no Sample Data
+  // columns in the export for some time regardless of this request.
+  const sdGridForExport = _daSampleDataFor(ref);
+  const sdColumnsForExport = sdGridForExport.columns || [];
 
   // ── Tick marks ──
   const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
@@ -18895,22 +18905,23 @@ async function exportToXlsx(attachOnly = false) {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
     // A6: Description row only — no repeated attr+title here
-    ['Description', ...xlsxFields.map(() => ''), ...attributes.map(a => a.desc || '')],
+    ['Description', ...sdColumnsForExport.map(() => ''), ...attributes.map(a => a.desc || '')],
     // A7: Additional Info row
-    ['Additional Information', ...xlsxFields.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
+    ['Additional Information', ...sdColumnsForExport.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
     // A8: (blank row to separate headers from the Sample File row visually)
     [],
-    // A9: Sample File results header — field names + combined Attr# + Title (one occurrence)
-    ['Sample File', ...xlsxFields.map(f => f.name), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
+    // A9: Sample File results header — Sample Data grid column titles,
+    // immediately after "Sample File" and before the Test Attribute columns
+    // — then combined Attr# + Title (one occurrence) for the attributes.
+    ['Sample File', ...sdColumnsForExport.map(c => c.title || '(untitled column)'), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
   ];
 
   // Grid rows
   analysisResults.forEach((fileResult, fi) => {
-    const fieldCells = xlsxFields.map(sf => {
-      const match = (fileResult.fields || []).find(f =>
-        f.name === sf.name || f.name.toLowerCase() === sf.name.toLowerCase()
-      );
-      return match?.value || '';
+    const sampleCells = fileResult.sampleRowCells || {};
+    const fieldCells = sdColumnsForExport.map(col => {
+      const v = sampleCells[col.id];
+      return (v !== undefined && v !== null) ? v : '';
     });
     const attrCells = [];
     attributes.forEach((attr, ai) => {
@@ -18974,7 +18985,7 @@ async function exportToXlsx(attachOnly = false) {
   const wb = XLSX.utils.book_new();
   wb.SSF = {}; // ensure style data is preserved
   const ws = XLSX.utils.aoa_to_sheet(wsData, { cellStyles: true });
-  ws['!cols'] = [{ wch: 40 }, ...xlsxFields.map(() => ({ wch: 22 })), ...attributes.map(() => ({ wch: 24 }))];
+  ws['!cols'] = [{ wch: 40 }, ...sdColumnsForExport.map(() => ({ wch: 22 })), ...attributes.map(() => ({ wch: 24 }))];
 
   // ── Track positions of special rows for styling ──
   // wsData rows: 0=AuditName,1=Ref,2=User,3=Date,4=blank,5=Attribute,6=Desc,7=AddlInfo,8=SampleFile
@@ -18986,7 +18997,7 @@ async function exportToXlsx(attachOnly = false) {
   const dataEndRow      = 9 + analysisResults.length - 1;
   const legendRow       = dataEndRow + 2;   // blank row then LEGEND
   const exceptionsRow   = legendRow + 7;    // LEGEND(1)+5 ticks+[E#]+blank = 8 rows
-  const totalCols       = 1 + xlsxFields.length + attributes.length;
+  const totalCols       = 1 + sdColumnsForExport.length + attributes.length;
 
   const boldStyle           = { font: { bold: true } };
   const boldUnderlineStyle  = { font: { bold: true }, border: { bottom: { style: 'medium', color: { rgb: '000000' } } } };
