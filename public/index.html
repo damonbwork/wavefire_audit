@@ -2717,67 +2717,28 @@
           </div>
         </div>
 
-        <!-- Multi-match duplicate-row confirmation — shown when a single
-             extracted record's key values (e.g. Check # + Check Date)
-             match MORE than one existing row in the grid. Filling every
-             matched row with the same extracted values would silently
-             duplicate data across rows that may represent genuinely
-             different real-world samples sharing the same check; instead
-             the first match is filled normally (unchanged, no prompt
-             needed) and every ADDITIONAL match is offered here as a new,
-             duplicated row — same user-entered data as its source row,
-             plus this record's extracted values. -->
-        <div id="sd-multimatch-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
-          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+        <!-- Combined "add records" confirmation — covers BOTH cases that can
+             result in new rows being added to the grid in one Extract Sample
+             Data run: a record whose values corroborate more than one
+             existing row (offered as a duplicate of the row it matches,
+             with that row's own data plus the extracted values), and a
+             record that corroborates no existing row at all (offered as a
+             brand-new row, with the AI's own reading of the user's columns
+             plus the extracted values — see _sdConfirmAddRecords'
+             sampleData handling). Previously these were two separate
+             modals shown one after another; combined into one list, one
+             count, one Add action, since from the user's point of view
+             both are just "here are N more records to add." -->
+        <div id="sd-addrecords-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:680px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
             <div style="padding:20px 24px 14px">
-              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Multiple matching rows found</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-multimatch-msg"></div>
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Additional sample records found</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-addrecords-msg"></div>
             </div>
-            <div id="sd-multimatch-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1">
-              <table style="width:100%;border-collapse:collapse;font-size:12px">
-                <thead><tr style="background:var(--bg-secondary)">
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Existing row it matches</th>
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Extracted values to add</th>
-                </tr></thead>
-                <tbody id="sd-multimatch-list"></tbody>
-              </table>
-            </div>
-            <div id="sd-multimatch-toolarge-note" style="display:none;padding:10px 24px;font-size:11px;color:var(--text-tertiary);font-style:italic">Showing the first 20 — additional matching records beyond this will follow the same choice.</div>
+            <div id="sd-addrecords-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1"></div>
             <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
-              <button class="btn-s" onclick="_sdDeclineMultiMatch()" style="font-size:12px">Don't duplicate</button>
-              <button class="btn-p" onclick="_sdConfirmMultiMatch()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add duplicate rows</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Unmatched-records confirmation — shown when Mode A finds records
-             that don't corroborate ANY existing grid row. Previously these
-             were only mentioned in the summary alert text, with no way to
-             actually act on them; this offers to add each one as a genuinely
-             new row (extracted field values only — there's no existing
-             user-entered row to carry data over from, unlike the duplicate-
-             row case in the multi-match modal above). -->
-        <div id="sd-unmatched-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
-          <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
-            <div style="padding:20px 24px 14px">
-              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Sample records with no matching row</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="sd-unmatched-msg"></div>
-            </div>
-            <div id="sd-unmatched-list-wrap" style="padding:0 24px;overflow-y:auto;flex:1">
-              <table style="width:100%;border-collapse:collapse;font-size:12px">
-                <thead><tr style="background:var(--bg-secondary)">
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Source file</th>
-                  <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Extracted values</th>
-                </tr></thead>
-                <tbody id="sd-unmatched-list"></tbody>
-              </table>
-            </div>
-            <div id="sd-unmatched-toolarge-note" style="display:none;padding:10px 24px;font-size:11px;color:var(--text-tertiary);font-style:italic">Showing the first 20 — additional unmatched records beyond this will follow the same choice.</div>
-            <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
-              <button class="btn-s" onclick="_sdDeclineUnmatched()" style="font-size:12px">Don't add rows</button>
-              <button class="btn-p" onclick="_sdConfirmUnmatched()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add as new rows</button>
+              <button class="btn-s" onclick="_sdDeclineAddRecords()" style="font-size:12px">Don't add rows</button>
+              <button class="btn-p" onclick="_sdConfirmAddRecords()" style="font-size:12px;background:#ea580c;border-color:#ea580c">Add selected rows</button>
             </div>
           </div>
         </div>
@@ -14618,7 +14579,7 @@ function syncWPFsToAudit(ref, fsSet) {
 document.addEventListener('DOMContentLoaded', setupAnnOverlay);
 setTimeout(setupAnnOverlay, 800);
 
-function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
+function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName) {
   console.log('[IAnn] START fi=', fi, 'attrs=', attributes.length, 'results=', fileResult?.results?.length);
   const overlay = document.getElementById('pdf-ann-overlay');
   console.log('[IAnn] overlay=', overlay, 'overlay pointerEvents=', overlay?.style?.pointerEvents);
@@ -14647,6 +14608,13 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi) {
       );
     }
     if (!match) return;
+    // A row's attributes can each have evidence in a DIFFERENT attached
+    // document now (see the sourceFile the model reports) — only draw this
+    // tick on the file actually being viewed. If sourceFile is missing
+    // entirely (an older/legacy result, or a model response that skipped
+    // it), fall back to showing it rather than hiding real information —
+    // the old behavior — since there's no file information to check against.
+    if (currentFileName && match.sourceFile && match.sourceFile !== currentFileName) return;
 
     const result = match.result || 'error';
     const sym    = TICK_SYMS[result] || '–';
@@ -17467,8 +17435,31 @@ async function analyzeWithClaude() {
   const staticSampleFiles = WORKPAPERS[currentWPIndex]?.sampleFiles || [];
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
 
+  // The test POPULATION is now the Sample Data grid's rows — not the
+  // attached files. Each row represents one specific sample the auditor
+  // has identified (via manual entry, Extract Sample Data, or both); Analyze
+  // runs one full attribute-testing pass per row. All attached sample files
+  // are still read fresh and attached to EVERY row's pass — the model needs
+  // the real documents to actually verify each attribute — but the row's
+  // own data is what tells it WHICH sample within those documents this pass
+  // concerns, which the old one-pass-per-file model had no way to express
+  // (a single file can contain more than one sample, e.g. an original
+  // contract and a later amendment covering the same check).
+  const sdGrid = _daSampleDataFor(ref);
+  const sampleRows = (sdGrid.rows || []).filter(row =>
+    row.cells && Object.keys(row.cells).some(colId => {
+      const v = row.cells[colId];
+      return v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'not found';
+    })
+  );
+
   if (attributes.length === 0) {
     showUploadError('Please add at least one Test Attribute before running analysis.');
+    return;
+  }
+
+  if (sampleRows.length === 0) {
+    showUploadError('Please add at least one row of sample data to the Sample Data grid before running analysis — Analyze now tests each grid row as its own sample, rather than each attached file.');
     return;
   }
 
@@ -17485,7 +17476,7 @@ async function analyzeWithClaude() {
 
   // Open modal — guarded access only
   document.getElementById('analysis-overlay').style.display = 'flex';
-  const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Analyzing ${totalFiles} sample file${totalFiles !== 1 ? 's' : ''}…`;
+  const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Testing ${sampleRows.length} sample${sampleRows.length !== 1 ? 's' : ''}…`;
   const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
   const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
   const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
@@ -17528,10 +17519,12 @@ async function analyzeWithClaude() {
   analysisResults = [];
   let processed = 0;
 
-  // Fields to extract now come from the Sample Data grid's extract-flagged
-  // columns (title + Search Guidance) — this replaces the old Sample Field
-  // Extraction section as the source. Must be before analyzeOneFile is defined.
-  const sampleFields = _sdFieldsForAnalysis(ref);
+  // Field extraction is no longer part of Analyze at all — that's fully the
+  // responsibility of the separate Extract Sample Data feature. Kept as an
+  // always-empty array (rather than removing every reference below) so the
+  // systemPrompt/userText construction, which branches on sampleFields.length,
+  // doesn't need reshaping — it simply always takes the no-fields path now.
+  const sampleFields = [];
   const opts = _analysisOptions || {};
   const wp   = WORKPAPERS[currentWPIndex];
 
@@ -17694,39 +17687,82 @@ async function analyzeWithClaude() {
 
   const contextBlock = contextParts.length ? contextParts.join('\n\n') + '\n\n' : '';
 
-  // Build sample field prompt text
-  const fieldPrompt = sampleFields.length
-    ? '\n\nSAMPLE FIELD EXTRACTION:\nAlso extract the following fields from the document. Include them in the "fields" array in your JSON response:\n' +
-      sampleFields.map((f, i) => `${i+1}. "${f.name}"${f.desc ? ': ' + f.desc : ''}`).join('\n')
-    : '';
-
-  // ── Build systemPrompt and userText once — shared by both analyzeOneFile and analyzeOneFileFast ──
+  // ── Build systemPrompt once, and a per-row userText builder — each row
+  // needs its own prompt naming that row's specific sample data, which a
+  // single shared prompt (the old file-based design) couldn't express ──
   const locationInstructions = `For each result also include the location where you found the supporting evidence:
-- "page": the page number (integer, 1-based) where the evidence was found
+- "sourceFile": the exact title of the specific attached document (from the list of document titles given below) where you found the evidence for THIS attribute — every document you were given has its own title; use that exact title, not a paraphrase or a guess
+- "page": the page number (integer, 1-based) within that document where the evidence was found
 - "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
 - "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
-Be as precise as possible — these coordinates are used to place tick marks directly on the document.`;
+Be as precise as possible — these coordinates are used to place tick marks directly on the correct document.
+Different attributes for the SAME sample can have evidence in DIFFERENT documents — report the actual document each one was found in, not just whichever document you looked at first.`;
 
-  const systemPrompt = sampleFields.length
-    ? `You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.
-For each test attribute, evaluate the document. Also extract the requested fields from the document.
-Respond ONLY with valid JSON — no markdown, no explanation.
-CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.
-${locationInstructions}
-Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`
-    : `You are an internal audit assistant evaluating sample files against test attributes.
-For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.
+  const systemPrompt = `You are an internal audit assistant evaluating a specific sample against test attributes.
+You will be given one or more source documents (the complete set of attached sample files, each with its own
+title) and a description of ONE SPECIFIC SAMPLE to evaluate, identified by its own data (e.g. a check number, a
+date, an amount). A source document may contain more than one sample (for example an original contract and a
+separate later amendment covering the same check) — use the sample's own data to find and evaluate the CORRECT
+one, not just the first matching-looking content you encounter. Evidence for different attributes of this same
+sample may be spread across different documents — check all of them, not just one.
+For each test attribute, evaluate this specific sample and respond ONLY with valid JSON — no markdown, no explanation.
 CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
 ${locationInstructions}
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
+Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
 
-  const userText = `${contextBlock}Evaluate this document against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}${fieldPrompt}\n\nRespond only with the JSON object.`;
+  // Builds the row-specific portion of the prompt: a human-readable
+  // description of exactly which sample this pass is testing, built from
+  // whatever the row's own populated cells actually contain (column title
+  // -> value), skipping blanks and the literal "Not Found" marker since
+  // neither identifies anything to search for.
+  function _describeSampleRow(row) {
+    const parts = [];
+    (sdGrid.columns || []).forEach(col => {
+      const v = row.cells && row.cells[col.id];
+      if (v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'not found') {
+        parts.push(`${col.title || '(untitled column)'}: ${v}`);
+      }
+    });
+    return parts.join(', ');
+  }
 
-  async function analyzeOneFile(entry, rowEl) {
+  const attachedFileTitles = memFiles.map(f => f.name);
+
+  function buildUserTextForRow(row) {
+    const sampleDesc = _describeSampleRow(row);
+    const fileListText = attachedFileTitles.length
+      ? `The attached documents, in the order given, are titled: ${attachedFileTitles.map(n => `"${n}"`).join(', ')}.\n\n`
+      : '';
+    return `${contextBlock}${fileListText}The specific sample to evaluate has this data: ${sampleDesc}\n\n` +
+      `Evaluate ONLY this sample (not any other sample that might appear in the same document) against the following ${attributes.length} test attribute${attributes.length !== 1 ? 's' : ''}:\n\n${attrPrompt}\n\nRespond only with the JSON object.`;
+  }
+
+  // Builds the { type:'document', ... } content blocks for every attached
+  // sample file — memFiles (real uploads) as base64, plus any pre-cached
+  // base64 the caller already has. Shared by both analyzeOneFile and
+  // analyzeOneFileFast so a row's test always sees the SAME complete set of
+  // documents regardless of which function ran it. Each block carries its
+  // real filename as "title" — a standard field on document content blocks
+  // — so the model has a stable name to report back per attribute result
+  // (which file its evidence came from), without engaging the separate
+  // citations API (incompatible with the strict JSON output this needs).
+  async function _buildAllFileContentBlocks(cache) {
+    const blocks = [];
+    for (const f of memFiles) {
+      const b64 = (cache && cache[f.name]) || await fileToBase64(f.file).catch(() => null);
+      if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: f.name });
+    }
+    return blocks;
+  }
+
+  async function analyzeOneFile(row, rowEl) {
     try {
-      const base64 = await fileToBase64(entry.file);
       if (_cancelled) return { ok: false, error: 'Cancelled', commentary: '' };
-      setProgress(null, `Sending ${entry.name} to Claude…`);
+      const sampleDesc = _describeSampleRow(row) || '(sample row)';
+      setProgress(null, `Testing sample: ${sampleDesc}…`);
+
+      const docBlocks = await _buildAllFileContentBlocks();
+      if (docBlocks.length === 0) throw new Error('No sample files could be read.');
 
       // ── API endpoint detection ─────────────────────────────────────────
       const host = window.location.hostname;
@@ -17739,7 +17775,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         headers['anthropic-version'] = '2023-06-01';
       }
       const controller = new AbortController();
-      const reqTimeout = setTimeout(() => controller.abort(), 60000); // 60s per file
+      const reqTimeout = setTimeout(() => controller.abort(), 90000); // 90s — multiple documents in one request now, allow more time than the old single-file 60s
       let response;
       try {
         response = await fetch(apiUrl, {
@@ -17753,8 +17789,8 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
             messages: [{
               role: 'user',
               content: [
-                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-                { type: 'text', text: userText }
+                ...docBlocks,
+                { type: 'text', text: buildUserTextForRow(row) }
               ]
             }]
           })
@@ -17796,15 +17832,15 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         throw new Error('Claude returned results in an unexpected format.');
       }
 
-      const fields = parsed.fields || []; // extracted sample field values
-
-      return { ok: true, results, fields, commentary };
+      return { ok: true, results, commentary };
     } catch(err) {
       return { ok: false, error: err.message || String(err), commentary: '' };
     }
   }
 
-  // ── Pre-convert all files to base64 in parallel (fast) ──
+  // ── Pre-convert all sample files to base64 in parallel (fast) — cached
+  // once and reused for EVERY row's test, since every row now sees the
+  // complete set of documents rather than just one ──
   setProgress(5, `Preparing ${memFiles.length} file${memFiles.length!==1?'s':''}…`);
 
   const base64Cache = {};
@@ -17813,16 +17849,19 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     catch(e) { base64Cache[entry.name] = null; }
   }));
 
-  // ── Analyze all files with max 5 concurrent API calls ──
+  // ── Test all sample rows with max 5 concurrent API calls ──
   const CONCURRENCY = 5;
-  const rows = memFiles.map(entry => addResultRow(entry.name, 'loading'));
+  const rows = sampleRows.map(row => addResultRow(_describeSampleRow(row) || '(sample row)', 'loading'));
 
   // Inject base64 from cache into analyzeOneFile
   const _origAnalyzeOneFile = analyzeOneFile;
-  async function analyzeOneFileFast(entry, row, fi) {
-    const b64 = base64Cache[entry.name];
-    if (!b64) return { ok: false, error: 'Failed to read file', commentary: '' };
-    setProgress(Math.round(5 + (processed / totalFiles) * 75), `Sending ${entry.name} to Claude…`);
+  async function analyzeOneFileFast(row, rowEl, fi) {
+    const docBlocks = memFiles
+      .filter(f => base64Cache[f.name])
+      .map(f => ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Cache[f.name] }, title: f.name }));
+    if (docBlocks.length === 0) return { ok: false, error: 'Failed to read sample files', commentary: '' };
+    const sampleDesc = _describeSampleRow(row) || '(sample row)';
+    setProgress(Math.round(5 + (processed / sampleRows.length) * 75), `Testing sample: ${sampleDesc}…`);
 
     try {
       const host = window.location.hostname;
@@ -17833,7 +17872,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       if (isArtifactViewer) headers['anthropic-version'] = '2023-06-01';
 
       const controller = new AbortController();
-      const reqTimeout = setTimeout(() => controller.abort(), 60000);
+      const reqTimeout = setTimeout(() => controller.abort(), 90000); // 90s — multiple documents in one request, more than the old single-file 60s
       let response;
       try {
         response = await fetch(apiUrl, {
@@ -17845,8 +17884,8 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
             max_tokens: 4000,
             system: systemPrompt,
             messages: [{ role: 'user', content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-              { type: 'text', text: userText }
+              ...docBlocks,
+              { type: 'text', text: buildUserTextForRow(row) }
             ]}]
           })
         });
@@ -17890,7 +17929,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       }
 
       if (!parsed.results?.length) throw new Error('No results in response');
-      return { ok: true, results: parsed.results, fields: parsed.fields || [], commentary: '' };
+      return { ok: true, results: parsed.results, commentary: '' };
     } catch(err) {
       return { ok: false, error: err.message || String(err), commentary: '' };
     }
@@ -17899,54 +17938,56 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // ── Semaphore: keep exactly CONCURRENCY requests in flight at all times ──
   let inFlight = 0;
   let nextIdx  = 0;
+  const allFileNamesJoined = memFiles.map(f => f.name).join(', ') || '(no files)';
 
   await new Promise(resolveAll => {
     function startNext() {
-      while (inFlight < CONCURRENCY && nextIdx < memFiles.length && !_cancelled) {
-        const fi    = nextIdx++;
-        const entry = memFiles[fi];
-        const row   = rows[fi];
+      while (inFlight < CONCURRENCY && nextIdx < sampleRows.length && !_cancelled) {
+        const fi  = nextIdx++;
+        const row = sampleRows[fi];
+        const rowEl = rows[fi];
+        const sampleDesc = _describeSampleRow(row) || `Sample ${fi+1}`;
         inFlight++;
 
-        analyzeOneFileFast(entry, row, fi).then(outcome => {
+        analyzeOneFileFast(row, rowEl, fi).then(outcome => {
           if (!_cancelled) {
             if (outcome.ok) {
-              analysisResults[fi] = { fileName: entry.name, results: outcome.results, fields: outcome.fields || [], commentary: '' };
-              updateResultRow(row, 'done', null, null);
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: outcome.results, fields: [], commentary: '' };
+              updateResultRow(rowEl, 'done', null, null);
             } else {
-              analysisResults[fi] = { fileName: entry.name, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
-              failedEntries.push({ entry, row, fi });
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
+              failedEntries.push({ entry: row, row: rowEl, fi });
               const retryName = `_retry_${Date.now()}_${fi}`;
               window[retryName] = async () => {
-                updateResultRow(row, 'loading', 'Retrying…', null);
-                const retry = await analyzeOneFileFast(entry, row, fi);
-                if (retry.ok) { analysisResults[fi] = { fileName: entry.name, results: retry.results, fields: retry.fields || [], commentary: '' }; updateResultRow(row, 'done', null, null); }
-                else updateResultRow(row, 'error', retry.error, `${retryName}()`);
+                updateResultRow(rowEl, 'loading', 'Retrying…', null);
+                const retry = await analyzeOneFileFast(row, rowEl, fi);
+                if (retry.ok) { analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: retry.results, fields: [], commentary: '' }; updateResultRow(rowEl, 'done', null, null); }
+                else updateResultRow(rowEl, 'error', retry.error, `${retryName}()`);
               };
-              updateResultRow(row, 'error', outcome.error, `${retryName}()`);
+              updateResultRow(rowEl, 'error', outcome.error, `${retryName}()`);
             }
             processed++;
-            setProgress(Math.round(5 + (processed / totalFiles) * 90), `${processed} of ${totalFiles} complete…`);
+            setProgress(Math.round(5 + (processed / sampleRows.length) * 90), `${processed} of ${sampleRows.length} complete…`);
           }
           inFlight--;
-          if (nextIdx >= memFiles.length && inFlight === 0) resolveAll();
+          if (nextIdx >= sampleRows.length && inFlight === 0) resolveAll();
           else startNext();
         }).catch(err => {
-          analysisResults[fi] = { fileName: entry.name, results: [], fields: [] };
+          analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, results: [], fields: [] };
           inFlight--;
           processed++;
-          if (nextIdx >= memFiles.length && inFlight === 0) resolveAll();
+          if (nextIdx >= sampleRows.length && inFlight === 0) resolveAll();
           else startNext();
         });
       }
-      if (memFiles.length === 0) resolveAll();
+      if (sampleRows.length === 0) resolveAll();
     }
     startNext();
   });
 
   // Ensure analysisResults array is dense
-  for (let i = 0; i < memFiles.length; i++) {
-    if (!analysisResults[i]) analysisResults[i] = { fileName: memFiles[i].name, results: [], fields: [] };
+  for (let i = 0; i < sampleRows.length; i++) {
+    if (!analysisResults[i]) analysisResults[i] = { fileName: allFileNamesJoined, sampleDesc: _describeSampleRow(sampleRows[i]) || `Sample ${i+1}`, results: [], fields: [] };
   }
 
   // For static (demo) sample files — generate plausible mock results
@@ -17985,7 +18026,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
-    : `Analysis complete — ${analysisResults.length} file${analysisResults.length !== 1 ? 's' : ''} evaluated successfully.`
+    : `Analysis complete — ${analysisResults.length} sample${analysisResults.length !== 1 ? 's' : ''} tested successfully.`
   );
 
   // Show any narrative commentary Claude returned
@@ -19216,15 +19257,23 @@ async function previewMemFile(ref, bucket, idx) {
           : analysisResults;
 
       if (wpResults.length) {
-        // Match by filename directly (files no longer get renamed during analysis)
-        const fileResult = wpResults.find(r => r.fileName === name);
-        if (fileResult) {
-          console.log('[Viewer] Found analysis results for', name, '— will place overlays after PDF renders');
-          const fi = wpResults.indexOf(fileResult);
+        // Under the row-based design, every row's test attached every file,
+        // so there's no single result "for" this one file anymore — a row's
+        // individual attributes can each have evidence in different
+        // documents. Find every row-result with at least one attribute
+        // whose reported sourceFile is THIS file (or, for legacy results
+        // that predate sourceFile, fall back to showing everything — see
+        // the same fallback in placeInteractiveAnnotations).
+        const relevantResults = wpResults.filter(r =>
+          (r.results || []).some(res => !res.sourceFile || res.sourceFile === name)
+        );
+        if (relevantResults.length) {
+          console.log('[Viewer] Found', relevantResults.length, 'relevant result(s) for', name, '— will place overlays after PDF renders');
+          const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
           const exMapLocal = {};
           let exNum = 0;
           wpResults.forEach((fr, fii) => {
-            (wpTestAttributes[ref] || []).filter(a => a.title).forEach((attr, ai) => {
+            _attrs.forEach((attr, ai) => {
               let m = fr.results.find(r => r.title === attr.title);
               if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
                 exNum++;
@@ -19232,7 +19281,6 @@ async function previewMemFile(ref, bucket, idx) {
               }
             });
           });
-          const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
 
           // Place overlays — PDF is already rendered so try immediately, then poll as fallback
           let _placed = false;
@@ -19246,8 +19294,14 @@ async function previewMemFile(ref, bucket, idx) {
             if (canvas && ovH > 0) {
               _placed = true;
               console.log('[Viewer] Canvas + overlay ready (h=' + ovH + '), placing overlays');
-              placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
-              placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi);
+              // One legend + tick pass per relevant row-result — each is a
+              // distinct sample, so each gets its own summary and its own
+              // (file-filtered) tick marks on this document.
+              relevantResults.forEach(fileResult => {
+                const fi = wpResults.indexOf(fileResult);
+                placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
+                placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi, name);
+              });
             } else {
               setTimeout(_tryPlace, 150);
             }
@@ -19255,7 +19309,7 @@ async function previewMemFile(ref, bucket, idx) {
           // Try on next two frames (after RAF in renderPDFPreview sets overlay height)
           requestAnimationFrame(() => requestAnimationFrame(_tryPlace));
         } else {
-          console.log('[Viewer] No matching analysis result for', name, '— results:', wpResults.map(r=>r.fileName));
+          console.log('[Viewer] No relevant analysis results for', name, '— sample results available:', wpResults.map(r=>r.sampleDesc || r.fileName));
         }
       } else {
         console.log('[Viewer] No analysis results available for ref', ref);
@@ -21206,8 +21260,37 @@ function _sdUpdateRowHighlight(ref) {
 // Renders the grid from wpSampleData[ref] into #sd-hdr-row / #sd-body-rows.
 // The "#" column is never stored — it's just each row's 1-based position,
 // so inserting/deleting rows automatically renumbers everything.
+// Ensures the grid always has at least one column and one row to render —
+// never a genuinely empty table with nothing to click into. Called at the
+// top of every render, which every mutation path (column/row delete, Clear
+// Sample Data, a fresh load) already funnels through, so this applies
+// uniformly without needing each of those functions to handle it
+// separately. The placeholder column/row are ordinary, real (and will be
+// saved once the grid saves again) — just blank; the Analyze population
+// guard and similar checks already require non-blank cell content, so an
+// empty placeholder row correctly never counts as real sample data.
+function _sdEnsureGridFloor(data) {
+  if (data.columns.length === 0) {
+    data.columns.push({ id: 'col_' + Date.now() + '_' + Math.floor(Math.random()*100000), title: '', width: SD_DEFAULT_COL_WIDTH });
+  }
+  if (data.rows.length === 0) {
+    var cells = {};
+    data.columns.forEach(function(col){ cells[col.id] = ''; });
+    data.rows.push({ cells: cells, height: null });
+  } else {
+    // A row could already exist but be missing a cell for a column that was
+    // just added above (e.g. columns were empty, rows were not — an
+    // inconsistent state that shouldn't normally happen, but stay defensive).
+    data.rows.forEach(function(row){
+      if (!row.cells) row.cells = {};
+      data.columns.forEach(function(col){ if (row.cells[col.id] === undefined) row.cells[col.id] = ''; });
+    });
+  }
+}
+
 function renderSampleDataGrid(ref) {
   var data = _daSampleDataFor(ref);
+  _sdEnsureGridFloor(data);
   var hdrRow      = document.getElementById('sd-hdr-row');
   var bodyEl      = document.getElementById('sd-body-rows');
   var hintEl      = document.getElementById('sd-empty-hint');
@@ -22094,6 +22177,7 @@ async function readSampleFilesIntoGrid(ref) {
   // cells — blank cells contribute nothing to correlate against, since an
   // empty field can't meaningfully be "matched."
   var userRows = null;
+  var userColumnTitles = null; // just the titles, independent of any one row's values — see below
   if (appendMode) {
     var gridDataForPrompt = _daSampleDataFor(ref);
     userRows = gridDataForPrompt.rows.map(function(row){
@@ -22105,6 +22189,15 @@ async function readSampleFilesIntoGrid(ref) {
       });
       return values;
     });
+    // Also collect the user's column TITLES on their own — needed so the AI
+    // can populate these same columns for a record it finds that DOESN'T
+    // match any existing row (a genuinely new sample), rather than the
+    // caller always leaving them blank just because there's no existing row
+    // to copy values from. Order matters here (first-seen order) purely for
+    // a stable, readable prompt — it has no bearing on matching.
+    userColumnTitles = gridDataForPrompt.columns
+      .filter(function(col){ return !col.systemAdded; })
+      .map(function(col){ return col.title || '(untitled column)'; });
   }
 
   _sdExtractionInProgress[ref] = true;
@@ -22129,7 +22222,7 @@ async function readSampleFilesIntoGrid(ref) {
       var entry = readableFiles[i];
       _sdSetReadProgress(Math.round((i / readableFiles.length) * 90), 'Reading ' + entry.name + ' (' + (i+1) + ' of ' + readableFiles.length + ')…');
       try {
-        var result = await _sdExtractFromOneFile(entry, fields, userRows);
+        var result = await _sdExtractFromOneFile(entry, fields, userRows, userColumnTitles);
         perFileResults.push({ file: entry.name, result: result });
       } catch (err) {
         failures.push({ file: entry.name, error: err.message || String(err) });
@@ -22161,7 +22254,7 @@ async function readSampleFilesIntoGrid(ref) {
         var matchesRowIndexes = Array.isArray(r.matchesRows)
           ? r.matchesRows.filter(function(n){ return typeof n === 'number' && n >= 1; }).map(function(n){ return n - 1; })
           : [];
-        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndexes: matchesRowIndexes });
+        allRecords.push({ sourceFile: fr.file, values: r.values || {}, summary: r.summary || '', matchesRowIndexes: matchesRowIndexes, sampleData: r.sampleData || {} });
       });
     });
 
@@ -22187,7 +22280,7 @@ async function readSampleFilesIntoGrid(ref) {
       var signature = r.sourceFile + '||' + fields.map(function(f){ return cells[f.title] !== undefined ? cells[f.title] : ''; }).join('||');
       if (seenSignatures[signature]) { duplicatesRemoved++; return; }
       seenSignatures[signature] = true;
-      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells, matchesRowIndexes: r.matchesRowIndexes });
+      dedupedRecords.push({ sourceFile: r.sourceFile, values: r.values, summary: r.summary, cells: cells, matchesRowIndexes: r.matchesRowIndexes, sampleData: r.sampleData });
     });
     allRecords = dedupedRecords;
 
@@ -22294,30 +22387,19 @@ async function readSampleFilesIntoGrid(ref) {
     } else {
       msg += 'None matched an existing row in the grid above, so nothing was added there.';
     }
-    if (unmatchedCount > 0) {
-      msg += ' ' + unmatchedCount + ' record' + (unmatchedCount!==1?'s':'') + ' found in the files didn\'t match any existing row — ' +
-        'you\'ll be asked next whether to add ' + (unmatchedCount!==1?'them':'it') + ' as ' + (unmatchedCount!==1?'new rows':'a new row') + '.';
-    }
-    if (multiMatches.length > 0) {
-      var extraRowCount = multiMatches.reduce(function(sum, m){ return sum + (m.rowIndexes.length - 1); }, 0);
-      msg += ' ' + multiMatches.length + ' record' + (multiMatches.length!==1?'s':'') + ' matched more than one existing row — you\'ll be asked next whether to add ' +
-        extraRowCount + ' additional duplicate row' + (extraRowCount!==1?'s':'') + ' for the extra match' + (extraRowCount!==1?'es':'') + '.';
+    var extraRowCount = multiMatches.reduce(function(sum, m){ return sum + (m.rowIndexes.length - 1); }, 0) + unmatchedRecords.length;
+    if (extraRowCount > 0) {
+      msg += ' ' + extraRowCount + ' additional record' + (extraRowCount!==1?'s':'') + ' ' + (extraRowCount!==1?'were':'was') +
+        ' also found — you\'ll be asked next whether to add ' + (extraRowCount!==1?'them':'it') + ' as ' + (extraRowCount!==1?'new rows':'a new row') + '.';
     }
     alert(msg + dedupNote + failureNote);
 
-    // Sequenced, not simultaneous: both modals are full-screen fixed
-    // overlays at the same z-index, so showing them back-to-back would
-    // visually stack rather than queue — one would silently hide behind the
-    // other with no indication a second decision is still pending. The
-    // unmatched-records prompt (if any) is shown first; the multi-match
-    // prompt (if any) is deferred until that one is actually resolved.
-    var showMultiMatchIfAny = function(){
-      if (multiMatches.length > 0) _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData);
-    };
-    if (unmatchedRecords.length > 0) {
-      _sdShowUnmatchedPrompt(ref, unmatchedRecords, fields, gridData, showMultiMatchIfAny);
-    } else {
-      showMultiMatchIfAny();
+    // One combined prompt for everything that would result in a new row —
+    // both records that matched more rows than the one already filled in,
+    // and records that matched no row at all — rather than two separate
+    // modals shown one after another. See _sdShowAddRecordsPrompt.
+    if (extraRowCount > 0) {
+      _sdShowAddRecordsPrompt(ref, multiMatches, unmatchedRecords, fields, gridData);
     }
   } finally {
     _sdExtractionInProgress[ref] = false;
@@ -22327,7 +22409,7 @@ async function readSampleFilesIntoGrid(ref) {
 
 // Builds the prompt and calls Claude for a single sample file, requesting a
 // strict JSON response so it can be parsed deterministically.
-async function _sdExtractFromOneFile(entry, fields, userRows) {
+async function _sdExtractFromOneFile(entry, fields, userRows, userColumnTitles) {
   var base64 = await fileToBase64(entry.file);
   var ext = (entry.name.split('.').pop() || '').toLowerCase();
   var mediaType = null;
@@ -22362,12 +22444,19 @@ async function _sdExtractFromOneFile(entry, fields, userRows) {
     'Find values for ONLY these fields from this file — do not propose or invent any new fields; ' +
     'the "values" object must never contain a key that is not one of the field titles above.\n' +
     'Identify every distinct sample record (e.g. an invoice, a transaction, a line item, an original contract ' +
-    'AND any separate amendment to it) visible in this file, and report each one separately — this includes ' +
-    'cases where two records describe the same underlying check or transaction but come from different parts ' +
-    'of the document (e.g. an original agreement\'s terms and a later amendment\'s terms), which are still two ' +
-    'distinct records to report, not one. Decide how many distinct records exist in this file FIRST, entirely ' +
-    'on its own, before considering anything about correlation to rows below — correlation never reduces how ' +
-    'many records you report; it only labels each one you\'ve already identified.\n' +
+    'AND any separate amendment to it) visible in this file, and report each one separately. A single file is ' +
+    'frequently a BUNDLE of several distinct documents scanned or attached together — for example a check stub, ' +
+    'an invoice, a cover letter, an original contract, AND a later amendment to that same contract, all in one ' +
+    'file. Do not assume a file contains only one record just because the check number, amount, and check date ' +
+    'are the same throughout — that sameness is expected and normal: the check/amount/date describe ONE payment, ' +
+    'while the contract terms behind it can still have multiple versions (an original agreement plus one or more ' +
+    'amendments), each of which is its own distinct record with its own contract effective date, signed date, ' +
+    'and amendment name/number, even though they share the same check #, amount, and check date. Actively look ' +
+    'for a SEPARATE amendment document within the file in addition to the original agreement — check every page, ' +
+    'not just the first contract you find — and if one exists, it MUST be reported as its own record, not folded ' +
+    'into or overwritten by the original agreement\'s record. Decide how many distinct records exist in this file ' +
+    'FIRST, entirely on its own, before considering anything about correlation to rows below — correlation never ' +
+    'reduces how many records you report; it only labels each one you\'ve already identified.\n' +
     'IMPORTANT: for every record you report, include an entry in "values" for EVERY field listed above — ' +
     'do not omit a field just because you could not find it. If you searched for a field\'s data element ' +
     'in this record and genuinely could not find it, set that field\'s value to JSON null (not an empty ' +
@@ -22388,11 +22477,21 @@ async function _sdExtractFromOneFile(entry, fields, userRows) {
       'after finding the first match. Multiple DIFFERENT records may also each independently match the SAME row ' +
       '— both directions are normal and expected, not an error. Set "matchesRows" to an array of every row number ' +
       '(from "rowNumber" above) this record corroborates — an empty array [] if it doesn\'t genuinely and fully ' +
-      'match any of them.\n'
+      'match any of them.\n' +
+      (userColumnTitles && userColumnTitles.length ?
+        'The auditor\'s grid also has these columns: ' + JSON.stringify(userColumnTitles) + '. For EVERY record you ' +
+        'report — including one that does NOT match any existing row above — also report your own best reading of ' +
+        'these SAME columns from the document, under a separate key "sampleData" (a plain {"column title":"value"} ' +
+        'object, NOT nested inside "values" — "values" is only for the Extracted Data fields listed earlier). This ' +
+        'lets a genuinely new sample record be added to the grid with these columns already filled in from what ' +
+        'you found, instead of left blank. Use JSON null for any of these columns you searched for and could not ' +
+        'find in this record; omit the key entirely only if you did not attempt to look for it at all.\n'
+        : '')
       : '') +
     'Return ONLY minified JSON, no other text, in exactly this shape:\n' +
     '{"rows":[{"values":{"Field Name":"extracted value or null"},"summary":"one-line description of this record"' +
-    (userRowDefs.length ? ',"matchesRows":[<row number, ...>]' : '') + '}]}';
+    (userRowDefs.length ? ',"matchesRows":[<row number, ...>]' : '') +
+    (userColumnTitles && userColumnTitles.length ? ',"sampleData":{"Column Title":"value or null"}' : '') + '}]}';
 
   var messages = [{
     role: 'user',
@@ -22650,161 +22749,141 @@ function initSampleDataGridPaste() {
 // Builds and shows the confirmation modal, highlighting the target cell range
 // (including cells that don't exist yet, so the user sees the full footprint
 // of the paste) and listing any cells that already contain values.
-// State for the pending multi-match confirmation — holds everything needed
-// to either duplicate the additional rows or decline, once the user
-// responds. Set by _sdShowMultiMatchPrompt, consumed and cleared by
-// _sdConfirmMultiMatch/_sdDeclineMultiMatch.
-var _sdPendingMultiMatch = null;
 
-// Shows the duplicate-row confirmation for every record that matched more
-// than one existing row. Each multiMatches[i].rowIndexes[0] was already
-// filled into the grid as an ordinary single match before this is called —
-// only the ADDITIONAL matches (rowIndexes[1] onward) are candidates for
-// duplication here, since the first one needs no further action.
-function _sdShowMultiMatchPrompt(ref, multiMatches, fields, gridData) {
-  var overlay = document.getElementById('sd-multimatch-overlay');
+// State for the pending combined add-records confirmation. Each entry is
+// either a "duplicate" (an additional row this record matches, beyond the
+// one already filled in — sources its user columns from that other row)
+// or a "new" (a record that matched no existing row at all — sources its
+// user columns from the AI's own sampleData reading, see
+// _sdExtractFromOneFile). Both kinds end up as one new grid row each; the
+// only difference is where their user-column values come from.
+var _sdPendingAddRecords = null;
+
+// Shows ONE combined confirmation for every record that would result in a
+// new grid row this run — whether because it matched more rows than the one
+// already filled in, or because it matched no row at all. Previously these
+// were two separate modals shown one after another; from the user's
+// perspective both are just "N more records to add," so they're now one
+// list with one count and one Add action.
+function _sdShowAddRecordsPrompt(ref, multiMatches, unmatchedRecords, fields, gridData) {
+  var overlay = document.getElementById('sd-addrecords-overlay');
   if (!overlay) return;
 
-  // Flatten to one candidate per ADDITIONAL match (not the first, already-
-  // filled one), each carrying enough to both preview and later apply it.
-  var candidates = [];
+  var multiEntries = [];
   multiMatches.forEach(function(m){
     for (var i = 1; i < m.rowIndexes.length; i++) {
-      candidates.push({ record: m.record, sourceRowIndex: m.rowIndexes[0], duplicateFromRowIndex: m.rowIndexes[i] });
+      multiEntries.push({ kind: 'duplicate', record: m.record, duplicateFromRowIndex: m.rowIndexes[i] });
     }
   });
+  var unmatchedEntries = unmatchedRecords.map(function(r){ return { kind: 'new', record: r }; });
 
-  _sdPendingMultiMatch = { ref: ref, candidates: candidates, fields: fields, gridData: gridData };
+  // Every entry gets a stable id (independent of any DOM position) so its
+  // checkbox state survives re-rendering the list — not strictly needed
+  // today since the list is only built once per modal open, but keeps the
+  // checkbox-to-entry link explicit and unambiguous either way.
+  var allEntries = multiEntries.concat(unmatchedEntries);
+  allEntries.forEach(function(e, i){ e._entryId = 'addrec_' + i; });
+  // Selection state defaults to UNCHECKED for every entry — the user opts
+  // each one in individually rather than starting from "everything selected."
+  var selected = {};
+  allEntries.forEach(function(e){ selected[e._entryId] = false; });
 
-  var n = candidates.length;
-  document.getElementById('sd-multimatch-msg').textContent =
-    'Wavefire found more sample records in the attached files than there are unique rows for them in the grid above ' +
-    '(either one record could apply to more than one row, or more than one record was found for the same row). ' +
-    'The first matching row for each was already filled in. Add ' + n + ' additional duplicate row' + (n!==1?'s':'') +
-    ' for the rest, using the same user-entered data as the row each one matched, plus the extracted values found for it?';
+  _sdPendingAddRecords = { ref: ref, entries: allEntries, fields: fields, gridData: gridData, selected: selected };
 
-  var shown = candidates.slice(0, 20);
-  var listEl = document.getElementById('sd-multimatch-list');
-  listEl.innerHTML = shown.map(function(c, i){
-    var srcRow = gridData.rows[c.duplicateFromRowIndex];
-    var srcSummary = gridData.columns.slice(0, 3).map(function(col){
-      return (srcRow.cells && srcRow.cells[col.id]) ? (col.title + ': ' + srcRow.cells[col.id]) : null;
-    }).filter(Boolean).join(', ') || '(row ' + (c.duplicateFromRowIndex+1) + ')';
+  var n = allEntries.length;
+  document.getElementById('sd-addrecords-msg').textContent =
+    'Wavefire found ' + n + ' additional sample record' + (n!==1?'s':'') + ' in the attached files beyond what\'s ' +
+    'already reflected in the grid above. Select which ones to add — extracted values will be filled in for each, ' +
+    'along with the rest of the sample data where Wavefire could find it.';
+
+  function buildEntryRowHtml(e, displayIdx, srcColLabel) {
+    var sourceFileText = e.record.sourceFile || '';
+    var srcCellHtml;
+    if (e.kind === 'duplicate') {
+      var srcRow = gridData.rows[e.duplicateFromRowIndex];
+      var srcSummary = gridData.columns.slice(0, 2).map(function(col){
+        return (srcRow.cells && srcRow.cells[col.id]) ? (col.title + ': ' + srcRow.cells[col.id]) : null;
+      }).filter(Boolean).join(', ') || ('row ' + (e.duplicateFromRowIndex+1));
+      srcCellHtml = escHtml(srcSummary);
+    } else {
+      srcCellHtml = escHtml(sourceFileText);
+    }
     var extractedSummary = fields.map(function(f){
-      var v = c.record.values && c.record.values[f.title];
+      var v = e.record.values && e.record.values[f.title];
       return (v !== undefined && v !== null && String(v).trim() !== '') ? (f.title + ': ' + v) : null;
     }).filter(Boolean).slice(0, 3).join(', ');
     return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
-      '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (i+1) + '</td>' +
-      '<td style="padding:5px 8px">' + escHtml(srcSummary) + '</td>' +
+      '<td style="padding:5px 8px;width:24px">' +
+        '<input type="checkbox" data-entry-id="' + e._entryId + '" onchange="_sdToggleAddRecordEntry(this)" style="accent-color:var(--wf-navy);cursor:pointer">' +
+      '</td>' +
+      '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (displayIdx+1) + '</td>' +
+      '<td style="padding:5px 8px;color:var(--text-tertiary);font-style:italic">' + escHtml(sourceFileText) + '</td>' +
+      '<td style="padding:5px 8px">' + srcCellHtml + '</td>' +
       '<td style="padding:5px 8px">' + escHtml(extractedSummary) + '</td>' +
     '</tr>';
-  }).join('');
+  }
 
-  document.getElementById('sd-multimatch-toolarge-note').style.display = candidates.length > 20 ? '' : 'none';
+  function buildSectionHtml(title, entries, srcColLabel) {
+    if (!entries.length) return ''; // only the relevant header(s) render at all
+    var shown = entries.slice(0, 20);
+    var rowsHtml = shown.map(function(e, i){ return buildEntryRowHtml(e, i, srcColLabel); }).join('');
+    var toolargeHtml = entries.length > 20
+      ? '<div style="padding:8px 8px;font-size:11px;color:var(--text-tertiary);font-style:italic">Showing the first 20 — additional records beyond this follow the same choice.</div>'
+      : '';
+    return '<div style="margin-bottom:16px">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--text-primary);padding:10px 8px 6px">' + escHtml(title) + '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<thead><tr style="background:var(--bg-secondary)">' +
+          '<th style="padding:6px 8px;width:24px;border-bottom:0.5px solid var(--border-light)"></th>' +
+          '<th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">#</th>' +
+          '<th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Source file</th>' +
+          '<th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">' + escHtml(srcColLabel) + '</th>' +
+          '<th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Values to add</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+      '</table>' + toolargeHtml +
+    '</div>';
+  }
 
+  var html =
+    buildSectionHtml('Multiple Matched Sample Records', multiEntries, 'Also matches') +
+    buildSectionHtml('Possible Additional Sample Records', unmatchedEntries, 'Reason');
+
+  document.getElementById('sd-addrecords-list-wrap').innerHTML = html;
   overlay.style.display = 'flex';
 }
 
-function _sdDeclineMultiMatch() {
-  var overlay = document.getElementById('sd-multimatch-overlay');
-  if (overlay) overlay.style.display = 'none';
-  // Nothing further to do — the first match for each record was already
-  // filled in before this modal ever appeared; declining just means the
-  // additional matches are left as-is, un-duplicated.
-  _sdPendingMultiMatch = null;
+// Toggles one entry's selection state — called directly from each row's
+// checkbox onchange, so state stays correct even though the list itself is
+// only built once (no re-render needed on every toggle).
+function _sdToggleAddRecordEntry(checkbox) {
+  if (!_sdPendingAddRecords) return;
+  _sdPendingAddRecords.selected[checkbox.dataset.entryId] = !!checkbox.checked;
 }
 
-function _sdConfirmMultiMatch() {
-  var pending = _sdPendingMultiMatch;
-  var overlay = document.getElementById('sd-multimatch-overlay');
+function _sdDeclineAddRecords() {
+  var overlay = document.getElementById('sd-addrecords-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _sdPendingAddRecords = null;
+}
+
+function _sdConfirmAddRecords() {
+  var pending = _sdPendingAddRecords;
+  var overlay = document.getElementById('sd-addrecords-overlay');
   if (overlay) overlay.style.display = 'none';
   if (!pending) return;
 
   var ref = pending.ref, gridData = pending.gridData, fields = pending.fields;
-  pushUndo(ref);
+  var selectedEntries = pending.entries.filter(function(e){ return pending.selected[e._entryId]; });
+  if (!selectedEntries.length) { _sdPendingAddRecords = null; return; } // nothing checked — nothing to do, no unnecessary undo/save
 
-  pending.candidates.forEach(function(c){
-    var sourceRow = gridData.rows[c.duplicateFromRowIndex];
-    if (!sourceRow) return; // defensive — shouldn't happen, row indexes were captured moments ago
-    // Duplicate: same user-entered cell values as the row it matched
-    // (a real, shallow copy — editing the new row afterward never affects
-    // the original), THEN overlay this record's own extracted values on
-    // top, exactly as an ordinary single-match fill would.
-    var newRow = { cells: Object.assign({}, sourceRow.cells || {}), height: null };
-    fields.forEach(function(f){
-      var col = gridData.columns.find(function(col){ return col.systemAdded && col.title === f.title; });
-      if (col && c.record.values && c.record.values[f.title] !== undefined) {
-        newRow.cells[col.id] = _sdValueOrNotFound(c.record.values[f.title]);
-      }
-    });
-    gridData.rows.push(newRow);
-  });
-
-  _sdPendingMultiMatch = null;
-  renderSampleDataGrid(ref);
-  saveSampleDataGrid(ref);
-}
-
-// State for the pending unmatched-records confirmation.
-var _sdPendingUnmatched = null;
-
-// Shows the "add as new rows" confirmation for records that corroborate NO
-// existing grid row.
-function _sdShowUnmatchedPrompt(ref, unmatchedRecords, fields, gridData, onResolved) {
-  var overlay = document.getElementById('sd-unmatched-overlay');
-  if (!overlay) { if (onResolved) onResolved(); return; }
-
-  _sdPendingUnmatched = { ref: ref, records: unmatchedRecords, fields: fields, gridData: gridData, onResolved: onResolved };
-
-  var n = unmatchedRecords.length;
-  document.getElementById('sd-unmatched-msg').textContent =
-    'Wavefire found ' + n + ' sample record' + (n!==1?'s':'') + ' in the attached files that ' +
-    (n!==1?"don't":"doesn't") + ' match any row already in the grid above. Add ' + (n!==1?'them':'it') +
-    ' as ' + (n!==1?'new rows':'a new row') + '? Only the extracted values found will be filled in — ' +
-    'you can add the rest of the sample data by hand afterward.';
-
-  var shown = unmatchedRecords.slice(0, 20);
-  var listEl = document.getElementById('sd-unmatched-list');
-  listEl.innerHTML = shown.map(function(r, i){
-    var extractedSummary = fields.map(function(f){
-      var v = r.values && r.values[f.title];
-      return (v !== undefined && v !== null && String(v).trim() !== '') ? (f.title + ': ' + v) : null;
-    }).filter(Boolean).slice(0, 4).join(', ');
-    return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
-      '<td style="padding:5px 8px;color:var(--text-tertiary)">' + (i+1) + '</td>' +
-      '<td style="padding:5px 8px;color:var(--text-tertiary);font-style:italic">' + escHtml(r.sourceFile||'') + '</td>' +
-      '<td style="padding:5px 8px">' + escHtml(extractedSummary) + '</td>' +
-    '</tr>';
-  }).join('');
-
-  document.getElementById('sd-unmatched-toolarge-note').style.display = unmatchedRecords.length > 20 ? '' : 'none';
-
-  overlay.style.display = 'flex';
-}
-
-function _sdDeclineUnmatched() {
-  var pending = _sdPendingUnmatched;
-  var overlay = document.getElementById('sd-unmatched-overlay');
-  if (overlay) overlay.style.display = 'none';
-  _sdPendingUnmatched = null;
-  if (pending && pending.onResolved) pending.onResolved();
-}
-
-function _sdConfirmUnmatched() {
-  var pending = _sdPendingUnmatched;
-  var overlay = document.getElementById('sd-unmatched-overlay');
-  if (overlay) overlay.style.display = 'none';
-  if (!pending) return;
-
-  var ref = pending.ref, gridData = pending.gridData, fields = pending.fields;
   pushUndo(ref);
 
   // Reuse an existing system-added column for each field if the matched-
   // records pass already created one this run (or a prior run); create one
-  // now if not — same rules as the main Mode A block, so a workpaper that
-  // gets ONLY unmatched records (nothing to match against yet) still ends
-  // up with properly-flagged, correctly-titled columns rather than none.
+  // now if not — so a run consisting ONLY of duplicates/unmatched records
+  // (nothing single-matched) still ends up with properly-flagged,
+  // correctly-titled columns rather than none.
   var fieldColIds = {};
   fields.forEach(function(f){
     var existing = gridData.columns.find(function(c){ return c.systemAdded && c.title === f.title; });
@@ -22815,24 +22894,38 @@ function _sdConfirmUnmatched() {
     gridData.rows.forEach(function(row){ if (!row.cells) row.cells = {}; if (row.cells[newCol.id] === undefined) row.cells[newCol.id] = ''; });
   });
 
-  pending.records.forEach(function(r){
-    // A brand-new row: every USER column starts genuinely blank (there's no
-    // existing row to source that data from, unlike the multi-match
-    // duplicate case above) — only the extracted field values are filled.
-    var cells = {};
-    gridData.columns.forEach(function(col){ cells[col.id] = ''; });
+  selectedEntries.forEach(function(e){
+    var cells;
+    if (e.kind === 'duplicate') {
+      // Same user-entered cell values as the row it also matches (a real,
+      // shallow copy — editing the new row afterward never affects the
+      // original) — this is the one case where an existing row's own data
+      // is genuinely the right source to copy from.
+      var sourceRow = gridData.rows[e.duplicateFromRowIndex];
+      cells = Object.assign({}, (sourceRow && sourceRow.cells) || {});
+    } else {
+      // No existing row to copy from — user columns come from the AI's own
+      // sampleData reading of the document instead of being left blank.
+      cells = {};
+      gridData.columns.forEach(function(col){
+        if (!col.systemAdded && e.record.sampleData && e.record.sampleData[col.title] !== undefined) {
+          cells[col.id] = _sdValueOrNotFound(e.record.sampleData[col.title]);
+        } else {
+          cells[col.id] = '';
+        }
+      });
+    }
     fields.forEach(function(f){
-      if (r.values && r.values[f.title] !== undefined) {
-        cells[fieldColIds[f.title]] = _sdValueOrNotFound(r.values[f.title]);
+      if (e.record.values && e.record.values[f.title] !== undefined) {
+        cells[fieldColIds[f.title]] = _sdValueOrNotFound(e.record.values[f.title]);
       }
     });
     gridData.rows.push({ cells: cells, height: null });
   });
 
-  _sdPendingUnmatched = null;
+  _sdPendingAddRecords = null;
   renderSampleDataGrid(ref);
   saveSampleDataGrid(ref);
-  if (pending.onResolved) pending.onResolved();
 }
 
 function _sdShowPasteConfirm(analysis, startRowIdx, startColIdx, grid) {
