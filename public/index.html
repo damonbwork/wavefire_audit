@@ -22334,28 +22334,62 @@ async function readSampleFilesIntoGrid(ref) {
     // silently added — only surfaced via a notice, since Mode A's contract
     var gridData = _daSampleDataFor(ref);
 
-    var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
-    var multiMatches = [];  // { record, rowIndexes } — first index filled immediately, every additional index offered as a duplicate
+    // STEP 1 — for every Extracted Data record, resolve which Sample Data
+    // grid row(s) it corresponds to (defensively dropping any row index the
+    // AI reported that doesn't actually exist). A record with no valid row
+    // at all is unmatched — nothing further to compute for it.
+    var recordRowInfo = []; // { record, validIndexes } for every non-unmatched record, in order
     var unmatchedRecords = [];
     allRecords.forEach(function(r){
-      // Keep only indexes that genuinely point at a real row — the AI can
-      // occasionally report a stale or out-of-range number despite the
-      // instructions, so this is a defensive filter, not the primary gate.
       var validIndexes = (r.matchesRowIndexes || []).filter(function(idx){ return gridData.rows[idx]; });
       if (validIndexes.length === 0) { unmatchedRecords.push(r); return; }
+      recordRowInfo.push({ record: r, validIndexes: validIndexes });
+    });
 
-      // The FIRST row this record matches is filled in immediately, exactly
-      // like an ordinary single match always has been — no prompt needed
-      // for that part. EVERY ADDITIONAL row this SAME record also
-      // corroborates (validIndexes[1] onward) is a genuine "this record
-      // applies to more than one existing sample" case — per the explicit
-      // correction that a record CAN legitimately match multiple rows
-      // (e.g. two sample rows entered for the same check), each of those
-      // additional rows must be offered as a duplicate, never silently
-      // dropped and never silently picked for the user.
-      singleMatches.push({ record: r, rowIndex: validIndexes[0] });
-      if (validIndexes.length > 1) {
-        multiMatches.push({ record: r, rowIndexes: validIndexes });
+    // STEP 2 — group by each record's PRIMARY (first) matched Sample Data
+    // row. This is what actually detects the precise multi-match
+    // relationship: several DIFFERENT rows in the Extracted Data results
+    // table (e.g. an original contract's record and its separate
+    // amendment's record) that both correspond to the SAME ONE existing row
+    // in the Sample Data grid. The previous version of this code only ever
+    // looked at one record's own matchedRowIndexes in isolation and never
+    // grouped records by a shared row at all, so this exact case — the
+    // amendment scenario — was structurally invisible to it regardless of
+    // how correctly matchesRows itself was parsed.
+    var byPrimaryRow = {}; // sampleDataRowIndex -> array of records whose primary match is that row
+    recordRowInfo.forEach(function(info){
+      var primaryRow = info.validIndexes[0];
+      if (!byPrimaryRow[primaryRow]) byPrimaryRow[primaryRow] = [];
+      byPrimaryRow[primaryRow].push(info);
+    });
+
+    var singleMatches = []; // { record, rowIndex } — filled in immediately, no prompt
+    var multiMatches = [];  // { record, rowIndexes } — every entry here becomes ONE offered duplicate row
+    Object.keys(byPrimaryRow).forEach(function(rowIndexStr){
+      var rowIndex = parseInt(rowIndexStr, 10);
+      var infosForThisRow = byPrimaryRow[rowIndexStr];
+      // The FIRST record whose primary match is this row is filled in
+      // immediately, exactly like an ordinary single match always has been —
+      // no prompt needed for that part.
+      singleMatches.push({ record: infosForThisRow[0].record, rowIndex: rowIndex });
+
+      // Every ADDITIONAL DISTINCT record also primarily matching this SAME
+      // row (infosForThisRow[1] onward) is the precise multi-match case —
+      // e.g. the amendment's record arriving at the same row the original
+      // contract's record already filled. Each becomes its own offered
+      // duplicate of that row.
+      for (var k = 1; k < infosForThisRow.length; k++) {
+        multiMatches.push({ record: infosForThisRow[k].record, rowIndexes: [rowIndex, rowIndex] });
+      }
+
+      // Separately: if the FIRST record itself also legitimately
+      // corresponds to OTHER Sample Data rows beyond its primary one (the
+      // less common reverse case — one Extracted Data record's values
+      // genuinely spanning multiple existing rows), those are ALSO
+      // multi-match candidates, sourced from this same record.
+      var firstRecordExtraIndexes = infosForThisRow[0].validIndexes.slice(1);
+      if (firstRecordExtraIndexes.length) {
+        multiMatches.push({ record: infosForThisRow[0].record, rowIndexes: [rowIndex].concat(firstRecordExtraIndexes) });
       }
     });
     var unmatchedCount = unmatchedRecords.length;
