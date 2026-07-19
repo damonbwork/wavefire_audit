@@ -564,16 +564,21 @@ app.use((req, res, next) => {
 // 50mb of JSON per request is a cheap memory-exhaustion DoS. Uploads are parsed
 // in the browser and never POSTed as JSON, so this can be far smaller.
 //
-// /api/ai/analyze is deliberately excluded here: it carries a base64-encoded
-// PDF/image in its JSON body for document extraction, which needs a larger
-// limit than every other route (see AI_ANALYZE_BODY_LIMIT below). Express
-// runs body-parsing middleware in registration order and only once per
-// request — if this global parser ran for that route too, it would already
-// have enforced the 2mb cap (and populated req.body) before the route's own,
-// larger-limit parser ever got a chance to run, silently defeating it. This
-// skip is what makes the route-level override in that handler actually work.
+// /api/ai/analyze and /api/claude are both deliberately excluded here: both
+// carry one or more base64-encoded PDFs/images in their JSON body (Extract
+// Sample Data sends one document per call; Analyze now attaches EVERY
+// attached sample file to EVERY test pass in a single request, which is a
+// meaningfully larger payload — two or three moderate-sized PDFs together
+// routinely exceed even a few megabytes once base64-encoded), so both need
+// a larger limit than every other route (see AI_ANALYZE_BODY_LIMIT and
+// CLAUDE_PROXY_BODY_LIMIT below). Express runs body-parsing middleware in
+// registration order and only once per request — if this global parser ran
+// for either route too, it would already have enforced the 2mb cap (and
+// populated req.body) before that route's own, larger-limit parser ever got
+// a chance to run, silently defeating it. This skip is what makes the
+// route-level override in each handler actually work.
 app.use(function(req, res, next) {
-  if (req.path === '/api/ai/analyze') return next();
+  if (req.path === '/api/ai/analyze' || req.path === '/api/claude') return next();
   express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' })(req, res, next);
 });
 
@@ -828,7 +833,14 @@ app.get('/api/test', aiRateLimit, async (req, res) => {
 });
 
 // ── Claude API proxy ────────────────────────────────────────────────────────
-app.post('/api/claude', async (req, res) => {
+// Explicit, generous body-size limit of its own: Analyze attaches EVERY
+// attached sample file to EVERY test pass in a single request now (not one
+// document per call, like Extract Sample Data's /api/ai/analyze) — several
+// moderate-sized PDFs together, once base64-encoded, is a meaningfully
+// larger payload than that single-document route was sized for, so this
+// gets its own headroom rather than reusing AI_ANALYZE_BODY_LIMIT.
+const CLAUDE_PROXY_BODY_LIMIT = process.env.CLAUDE_PROXY_BODY_LIMIT || '30mb';
+app.post('/api/claude', express.json({ limit: CLAUDE_PROXY_BODY_LIMIT }), async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: { message: 'ANTHROPIC_API_KEY is not set on the server.' } });
