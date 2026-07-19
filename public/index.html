@@ -4233,6 +4233,9 @@ auditor's assessment.
         <button class="btn-s" id="attach-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Workpaper Files
         </button>
+        <button class="btn-s" id="dl-annotated-pdfs-btn" style="display:none;background:#0f766e;color:#fff;border-color:#0f766e" title="Download every attached sample file with the analysis tick marks and notes burned permanently into the PDF" onclick="downloadAllAnnotatedPDFs()">
+          <i class="ti ti-file-download"></i>Annotated Sample PDFs
+        </button>
         <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
       </div>
     </div>
@@ -6774,6 +6777,145 @@ async function burnAnnotationsToPDF() {
     console.error('[BurnPDF]', err);
     alert('Could not build annotated PDF: ' + err.message);
     if (btn) { btn.innerHTML = '<i class="ti ti-file-download"></i> Download with Annotations'; btn.disabled = false; }
+  }
+}
+
+// Burns tick marks for one attached file's relevant analysis results directly
+// onto its real PDF page geometry (from pdf-lib, not a rendered canvas) —
+// same page/paragraph-based estimate the interactive viewer's
+// placeInteractiveAnnotations uses, so positioning is consistent between
+// the on-screen preview and this bulk export, but with no dependency on the
+// viewer having ever been opened for this file. Returns the annotated PDF's
+// bytes, or null if this file has no relevant results at all (a file with
+// nothing to mark up is skipped, not included blank).
+async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const pages    = pdfDoc.getPages();
+  const font     = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const TICK_SYMS = { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' };
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+
+  function pdfText(s) {
+    return String(s || '')
+      .replace(/[─━┄┅┈┉╌╍]/g, '-').replace(/[│┃┆┇┊┋╎╏]/g, '|')
+      .replace(/[┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┤┬┴┼╋╬]/g, '+')
+      .replace(/[✓✔]/g, '(PASS)').replace(/[✗✘]/g, '(FAIL)').replace(/[⚠⚡]/g, '(!)')
+      .replace(/[–—]/g, '-').replace(/['']/g, "'").replace(/[""]/g, '"')
+      .replace(/[…]/g, '...').replace(/[•·]/g, '*')
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
+  }
+
+  var anyPlaced = false;
+  var exNum = 0;
+  wpResults.forEach(function(fileResult){
+    attributes.forEach(function(attr, ai){
+      var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!match) return;
+      // Same per-attribute source-file filter as the live viewer — only
+      // burn a tick onto THIS file if the model actually reported this
+      // attribute's evidence as coming from it. A result predating this
+      // feature (no sourceFile at all) falls back to being drawn on every
+      // file, same as the live viewer's own fallback.
+      if (match.sourceFile && match.sourceFile !== fileName) return;
+
+      var pgIdx = Math.max(0, (match.page || 1) - 1);
+      if (pgIdx >= pages.length) return;
+      var page = pages[pgIdx];
+      var ptH = page.getSize().height;
+
+      var result = match.result || 'error';
+      var sym = TICK_SYMS[result] || '–';
+      var col = TICK_COLS[result] || TICK_COLS.error;
+      if (result === 'pass_exception' || result === 'fail') exNum++;
+
+      var paraNum = Math.max(1, match.paragraph || (ai + 1));
+      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+      var pdfY = ptH * (1 - paraFrac);
+
+      page.drawRectangle({ x: 10, y: pdfY - 10, width: 30, height: 18, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.1, col.green*0.1, col.blue*0.1), opacity: 0.2 });
+      page.drawText(pdfText(sym), { x: 14, y: pdfY - 6, font: font, size: 12, color: col });
+      var label = (attr.attrRef || attr.num || String(ai+1)) + (exNum && (result==='fail'||result==='pass_exception') ? ' [E'+exNum+']' : '');
+      page.drawText(pdfText(label), { x: 44, y: pdfY - 5, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3) });
+      if (match.note) {
+        page.drawText(pdfText(String(match.note).slice(0, 70)), { x: 44, y: pdfY - 14, font: fontReg, size: 6, color: rgb(0.35,0.35,0.35), maxWidth: 200 });
+      }
+      anyPlaced = true;
+    });
+  });
+
+  if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
+  return pdfDoc.save();
+}
+
+// Bulk export: burns tick marks into every attached sample file relevant to
+// this workpaper's most recent analysis and packages them all into one zip
+// download. Unlike the single-file "Download with Annotations" button in
+// the viewer, this needs no file to be open, no canvas rendered, and no
+// prior manual save step — it reads straight from analysisResults, which
+// is already in memory the moment Analyze finishes.
+async function downloadAllAnnotatedPDFs() {
+  const btn = document.getElementById('dl-annotated-pdfs-btn');
+  const ref = getWPRef();
+  if (!ref) return;
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) { alert('Run Analyze first — there are no results yet for this workpaper.'); return; }
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const memFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file);
+  if (!memFiles.length) { alert('No sample files are available to annotate in this session — they may need to be re-uploaded.'); return; }
+
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Building…'; }
+  try {
+    const PDFLib = await loadPdfLib();
+
+    let JSZip = window.JSZip;
+    if (!JSZip) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = () => { JSZip = window.JSZip; resolve(); };
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const zip = new JSZip();
+    let annotatedCount = 0;
+    for (const entry of memFiles) {
+      const bytes = await entry.file.arrayBuffer();
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes);
+      if (!outBytes) continue; // no relevant results for this specific file — skip rather than include an unmarked copy
+      const baseName = (entry.name || 'document').replace(/\.pdf$/i, '');
+      zip.file(baseName + '_annotated.pdf', outBytes);
+      annotatedCount++;
+    }
+
+    if (annotatedCount === 0) {
+      alert('None of the attached sample files had analysis results to annotate.');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> Annotated Sample PDFs'; }
+      return;
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    const now = new Date();
+    const ts = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+    a.href = url;
+    a.download = (ref || 'workpaper') + '_annotated_samples_' + ts + '.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    if (btn) {
+      btn.innerHTML = '<i class="ti ti-check"></i> Downloaded!';
+      setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> Annotated Sample PDFs'; }, 2500);
+    }
+  } catch(err) {
+    console.error('[BulkAnnotatePDF]', err);
+    alert('Could not build annotated PDFs: ' + err.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> Annotated Sample PDFs'; }
   }
 }
 
@@ -18089,6 +18231,11 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
+
+  // Show the bulk annotated-PDFs download button once there are real
+  // results to burn into the attached files.
+  const _annPdfsBtn = document.getElementById('dl-annotated-pdfs-btn');
+  if (_annPdfsBtn) _annPdfsBtn.style.display = (analysisResults && analysisResults.length) ? 'inline-flex' : 'none';
 
   // ── Safety net: ensure core buttons always visible after analysis ─────────
   function _ensureButtonsVisible() {
