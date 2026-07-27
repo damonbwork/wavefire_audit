@@ -7277,27 +7277,34 @@ async function saveAnnotatedPDF() {
     // itself completely untouched — so a saved "annotated" file opened
     // anywhere outside this viewer showed no annotations at all.
     //
-    // Two distinct cases, handled differently and deliberately:
-    //   1. The file currently open is an ORIGINAL (entry._annotatedFrom is
-    //      unset) — always burn using the EXACT SAME function and data
-    //      source the automatic post-Analyze burn uses
-    //      (_burnAnnotationsForFileFromResults against _wpAnalysisResults).
-    //      No branching on DOM/overlay state at all: that branching was
-    //      genuinely unreliable, since an original file's entry never gets
-    //      its own _annotations populated by the automatic burn (only the
-    //      annotated COPY does), and the live overlay can be empty, stale,
-    //      or mid-render depending on exactly when Save is clicked — none
-    //      of which should determine whether real analysis results get
-    //      burned in. This guarantees identical, already-proven behavior
-    //      regardless of viewer/DOM timing.
-    //   2. The file currently open IS ALREADY an annotated file
-    //      (entry._annotatedFrom is set — the user opened the annotated
-    //      copy itself and is editing marks on top of it, e.g. dragging a
-    //      note or retyping text) — burn from the live DOM overlay, since
-    //      that's genuinely where manual edits to an already-annotated file
-    //      live; there's no other place to read them from.
+    // The live overlay (pdfAnnotations) is checked FIRST, regardless of
+    // whether the file currently open is the original or the annotated
+    // copy — that's where genuine user edits to a tick's text actually
+    // live, on either file, since opening either one places (or restores)
+    // ticks into the same overlay. A previous version of this logic always
+    // burned an ORIGINAL file straight from raw _wpAnalysisResults, on the
+    // reasoning that an original's entry never carries its own saved
+    // _annotations — but that reasoning missed that the user can still
+    // EDIT the live overlay after it's auto-placed, and that edit was
+    // being silently discarded since the raw-results burn never looks at
+    // the overlay at all. Only fall back to raw results when the overlay
+    // is genuinely empty (nothing has ever been placed yet).
+    //
+    // burnAnnotationsToPDF itself already resolves the TRUE original's
+    // clean bytes as the base to draw onto (via entry._annotatedFrom),
+    // regardless of which of the two files is currently open — so reusing
+    // it here, rather than a separate raw-results path, is what keeps the
+    // burned pixels and the saved annotation metadata (serialized, below)
+    // in agreement with each other.
     let burnedBytes = null;
-    if (!entry._annotatedFrom) {
+    if (pdfAnnotations && pdfAnnotations.length > 0) {
+      try {
+        burnedBytes = await burnAnnotationsToPDF(true);
+      } catch (burnErr) {
+        console.error('[Save] Burn failed:', burnErr);
+        throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
+      }
+    } else {
       try {
         const PDFLib = await loadPdfLib();
         const wpResultsForBurn = _wpAnalysisResults[_fpRef];
@@ -7305,18 +7312,19 @@ async function saveAnnotatedPDF() {
           throw new Error('Run Analyze first — there are no results yet for this workpaper.');
         }
         const attrsForBurn = (wpTestAttributes[_fpRef] || []).filter(a => a.title);
-        const fileBytes = await entry.file.arrayBuffer();
-        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, entry.name, wpResultsForBurn, attrsForBurn);
+        // Burn onto the TRUE original's bytes even in this fallback —
+        // same resolution _burnAnnotationsForFileFromResults' caller
+        // (_autoBurnAnnotatedFilesAfterAnalyze) uses, so a first-ever save
+        // from an empty overlay still produces a correct, non-compounded
+        // result rather than accidentally burning onto an already-
+        // annotated file's own bytes if that's what happens to be open.
+        const baseEntryName = entry._annotatedFrom || entry.name;
+        const baseEntry = inMemoryFiles[_fpRef]?.[_fpBucket]?.find(f => f.name === baseEntryName && f.file) || entry;
+        const fileBytes = await baseEntry.file.arrayBuffer();
+        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, baseEntry.name, wpResultsForBurn, attrsForBurn);
         if (!burnedBytes) throw new Error('No analysis results are relevant to this specific file.');
       } catch (burnErr) {
         console.error('[Save] Burn from analysis results failed:', burnErr);
-        throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
-      }
-    } else {
-      try {
-        burnedBytes = await burnAnnotationsToPDF(true);
-      } catch (burnErr) {
-        console.error('[Save] Burn failed:', burnErr);
         throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
       }
     }
