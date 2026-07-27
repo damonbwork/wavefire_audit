@@ -6564,9 +6564,20 @@ function updateAnnCount() {
   if (lbl) lbl.textContent = `${pdfAnnotations.length} annotation${pdfAnnotations.length!==1?'s':''}`;
 }
 
-// Wire up clicks on the PDF body to place annotations
-async function burnAnnotationsToPDF() {
-  const btn = document.getElementById('ann-burn-btn');
+// Burns every annotation currently visible in the viewer overlay into the
+// PDF's actual bytes. Called two ways:
+//   - burnAnnotationsToPDF()          → downloads the annotated PDF (the
+//                                       "Download with Annotations" button)
+//   - burnAnnotationsToPDF(true)      → returns the annotated bytes instead
+//                                       of downloading, so Save Annotations
+//                                       can replace the in-memory file with
+//                                       them. Same DOM overlay source either
+//                                       way, so what gets burned is exactly
+//                                       what the user sees on screen —
+//                                       including any dragging or text edits
+//                                       made since the ticks were auto-placed.
+async function burnAnnotationsToPDF(returnBytesOnly = false) {
+  const btn = returnBytesOnly ? null : document.getElementById('ann-burn-btn');
   if (btn) { btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Building…'; btn.disabled = true; }
 
   try {
@@ -6760,8 +6771,10 @@ async function burnAnnotationsToPDF() {
       });
     }
 
-    // ── Save and download ────────────────────────────────────────────────────
+    // ── Save and download (or return bytes to the caller) ────────────────────
     const outBytes = await pdfDoc.save();
+    if (returnBytesOnly) return outBytes;
+
     const blob     = new Blob([outBytes], { type:'application/pdf' });
     const url      = URL.createObjectURL(blob);
     const a        = document.createElement('a');
@@ -6775,6 +6788,10 @@ async function burnAnnotationsToPDF() {
 
   } catch(err) {
     console.error('[BurnPDF]', err);
+    // In returnBytesOnly mode the caller (Save Annotations) needs to know
+    // this failed so it doesn't quietly save an unburned file and report
+    // success — rethrow rather than swallowing it behind an alert.
+    if (returnBytesOnly) throw err;
     alert('Could not build annotated PDF: ' + err.message);
     if (btn) { btn.innerHTML = '<i class="ti ti-file-download"></i> Download with Annotations'; btn.disabled = false; }
   }
@@ -7019,6 +7036,23 @@ async function saveAnnotatedPDF() {
     // Mutate in place so _fpIdx still points to the right object
     console.log('[Save] Storing', serialized.length, 'annotations on entry', entry.name);
 
+    // ── Burn the SAME annotations the user is looking at into the actual
+    // PDF bytes ─────────────────────────────────────────────────────────
+    // Previously this function only serialized annotation metadata and
+    // renamed the file to "..._annotated_....pdf" while leaving the PDF
+    // itself completely untouched — so a saved "annotated" file opened
+    // anywhere outside this viewer showed no annotations at all. The burn
+    // reads the live overlay DOM (same source as the Download with
+    // Annotations button), so anything dragged, edited, or auto-placed
+    // since the file was opened is captured exactly as displayed.
+    let burnedBytes = null;
+    try {
+      burnedBytes = await burnAnnotationsToPDF(true);
+    } catch (burnErr) {
+      console.error('[Save] Burn failed:', burnErr);
+      throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
+    }
+
     // Determine annotated filename
     const origName = entry.name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/\.pdf$/i, '');
     const _ts = (() => {
@@ -7037,22 +7071,65 @@ async function saveAnnotatedPDF() {
     const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
                   + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
 
-    // Update the entry directly — rename if needed and store annotations
-    entry._annotations = serialized;
-    entry.updatedBy    = 'jdavis';
-    entry.updatedOn    = nowStr;
-    // Persist annotations to Postgres
-    _saveAnnotationsToDB(_fpRef, entry.name, serialized);
+    // Keep the ORIGINAL file untouched and add the annotated version as its
+    // own separate entry in the file list, rather than renaming the original
+    // in place. Both then show side by side, and the annotated one picks up
+    // the same download/preview controls every file row already has — no
+    // special-case UI needed. The original stays available as the clean,
+    // unmarked source, which matters for an audit trail.
+    const annotatedFile = new File([burnedBytes], annName, { type: 'application/pdf' });
+    const bucketArr = inMemoryFiles[_fpRef][_fpBucket];
 
-    if (entry.name !== annName) {
-      // Rename: create new File with new name, same bytes
-      entry.file = new File([entry.file], annName, { type: 'application/pdf' });
-      entry.name = annName;
+    if (annName === entry.name) {
+      // The file currently open IS the annotated one (re-saving it after
+      // further edits) — update it in place. Without this, the lookup below
+      // would deliberately skip the current entry and push a duplicate
+      // carrying an identical name.
+      entry.file        = annotatedFile;
+      entry.size        = formatFileSize(annotatedFile.size);
+      entry._annotations = serialized;
+      entry.updatedBy   = 'jdavis';
+      entry.updatedOn   = nowStr;
+    } else {
+      // If an annotated version of this same source file already exists,
+      // update it in place instead of stacking up a new copy on every save.
+      const existingAnnIdx = bucketArr.findIndex(f => f.name === annName && f !== entry);
+      if (existingAnnIdx >= 0) {
+        const annEntry = bucketArr[existingAnnIdx];
+        annEntry.file        = annotatedFile;
+        annEntry.size        = formatFileSize(annotatedFile.size);
+        annEntry._annotations = serialized;
+        annEntry.updatedBy   = 'jdavis';
+        annEntry.updatedOn   = nowStr;
+      } else {
+        bucketArr.push({
+          file: annotatedFile,
+          name: annName,
+          size: formatFileSize(annotatedFile.size),
+          type: 'application/pdf',
+          uploadedBy: 'Wavefire',
+          uploadedOn: nowStr,
+          _annotations: serialized,
+          _annotatedFrom: entry.name, // provenance: which original this came from
+        });
+      }
+      // The ORIGINAL entry keeps its own annotation metadata too, so
+      // reopening it still restores the editable overlays exactly as before
+      // — only its bytes and name are deliberately left alone.
+      entry._annotations = serialized;
     }
 
-    console.log('[Save] Done. entry._annotations:', entry._annotations.length, 'name:', entry.name);
+    // Persist annotations to Postgres under the ANNOTATED file's name, since
+    // that's the file those burned marks belong to. Annotations are stored
+    // keyed by filename, so this is what a later lookup for that file finds.
+    _saveAnnotationsToDB(_fpRef, annName, serialized);
+    // Also persist under the original's name, so reopening the ORIGINAL
+    // still restores its editable overlays rather than coming back blank.
+    _saveAnnotationsToDB(_fpRef, entry.name, serialized);
+
+    console.log('[Save] Done. Annotated file:', annName, '| original preserved:', entry.name);
     refreshFileList(_fpRef, 'sample');
-    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotations saved: ${annName}`);
+    if (typeof logEvent === 'function') logEvent(_fpRef, `Annotated PDF saved: ${annName} (original ${entry.name} preserved)`);
 
     if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Saved!'; btn.style.background = '#16a34a'; }
     setTimeout(() => {
@@ -18904,19 +18981,21 @@ async function exportToXlsx(attachOnly = false) {
     ['jdavis'],                                         // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
-    // A6: Description row only — no repeated attr+title here
-    ['Description', ...sdColumnsForExport.map(() => ''), ...attributes.map(a => a.desc || '')],
-    // A7: Additional Info row
-    ['Additional Information', ...sdColumnsForExport.map(() => ''), ...attributes.map(a => a.additionalInfo || '')],
-    // A8: (blank row to separate headers from the Sample File row visually)
-    [],
-    // A9: Sample File results header — Sample Data grid column titles,
-    // immediately after "Sample File" and before the Test Attribute columns
-    // — then combined Attr# + Title (one occurrence) for the attributes.
-    ['Sample File', ...sdColumnsForExport.map(c => c.title || '(untitled column)'), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)],
   ];
+  // Description row — no repeated attr+title here. Additional Information is
+  // deliberately NOT included in this export — kept in the in-app Test
+  // Attributes section and other exports, just not repeated here.
+  const rowDesc = wsData.length;
+  wsData.push(['Description', ...sdColumnsForExport.map(() => ''), ...attributes.map(a => a.desc || '')]);
+  // Sample File results header — Sample Data grid column titles, immediately
+  // after "Sample File" and before the Test Attribute columns — then
+  // combined Attr# + Title (one occurrence) for the attributes. No blank
+  // spacer row before this one — it follows Description directly.
+  const rowSampleFile = wsData.length;
+  wsData.push(['Sample File', ...sdColumnsForExport.map(c => c.title || '(untitled column)'), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)]);
 
   // Grid rows
+  const rowDataStart = wsData.length;
   analysisResults.forEach((fileResult, fi) => {
     const sampleCells = fileResult.sampleRowCells || {};
     const fieldCells = sdColumnsForExport.map(col => {
@@ -18939,11 +19018,13 @@ async function exportToXlsx(attachOnly = false) {
     });
     wsData.push([fileResult.fileName, ...fieldCells, ...attrCells]);
   });
+  const rowDataEnd = wsData.length - 1;
 
   // Blank spacer
   wsData.push([]);
 
   // ── Legend ──
+  const rowLegend = wsData.length;
   wsData.push(['LEGEND']);
   wsData.push(['✓', 'Pass — attribute met with no exceptions noted']);
   wsData.push(['⚠', 'Pass with Exception — attribute substantially met; exception noted below']);
@@ -18956,11 +19037,13 @@ async function exportToXlsx(attachOnly = false) {
 
   // ── Exceptions list ──
   let hasExceptions = false;
+  let rowExceptions = -1;
   analysisResults.forEach((fileResult, fi) => {
     attributes.forEach((attr, ai) => {
       const key = `${fi}-${ai}`;
       if (!exMap[key]) return;
       if (!hasExceptions) {
+        rowExceptions = wsData.length;
         wsData.push(['EXCEPTIONS']);
         wsData.push(['Ref', 'File', 'Attribute', 'Finding']);
         hasExceptions = true;
@@ -18978,6 +19061,7 @@ async function exportToXlsx(attachOnly = false) {
   });
 
   if (!hasExceptions) {
+    rowExceptions = wsData.length;
     wsData.push(['EXCEPTIONS']);
     wsData.push(['No exceptions noted.']);
   }
@@ -18988,16 +19072,12 @@ async function exportToXlsx(attachOnly = false) {
   ws['!cols'] = [{ wch: 40 }, ...sdColumnsForExport.map(() => ({ wch: 22 })), ...attributes.map(() => ({ wch: 24 }))];
 
   // ── Track positions of special rows for styling ──
-  // wsData rows: 0=AuditName,1=Ref,2=User,3=Date,4=blank,5=Attribute,6=Desc,7=AddlInfo,8=SampleFile
-  // then data rows, then blank, then LEGEND, then EXCEPTIONS
-  const ROW_DESC        = 5;
-  const ROW_ADDL        = 6;
-  const ROW_SAMPLEFILE  = 8;  // row 8 is blank, row 9 (0-indexed 8) is Sample File
-  const dataStartRow    = 9;
-  const dataEndRow      = 9 + analysisResults.length - 1;
-  const legendRow       = dataEndRow + 2;   // blank row then LEGEND
-  const exceptionsRow   = legendRow + 7;    // LEGEND(1)+5 ticks+[E#]+blank = 8 rows
-  const totalCols       = 1 + sdColumnsForExport.length + attributes.length;
+  // These are the ACTUAL indices captured at the moment each row was pushed
+  // into wsData above (rowDesc, rowSampleFile, etc.) — not assumed in
+  // advance. Correct by construction: if the layout above ever changes
+  // (a row added, removed, or made conditional), these stay accurate
+  // automatically, with nothing here to update by hand.
+  const totalCols = 1 + sdColumnsForExport.length + attributes.length;
 
   const boldStyle           = { font: { bold: true } };
   const boldUnderlineStyle  = { font: { bold: true }, border: { bottom: { style: 'medium', color: { rgb: '000000' } } } };
@@ -19008,16 +19088,14 @@ async function exportToXlsx(attachOnly = false) {
     ws[addr].s = style;
   }
 
-  // Bold description and additional info rows
-  [ROW_DESC, ROW_ADDL].forEach(rowIdx => {
-    for (let c = 0; c < totalCols; c++) styleCell(ws, rowIdx, c, boldStyle);
-  });
+  // Bold the Description row (Additional Information no longer exists here to bold alongside it)
+  for (let c = 0; c < totalCols; c++) styleCell(ws, rowDesc, c, boldStyle);
   // Bold + underline the last header row (Sample File)
-  for (let c = 0; c < totalCols; c++) styleCell(ws, ROW_SAMPLEFILE, c, boldUnderlineStyle);
+  for (let c = 0; c < totalCols; c++) styleCell(ws, rowSampleFile, c, boldUnderlineStyle);
 
   // Bold LEGEND and EXCEPTIONS section headers (column A only)
-  styleCell(ws, legendRow,     0, boldStyle);
-  styleCell(ws, exceptionsRow, 0, boldStyle);
+  styleCell(ws, rowLegend,     0, boldStyle);
+  styleCell(ws, rowExceptions, 0, boldStyle);
 
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
