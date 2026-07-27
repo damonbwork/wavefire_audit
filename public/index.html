@@ -6726,8 +6726,18 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
     });
 
     // ── Also handle result-type logical annotations on the entry ─────────────
+    // Falls back to building tick marks straight from the entry's own saved
+    // annotation data when the live overlay for THIS file has nothing in
+    // it — checked via the overlay DOM directly (annItems, collected just
+    // above), not via the global pdfAnnotations array. pdfAnnotations is
+    // shared across the whole page and isn't cleared when switching between
+    // files, so checking it here could see auto-ticks left over from a
+    // DIFFERENT file viewed earlier in the session and wrongly conclude
+    // "already rendered" — silently skipping this fallback and burning
+    // nothing into the PDF, even though the overlay for the file actually
+    // being saved right now was genuinely empty.
     const ann0 = entry._annotations?.[0];
-    if (ann0?.type === 'result' && pdfAnnotations.filter(a=>a.auto).length === 0) {
+    if (ann0?.type === 'result' && annItems.length === 0) {
       // Annotations not rendered to overlay yet — build from logical data
       const ref   = _fpRef;
       const attrs = entry._annotations.filter(a => a.type === 'result');
@@ -6948,6 +6958,78 @@ async function downloadAllAnnotatedPDFs() {
   }
 }
 
+// Automatically creates a burned-in annotated copy of every attached sample
+// file right after Analyze finishes, adding each as its own entry in the
+// Attached Sample Files list alongside the original — so both show up
+// side by side without the user needing to open the viewer for each file
+// and click Save Annotations by hand. Reuses the same proven burn function
+// the bulk "Annotated Sample PDFs" zip download already relies on (no
+// dependency on any DOM/overlay state), and the same update-in-place /
+// push-new entry logic Save Annotations uses, so re-running Analyze on the
+// same workpaper updates the existing annotated copies rather than piling
+// up duplicates.
+async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const bucketArr = inMemoryFiles[ref]?.sample;
+  if (!bucketArr || !bucketArr.length) return;
+
+  // Snapshot the ORIGINAL entries before this loop starts adding annotated
+  // ones into the same array — otherwise the loop would also iterate over
+  // (and try to re-annotate) the annotated copies it just added.
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom);
+  if (!originalEntries.length) return;
+
+  let PDFLib;
+  try {
+    PDFLib = await loadPdfLib();
+  } catch (err) {
+    console.error('[AutoAnnotate] Could not load pdf-lib:', err);
+    return; // fail quietly here — this is a convenience step, not the primary Analyze outcome
+  }
+
+  const now    = new Date();
+  const nowStr = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+               + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+
+  for (const origEntry of originalEntries) {
+    try {
+      const bytes = await origEntry.file.arrayBuffer();
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, origEntry.name, wpResults, attributes);
+      if (!outBytes) continue; // no relevant results for this specific file — skip rather than add an unmarked "annotated" copy
+
+      const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
+      const annName  = baseName + '_annotated.pdf';
+      const annotatedFile = new File([outBytes], annName, { type: 'application/pdf' });
+
+      const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
+      if (existingIdx >= 0) {
+        const annEntry = bucketArr[existingIdx];
+        annEntry.file       = annotatedFile;
+        annEntry.size       = formatFileSize(annotatedFile.size);
+        annEntry.updatedBy  = 'Wavefire';
+        annEntry.updatedOn  = nowStr;
+      } else {
+        bucketArr.push({
+          file: annotatedFile,
+          name: annName,
+          size: formatFileSize(annotatedFile.size),
+          type: 'application/pdf',
+          uploadedBy: 'Wavefire',
+          uploadedOn: nowStr,
+          _annotatedFrom: origEntry.name, // provenance: which original this came from
+        });
+      }
+    } catch (err) {
+      // One file failing to burn shouldn't block the others — log and continue.
+      console.error('[AutoAnnotate] Failed to annotate', origEntry.name, err);
+    }
+  }
+
+  refreshFileList(ref, 'sample');
+}
+
 async function loadPdfLib() {
   if (window.PDFLib) return window.PDFLib;
   return new Promise((resolve, reject) => {
@@ -7045,12 +7127,36 @@ async function saveAnnotatedPDF() {
     // reads the live overlay DOM (same source as the Download with
     // Annotations button), so anything dragged, edited, or auto-placed
     // since the file was opened is captured exactly as displayed.
+    //
+    // If the overlay genuinely has nothing in it for THIS file (e.g. the
+    // viewer hadn't finished placing auto-ticks yet, or this is a first-ever
+    // save with no prior _annotations either), fall through to burning
+    // straight from _wpAnalysisResults instead — the raw Analyze output,
+    // always in memory right after a run, with no dependency on DOM state
+    // at all. Uses the same proven function the bulk "Annotated Sample
+    // PDFs" export already relies on, rather than a second, untested path.
     let burnedBytes = null;
-    try {
-      burnedBytes = await burnAnnotationsToPDF(true);
-    } catch (burnErr) {
-      console.error('[Save] Burn failed:', burnErr);
-      throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
+    const liveOverlayHasItems = overlay && overlay.querySelectorAll('.ann-item.ann-auto, .ann-item').length > 0;
+    const hasSavedAnnotations = entry._annotations && entry._annotations.length > 0;
+    if (!liveOverlayHasItems && !hasSavedAnnotations && _wpAnalysisResults[_fpRef]?.length) {
+      try {
+        const PDFLib = await loadPdfLib();
+        const wpResultsForBurn = _wpAnalysisResults[_fpRef];
+        const attrsForBurn = (wpTestAttributes[_fpRef] || []).filter(a => a.title);
+        const fileBytes = await entry.file.arrayBuffer();
+        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, entry.name, wpResultsForBurn, attrsForBurn);
+        if (!burnedBytes) throw new Error('No analysis results are relevant to this specific file.');
+      } catch (fallbackErr) {
+        console.error('[Save] Fallback burn from analysis results failed:', fallbackErr);
+        throw new Error('Could not write annotations into the PDF: ' + fallbackErr.message);
+      }
+    } else {
+      try {
+        burnedBytes = await burnAnnotationsToPDF(true);
+      } catch (burnErr) {
+        console.error('[Save] Burn failed:', burnErr);
+        throw new Error('Could not write annotations into the PDF: ' + burnErr.message);
+      }
     }
 
     // Determine annotated filename
@@ -18255,6 +18361,13 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // Also store on the workpaper object itself for deeper persistence
   const _wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
+
+  // Automatically create a burned-in annotated copy of every attached sample
+  // file, added alongside its original in the Attached Sample Files list —
+  // runs in the background and doesn't block the rest of this function from
+  // showing results; a failure here is logged, not surfaced as an Analyze
+  // failure, since annotation is a convenience on top of the actual results.
+  _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
