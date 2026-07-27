@@ -6712,7 +6712,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         let ty = pdfY - 8;
         const maxLines = Math.floor((boxH - 8) / lineH);
         lines.slice(0, maxLines).forEach(line => {
-          page.drawText(line.slice(0, 90), { x: pdfX + 3, y: ty, font: isLegend ? fontMono : fontReg, size: isLegend ? 6 : 7, color: rgb(0.1,0.1,0.1) });
+          page.drawText(pdfText(line.slice(0, 90)), { x: pdfX + 3, y: ty, font: isLegend ? fontMono : fontReg, size: isLegend ? 6 : 7, color: rgb(0.1,0.1,0.1) });
           ty -= lineH;
         });
       }
@@ -6760,7 +6760,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         pg.drawRectangle({ x: lx, y: ly - boxH, width: lw, height: boxH, color: rgb(1,1,0.85), borderColor: rgb(0.2,0.4,0.7), borderWidth: 1.5, opacity: 0.95 });
         let ty = ly - 10;
         legLines.forEach((line, li) => {
-          pg.drawText(line.slice(0,50), { x: lx + 5, y: ty, font: li < 2 ? font : fontMono, size: li === 0 ? 7.5 : 6.5, color: rgb(0.1,0.1,0.3) });
+          pg.drawText(pdfText(line.slice(0,50)), { x: lx + 5, y: ty, font: li < 2 ? font : fontMono, size: li === 0 ? 7.5 : 6.5, color: rgb(0.1,0.1,0.3) });
           ty -= lh;
         });
       }
@@ -6776,8 +6776,8 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         const col  = COLS[a.result] || COLS.error;
         const sym  = SYMS[a.result] || '–';
         pg.drawRectangle({ x: 10, y: pdfY - 10, width: 28, height: 16, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.08, col.green*0.08, col.blue*0.08), opacity: 0.2 });
-        pg.drawText(sym, { x: 14, y: pdfY - 6, font, size: 11, color: col });
-        if (a.attrRef) pg.drawText(String(a.attrRef), { x: 42, y: pdfY - 4, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3) });
+        pg.drawText(pdfText(sym), { x: 14, y: pdfY - 6, font, size: 11, color: col });
+        if (a.attrRef) pg.drawText(pdfText(String(a.attrRef)), { x: 42, y: pdfY - 4, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3) });
       });
     }
 
