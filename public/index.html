@@ -6841,12 +6841,29 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
-      // Same per-attribute source-file filter as the live viewer — only
-      // burn a tick onto THIS file if the model actually reported this
-      // attribute's evidence as coming from it. A result predating this
-      // feature (no sourceFile at all) falls back to being drawn on every
-      // file, same as the live viewer's own fallback.
-      if (match.sourceFile && match.sourceFile !== fileName) return;
+      // Only skip drawing this attribute's tick on THIS file if we can
+      // affirmatively tell it belongs elsewhere — never skip just because
+      // a comparison failed to prove a match. Reproducing a filename
+      // exactly across a full generation is a real LLM reliability risk
+      // (whitespace, case, or minor reformatting drift is common even when
+      // explicitly instructed to copy verbatim); silently dropping a real
+      // finding because of that drift is worse than occasionally drawing a
+      // tick on a file it may not strictly belong to, so:
+      //   1. Exact match -> definitely belongs here, draw it.
+      //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
+      //   3. No sourceFile reported at all -> can't tell, draw it (matches
+      //      the live viewer's own legacy-result fallback).
+      //   4. sourceFile reported AND clearly doesn't match after normalizing
+      //      -> only skip in this case, where drift is least likely to be
+      //      the explanation.
+      if (match.sourceFile) {
+        var normSource = match.sourceFile.trim().toLowerCase();
+        var normFile    = fileName.trim().toLowerCase();
+        if (normSource !== normFile) {
+          console.log('[BurnPDF] Skipping tick for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + match.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
+          return;
+        }
+      }
 
       var pgIdx = Math.max(0, (match.page || 1) - 1);
       if (pgIdx >= pages.length) return;
@@ -14947,11 +14964,19 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
     if (!match) return;
     // A row's attributes can each have evidence in a DIFFERENT attached
     // document now (see the sourceFile the model reports) — only draw this
-    // tick on the file actually being viewed. If sourceFile is missing
-    // entirely (an older/legacy result, or a model response that skipped
-    // it), fall back to showing it rather than hiding real information —
-    // the old behavior — since there's no file information to check against.
-    if (currentFileName && match.sourceFile && match.sourceFile !== currentFileName) return;
+    // tick on the file actually being viewed. Only skip when we can
+    // affirmatively tell it belongs elsewhere: exact match, then a
+    // case/whitespace-insensitive match (the model can plausibly drift on
+    // exact string reproduction even when told to copy verbatim), and only
+    // if BOTH of those fail to confirm a match do we skip. If sourceFile is
+    // missing entirely (an older/legacy result, or a model response that
+    // skipped it), fall back to showing it rather than hiding real
+    // information — there's no file information to check against at all.
+    if (currentFileName && match.sourceFile) {
+      var _normSrc = match.sourceFile.trim().toLowerCase();
+      var _normCur = currentFileName.trim().toLowerCase();
+      if (_normSrc !== _normCur) return;
+    }
 
     const result = match.result || 'error';
     const sym    = TICK_SYMS[result] || '–';
