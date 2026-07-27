@@ -7251,19 +7251,15 @@ async function saveAnnotatedPDF() {
       }
     }
 
-    // Determine annotated filename
-    const origName = entry.name.replace(/_annotated_\d{8}_\d{4}\.pdf$/i, '').replace(/\.pdf$/i, '');
-    const _ts = (() => {
-      const n = new Date();
-      return String(n.getFullYear()) +
-        String(n.getMonth()+1).padStart(2,'0') +
-        String(n.getDate()).padStart(2,'0') + '_' +
-        String(n.getHours()).padStart(2,'0') +
-        String(n.getMinutes()).padStart(2,'0');
-    })();
-    const annName = entry.name.match(/_annotated_\d{8}_\d{4}\.pdf$/i)
+    // Determine annotated filename — MUST match the exact convention
+    // _autoBurnAnnotatedFilesAfterAnalyze uses ("<basename>_annotated.pdf",
+    // no timestamp), so that saving from the viewer updates the SAME
+    // annotated entry Analyze already created, rather than spawning a
+    // second, differently-named "annotated" copy of the same original.
+    const origName = entry.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '');
+    const annName  = entry.name.match(/_annotated\.pdf$/i)
       ? entry.name
-      : `${origName}_annotated_${_ts}.pdf`;
+      : `${origName}_annotated.pdf`;
 
     const now     = new Date();
     const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
