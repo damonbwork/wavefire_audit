@@ -6662,6 +6662,35 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         .replace(/[•·]/g, '*')
         .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?'); // strip anything else outside WinAnsi range
     }
+
+    // Same background-behind-text approach as the automatic-burn function —
+    // measures actual text width via pdf-lib's real widthOfTextAtSize API
+    // and draws a solid white rect sized to fit before the text itself, so
+    // annotation text stays legible over busy page content underneath
+    // instead of floating directly on it.
+    function wrapLines(text, useFont, size, maxWidth) {
+      if (!maxWidth) return [text];
+      const words = text.split(' ');
+      const lines = [];
+      let cur = '';
+      words.forEach(w => {
+        const trial = cur ? cur + ' ' + w : w;
+        if (useFont.widthOfTextAtSize(trial, size) > maxWidth && cur) { lines.push(cur); cur = w; }
+        else cur = trial;
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    }
+    function drawTextWithBg(page, text, opts) {
+      const { x, y, font: useFont, size, color, maxWidth, padX = 3, padY = 2 } = opts;
+      const lines = wrapLines(text, useFont, size, maxWidth);
+      const lineH = useFont.heightAtSize(size) * 1.15;
+      const widest = Math.max(...lines.map(l => useFont.widthOfTextAtSize(l, size)));
+      const bgH = lines.length * lineH;
+      page.drawRectangle({ x: x - padX, y: y - bgH + lineH - padY, width: widest + padX * 2, height: bgH + padY * 2, color: rgb(1,1,1), opacity: 0.88 });
+      lines.forEach((line, li) => page.drawText(line, { x, y: y - li * lineH, font: useFont, size, color }));
+    }
+
     const annItems = overlay.querySelectorAll('.ann-item.ann-auto, .ann-item');
     annItems.forEach(el => {
       const left = parseFloat(el.style.left) || 0;
@@ -6687,11 +6716,11 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         const colHex = TICK_COLORS[ann?.tickType] || '#475569';
         const c = hexToRgb(colHex);
         page.drawRectangle({ x: pdfX - 2, y: pdfY - 18, width: 32, height: 22, borderColor: c, borderWidth: 1.5, color: rgb(c.red*0.12, c.green*0.12, c.blue*0.12), opacity: 0.15 });
-        page.drawText(pdfText(tickText), { x: pdfX + 2, y: pdfY - 14, font, size: 13, color: c });
+        drawTextWithBg(page, pdfText(tickText), { x: pdfX + 2, y: pdfY - 14, font, size: 13, color: c });
         // Draw label text to the right of the tick
         const ann2 = pdfAnnotations.find(a => a.el === el);
         if (ann2?.text) {
-          page.drawText(pdfText(ann2.text), { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
+          drawTextWithBg(page, pdfText(ann2.text), { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
         }
         return;
       }
@@ -6835,6 +6864,48 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
   }
 
+  // Splits text into lines that each fit within maxWidth at the given font
+  // and size — the same simple greedy word-wrap pdf-lib does internally for
+  // drawText's own maxWidth option, exposed here so the background rect can
+  // be sized to the actual number of wrapped lines rather than guessing.
+  function wrapLines(text, useFont, size, maxWidth) {
+    if (!maxWidth) return [text];
+    const words = text.split(' ');
+    const lines = [];
+    let cur = '';
+    words.forEach(function(w){
+      const trial = cur ? cur + ' ' + w : w;
+      if (useFont.widthOfTextAtSize(trial, size) > maxWidth && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = trial;
+      }
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // Draws a solid white background sized to the actual text (measured with
+  // pdf-lib's real widthOfTextAtSize/heightAtSize, not a fixed guess) before
+  // drawing the text on top — this is what keeps annotation text legible
+  // over busy PDF page content instead of floating directly on it.
+  function drawTextWithBg(page, text, opts) {
+    const { x, y, font: useFont, size, color, maxWidth, padX = 3, padY = 2 } = opts;
+    const lines = wrapLines(text, useFont, size, maxWidth);
+    const lineH = useFont.heightAtSize(size) * 1.15;
+    const widest = Math.max(...lines.map(function(l){ return useFont.widthOfTextAtSize(l, size); }));
+    const bgH = lines.length * lineH;
+    page.drawRectangle({
+      x: x - padX, y: y - bgH + lineH - padY,
+      width: widest + padX * 2, height: bgH + padY * 2,
+      color: rgb(1, 1, 1), opacity: 0.88,
+    });
+    lines.forEach(function(line, li){
+      page.drawText(line, { x: x, y: y - li * lineH, font: useFont, size: size, color: color });
+    });
+  }
+
   var anyPlaced = false;
   var exNum = 0;
   wpResults.forEach(function(fileResult){
@@ -6881,9 +6952,13 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 
       // Box sized to actually fit the label at this font size — PASS/FAIL/
       // EXC/N/A are all 3-4 characters, comfortably within 34pt at 9pt bold.
+      // A solid white background (drawn by drawTextWithBg below) sits behind
+      // the label text itself, since this colored border box alone is only
+      // a translucent accent — not enough to keep text legible over busy
+      // page content underneath.
       var boxW = 34, boxH = 14;
       page.drawRectangle({ x: 10, y: pdfY - boxH, width: boxW, height: boxH, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.1, col.green*0.1, col.blue*0.1), opacity: 0.2 });
-      page.drawText(pdfText(label), { x: 13, y: pdfY - boxH + 4, font: font, size: 9, color: col });
+      drawTextWithBg(page, pdfText(label), { x: 13, y: pdfY - boxH + 4, font: font, size: 9, color: col });
 
       // Attribute number in brackets, on the SAME line as the tick label but
       // with real spacing (a separate drawText call at its own x-offset,
@@ -6891,12 +6966,12 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       // the label the way "(PASS)" + "6" did before this fix.
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
       var attrTag = '[' + attrNum + ']' + (exNum && (result==='fail'||result==='pass_exception') ? ' (Exception E' + exNum + ')' : '');
-      page.drawText(pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH + 4, font: font, size: 8, color: rgb(0.15,0.15,0.15) });
+      drawTextWithBg(page, pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH + 4, font: font, size: 8, color: rgb(0.15,0.15,0.15) });
 
       // Explanation on its own line below the tick+number line, not sharing
       // horizontal space with either.
       if (match.note) {
-        page.drawText(pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 10, font: fontReg, size: 7, color: rgb(0.35,0.35,0.35), maxWidth: 260 });
+        drawTextWithBg(page, pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 10, font: fontReg, size: 7, color: rgb(0.35,0.35,0.35), maxWidth: 260 });
       }
       anyPlaced = true;
     });
