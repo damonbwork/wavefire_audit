@@ -19770,7 +19770,17 @@ async function previewMemFile(ref, bucket, idx) {
 
     // Set pending annotations BEFORE renderPDFPreview so the RAF inside it picks them up
     window._pendingAnnotations = null;
-    if (bucket === 'sample' && entry._annotations?.length) {
+    // Only restore saved annotations as LIVE, MOVABLE overlay elements when
+    // this file is NOT itself an annotated copy. An annotated file's marks
+    // are already permanently burned into its pixels — restoring them as
+    // draggable/editable overlay elements on top would show the same
+    // information twice: once as real pixels, once as interactive UI
+    // sitting over them, which is exactly the duplication reported. The
+    // ORIGINAL file (entry._annotatedFrom unset) is where restoring as
+    // movable overlays is genuinely correct — that's the file meant for
+    // active editing, and its own _annotations (if any) reflect real
+    // in-progress work worth being able to drag/retype further.
+    if (bucket === 'sample' && entry._annotations?.length && !entry._annotatedFrom) {
       console.log('[Viewer] Pre-queuing', entry._annotations.length, 'annotations before PDF render');
       window._pendingAnnotations = entry._annotations;
     }
