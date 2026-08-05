@@ -21219,11 +21219,27 @@ function saveWPHeaderEdit() {
     if (inMemoryFiles[oldRef])   { inMemoryFiles[newRef]   = inMemoryFiles[oldRef];   delete inMemoryFiles[oldRef]; }
     w.ref = newRef;
 
-    // Update everywhere the old ref appears in rendered HTML
-    document.querySelectorAll('.ps, .wp-ref-display').forEach(el => {
-      if (el.textContent.includes(oldRef)) el.textContent = el.textContent.replace(oldRef, newRef);
-    });
-    // Update workpaper list rows if visible
+    // Update everywhere the old ref appears in rendered HTML — SCOPED to the
+    // workpaper detail page only. Previously this searched the ENTIRE
+    // document for any element carrying .ps or .wp-ref-display and
+    // containing the old ref as a substring — .ps in particular is a
+    // generic "page subtitle" class reused across several unrelated pages
+    // (the Audits list, the Workpapers list, Data Analysis), so an
+    // unscoped search here could silently corrupt text on any of those
+    // pages if the old ref happened to appear as a substring anywhere in
+    // them. A change to ONE workpaper's title/tag/ref must never be able
+    // to reach outside that workpaper's own detail view.
+    const wpDetailPage = document.getElementById('page-wpdetail');
+    if (wpDetailPage) {
+      wpDetailPage.querySelectorAll('.ps, .wp-ref-display').forEach(el => {
+        if (el.textContent.includes(oldRef)) el.textContent = el.textContent.replace(oldRef, newRef);
+      });
+    }
+    // Update workpaper list rows if visible — data-wpref attributes are
+    // already a precise, unambiguous match (an exact attribute value, not
+    // a substring search), so this one is safe to run document-wide as
+    // before; a list row for a different workpaper could never have this
+    // exact attribute value.
     document.querySelectorAll('[data-wpref="' + oldRef + '"]').forEach(el => {
       el.setAttribute('data-wpref', newRef);
       el.textContent = newRef;
