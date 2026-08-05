@@ -2778,22 +2778,22 @@ attribute.
             <div id="test-attr-rows"><div class="attr-row" id="attr-row-0" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">1</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="1a" placeholder="e.g. 1a" tabindex="1" oninput="saveAttrRow(0)" onblur="saveAttrRow(0)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="1a" placeholder="e.g. 1a" tabindex="1" oninput="saveAttrRow(0)" onblur="saveAttrRow(0, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Contract" placeholder="Attribute title…" tabindex="2" oninput="saveAttrRow(0)" onblur="saveAttrRow(0)">
+      <input class="attr-input" type="text" maxlength="80" value="Contract" placeholder="Attribute title…" tabindex="2" oninput="saveAttrRow(0)" onblur="saveAttrRow(0, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="3" oninput="saveAttrRow(0);autoResizeTA(this)" onblur="saveAttrRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Contract and/or renewal was in effect at the time of the service.</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="3" oninput="saveAttrRow(0);autoResizeTA(this)" onblur="saveAttrRow(0, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Contract and/or renewal was in effect at the time of the service.</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="4" oninput="saveAttrRow(0);autoResizeTA(this)" onblur="saveAttrRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Can be confirmed by reviewing contract and date of services provided (invoice, timecard, etc.)</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="4" oninput="saveAttrRow(0);autoResizeTA(this)" onblur="saveAttrRow(0, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Can be confirmed by reviewing contract and date of services provided (invoice, timecard, etc.)</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="5" oninput="saveAttrRow(0);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="5" oninput="saveAttrRow(0);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(0, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="6" oninput="saveAttrRow(0);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="6" oninput="saveAttrRow(0);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(0, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(0)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2801,25 +2801,25 @@ attribute.
   </div><div class="attr-row" id="attr-row-1" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">2</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="1b" placeholder="e.g. 1a" tabindex="5" oninput="saveAttrRow(1)" onblur="saveAttrRow(1)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="1b" placeholder="e.g. 1a" tabindex="5" oninput="saveAttrRow(1)" onblur="saveAttrRow(1, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Signed_Physician" placeholder="Attribute title…" tabindex="6" oninput="saveAttrRow(1)" onblur="saveAttrRow(1)">
+      <input class="attr-input" type="text" maxlength="80" value="Signed_Physician" placeholder="Attribute title…" tabindex="6" oninput="saveAttrRow(1)" onblur="saveAttrRow(1, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="7" oninput="saveAttrRow(1);autoResizeTA(this)" onblur="saveAttrRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="7" oninput="saveAttrRow(1);autoResizeTA(this)" onblur="saveAttrRow(1, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original
  agreement (and amendment if applicable) was signed by physician (or 
 appropriate representative of contracted entity) and facility CEO 
 before/on start date (amendment may not be dated but should be signed)</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="8" oninput="saveAttrRow(1);autoResizeTA(this)" onblur="saveAttrRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Can be confirmed by reviewing contract on signature page</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="8" oninput="saveAttrRow(1);autoResizeTA(this)" onblur="saveAttrRow(1, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Can be confirmed by reviewing contract on signature page</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="9" oninput="saveAttrRow(1);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="9" oninput="saveAttrRow(1);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(1, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="10" oninput="saveAttrRow(1);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="10" oninput="saveAttrRow(1);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(1, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(1)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2827,25 +2827,25 @@ before/on start date (amendment may not be dated but should be signed)</textarea
   </div><div class="attr-row" id="attr-row-2" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">3</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="1c" placeholder="e.g. 1a" tabindex="9" oninput="saveAttrRow(2)" onblur="saveAttrRow(2)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="1c" placeholder="e.g. 1a" tabindex="9" oninput="saveAttrRow(2)" onblur="saveAttrRow(2, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Signed_Corp" placeholder="Attribute title…" tabindex="10" oninput="saveAttrRow(2)" onblur="saveAttrRow(2)">
+      <input class="attr-input" type="text" maxlength="80" value="Signed_Corp" placeholder="Attribute title…" tabindex="10" oninput="saveAttrRow(2)" onblur="saveAttrRow(2, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="11" oninput="saveAttrRow(2);autoResizeTA(this)" onblur="saveAttrRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original agreement (and amendment if applicable) was approved by Corporate Legal and Division VP before/on start date</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="11" oninput="saveAttrRow(2);autoResizeTA(this)" onblur="saveAttrRow(2, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original agreement (and amendment if applicable) was approved by Corporate Legal and Division VP before/on start date</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="12" oninput="saveAttrRow(2);autoResizeTA(this)" onblur="saveAttrRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Confirm
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="12" oninput="saveAttrRow(2);autoResizeTA(this)" onblur="saveAttrRow(2, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Confirm
  through DocuSign.  See "List of Legal and VP approvers" document for 
 appropriate approvers. If effective date before 7/1/2021, N/A XX. If 
 physician recruitment, N/A XX.</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="13" oninput="saveAttrRow(2);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="13" oninput="saveAttrRow(2);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(2, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="14" oninput="saveAttrRow(2);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="14" oninput="saveAttrRow(2);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(2, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(2)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2853,28 +2853,28 @@ physician recruitment, N/A XX.</textarea>
   </div><div class="attr-row" id="attr-row-3" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">4</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="1d" placeholder="e.g. 1a" tabindex="13" oninput="saveAttrRow(3)" onblur="saveAttrRow(3)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="1d" placeholder="e.g. 1a" tabindex="13" oninput="saveAttrRow(3)" onblur="saveAttrRow(3, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Signed_Timeline" placeholder="Attribute title…" tabindex="14" oninput="saveAttrRow(3)" onblur="saveAttrRow(3)">
+      <input class="attr-input" type="text" maxlength="80" value="Signed_Timeline" placeholder="Attribute title…" tabindex="14" oninput="saveAttrRow(3)" onblur="saveAttrRow(3, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="15" oninput="saveAttrRow(3);autoResizeTA(this)" onblur="saveAttrRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="15" oninput="saveAttrRow(3);autoResizeTA(this)" onblur="saveAttrRow(3, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Original
  agreement (and amendment if applicable) was signed, dated, and approved
  by physician and facility CEO and approved by Corporate Legal and 
 Division VP within 90 day grace period.</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="16" oninput="saveAttrRow(3);autoResizeTA(this)" onblur="saveAttrRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Per
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="16" oninput="saveAttrRow(3);autoResizeTA(this)" onblur="saveAttrRow(3, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Per
  legal, there is a 90 day grace period for contract execution (signing 
 and dating contract). Can be confirmed by reviewing contract on 
 signature page and face sheet</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="17" oninput="saveAttrRow(3);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="17" oninput="saveAttrRow(3);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(3, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="18" oninput="saveAttrRow(3);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="18" oninput="saveAttrRow(3);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(3, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(3)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2882,25 +2882,25 @@ signature page and face sheet</textarea>
   </div><div class="attr-row" id="attr-row-4" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">5</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="1e" placeholder="e.g. 1a" tabindex="17" oninput="saveAttrRow(4)" onblur="saveAttrRow(4)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="1e" placeholder="e.g. 1a" tabindex="17" oninput="saveAttrRow(4)" onblur="saveAttrRow(4, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Renewal" placeholder="Attribute title…" tabindex="18" oninput="saveAttrRow(4)" onblur="saveAttrRow(4)">
+      <input class="attr-input" type="text" maxlength="80" value="Renewal" placeholder="Attribute title…" tabindex="18" oninput="saveAttrRow(4)" onblur="saveAttrRow(4, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="19" oninput="saveAttrRow(4);autoResizeTA(this)" onblur="saveAttrRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">If
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="19" oninput="saveAttrRow(4);autoResizeTA(this)" onblur="saveAttrRow(4, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">If
  agreement was greater than 36 months old at the time of service, 
 confirm renewal was approved by Legal and Division VP around the 36 
 month interval (+ 90 day grace period).</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="20" oninput="saveAttrRow(4);autoResizeTA(this)" onblur="saveAttrRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Will need to go into DS to find approvals for renewal if current agreement is beyond 36 months</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="20" oninput="saveAttrRow(4);autoResizeTA(this)" onblur="saveAttrRow(4, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Will need to go into DS to find approvals for renewal if current agreement is beyond 36 months</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="21" oninput="saveAttrRow(4);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="21" oninput="saveAttrRow(4);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(4, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="22" oninput="saveAttrRow(4);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="22" oninput="saveAttrRow(4);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(4, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(4)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2908,25 +2908,25 @@ month interval (+ 90 day grace period).</textarea>
   </div><div class="attr-row" id="attr-row-5" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">6</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="2" placeholder="e.g. 1a" tabindex="21" oninput="saveAttrRow(5)" onblur="saveAttrRow(5)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="2" placeholder="e.g. 1a" tabindex="21" oninput="saveAttrRow(5)" onblur="saveAttrRow(5, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Term" placeholder="Attribute title…" tabindex="22" oninput="saveAttrRow(5)" onblur="saveAttrRow(5)">
+      <input class="attr-input" type="text" maxlength="80" value="Term" placeholder="Attribute title…" tabindex="22" oninput="saveAttrRow(5)" onblur="saveAttrRow(5, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="23" oninput="saveAttrRow(5);autoResizeTA(this)" onblur="saveAttrRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Contract term is greater than or equal to one year for ongoing service (unless otherwise approved by Legal)</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="23" oninput="saveAttrRow(5);autoResizeTA(this)" onblur="saveAttrRow(5, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Contract term is greater than or equal to one year for ongoing service (unless otherwise approved by Legal)</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="24" oninput="saveAttrRow(5);autoResizeTA(this)" onblur="saveAttrRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">For
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="24" oninput="saveAttrRow(5);autoResizeTA(this)" onblur="saveAttrRow(5, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">For
  Stark Law compliance, PRS contracts should be greater than 1 year, 
 unless specific reason is noted and approved/documented by legal. 
 Confirm by reviewing contract</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="25" oninput="saveAttrRow(5);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="25" oninput="saveAttrRow(5);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(5, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="26" oninput="saveAttrRow(5);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="26" oninput="saveAttrRow(5);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(5, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(5)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2934,16 +2934,16 @@ Confirm by reviewing contract</textarea>
   </div><div class="attr-row" id="attr-row-6" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">7</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="3" placeholder="e.g. 1a" tabindex="25" oninput="saveAttrRow(6)" onblur="saveAttrRow(6)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="3" placeholder="e.g. 1a" tabindex="25" oninput="saveAttrRow(6)" onblur="saveAttrRow(6, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Payment_Accuracy" placeholder="Attribute title…" tabindex="26" oninput="saveAttrRow(6)" onblur="saveAttrRow(6)">
+      <input class="attr-input" type="text" maxlength="80" value="Payment_Accuracy" placeholder="Attribute title…" tabindex="26" oninput="saveAttrRow(6)" onblur="saveAttrRow(6, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="27" oninput="saveAttrRow(6);autoResizeTA(this)" onblur="saveAttrRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment agrees to contract terms.</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="27" oninput="saveAttrRow(6);autoResizeTA(this)" onblur="saveAttrRow(6, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment agrees to contract terms.</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="28" oninput="saveAttrRow(6);autoResizeTA(this)" onblur="saveAttrRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 54px;">We
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="28" oninput="saveAttrRow(6);autoResizeTA(this)" onblur="saveAttrRow(6, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 54px;">We
  should be able to agree payment to a specific item/rate/schedule in the
  contract.  Ensure payment is permissible and paid in accordance to 
 terms. This will include agreeing calculations to contract. If payment 
@@ -2952,10 +2952,10 @@ type is not listed in contract, we have issue. If the payment is related
 letter.</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="29" oninput="saveAttrRow(6);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="29" oninput="saveAttrRow(6);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(6, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="30" oninput="saveAttrRow(6);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="30" oninput="saveAttrRow(6);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(6, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(6)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2963,16 +2963,16 @@ letter.</textarea>
   </div><div class="attr-row" id="attr-row-7" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">8</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="4" placeholder="e.g. 1a" tabindex="29" oninput="saveAttrRow(7)" onblur="saveAttrRow(7)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="4" placeholder="e.g. 1a" tabindex="29" oninput="saveAttrRow(7)" onblur="saveAttrRow(7, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Payment_Support" placeholder="Attribute title…" tabindex="30" oninput="saveAttrRow(7)" onblur="saveAttrRow(7)">
+      <input class="attr-input" type="text" maxlength="80" value="Payment_Support" placeholder="Attribute title…" tabindex="30" oninput="saveAttrRow(7)" onblur="saveAttrRow(7, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="31" oninput="saveAttrRow(7);autoResizeTA(this)" onblur="saveAttrRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment has sufficient support - complete calculation and agrees to the payment.</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="31" oninput="saveAttrRow(7);autoResizeTA(this)" onblur="saveAttrRow(7, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment has sufficient support - complete calculation and agrees to the payment.</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="32" oninput="saveAttrRow(7);autoResizeTA(this)" onblur="saveAttrRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 54px;">If
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="32" oninput="saveAttrRow(7);autoResizeTA(this)" onblur="saveAttrRow(7, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 54px;">If
  payment is for services related to a medical directorship, ensure a 
 medical director timecard was completed and agrees to payment.    If 
 payment is related to physician recruitment, ensure support for payment 
@@ -2981,10 +2981,10 @@ reimbursement is in same city as facility).    Should be able to recalc
 payment amount.</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="33" oninput="saveAttrRow(7);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="33" oninput="saveAttrRow(7);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(7, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="34" oninput="saveAttrRow(7);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="34" oninput="saveAttrRow(7);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(7, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(7)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -2992,22 +2992,22 @@ payment amount.</textarea>
   </div><div class="attr-row" id="attr-row-8" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">9</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="5" placeholder="e.g. 1a" tabindex="33" oninput="saveAttrRow(8)" onblur="saveAttrRow(8)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="5" placeholder="e.g. 1a" tabindex="33" oninput="saveAttrRow(8)" onblur="saveAttrRow(8, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Payee" placeholder="Attribute title…" tabindex="34" oninput="saveAttrRow(8)" onblur="saveAttrRow(8)">
+      <input class="attr-input" type="text" maxlength="80" value="Payee" placeholder="Attribute title…" tabindex="34" oninput="saveAttrRow(8)" onblur="saveAttrRow(8, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="35" oninput="saveAttrRow(8);autoResizeTA(this)" onblur="saveAttrRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment made to a payee defined by the contract</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="35" oninput="saveAttrRow(8);autoResizeTA(this)" onblur="saveAttrRow(8, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment made to a payee defined by the contract</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="36" oninput="saveAttrRow(8);autoResizeTA(this)" onblur="saveAttrRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Is payment made to contracting group/company or directly to physician.  Payment must agree to contracted name</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="36" oninput="saveAttrRow(8);autoResizeTA(this)" onblur="saveAttrRow(8, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">Is payment made to contracting group/company or directly to physician.  Payment must agree to contracted name</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="37" oninput="saveAttrRow(8);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="37" oninput="saveAttrRow(8);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(8, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="38" oninput="saveAttrRow(8);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="38" oninput="saveAttrRow(8);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(8, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(8)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -3015,22 +3015,22 @@ payment amount.</textarea>
   </div><div class="attr-row" id="attr-row-9" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">10</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="6" placeholder="e.g. 1a" tabindex="37" oninput="saveAttrRow(9)" onblur="saveAttrRow(9)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="6" placeholder="e.g. 1a" tabindex="37" oninput="saveAttrRow(9)" onblur="saveAttrRow(9, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Payment_Entity" placeholder="Attribute title…" tabindex="38" oninput="saveAttrRow(9)" onblur="saveAttrRow(9)">
+      <input class="attr-input" type="text" maxlength="80" value="Payment_Entity" placeholder="Attribute title…" tabindex="38" oninput="saveAttrRow(9)" onblur="saveAttrRow(9, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="39" oninput="saveAttrRow(9);autoResizeTA(this)" onblur="saveAttrRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">PRS was paid from the contracted or employer entity</textarea>
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="39" oninput="saveAttrRow(9);autoResizeTA(this)" onblur="saveAttrRow(9, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">PRS was paid from the contracted or employer entity</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="40" oninput="saveAttrRow(9);autoResizeTA(this)" onblur="saveAttrRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">See column M. If employed physician payment comes from employer entity if non-employed payment comes from contracted entity</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="40" oninput="saveAttrRow(9);autoResizeTA(this)" onblur="saveAttrRow(9, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">See column M. If employed physician payment comes from employer entity if non-employed payment comes from contracted entity</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="41" oninput="saveAttrRow(9);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="41" oninput="saveAttrRow(9);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(9, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="42" oninput="saveAttrRow(9);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="42" oninput="saveAttrRow(9);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(9, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(9)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -3038,24 +3038,24 @@ payment amount.</textarea>
   </div><div class="attr-row" id="attr-row-10" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">11</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
-      <input class="attr-ref-input" type="text" maxlength="6" value="7" placeholder="e.g. 1a" tabindex="41" oninput="saveAttrRow(10)" onblur="saveAttrRow(10)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
+      <input class="attr-ref-input" type="text" maxlength="6" value="7" placeholder="e.g. 1a" tabindex="41" oninput="saveAttrRow(10)" onblur="saveAttrRow(10, true)" style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title" style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
-      <input class="attr-input" type="text" maxlength="80" value="Payment_Auth" placeholder="Attribute title…" tabindex="42" oninput="saveAttrRow(10)" onblur="saveAttrRow(10)">
+      <input class="attr-input" type="text" maxlength="80" value="Payment_Auth" placeholder="Attribute title…" tabindex="42" oninput="saveAttrRow(10)" onblur="saveAttrRow(10, true)">
     </div>
     <div class="attr-cell" data-col="desc" style="flex:2;min-width:100px;padding:6px 12px">
-      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="43" oninput="saveAttrRow(10);autoResizeTA(this)" onblur="saveAttrRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment
+      <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…" tabindex="43" oninput="saveAttrRow(10);autoResizeTA(this)" onblur="saveAttrRow(10, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; height: 36px;">Payment
  is supported by a "Payment to Physician" or "Payment to PRS" form and 
 signed by the appropriate parties before the check date.</textarea>
     </div>
     <div class="attr-cell" data-col="addl" style="flex:1.5;min-width:80px;padding:6px 12px">
-      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="44" oninput="saveAttrRow(10);autoResizeTA(this)" onblur="saveAttrRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">This is only applicable if payment made outside of ARIBA.  If not, N/A 4.</textarea>
+      <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…" tabindex="44" oninput="saveAttrRow(10);autoResizeTA(this)" onblur="saveAttrRow(10, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 36px;">This is only applicable if payment made outside of ARIBA.  If not, N/A 4.</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="45" oninput="saveAttrRow(10);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…" tabindex="45" oninput="saveAttrRow(10);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(10, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
-      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="46" oninput="saveAttrRow(10);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
+      <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…" tabindex="46" oninput="saveAttrRow(10);autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(10, true)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; height: 0px;"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(10)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
@@ -17590,8 +17590,12 @@ function toggleAuditInfoEdit() {
         // Update in AUDITS array
         const ai = AUDITS.findIndex(a => a.name === oldName);
         if (ai >= 0) AUDITS[ai].name = newName;
-        // Update any workpapers that reference the old audit name
-        WORKPAPERS.forEach(w => { if (w.auditName === oldName) w.auditName = newName; });
+        // Update any workpapers that reference the old audit name — and
+        // persist each one, since audit_name is a real column on the
+        // workpapers table; without this, every affected workpaper's
+        // database row would keep pointing at the OLD audit name even
+        // though the audit itself has been renamed.
+        WORKPAPERS.forEach(w => { if (w.auditName === oldName) { w.auditName = newName; _saveWorkpaperToDB(w); } });
         // Also update sel-audit dropdown option
         const selAudit = document.getElementById('sel-audit');
         if (selAudit) {
@@ -17679,6 +17683,7 @@ function saveAuditPeriod(val) {
     // Update the nav period display if it exists
     const selPeriod = document.getElementById('sel-period');
     if (selPeriod) selPeriod.textContent = trimmed;
+    _saveAuditToDB(currentAudit);
   }
 }
 
@@ -21241,6 +21246,12 @@ function saveWPHeaderEdit() {
   editEl.style.display = 'none';
   btn.innerHTML = '<i class="ti ti-edit"></i>Edit';
   btn.style.color = '';
+
+  // Persist title, tag, and reference changes to Postgres — a ref rename in
+  // particular changes the workpaper's primary lookup key, so leaving this
+  // unsaved would mean the database keeps the OLD ref while the UI has
+  // already moved on to the new one.
+  _saveWorkpaperToDB(w);
 }
 
 function showFutureEnhancement(btn) {
@@ -24080,31 +24091,31 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
     <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">${rowNum}</div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
       <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. 1a"
-        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})"
+        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)"
         style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title"   style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
       <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
-        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx})">
+        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)">
     </div>
     <div class="attr-cell" data-col="desc"    style="flex:2;min-width:100px;padding:6px 12px">
       <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…"
-        tabindex="${base+2}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        tabindex="${base+2}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)"
         style="width:100%;resize:none;overflow:hidden;min-height:24px">${escAttr(desc)}</textarea>
     </div>
     <div class="attr-cell" data-col="addl"    style="flex:1.5;min-width:80px;padding:6px 12px">
       <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…"
-        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx})"
+        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px">${escAttr(additionalInfo)}</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
       <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…"
-        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx})"
+        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…"
-        tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx})"
+        tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
@@ -24128,7 +24139,7 @@ function autoResizeAllTAs() {
   document.querySelectorAll('#page-wpdetail textarea').forEach(ta => autoResizeTA(ta));
 }
 
-function saveAttrRow(idx) {
+function saveAttrRow(idx, persist) {
   pushUndo();
   if (!currentAttrWPRef) return;
   const rows = wpTestAttributes[currentAttrWPRef] || [];
@@ -24144,6 +24155,17 @@ function saveAttrRow(idx) {
   while (rows.length <= idx) rows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
   rows[idx] = { num, attrRef, title, desc, additionalInfo, successCriteria, failureCriteria };
   wpTestAttributes[currentAttrWPRef] = rows;
+  // Only persist to Postgres on blur (persist === true), not on every
+  // keystroke from oninput — otherwise typing a description would fire a
+  // network request per character. The in-memory update above still
+  // happens every keystroke either way, so nothing is lost between blurs;
+  // this only changes when the SAVE actually reaches the database.
+  // _saveWorkpaperToDB reads test attributes from the wpTestAttributes
+  // global directly (already updated above), not from any property on w.
+  if (persist) {
+    const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+    if (w) _saveWorkpaperToDB(w);
+  }
 }
 
 function removeAttrRow(idx) {
@@ -24170,6 +24192,9 @@ function removeAttrRow(idx) {
 
   // Re-render from the clean store
   renderTestAttributes(currentAttrWPRef);
+
+  const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+  if (w) _saveWorkpaperToDB(w);
 }
 
 function addTestAttributeRow() {
@@ -24190,6 +24215,8 @@ function addTestAttributeRow() {
   domRows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '' });
   wpTestAttributes[currentAttrWPRef] = domRows;
   renderTestAttributes(currentAttrWPRef);
+  const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+  if (w) _saveWorkpaperToDB(w);
   // Focus the new title field
   setTimeout(() => {
     const allRows = document.querySelectorAll('.attr-row');
@@ -24728,7 +24755,7 @@ function logWPDropdownChange(elId, label) {
   const oldVal = key ? (w[key] || '') : '';
   if (newVal !== oldVal) {
     logChange(ref, label, oldVal, newVal);
-    if (key) w[key] = newVal;
+    if (key) { w[key] = newVal; _saveWorkpaperToDB(w); }
   }
 }
 
@@ -24780,7 +24807,7 @@ function inlineFieldBlurred(ta, fieldLabel) {
         'wpd-description':  'description',
       };
       const key = keyMap[ta.id];
-      if (key) WORKPAPERS[currentWPIndex][key] = newVal;
+      if (key) { WORKPAPERS[currentWPIndex][key] = newVal; _saveWorkpaperToDB(WORKPAPERS[currentWPIndex]); }
     }
   }
   autoResizeTA(ta);
