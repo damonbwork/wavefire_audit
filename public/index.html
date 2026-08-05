@@ -5580,6 +5580,9 @@ function openAudit(i) {
   // Render audit-level scope tags — aggregate FS accounts and controls from all workpapers
   setTimeout(() => {
     const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+    console.log('[Audit RC/FS aggregation] audit:', currentAudit.name, '| matching workpapers:', auditWPs.length, auditWPs.map(w => w.ref),
+      '| pre-existing auditLinkedControls entries:', auditLinkedControls[currentAudit.name] ? [...auditLinkedControls[currentAudit.name]] : '(none yet)',
+      '| pre-existing auditLinkedFs entries:', auditLinkedFs[currentAudit.name] ? [...auditLinkedFs[currentAudit.name]] : '(none yet)');
     // Aggregate FS accounts
     if (!auditLinkedFs[currentAudit.name]) auditLinkedFs[currentAudit.name] = new Set();
     auditWPs.forEach(w => {
@@ -16870,6 +16873,18 @@ function createNewAudit() {
 
   closeNewAudit();
   renderAudits();
+
+  // Navigate INTO the newly created audit — previously this only refreshed
+  // the audits list and left currentAudit pointed at whatever audit the
+  // user was viewing before opening this form. That meant clicking into
+  // "the new audit" right afterward could actually still be showing a
+  // DIFFERENT, pre-existing audit's real data (its own workpapers' genuinely
+  // linked controls/FS accounts) — which looks exactly like unrequested
+  // content appearing on a brand-new audit, even though nothing was
+  // actually wrong with the new audit's own (correctly empty) data.
+  const newAuditIndex = AUDITS.length - 1;
+  openAudit(newAuditIndex);
+  showPage('workpapers');
 }
 
 function openNewWorkpaper() {
