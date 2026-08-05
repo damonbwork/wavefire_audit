@@ -2063,12 +2063,12 @@
           <div class="resizable-table"><table id="wp-table">
             <colgroup id="wp-colgroup">
               <col style="min-width:155px;width:155px"><col style="min-width:200px"><col style="min-width:85px;width:85px">
-              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:95px"><col style="min-width:150px"><col style="min-width:80px">
+              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:95px"><col style="min-width:150px"><col style="min-width:80px"><col style="min-width:50px;width:50px">
             </colgroup>
             <thead>
               <tr>
                 <th>Reference<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Workpaper name<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Type<div class="col-resize-handle" title="Drag to resize column"></div></th>
-                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Review date<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th>
+                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Review date<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th><th></th>
               </tr>
             </thead>
             <tbody id="wp-tbody">
@@ -2157,6 +2157,50 @@
       <td><span style="font-size:11px;color:var(--text-tertiary)">—</span></td>
     </tr></tbody>
           </table></div>
+          <div style="padding:12px 4px 0">
+            <button class="btn-s" style="font-size:12px" onclick="openArchivedWorkpapers()">
+              <i class="ti ti-archive"></i> View Archived Workpapers
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Archive-one-workpaper confirmation -->
+      <div id="archive-wp-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+        <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:420px;max-width:92vw;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+          <div style="padding:20px 24px 14px">
+            <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Archive this workpaper?</div>
+            <div style="font-size:12px;color:var(--text-secondary);line-height:1.5" id="archive-wp-confirm-msg"></div>
+          </div>
+          <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+            <button class="btn-s" onclick="_declineArchiveWorkpaper()">Cancel</button>
+            <button class="btn-p" style="background:#be123c;border-color:#be123c" onclick="_confirmArchiveWorkpaper()">Archive</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Archived Workpapers list -->
+      <div id="archived-wp-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+        <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:680px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+          <div style="padding:20px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Archived Workpapers</div>
+              <div style="font-size:12px;color:var(--text-secondary)" id="archived-wp-msg"></div>
+            </div>
+            <button class="btn-s" onclick="closeArchivedWorkpapers()" style="font-size:12px">Close</button>
+          </div>
+          <div style="padding:0 24px 20px;overflow-y:auto;flex:1">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="background:var(--bg-secondary)">
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Reference</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Workpaper name</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Type</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Status</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:0.5px solid var(--border-light)"></th>
+              </tr></thead>
+              <tbody id="archived-wp-list"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -5527,8 +5571,11 @@ function clearWpFilters() {
 ══════════════════════════════════════ */
 function renderWorkpapers(list) {
   const typeOrder = { Admin: 1, Planning: 2, Testwork: 3, Report: 5, Other: 6 };
-  // Use provided list or default to all workpapers for current audit
-  const base = list || WORKPAPERS.filter(w => w.auditName === currentAudit.name);
+  // Use provided list or default to all NON-ARCHIVED workpapers for current
+  // audit — an archived workpaper stays in Postgres (nothing about it is
+  // deleted) but must never appear in this ordinary list; it only shows up
+  // in the dedicated Archived Workpapers view.
+  const base = list || WORKPAPERS.filter(w => w.auditName === currentAudit.name && !w.archived);
   const sorted = [...base].sort((a, b) =>
     (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99)
   );
@@ -5544,9 +5591,92 @@ function renderWorkpapers(list) {
       <td class="tm wp-review-date-cell">${w.reviewDate || '—'}</td>
       <td>${statusPill(w.status)}</td>
       <td>${resultPill(w.results)}</td>
+      <td style="text-align:right;white-space:nowrap" onclick="event.stopPropagation()">
+        <button class="btn-s" style="font-size:11px;padding:4px 9px;color:#be123c;border-color:#fda4af" title="Archive this workpaper" onclick="confirmArchiveWorkpaper('${w.ref}')">
+          <i class="ti ti-archive"></i>
+        </button>
+      </td>
     </tr>`;
   }).join('');
   setTimeout(() => makeColumnsResizable('wp-table'), 0);
+}
+
+// ── Archive / Restore ──────────────────────────────────────────────────
+var _pendingArchiveRef = null;
+
+function confirmArchiveWorkpaper(ref) {
+  const w = WORKPAPERS.find(w => w.ref === ref);
+  if (!w) return;
+  _pendingArchiveRef = ref;
+  document.getElementById('archive-wp-confirm-msg').textContent =
+    `"${w.name || ref}" (${ref}) will be archived. It stays fully saved — nothing is deleted — and moves to the ` +
+    `Archived Workpapers list, where it can be restored at any time.`;
+  document.getElementById('archive-wp-confirm-overlay').style.display = 'flex';
+}
+
+function _declineArchiveWorkpaper() {
+  document.getElementById('archive-wp-confirm-overlay').style.display = 'none';
+  _pendingArchiveRef = null;
+}
+
+function _confirmArchiveWorkpaper() {
+  const ref = _pendingArchiveRef;
+  document.getElementById('archive-wp-confirm-overlay').style.display = 'none';
+  _pendingArchiveRef = null;
+  if (!ref) return;
+
+  const w = WORKPAPERS.find(w => w.ref === ref);
+  if (!w) return;
+
+  // Archived is set on the workpaper itself, and the row is simply left out
+  // of renderWorkpapers' filter — nothing about the workpaper's own data,
+  // files, or history is touched, and it's still saved to Postgres exactly
+  // like any other change to a workpaper.
+  w.archived = true;
+  _saveWorkpaperToDB(w);
+  renderWorkpapers();
+  if (typeof logEvent === 'function') logEvent(ref, 'Workpaper archived');
+}
+
+function openArchivedWorkpapers() {
+  const archived = WORKPAPERS.filter(w => w.auditName === currentAudit.name && w.archived);
+  const listEl = document.getElementById('archived-wp-list');
+  const msgEl  = document.getElementById('archived-wp-msg');
+  msgEl.textContent = archived.length
+    ? `${archived.length} archived workpaper${archived.length !== 1 ? 's' : ''} in ${currentAudit.name}.`
+    : `No archived workpapers in ${currentAudit.name}.`;
+  listEl.innerHTML = archived.map(w => `
+    <tr style="border-bottom:0.5px solid var(--border-light)">
+      <td style="padding:6px 8px;font-weight:500;color:var(--blue-600);white-space:nowrap">${w.ref}</td>
+      <td style="padding:6px 8px;font-weight:500">${w.name || ''}</td>
+      <td style="padding:6px 8px">${typePill(w.type)}</td>
+      <td style="padding:6px 8px">${statusPill(w.status)}</td>
+      <td style="padding:6px 8px;text-align:right">
+        <button class="btn-s" style="font-size:11px;padding:4px 9px" onclick="restoreWorkpaper('${w.ref}')">
+          <i class="ti ti-arrow-back-up"></i> Restore
+        </button>
+      </td>
+    </tr>`).join('');
+  document.getElementById('archived-wp-overlay').style.display = 'flex';
+}
+
+function closeArchivedWorkpapers() {
+  document.getElementById('archived-wp-overlay').style.display = 'none';
+}
+
+function restoreWorkpaper(ref) {
+  const w = WORKPAPERS.find(w => w.ref === ref);
+  if (!w) return;
+  w.archived = false;
+  _saveWorkpaperToDB(w);
+  if (typeof logEvent === 'function') logEvent(ref, 'Workpaper restored from archive');
+  // Refresh both the archived list (this entry should disappear from it)
+  // and the ordinary workpaper list (it should reappear there) — restoring
+  // puts it back in ITS OWN audit specifically (w.auditName), which is
+  // always the audit currently being viewed here since this dialog only
+  // ever lists workpapers already filtered to currentAudit.name.
+  openArchivedWorkpapers();
+  renderWorkpapers();
 }
 
 /* ══════════════════════════════════════
@@ -5580,9 +5710,6 @@ function openAudit(i) {
   // Render audit-level scope tags — aggregate FS accounts and controls from all workpapers
   setTimeout(() => {
     const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit.name);
-    console.log('[Audit RC/FS aggregation] audit:', currentAudit.name, '| matching workpapers:', auditWPs.length, auditWPs.map(w => w.ref),
-      '| pre-existing auditLinkedControls entries:', auditLinkedControls[currentAudit.name] ? [...auditLinkedControls[currentAudit.name]] : '(none yet)',
-      '| pre-existing auditLinkedFs entries:', auditLinkedFs[currentAudit.name] ? [...auditLinkedFs[currentAudit.name]] : '(none yet)');
     // Aggregate FS accounts
     if (!auditLinkedFs[currentAudit.name]) auditLinkedFs[currentAudit.name] = new Set();
     auditWPs.forEach(w => {
@@ -8464,7 +8591,8 @@ async function _saveWorkpaperToDB(w) {
         scope_fs_accounts:     scopeFsAccts,
         test_attributes:       testAttrs,
         sample_fields:         sampleFlds,
-        exceptions:            excpts
+        exceptions:            excpts,
+        archived:              !!w.archived
       })
     });
     _wfSaved();
@@ -8537,6 +8665,10 @@ async function _loadWorkpapersFromDB() {
         merge('narrative',           row.narrative);
         merge('description',         row.description);
         merge('testDesc',            row.test_desc);
+        // Set directly, not via merge() — merge() skips falsy values as
+        // "nothing to update," but false is a completely normal, common
+        // value for this flag (not archived) that must always be applied.
+        target.archived = !!row.archived;
         if (Array.isArray(row.linked_controls)  && row.linked_controls.length)  { target.linkedControls = row.linked_controls; wpLinkedControls[row.ref] = new Set(row.linked_controls); }
         if (Array.isArray(row.scope_entities)   && row.scope_entities.length)   { wpScopeEntities[row.ref] = new Set(row.scope_entities); }
         if (Array.isArray(row.scope_fs_accounts)&& row.scope_fs_accounts.length){ wpFsAccounts[row.ref]    = new Set(row.scope_fs_accounts); }
