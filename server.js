@@ -193,6 +193,7 @@ async function initDB() {
         sample_fields          JSONB DEFAULT '[]',
         sample_data            JSONB DEFAULT '{"columns":[],"rows":[]}',
         exceptions             JSONB DEFAULT '[]',
+        archived               BOOLEAN DEFAULT false,
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, ref)
@@ -428,6 +429,11 @@ async function initDB() {
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE risks             ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`);
       await pool.query(`ALTER TABLE workpapers         ADD COLUMN IF NOT EXISTS sample_data JSONB DEFAULT '{"columns":[],"rows":[]}'`);
+      // Archived is deliberately separate from status — status carries real
+      // workflow meaning (draft, in review, complete) that must survive an
+      // archive/restore cycle untouched, so archiving a workpaper never
+      // overwrites or loses whatever status it actually had.
+      await pool.query(`ALTER TABLE workpapers         ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false`);
       // Stable per-workpaper id, used to link sample_data_columns/rows and
       // extracted_data back to their workpaper — ref stays the
       // primary key and the human-readable/editable identifier used
@@ -934,7 +940,7 @@ app.post('/api/workpapers', async (req, res) => {
     narrative, description, test_desc,
     linked_controls, linked_risks, linked_entities, fs_accounts,
     scope_entities, scope_fs_accounts,
-    test_attributes, sample_fields, sample_data, exceptions
+    test_attributes, sample_fields, sample_data, exceptions, archived
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -943,9 +949,9 @@ app.post('/api/workpapers', async (req, res) => {
          date_started,review_date,date_submitted,secondary_review_date,
          population,sample_method,sample_size,narrative,description,test_desc,
          linked_controls,linked_risks,linked_entities,fs_accounts,
-         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,updated_at)
+         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,archived,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,NOW())
+              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -973,7 +979,7 @@ app.post('/api/workpapers', async (req, res) => {
         -- while still writing whatever's provided (or the default) on first
         -- INSERT, keeps this column's content stable until the migration
         -- that depends on it is retired.
-        exceptions=EXCLUDED.exceptions, updated_at=NOW()`,
+        exceptions=EXCLUDED.exceptions, archived=EXCLUDED.archived, updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
        date_started||null, review_date||null, date_submitted||null, secondary_review_date||null,
@@ -984,7 +990,8 @@ app.post('/api/workpapers', async (req, res) => {
        JSON.stringify(scope_entities||[]), JSON.stringify(scope_fs_accounts||[]),
        JSON.stringify(test_attributes||[]), JSON.stringify(sample_fields||[]),
        JSON.stringify(sample_data||{columns:[],rows:[]}),
-       JSON.stringify(exceptions||[])
+       JSON.stringify(exceptions||[]),
+       !!archived
       ]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
