@@ -6712,6 +6712,23 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
     }
 
     const annItems = overlay.querySelectorAll('.ann-item.ann-auto, .ann-item');
+
+    // The Testwork Summary legend box sits at a fixed top-right position on
+    // every page (top:12px, right:12px in the live overlay — see
+    // placeLegendOverlay), independent of where any individual tick's
+    // paragraph-estimated position happens to land. A tick whose estimated
+    // spot falls under that box would draw right underneath the summary
+    // text, cluttering something meant to be read cleanly at a glance.
+    // Conservative footprint estimate (420px wide — its max-width — and
+    // 260px tall, generous enough to cover a legend with several attributes
+    // and notes listed) used to skip any tick that would land inside it.
+    const LEGEND_MARGIN   = 12;
+    const LEGEND_WIDTH_PX = 420;
+    const LEGEND_HEIGHT_PX = 260;
+    function inLegendZone(leftPx, topPx) {
+      return leftPx >= (canvasW - LEGEND_WIDTH_PX - LEGEND_MARGIN) && topPx <= (LEGEND_MARGIN + LEGEND_HEIGHT_PX);
+    }
+
     annItems.forEach(el => {
       const left = parseFloat(el.style.left) || 0;
       const top  = parseFloat(el.style.top)  || 0;
@@ -6732,6 +6749,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
       // Tick marks
       const tickText = el.textContent?.trim();
       if ((tickText === '✓' || tickText === '⚠' || tickText === '✗' || tickText === 'N/A' || tickText === '–') && el.style.border) {
+        if (inLegendZone(left, top)) return; // would land under the Testwork Summary box — skip it
         const ann = pdfAnnotations.find(a => a.el === el);
         const colHex = TICK_COLORS[ann?.tickType] || '#475569';
         const c = hexToRgb(colHex);
@@ -18415,6 +18433,18 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       if (!textBlock) throw new Error('No text in response');
       let raw = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/```\s*$/,'').trim();
 
+      // If the response has any text BEFORE the actual JSON object (e.g. a
+      // stray sentence despite being told to respond with ONLY JSON), strip
+      // it — this is the specific case that produces a parse failure right
+      // at the very first character, which the markdown-fence cleanup above
+      // never accounted for. Only slice if raw doesn't already start
+      // cleanly with "{" or "[", so this never changes an already-valid
+      // response.
+      if (raw.length && raw[0] !== '{' && raw[0] !== '[') {
+        const firstBrace = raw.indexOf('{');
+        if (firstBrace > 0) raw = raw.slice(firstBrace);
+      }
+
       // Attempt to repair truncated JSON — find last complete result object and close the array/object
       let parsed;
       try {
@@ -18438,7 +18468,18 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         try { parsed = JSON.parse(repaired); }
         catch(e2) {
           try { parsed = JSON.parse(raw + '"}]}'); }
-          catch(e3) { throw new Error(`JSON parse failed (truncated response — try again): ${parseErr.message}`); }
+          catch(e3) {
+            // Show what the response actually contained rather than assume
+            // truncation — an "unexpected character at line 1 column 1"
+            // failure specifically means the response never started with
+            // valid JSON at all (empty, or led with something other than
+            // "{"), which is a different, more useful thing to know than a
+            // response that was cut off partway through otherwise-valid
+            // JSON (which fails much later in the string, not at column 1).
+            console.error('[Analyze] JSON parse failed. Raw response was:', raw);
+            const preview = raw.length ? raw.slice(0, 200) : '(empty response)';
+            throw new Error(`JSON parse failed: ${parseErr.message}. Response started with: "${preview}"`);
+          }
         }
       }
 
