@@ -791,9 +791,15 @@
   .entity-tag i, .entity-tag-app i, .entity-tag-biomed i { font-size: 12px; }
 </style>
 <style>
-    .grid-cell-selected { background: #bfdbfe !important; outline: 1px solid #3b82f6; outline-offset: -1px; }
-    .grid-cell-anchor   { background: #93c5fd !important; outline: 2px solid #1d4ed8; outline-offset: -1px; }
-    .attr-row:hover .grid-cell-selected { background: #bfdbfe !important; }
+    /* Thin outline only, no background fill — a filled background made it
+       hard to tell selected text apart from the selection itself, and the
+       request was specifically to show selection as a border, not a color
+       fill. Anchor (the first cell clicked) gets a slightly heavier
+       outline than the rest of a multi-cell range so it's still visually
+       distinguishable, without either one tinting the field's content. */
+    .grid-cell-selected { background: transparent; outline: 1px solid #3b82f6; outline-offset: -1px; }
+    .grid-cell-anchor   { background: transparent; outline: 2px solid #1d4ed8; outline-offset: -1px; }
+    .attr-row:hover .grid-cell-selected { background: transparent; }
   </style><script src="Wavefire_files/xlsx.full.min_3UUq.js"></script><script src="Wavefire_files/pdf-lib.min_3UUq.js"></script></head>
 <body>
 <div id="wf-save-pill"><i class="ti ti-check" style="font-size:13px"></i>Saved</div>
@@ -2761,6 +2767,27 @@
           </div>
         </div>
 
+        <!-- Attribute grid paste-too-wide warning — single-button
+             click-through acknowledgment, not a confirm/cancel choice.
+             Shown when a pasted block has more columns than the grid
+             actually has; the paste is already blocked by the time this
+             shows, so there's nothing for the user to confirm — only to
+             be told why nothing happened. -->
+        <div id="attr-paste-toowide-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+          <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:420px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Paste doesn't fit</div>
+            </div>
+            <div style="padding:16px 20px">
+              <div id="attr-paste-toowide-msg" style="font-size:13px;color:var(--text-secondary);line-height:1.5"></div>
+            </div>
+            <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end">
+              <button class="btn-p" onclick="document.getElementById('attr-paste-toowide-overlay').style.display='none'" style="font-size:12px">OK</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Combined "add records" confirmation — covers BOTH cases that can
              result in new rows being added to the grid in one Extract Sample
              Data run: a record whose values corroborate more than one
@@ -3105,8 +3132,11 @@ signed by the appropriate parties before the check date.</textarea>
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(10)" tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
   </div></div>
-            <!-- Add attribute button — bottom right -->
-            <div style="display:flex;justify-content:flex-end;padding:8px 12px;border-top:0.5px solid var(--border-light)">
+            <!-- Add attribute button — bottom right; Download Excel — bottom left -->
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:0.5px solid var(--border-light)">
+              <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="downloadTestAttributesXlsx()">
+                <i class="ti ti-download"></i>Download Excel
+              </button>
               <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addTestAttributeRow()">
                 <i class="ti ti-plus"></i>Add attribute
               </button>
@@ -4254,33 +4284,45 @@ auditor's assessment.
         </div>
         <div id="analysis-commentary-text" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"></div>
       </div>
-      <!-- Buttons -->
-      <div id="analysis-btn-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px">
-        <!-- Left: test guidance -->
-        <button class="btn-s" id="dl-guidance-btn" style="display:inline-flex" onclick="downloadTestGuidance()">
-          <i class="ti ti-file-description"></i>Test Guidance
-        </button>
-        <div style="flex:1"></div>
-        <!-- Right: downloads + actions -->
-        <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
-          <i class="ti ti-message-chatbot"></i>Commentary
-        </button>
-        <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
-          <i class="ti ti-file-word"></i>Exception Memo
-        </button>
-        <button class="btn-s" id="dl-reasoning-log-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download Claude's reasoning trace for this analysis" onclick="downloadReasoningLog()">
-          <i class="ti ti-brain"></i>Reasoning Log
-        </button>
-        <button class="btn-s" id="export-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
-          <i class="ti ti-download"></i>Workpaper (.xlsx)
-        </button>
-        <button class="btn-s" id="attach-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Workpaper Files
-        </button>
-        <button class="btn-s" id="dl-annotated-pdfs-btn" style="display:none;background:#0f766e;color:#fff;border-color:#0f766e" title="Download every attached sample file with the analysis tick marks and notes burned permanently into the PDF" onclick="downloadAllAnnotatedPDFs()">
-          <i class="ti ti-file-download"></i>Annotated Sample PDFs
-        </button>
-        <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
+      <!-- Buttons — two FIXED rows, not a flex-wrap row that reflows based
+           on width. Every button always occupies the same row and the same
+           position within it; a hidden button (display:none) leaves its
+           slot empty rather than letting its neighbors shift to fill the
+           gap, so the two-row layout is identical regardless of modal size
+           or which buttons happen to be visible for this particular run. -->
+      <div id="analysis-btn-rows" style="border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px;display:flex;flex-direction:column;gap:8px">
+        <!-- Row 1: reference / read material -->
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn-s" id="dl-guidance-btn" style="display:inline-flex" onclick="downloadTestGuidance()">
+            <i class="ti ti-file-description"></i>Test Guidance
+          </button>
+          <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
+            <i class="ti ti-message-chatbot"></i>Commentary
+          </button>
+          <button class="btn-s" id="dl-reasoning-log-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download Claude's per-attribute reasoning for this analysis" onclick="downloadReasoningLog()">
+            <i class="ti ti-brain"></i>Reasoning Log
+          </button>
+          <button class="btn-s" id="dl-notes-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download the brief per-attribute finding notes for this analysis" onclick="downloadNotesOnly()">
+            <i class="ti ti-notes"></i>Notes
+          </button>
+        </div>
+        <!-- Row 2: deliverables / actions -->
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
+            <i class="ti ti-file-word"></i>Exception Memo
+          </button>
+          <button class="btn-s" id="export-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
+            <i class="ti ti-download"></i>Workpaper (.xlsx)
+          </button>
+          <button class="btn-s" id="attach-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Workpaper Files
+          </button>
+          <button class="btn-s" id="dl-annotated-pdfs-btn" style="display:none;background:#0f766e;color:#fff;border-color:#0f766e" title="Download every attached sample file with the analysis tick marks and notes burned permanently into the PDF" onclick="downloadAllAnnotatedPDFs()">
+            <i class="ti ti-file-download"></i>Annotated Sample PDFs
+          </button>
+          <div style="flex:1"></div>
+          <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -14988,9 +15030,15 @@ function syncWPFsToAudit(ref, fsSet) {
   // ── CSS for selected cells ──────────────────────────────────────
   const selStyle = document.createElement('style');
   selStyle.textContent = `
-    .grid-cell-selected { background: #bfdbfe !important; outline: 1px solid #3b82f6; outline-offset: -1px; }
-    .grid-cell-anchor   { background: #93c5fd !important; outline: 2px solid #1d4ed8; outline-offset: -1px; }
-    .attr-row:hover .grid-cell-selected { background: #bfdbfe !important; }
+    /* Thin outline only, no background fill — a filled background made it
+       hard to tell selected text apart from the selection itself, and the
+       request was specifically to show selection as a border, not a color
+       fill. Anchor (the first cell clicked) gets a slightly heavier
+       outline than the rest of a multi-cell range so it's still visually
+       distinguishable, without either one tinting the field's content. */
+    .grid-cell-selected { background: transparent; outline: 1px solid #3b82f6; outline-offset: -1px; }
+    .grid-cell-anchor   { background: transparent; outline: 2px solid #1d4ed8; outline-offset: -1px; }
+    .attr-row:hover .grid-cell-selected { background: transparent; }
   `;
   document.head.appendChild(selStyle);
 
@@ -15184,29 +15232,17 @@ function syncWPFsToAudit(ref, fsSet) {
     });
   });
 
-  // ── Keyboard: Shift+Arrow to extend selection ──────────────────
-  document.addEventListener('keydown', (e) => {
-    if (!_anchor || !(e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight'))) return;
-    const active = document.activeElement;
-    if (!getCellAt(active)) return;
-
-    e.preventDefault();
-    const gridId = _anchor.gridId;
-    const cols   = gridId === 'test-attr-rows' ? getAttrCols() : getSFCols();
-    const rows   = Array.from(document.querySelectorAll(
-      gridId === 'test-attr-rows' ? '#test-attr-rows .attr-row' : '.attr-row[id^="sf-row-"]'
-    ));
-    const foc = _focus || _anchor;
-    let r = foc.rowIdx, c = cols.indexOf(foc.colKey);
-
-    if (e.key === 'ArrowDown')  r = Math.min(r + 1, rows.length - 1);
-    if (e.key === 'ArrowUp')    r = Math.max(r - 1, 0);
-    if (e.key === 'ArrowRight') c = Math.min(c + 1, cols.length - 1);
-    if (e.key === 'ArrowLeft')  c = Math.max(c - 1, 0);
-
-    _focus = { gridId, rowIdx: r, colKey: cols[c], rowEl: rows[r] };
-    highlightRange(_anchor, _focus);
-  });
+  // Shift+Arrow cell-range extension has been removed — it was calling
+  // preventDefault() on every Shift+Arrow keypress inside a grid cell,
+  // which silently blocked the browser's own native text selection (moving
+  // /extending the text cursor's selection) inside whatever field was
+  // focused. Since clicking a cell always focuses its text input, there's
+  // no way to tell "extend the cell range" apart from "select text in this
+  // field" — and selecting text to copy or paste is the more essential,
+  // expected behavior for a text field, so Shift+Arrow now always performs
+  // normal text selection rather than being intercepted for cell-range
+  // extension. Mouse-based range selection (click, shift+click, drag) is
+  // untouched — this only removes the keyboard-driven range extension.
 
   // ── Tooltip hint ───────────────────────────────────────────────
   // Show "Ctrl+C to copy" near selection after mouseup
@@ -15653,7 +15689,7 @@ function initSFGridPaste() {
     const btn = card.querySelector('.btn-p');
     if (btn) {
       const bbl = document.createElement('span');
-      bbl.textContent = `✓ ${rows.length} row${rows.length!==1?'s':''} pasted`;
+      bbl.textContent = `✓ ${pastedRows.length} row${pastedRows.length!==1?'s':''} pasted`;
       bbl.style.cssText = 'position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;white-space:nowrap;z-index:999;pointer-events:none';
       btn.style.position = 'relative';
       btn.appendChild(bbl);
@@ -15681,24 +15717,10 @@ function initAttrGridPaste() {
 
     e.preventDefault();
 
-    const rows = text.trim().split(/\r?\n/).map(row => row.split('\t'));
-    if (!rows.length) return;
+    const pastedRows = text.trim().split(/\r?\n/).map(row => row.split('\t'));
+    if (!pastedRows.length) return;
 
     if (!currentAttrWPRef) return;
-
-    // Flush current DOM state first
-    const existing = [];
-    document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
-      existing.push({
-        num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
-        attrRef:        row.querySelector('.attr-ref-input')?.value || '',
-        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)')?.value || '',
-        desc:           row.querySelector('.attr-desc')?.value || '',
-        additionalInfo: row.querySelector('.attr-additional')?.value || '',
-        successCriteria:row.querySelector('.attr-success')?.value || '',
-        failureCriteria:row.querySelector('.attr-failure')?.value || '',
-      });
-    });
 
     // Determine which column the cursor is in — include criteria cols if visible
     const colMap = _attrCriteriaVisible
@@ -15712,37 +15734,99 @@ function initAttrGridPaste() {
     if (active.classList.contains('attr-success'))      startColIdx = 4;
     if (active.classList.contains('attr-failure'))      startColIdx = 5;
 
+    // ── Validate column count BEFORE touching any data ──────────────────
+    // The grid has a fixed number of real columns (4, or 6 with criteria
+    // columns shown) — unlike rows, which can always expand, there is no
+    // way to add MORE columns to fit a too-wide paste. Check the widest
+    // pasted row against how much room is actually left from the starting
+    // column, and block the whole paste with a click-through warning if it
+    // doesn't fit, rather than silently discarding the extra columns (the
+    // previous behavior) or pasting a partial, confusing result.
+    const widestPastedRow = Math.max(...pastedRows.map(r => r.length));
+    const colsAvailable = colMap.length - startColIdx;
+    if (widestPastedRow > colsAvailable) {
+      const colNames = ['Attr #', 'Title', 'Description', 'Additional Information', 'Success Criteria', 'Failure Criteria'];
+      const startColName = colNames[startColIdx] || 'this column';
+      const msg = `The pasted content has ${widestPastedRow} column${widestPastedRow!==1?'s':''}, but only ${colsAvailable} ` +
+        `column${colsAvailable!==1?'s':''} (starting from "${startColName}") ${colsAvailable!==1?'are':'is'} available in this grid. ` +
+        `Paste something starting further left, or reduce the number of columns you're pasting, then try again. Nothing was pasted.`;
+      const msgEl = document.getElementById('attr-paste-toowide-msg');
+      const overlay = document.getElementById('attr-paste-toowide-overlay');
+      if (msgEl && overlay) { msgEl.textContent = msg; overlay.style.display = 'flex'; }
+      return; // paste is NOT executed
+    }
+
+    // Flush current DOM state
+    const existing = [];
+    document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
+      existing.push({
+        num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
+        attrRef:        row.querySelector('.attr-ref-input')?.value || '',
+        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)')?.value || '',
+        desc:           row.querySelector('.attr-desc')?.value || '',
+        additionalInfo: row.querySelector('.attr-additional')?.value || '',
+        successCriteria:row.querySelector('.attr-success')?.value || '',
+        failureCriteria:row.querySelector('.attr-failure')?.value || '',
+      });
+    });
+
     // Determine which row the cursor is in
     const activeRow = active.closest('.attr-row');
     const allRows   = Array.from(document.querySelectorAll('#test-attr-rows .attr-row'));
     let startRowIdx = activeRow ? allRows.indexOf(activeRow) : existing.length;
     if (startRowIdx < 0) startRowIdx = existing.length;
 
-    // Paste rows into the existing array, extending as needed
-    rows.forEach((pastedRow, ri) => {
-      const targetRowIdx = startRowIdx + ri;
-      // Ensure target row exists
-      while (existing.length <= targetRowIdx) {
-        existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
-      }
-      pastedRow.forEach((cell, ci) => {
-        const colIdx = startColIdx + ci;
-        if (colIdx >= colMap.length) return;
-        existing[targetRowIdx][colMap[colIdx]] = cell.trim();
-      });
-    });
+    // ── Decide expand-by-append vs. insert ──────────────────────────────
+    // If the paste starts on the LAST existing row (or past the end
+    // entirely — e.g. pasting with nothing focused), it overwrites in
+    // place and appends new blank rows at the bottom only if the paste
+    // needs more rows than currently exist — the original, simple
+    // behavior.
+    // If it starts on any OTHER row, this INSERTS instead: every row from
+    // startRowIdx onward is preserved in full and pushed down past the
+    // pasted block, rather than being overwritten. Nothing at or after the
+    // paste point is ever discarded when pasting into a non-last row.
+    const isLastRowOrBeyond = startRowIdx >= existing.length - 1;
 
-    // Renumber if num column was pasted as part of paste (optional: only if user started from col 0)
-    // Leave user's numbering intact otherwise
+    if (isLastRowOrBeyond) {
+      pastedRows.forEach((pastedRow, ri) => {
+        const targetRowIdx = startRowIdx + ri;
+        while (existing.length <= targetRowIdx) {
+          existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
+        }
+        pastedRow.forEach((cell, ci) => {
+          const colIdx = startColIdx + ci;
+          if (colIdx >= colMap.length) return; // defensive — already validated above, should never trigger
+          existing[targetRowIdx][colMap[colIdx]] = cell.trim();
+        });
+      });
+    } else {
+      const before     = existing.slice(0, startRowIdx);
+      const preserved   = existing.slice(startRowIdx);
+      const newPastedRows = pastedRows.map(pastedRow => {
+        const row = { num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' };
+        pastedRow.forEach((cell, ci) => {
+          const colIdx = startColIdx + ci;
+          if (colIdx >= colMap.length) return; // defensive — already validated above, should never trigger
+          row[colMap[colIdx]] = cell.trim();
+        });
+        return row;
+      });
+      existing.length = 0;
+      existing.push(...before, ...newPastedRows, ...preserved);
+    }
 
     wpTestAttributes[currentAttrWPRef] = existing;
     renderTestAttributes(currentAttrWPRef);
+
+    const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+    if (w) _saveWorkpaperToDB(w);
 
     // Show a brief confirmation bubble
     const btn = card.querySelector('.btn-p');
     if (btn) {
       const bbl = document.createElement('span');
-      bbl.textContent = `✓ ${rows.length} row${rows.length!==1?'s':''} pasted`;
+      bbl.textContent = `✓ ${pastedRows.length} row${pastedRows.length!==1?'s':''} pasted`;
       bbl.style.cssText = 'position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;white-space:nowrap;z-index:999;pointer-events:none';
       btn.style.position = 'relative';
       btn.appendChild(bbl);
@@ -18018,14 +18102,13 @@ function downloadExceptionMemo() {
 function downloadReasoningLog() {
   const ref = getWPRef();
   const wp  = WORKPAPERS[currentWPIndex];
-  const la  = window._lastAnalysis || {};
   const now = new Date();
   const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
   const dateStr = now.toLocaleString();
 
   const lines = [
     '═'.repeat(72),
-    'WAVEFIRE — CLAUDE ANALYSIS REASONING LOG',
+    'WAVEFIRE — CLAUDE ANALYSIS REASONING (PER ATTRIBUTE)',
     '═'.repeat(72),
     `Workpaper : ${ref} — ${wp?.name||''}`,
     `Audit     : ${wp?.auditName||''}`,
@@ -18034,35 +18117,30 @@ function downloadReasoningLog() {
     `Provider  : ${(_companySettings&&_companySettings.ai_provider)||'anthropic'}`,
     '═'.repeat(72),
     '',
-    '── ANALYSIS SUMMARY ─────────────────────────────────────────────────────',
+    '── PER-ATTRIBUTE REASONING ──────────────────────────────────────────────',
     '',
   ];
 
-  // Per-file attribute results
+  // One section per sample, one entry per attribute — reasoning is the
+  // model's own explanation of how it evaluated THAT specific attribute
+  // (what it looked for, what it found, why that supports the result),
+  // distinct from "note" (the brief workpaper-style finding) — see the
+  // downloadNotesOnly companion download for that shorter version.
   (analysisResults||[]).forEach(function(r, i) {
-    lines.push(`FILE ${i+1}: ${r.fileName}`);
+    lines.push(`SAMPLE ${i+1}: ${r.sampleDesc || r.fileName || ''}`);
     lines.push('─'.repeat(60));
     (r.results||[]).forEach(function(attr) {
-      const icon = attr.result==='pass'?'✓':attr.result==='fail'?'✗':'~';
+      const icon = attr.result==='pass'?'✓':attr.result==='fail'?'✗':attr.result==='pass_exception'?'⚠':'~';
       lines.push(`  ${icon}  ${attr.title||''}`);
-      if (attr.note) lines.push(`     Finding: ${attr.note}`);
-    });
-    if (r.commentary) {
+      if (attr.reasoning) {
+        attr.reasoning.trim().split('\n').forEach(function(l){ lines.push('     ' + l); });
+      } else {
+        lines.push('     (No reasoning returned for this attribute.)');
+      }
       lines.push('');
-      lines.push('  Commentary:');
-      r.commentary.trim().split('\n').forEach(function(l){ lines.push('  ' + l); });
-    }
-    lines.push('');
+    });
   });
 
-  lines.push('── CLAUDE NARRATIVE / REASONING ────────────────────────────────────────');
-  lines.push('');
-  const commentary = (analysisResults||[])
-    .filter(function(r){ return r.commentary && r.commentary.trim(); })
-    .map(function(r){ return r.commentary.trim(); })
-    .join('\n\n---\n\n');
-  lines.push(commentary || '(No extended commentary returned for this analysis.)');
-  lines.push('');
   lines.push('── END OF REASONING LOG ─────────────────────────────────────────────────');
   lines.push(`Generated by Wavefire ${dateStr}`);
 
@@ -18072,6 +18150,57 @@ function downloadReasoningLog() {
   const a       = document.createElement('a');
   a.href        = url;
   a.download    = `${ref||'Analysis'}_Reasoning_Log_${ts}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+// Companion download to downloadReasoningLog — the SAME per-attribute
+// structure, but using "note" (the brief, workpaper-style finding sentence)
+// instead of "reasoning" (the fuller explanation of how the model got
+// there). Two separate downloads because they serve different purposes: the
+// note is what would actually go in a workpaper; the reasoning is a
+// reviewer's tool for understanding — and challenging — how Claude reached
+// each conclusion.
+function downloadNotesOnly() {
+  const ref = getWPRef();
+  const wp  = WORKPAPERS[currentWPIndex];
+  const now = new Date();
+  const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const dateStr = now.toLocaleString();
+
+  const lines = [
+    '═'.repeat(72),
+    'WAVEFIRE — CLAUDE ANALYSIS NOTES (PER ATTRIBUTE)',
+    '═'.repeat(72),
+    `Workpaper : ${ref} — ${wp?.name||''}`,
+    `Audit     : ${wp?.auditName||''}`,
+    `Generated : ${dateStr}`,
+    '═'.repeat(72),
+    '',
+    '── PER-ATTRIBUTE NOTES ──────────────────────────────────────────────────',
+    '',
+  ];
+
+  (analysisResults||[]).forEach(function(r, i) {
+    lines.push(`SAMPLE ${i+1}: ${r.sampleDesc || r.fileName || ''}`);
+    lines.push('─'.repeat(60));
+    (r.results||[]).forEach(function(attr) {
+      const icon = attr.result==='pass'?'✓':attr.result==='fail'?'✗':attr.result==='pass_exception'?'⚠':'~';
+      lines.push(`  ${icon}  ${attr.title||''}`);
+      lines.push(`     ${attr.note || '(No note returned for this attribute.)'}`);
+    });
+    lines.push('');
+  });
+
+  lines.push('── END OF NOTES ─────────────────────────────────────────────────────────');
+  lines.push(`Generated by Wavefire ${dateStr}`);
+
+  const content = lines.join('\n');
+  const blob    = new Blob([content], { type:'text/plain;charset=utf-8' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = `${ref||'Analysis'}_Notes_${ts}.txt`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
 }
@@ -18392,7 +18521,10 @@ sample may be spread across different documents — check all of them, not just 
 For each test attribute, evaluate this specific sample and respond ONLY with valid JSON — no markdown, no explanation.
 CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
 ${locationInstructions}
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
+For each result also include:
+- "note": one concise sentence (max 80 chars) — the brief finding, written for a workpaper.
+- "reasoning": your own explanation of how you reached this conclusion for THIS attribute — what you looked for, what you found (or didn't), and why that supports the pass/fail/exception result. Write this as your own account of the evaluation process, not a restatement of the note. A few sentences is fine; there's no strict length cap, but stay focused on this one attribute's reasoning specifically.
+Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","reasoning":"<your explanation of how you evaluated this attribute>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
 
   // Builds the row-specific portion of the prompt: a human-readable
   // description of exactly which sample this pass is testing, built from
@@ -18798,9 +18930,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     const hasExceptions = (analysisResults||[]).some(function(r){ return (r.results||[]).some(function(x){ return x.result==='fail'||x.result==='pass_exception'; }); });
     _exMemoBtn.style.display = hasExceptions ? 'inline-flex' : 'none';
   }
-  // Show reasoning log button if commentary/narrative text exists
+  // Show reasoning log and notes buttons whenever there are real results —
+  // previously gated on the "commentary" field, which is never populated by
+  // the actual API response (a dead field from an earlier design), so this
+  // condition had likely never been true in practice regardless of what
+  // analysis actually ran.
+  const _hasRealResults = (analysisResults && analysisResults.length) ? true : false;
   const _logBtn = document.getElementById('dl-reasoning-log-btn');
-  if (_logBtn) _logBtn.style.display = allCommentary.length ? 'inline-flex' : 'none';
+  if (_logBtn) _logBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
+  const _notesBtn = document.getElementById('dl-notes-btn');
+  if (_notesBtn) _notesBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
 
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
@@ -18822,9 +18961,12 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   }
   setTimeout(_ensureButtonsVisible, 100);
 
-  // Widen dialog to fit all buttons comfortably
+  // Ensure the dialog is at least wide enough for both fixed button rows —
+  // min-width rather than a bare width, so it can still grow if genuinely
+  // needed but is never narrower than what the two rows require to lay out
+  // without wrapping within a row.
   const _modal = document.getElementById('analysis-modal');
-  if (_modal) _modal.style.width = '680px';
+  if (_modal) { _modal.style.width = '680px'; _modal.style.minWidth = '680px'; }
 
   // Update Cancel → Close
   const _closeBtn = document.getElementById('analysis-close-btn');
@@ -18915,11 +19057,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     _closeBtnFinal.textContent = 'Close';
     _closeBtnFinal.onclick = closeAnalysis;
   }
-  // Show "Retry all failed" button if there were errors
-  const btnRow = document.getElementById('analysis-btn-row');
+  // Show "Retry all failed" button if there were errors — inserted into
+  // Row 2 specifically (the row export-xlsx-btn lives in), since the old
+  // combined single-row container this used to reference no longer exists.
+  const exportXlsxBtn = document.getElementById('export-xlsx-btn');
+  const btnRow = exportXlsxBtn ? exportXlsxBtn.parentElement : null;
   const existingRetryAll = document.getElementById('retry-all-btn');
   if (existingRetryAll) existingRetryAll.remove();
-  if (errorCount > 0) {
+  if (errorCount > 0 && btnRow) {
     const retryAllBtn = document.createElement('button');
     retryAllBtn.id = 'retry-all-btn';
     retryAllBtn.className = 'btn-s';
@@ -24236,7 +24381,8 @@ function renderTestAttributes(ref) {
   const container = document.getElementById('test-attr-rows');
   if (!container) return;
 
-  let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '')).join('');
+  const selectedIdx = _selectedAttrRowIdx[ref];
+  let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '', rows.length, i === selectedIdx)).join('');
   // No auto blank row — user must click "Add attribute" to add a new row
   if (rows.length === 0) {
     html = `<div style="padding:14px 16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No attributes yet — click "Add attribute" to begin.</div>`;
@@ -24247,11 +24393,67 @@ function renderTestAttributes(ref) {
   setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
 }
 
-function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo) {
+// Tracks which attribute row (by index) is currently selected, per
+// workpaper ref — only the selected row shows its up/down reorder arrows.
+var _selectedAttrRowIdx = {};
+
+function toggleAttrRowSelected(idx) {
+  if (!currentAttrWPRef) return;
+  // Clicking the already-selected row's number cell deselects it (hides
+  // the arrows again); clicking a different row selects that one instead.
+  _selectedAttrRowIdx[currentAttrWPRef] = (_selectedAttrRowIdx[currentAttrWPRef] === idx) ? undefined : idx;
+  renderTestAttributes(currentAttrWPRef);
+}
+
+// Moves the attribute at idx up (dir=-1) or down (dir=1) by swapping it
+// with its neighbor, renumbers everything sequentially (num is always
+// idx+1, so a full re-render after the swap handles that automatically —
+// see makeAttrRowHtml's rowNum), keeps the SAME attribute selected at its
+// new position so the arrows stay usable for further moves, and persists
+// the reordered list to Postgres the same way any other attribute change
+// is saved.
+function moveAttrRow(idx, dir) {
+  if (!currentAttrWPRef) return;
+  const rows = wpTestAttributes[currentAttrWPRef] || [];
+  const targetIdx = idx + dir;
+  if (targetIdx < 0 || targetIdx >= rows.length) return; // already at an edge — nothing to do
+
+  pushUndo();
+  const tmp = rows[idx];
+  rows[idx] = rows[targetIdx];
+  rows[targetIdx] = tmp;
+  wpTestAttributes[currentAttrWPRef] = rows;
+
+  // Keep the SAME attribute selected, now at its new index, so the arrows
+  // remain visible and usable for continuing to move it further.
+  _selectedAttrRowIdx[currentAttrWPRef] = targetIdx;
+
+  renderTestAttributes(currentAttrWPRef);
+
+  const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+  if (w) _saveWorkpaperToDB(w);
+}
+
+function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRows, isSelected) {
   const base   = (idx * 4) + 1;
   const rowNum = idx + 1; // always sequential, not user-editable
+  const selectedStyle = isSelected ? 'background:#dbeafe' : '';
+  // Arrows only render for the SELECTED row — clicking the row number cell
+  // selects it (or deselects if already selected); up/down move the
+  // attribute in wpTestAttributes and trigger a full re-render + renumber +
+  // save, keeping numbering sequential and persisted the same way any other
+  // attribute edit is.
+  const arrowsHtml = isSelected ? `
+    <button class="icon-btn" title="Move up" onclick="event.stopPropagation();moveAttrRow(${idx},-1)" tabindex="-1"
+      style="width:16px;height:14px;font-size:9px;padding:0;line-height:1;${idx===0?'opacity:0.3;cursor:default':''}" ${idx===0?'disabled':''}>&#x25B2;</button>
+    <button class="icon-btn" title="Move down" onclick="event.stopPropagation();moveAttrRow(${idx},1)" tabindex="-1"
+      style="width:16px;height:14px;font-size:9px;padding:0;line-height:1;${idx===totalRows-1?'opacity:0.3;cursor:default':''}" ${idx===totalRows-1?'disabled':''}>&#x25BC;</button>
+  ` : '';
   return `<div class="attr-row" id="attr-row-${idx}" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
-    <div style="flex-shrink:0;width:36px;padding:9px 8px 6px;text-align:center;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none">${rowNum}</div>
+    <div onclick="toggleAttrRowSelected(${idx})" title="Click to select this row and reorder it" style="flex-shrink:0;width:52px;padding:9px 4px 6px;display:flex;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none;cursor:pointer;${selectedStyle}">
+      ${isSelected ? `<div style="display:flex;flex-direction:column;gap:1px">${arrowsHtml}</div>` : ''}
+      <span>${rowNum}</span>
+    </div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
       <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. 1a"
         tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)"
@@ -24353,11 +24555,77 @@ function removeAttrRow(idx) {
   // Replace store completely with the fresh DOM-derived array (no stale data)
   wpTestAttributes[currentAttrWPRef] = domRows;
 
+  // Clear the selected-row tracking — the array just shifted positions, so
+  // whatever index was selected before this delete may now point at a
+  // completely different row (or no longer exist at all).
+  _selectedAttrRowIdx[currentAttrWPRef] = undefined;
+
   // Re-render from the clean store
   renderTestAttributes(currentAttrWPRef);
 
   const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
   if (w) _saveWorkpaperToDB(w);
+}
+
+// Downloads the Test Attributes grid as a standalone Excel file — every
+// column currently defined on each attribute (including Success/Failure
+// Criteria, even if that pair of columns is currently toggled hidden on
+// screen, since a downloaded spreadsheet is meant to be a complete,
+// standalone record rather than a snapshot of exactly what's visible right
+// now), one row per attribute, in the SAME order they currently appear in
+// wpTestAttributes — which reflects any manual reordering via the up/down
+// arrows, since that's the actual, current order of the array this reads
+// from.
+async function downloadTestAttributesXlsx() {
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = resolve; script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const ref = currentAttrWPRef || getWPRef();
+  const wp  = WORKPAPERS.find(w => w.ref === ref);
+  const rows = wpTestAttributes[ref] || [];
+  const now  = new Date();
+  const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  const header = ['#', 'Attr #', 'Title', 'Description', 'Additional Information', 'Success Criteria', 'Failure Criteria'];
+  const wsData = [
+    [wp?.name || ref],
+    [`Test Attributes — exported ${exportDate}`],
+    [],
+    header,
+    ...rows.map((a, i) => [
+      i + 1,
+      a.attrRef || '',
+      a.title || '',
+      a.desc || '',
+      a.additionalInfo || '',
+      a.successCriteria || '',
+      a.failureCriteria || '',
+    ]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 28 }, { wch: 50 }, { wch: 40 }, { wch: 30 }, { wch: 30 }];
+  // Bold the header row (row index 3, the 4th row) and the title row
+  const boldStyle = { font: { bold: true } };
+  header.forEach((_, c) => {
+    const addr = XLSX.utils.encode_cell({ r: 3, c });
+    if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+    ws[addr].s = boldStyle;
+  });
+  const titleAddr = XLSX.utils.encode_cell({ r: 0, c: 0 });
+  if (ws[titleAddr]) ws[titleAddr].s = boldStyle;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Test Attributes');
+
+  const ts = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  XLSX.writeFile(wb, `${ref || 'Workpaper'}_Test_Attributes_${ts}.xlsx`);
 }
 
 function addTestAttributeRow() {
