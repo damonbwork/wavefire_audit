@@ -5378,7 +5378,15 @@ function renderAudits(list) {
 }
 
 function filterAudits() {
-  const search      = document.getElementById('audit-search').value.toLowerCase();
+  // Was reading document.getElementById('audit-search').value directly —
+  // no element with that id exists anywhere in this page, so .value on the
+  // resulting null threw a TypeError immediately, crashing this ENTIRE
+  // function before it ever reached the filtering logic below. That meant
+  // every filter control here — type, status, period, and "Show archived"
+  // in particular — has been silently non-functional: toggling any of them
+  // fired this function, which crashed instantly and never called
+  // renderAudits() with the actual filtered results.
+  const search      = document.getElementById('audit-search')?.value.toLowerCase() || '';
   const type        = document.getElementById('filter-type').value;
   const status      = document.getElementById('filter-status').value.toLowerCase();
   const period      = document.getElementById('filter-period')?.value || '';
@@ -5412,7 +5420,7 @@ function filterAudits() {
 }
 
 function clearAuditFilters() {
-  document.getElementById('audit-search').value   = '';
+  const _as = document.getElementById('audit-search'); if(_as) _as.value = '';
   document.getElementById('filter-type').value    = '';
   document.getElementById('filter-status').value  = '';
   const _fp = document.getElementById('filter-period'); if(_fp) _fp.value = '';
@@ -17078,6 +17086,12 @@ function createNewAudit() {
   AUDITS.push(newAudit);
   if (_newAuditControls.size) auditLinkedControls[name] = new Set(_newAuditControls);
   if (_newAuditFs.size)       auditLinkedFs[name]       = new Set(_newAuditFs);
+
+  // Persist the new audit to Postgres — previously this only existed in
+  // memory for the current session, so a refresh, a new session, or a
+  // deploy would silently lose it with nothing in the database to recover
+  // from at all.
+  _saveAuditToDB(newAudit);
 
   // Update audit nav dropdown
   const selAudit = document.getElementById('sel-audit');
