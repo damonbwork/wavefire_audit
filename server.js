@@ -988,6 +988,33 @@ app.patch('/api/audits/:oldName', async (req, res) => {
 // etc. are genuinely gone if this state was reached, so this only restores
 // reachability; the person fills in the rest from there. Does nothing if an
 // audit under that name already exists (nothing to repair).
+// GET-triggerable version of the repair above — usable by simply visiting
+// the URL in a browser, no form or POST client needed. Recreates a
+// specific audit by name directly (does not require an orphaned workpaper
+// to already exist), using the exact same INSERT ... ON CONFLICT the
+// normal audit-save route uses — so successfully hitting this also
+// independently confirms whether the underlying unique-constraint fix
+// (see initDB, the audits_tenant_name_key migration) actually took effect,
+// since it exercises the identical failure point.
+app.get('/api/recreate-audit/:name', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const name = req.params.name;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    await pool.query(
+      `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
+       VALUES ($1,$2,'','','Financial','planned','Recreated via /api/recreate-audit.',NOW())
+       ON CONFLICT (tenant_id,name) DO NOTHING`,
+      [DEFAULT_TENANT_ID, name]
+    );
+    const { rows } = await pool.query(
+      'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
+      [DEFAULT_TENANT_ID, name]
+    );
+    res.json({ ok: true, audit: rows[0] || null });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
 app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try {
