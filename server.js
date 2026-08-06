@@ -102,9 +102,16 @@ async function initDB() {
   try {
     await pool.query(`
       -- ── Tenants (scaffold for future multi-tenancy) ────────────────────────
+      -- The master tenant table — every other table's tenant_id column is a
+      -- foreign key into this one's own primary key, id (named plainly
+      -- "id" here since within this table itself "tenant_id" would just
+      -- repeat what the table already is — the standard relational
+      -- convention, matching how users.user_id / user_tenants.user_id work
+      -- the same way).
       CREATE TABLE IF NOT EXISTS tenants (
         id          TEXT PRIMARY KEY DEFAULT 'default',
         name        TEXT NOT NULL DEFAULT 'Default Organisation',
+        description TEXT DEFAULT '',
         domain      TEXT DEFAULT '',
         plan        TEXT DEFAULT 'trial',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -112,6 +119,73 @@ async function initDB() {
       );
       INSERT INTO tenants (id, name) VALUES ('default','Default Organisation')
         ON CONFLICT (id) DO NOTHING;
+
+      -- ── Users ─────────────────────────────────────────────────────────────
+      -- Minimum requested fields: user id, first/last name, created/updated
+      -- timestamps, role. A few more are included because this table needs
+      -- to actually support real login later (see the auth work already
+      -- planned): email as the real login identifier (a generated user_id
+      -- isn't something a person types in), password_hash (never a
+      -- plaintext password column — even as an unused placeholder, that's
+      -- a real security mistake to leave sitting in a schema), tenant_id
+      -- to scope each user the same way every other tenant-scoped table
+      -- here does (this is a user's HOME tenant, not a hard boundary —
+      -- user_tenants below is what actually grants access to more than
+      -- one), and is_active so an admin can disable a user without
+      -- deleting their row (and losing whatever that user created/owns
+      -- elsewhere in the schema, which is referenced by name/id, not
+      -- cascaded from a user row).
+      --
+      -- email is GLOBALLY unique (not scoped per-tenant) — a real person's
+      -- email should identify exactly one account. This was originally
+      -- UNIQUE(tenant_id, email), which allowed the same email to exist as
+      -- separate rows under different tenants; that stops making sense now
+      -- that user_tenants already lets one single account access multiple
+      -- tenants, and is a genuine conflict with is_superadmin below, which
+      -- needs to be one identity that transcends tenant boundaries
+      -- entirely, not something that could be duplicated per tenant.
+      --
+      -- is_superadmin is deliberately separate from role: role can still
+      -- vary per tenant (via user_tenants.role, see below), but SuperAdmin
+      -- is an application-wide grant — access to every tenant and every
+      -- role — that bypasses tenant/role scoping altogether, so it belongs
+      -- on the user's own account, not on any one tenant relationship.
+      CREATE TABLE IF NOT EXISTS users (
+        user_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id      TEXT NOT NULL DEFAULT 'default',
+        email          TEXT NOT NULL UNIQUE,
+        password_hash  TEXT NOT NULL DEFAULT '',
+        first_name     TEXT DEFAULT '',
+        last_name      TEXT DEFAULT '',
+        role           TEXT NOT NULL DEFAULT 'user',
+        is_superadmin  BOOLEAN NOT NULL DEFAULT false,
+        is_active      BOOLEAN NOT NULL DEFAULT true,
+        date_created   TIMESTAMPTZ DEFAULT NOW(),
+        date_updated   TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+      );
+
+      -- ── User-Tenant links ────────────────────────────────────────────────
+      -- Genuine many-to-many: a user can belong to and have access to more
+      -- than one tenant, which users.tenant_id alone can't express (that
+      -- column is a user's single "home" tenant — where their account was
+      -- created — not the full set of tenants they can actually work
+      -- within). role here is a PER-TENANT override: a user can reasonably
+      -- be an admin in one tenant and a regular user in another. When no
+      -- override exists for a given tenant, application code should fall
+      -- back to users.role — so the simple single-tenant case still works
+      -- with nothing extra to configure, and only genuinely multi-tenant
+      -- users need a row here per additional tenant.
+      CREATE TABLE IF NOT EXISTS user_tenants (
+        user_id       UUID NOT NULL,
+        tenant_id     TEXT NOT NULL,
+        role          TEXT DEFAULT NULL,
+        date_created  TIMESTAMPTZ DEFAULT NOW(),
+        date_updated  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, tenant_id),
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+      );
 
       -- ── Per-tenant AI credential store ─────────────────────────────────────
       CREATE TABLE IF NOT EXISTS tenant_ai_configs (
@@ -463,6 +537,49 @@ async function initDB() {
         console.error('DB: could not verify/fix audits unique constraint:', constraintErr.message);
       }
 
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT false`);
+
+      // Fix users' email uniqueness if it's still the old per-tenant
+      // version — same reasoning as the audits constraint fix above:
+      // CREATE TABLE IF NOT EXISTS is a no-op on a table that already
+      // exists, so if this table was created under an earlier version of
+      // this schema (UNIQUE(tenant_id, email) instead of a plain global
+      // UNIQUE(email)), nothing would ever correct it without this.
+      try {
+        const { rows: userConstraintRows } = await pool.query(`
+          SELECT con.conname, con.contype, array_agg(att.attname ORDER BY att.attnum) AS cols
+          FROM pg_constraint con
+          JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+          WHERE con.conrelid = 'users'::regclass AND con.contype = 'u'
+          GROUP BY con.conname, con.contype
+        `);
+        const hasGlobalEmailUnique = userConstraintRows.some(r => r.cols.length === 1 && r.cols[0] === 'email');
+        const oldTenantScopedEmail = userConstraintRows.find(r => r.cols.length === 2 && r.cols.includes('email') && r.cols.includes('tenant_id'));
+        if (!hasGlobalEmailUnique && oldTenantScopedEmail) {
+          // Check for real duplicate emails across tenants BEFORE trying to
+          // add a global unique constraint — if any exist, adding the
+          // constraint would fail outright, and forcing it through would
+          // require deciding which duplicate "wins," which isn't a decision
+          // to make silently in a startup migration. Log and skip in that
+          // case rather than crash server startup or guess.
+          const { rows: dupes } = await pool.query(
+            `SELECT email, COUNT(*) c FROM users GROUP BY email HAVING COUNT(*) > 1`
+          );
+          if (dupes.length) {
+            console.error('DB: cannot make users.email globally unique — duplicate emails exist across tenants:',
+              dupes.map(d => d.email + ' (' + d.c + 'x)'),
+              '— resolve these manually (merge or rename accounts), then restart.');
+          } else {
+            await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS ${oldTenantScopedEmail.conname}`);
+            await pool.query(`ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email)`);
+            console.log('DB: users.email is now globally unique (was previously scoped per tenant_id)');
+          }
+        }
+      } catch (userEmailConstraintErr) {
+        console.error('DB: could not verify/fix users.email unique constraint:', userEmailConstraintErr.message);
+      }
+
+      await pool.query(`ALTER TABLE tenants            ADD COLUMN IF NOT EXISTS description   TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -1073,6 +1190,193 @@ app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
     );
     res.json({ ok: true, auditName });
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+// ── Admin: Users & Tenants ──────────────────────────────────────────────
+// These routes deliberately do NOT filter by DEFAULT_TENANT_ID the way
+// ordinary resource routes do — an admin managing users/tenants needs
+// visibility across the whole system, not one tenant's slice of it. No
+// authentication or authorization exists anywhere in this file yet (a
+// documented, planned gap — see the handoff notes on the next phase of
+// work); these routes are exactly the ones that should be admin-only once
+// that's built, since by definition only an admin should ever reach them.
+
+app.get('/api/admin/users', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated FROM users ORDER BY last_name, first_name'
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
+});
+
+// Type-ahead search for the "assign users to this tenant" picker — matches
+// on first name, last name, or email, case-insensitively, as a substring.
+// Excludes users already assigned to the given tenant (if tenantId is
+// passed) so the picker only ever shows people who could actually be
+// newly added.
+app.get('/api/admin/users/search', async (req, res) => {
+  if (!pool) return res.json([]);
+  const q = (req.query.q || '').trim();
+  const excludeTenantId = req.query.excludeTenantId || null;
+  try {
+    const params = [`%${q.toLowerCase()}%`];
+    let sql = `SELECT user_id, email, first_name, last_name, role FROM users
+               WHERE (LOWER(first_name) LIKE $1 OR LOWER(last_name) LIKE $1 OR LOWER(email) LIKE $1)`;
+    if (excludeTenantId) {
+      params.push(excludeTenantId);
+      sql += ` AND user_id NOT IN (SELECT user_id FROM user_tenants WHERE tenant_id=$2)`;
+    }
+    sql += ' ORDER BY last_name, first_name LIMIT 25';
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/users/search:'); }
+});
+
+app.post('/api/admin/users', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { email, first_name, last_name, role, is_superadmin, is_active, tenant_id } = req.body;
+  if (!email) return res.status(400).json({ error: 'email required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO users (tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+       ON CONFLICT (email) DO UPDATE SET
+         first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
+         role=EXCLUDED.role, is_superadmin=EXCLUDED.is_superadmin,
+         is_active=EXCLUDED.is_active, date_updated=NOW()
+       RETURNING user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
+      [tenant_id || DEFAULT_TENANT_ID, email, first_name || '', last_name || '', role || 'user', !!is_superadmin, is_active !== false]
+    );
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'POST /api/admin/users:'); }
+});
+
+app.get('/api/admin/tenants', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query('SELECT * FROM tenants ORDER BY name');
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/tenants:'); }
+});
+
+app.post('/api/admin/tenants', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { id, name, description, domain, plan } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'id and name required' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO tenants (id, name, description, domain, plan, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         name=EXCLUDED.name, description=EXCLUDED.description,
+         domain=EXCLUDED.domain, plan=EXCLUDED.plan, updated_at=NOW()
+       RETURNING *`,
+      [id, name, description || '', domain || '', plan || 'trial']
+    );
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'POST /api/admin/tenants:'); }
+});
+
+// This is also how an existing tenant's fields (name, description, domain,
+// plan) get modified — same INSERT ... ON CONFLICT DO UPDATE as above,
+// just called again with the same id and changed fields.
+app.patch('/api/admin/users/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { first_name, last_name, role, is_superadmin, is_active } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE users SET
+         first_name=COALESCE($2,first_name), last_name=COALESCE($3,last_name),
+         role=COALESCE($4,role), is_superadmin=COALESCE($5,is_superadmin),
+         is_active=COALESCE($6,is_active), date_updated=NOW()
+       WHERE user_id=$1
+       RETURNING user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
+      [req.params.id, first_name, last_name, role, is_superadmin, is_active]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'PATCH /api/admin/users/:id:'); }
+});
+
+app.patch('/api/admin/tenants/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { name, description, domain, plan } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE tenants SET
+         name=COALESCE($2,name), description=COALESCE($3,description),
+         domain=COALESCE($4,domain), plan=COALESCE($5,plan), updated_at=NOW()
+       WHERE id=$1 RETURNING *`,
+      [req.params.id, name, description, domain, plan]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Tenant not found' });
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'PATCH /api/admin/tenants/:id:'); }
+});
+
+// Users currently assigned to one specific tenant, via user_tenants — this
+// is the right-hand list on the Tenants section once a tenant is selected.
+// Includes each user's per-tenant role override (if any) alongside their
+// default role, so the UI can show which one is actually in effect.
+app.get('/api/admin/tenants/:id/users', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.user_id, u.email, u.first_name, u.last_name, u.role AS default_role,
+              ut.role AS tenant_role, ut.date_created AS assigned_on
+       FROM user_tenants ut
+       JOIN users u ON u.user_id = ut.user_id
+       WHERE ut.tenant_id = $1
+       ORDER BY u.last_name, u.first_name`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/tenants/:id/users:'); }
+});
+
+// Assigns one or more users to a tenant — body: { userIds: [...], role?: '...' }.
+// Idempotent: assigning an already-assigned user is a harmless no-op
+// (ON CONFLICT DO NOTHING), so the multi-select "assign selected users"
+// action in the UI can't fail just because one of several checked users
+// was already assigned.
+app.post('/api/admin/tenants/:id/users', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const tenantId = req.params.id;
+  const { userIds, role } = req.body;
+  if (!Array.isArray(userIds) || !userIds.length) {
+    return res.status(400).json({ error: 'userIds (array) required' });
+  }
+  try {
+    await pool.query('BEGIN');
+    for (const userId of userIds) {
+      await pool.query(
+        `INSERT INTO user_tenants (user_id, tenant_id, role, date_updated)
+         VALUES ($1,$2,$3,NOW())
+         ON CONFLICT (user_id, tenant_id) DO NOTHING`,
+        [userId, tenantId, role || null]
+      );
+    }
+    await pool.query('COMMIT');
+    res.json({ ok: true, added: userIds.length });
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, 'POST /api/admin/tenants/:id/users:');
+  }
+});
+
+// Removes ONE user's access to a tenant — this is what an admin uses to
+// un-assign a user from the right-hand list, not a bulk operation.
+app.delete('/api/admin/tenants/:id/users/:userId', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    await pool.query(
+      'DELETE FROM user_tenants WHERE tenant_id=$1 AND user_id=$2',
+      [req.params.id, req.params.userId]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'DELETE /api/admin/tenants/:id/users/:userId:'); }
 });
 
 app.get('/api/orphaned-workpapers', async (req, res) => {
