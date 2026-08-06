@@ -422,6 +422,47 @@ async function initDB() {
       await pool.query(`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`).catch(()=>{});
       console.log('DB: tenant_id columns added to all tables');
 
+      // tenant_id columns were added to these tables via the migration loop
+      // above, but that never retroactively updated audits' PRIMARY KEY (or
+      // any other unique constraint) to include tenant_id — meaning on a
+      // table that predates this file's current schema, the real
+      // constraint on the live table is very likely still on name alone (or
+      // missing tenant_id entirely). Every audit save relies on
+      // ON CONFLICT (tenant_id, name), which requires an ACTUAL unique
+      // constraint or index on exactly that column pair — without one,
+      // Postgres throws "no unique or exclusion constraint matching the ON
+      // CONFLICT specification" on every single insert, an error that
+      // never reaches the browser (the route only ever returns a generic
+      // 500) but explains a new audit failing to save with no other
+      // symptom. Checked directly against pg_constraint rather than
+      // assumed, so this is a no-op on a table that's already correct.
+      try {
+        const { rows: auditConstraintRows } = await pool.query(`
+          SELECT con.conname, array_agg(att.attname ORDER BY att.attnum) AS cols
+          FROM pg_constraint con
+          JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+          WHERE con.conrelid = 'audits'::regclass AND con.contype IN ('p','u')
+          GROUP BY con.conname
+        `);
+        const hasCorrectConstraint = auditConstraintRows.some(r =>
+          r.cols.length === 2 && r.cols.includes('tenant_id') && r.cols.includes('name')
+        );
+        if (!hasCorrectConstraint) {
+          console.log('DB: audits table is missing a unique constraint on (tenant_id, name) — adding one now. Existing constraints found:', auditConstraintRows.map(r => r.conname + '(' + r.cols.join(',') + ')'));
+          // Drop any OLD primary key first — a table can only have one, and
+          // if the live one is just on "name" (the pre-tenant_id schema),
+          // it must go before the correct composite one can be added.
+          const oldPk = auditConstraintRows.find(r => r.cols.length !== 2 || !r.cols.includes('tenant_id') || !r.cols.includes('name'));
+          if (oldPk) {
+            await pool.query(`ALTER TABLE audits DROP CONSTRAINT IF EXISTS ${oldPk.conname}`);
+          }
+          await pool.query(`ALTER TABLE audits ADD CONSTRAINT audits_tenant_name_key UNIQUE (tenant_id, name)`);
+          console.log('DB: audits(tenant_id, name) unique constraint added successfully');
+        }
+      } catch (constraintErr) {
+        console.error('DB: could not verify/fix audits unique constraint:', constraintErr.message);
+      }
+
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -899,7 +940,15 @@ app.patch('/api/audits/:oldName', async (req, res) => {
   const { name, period, owner, type, status, description, year } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   try {
-    // Rename = insert new row + delete old (if name changed), else just update
+    // Rename = insert new row + reassign workpapers + delete old (if name
+    // changed), else just update. Wrapped in a real transaction — without
+    // this, a failure partway through (the workpaper reassignment UPDATE in
+    // particular) could leave the new audit created and the old one deleted
+    // while some workpapers never got their audit_name updated, permanently
+    // orphaning them: pointing at an audit name that no longer exists,
+    // audit itself gone from the list, workpaper unreachable through the
+    // UI even though its own row is still sitting in Postgres untouched.
+    await pool.query('BEGIN');
     if (name !== oldName) {
       await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
         VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
@@ -919,10 +968,60 @@ app.patch('/api/audits/:oldName', async (req, res) => {
           year=EXCLUDED.year, updated_at=NOW()`,
         [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
     }
+    await pool.query('COMMIT');
     res.json({ ok:true });
-  } catch(err) { return fail(res, err, '[API] audit rename error:'); }
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, '[API] audit rename error:');
+  }
 });
 
+
+// Diagnostic, read-only: finds any workpaper whose audit_name doesn't match
+// a real, currently-existing audit — the exact orphaned state a failed
+// mid-rename could produce before the transaction fix above. Does not
+// modify anything; safe to hit at any time to check for this specific
+// inconsistency.
+// Repairs an orphaned workpaper by recreating a MINIMAL audit row under its
+// missing audit_name, so the workpaper becomes reachable through the UI
+// again. Deliberately minimal — the original audit's owner, type, period,
+// etc. are genuinely gone if this state was reached, so this only restores
+// reachability; the person fills in the rest from there. Does nothing if an
+// audit under that name already exists (nothing to repair).
+app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT audit_name FROM workpapers WHERE tenant_id=$1 AND ref=$2',
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
+    const auditName = rows[0].audit_name;
+    if (!auditName) return res.status(400).json({ error: 'This workpaper has no audit_name to repair against.' });
+
+    await pool.query(
+      `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
+       VALUES ($1,$2,'','','Financial','planned','Recreated automatically to recover an orphaned workpaper.',NOW())
+       ON CONFLICT (tenant_id,name) DO NOTHING`,
+      [DEFAULT_TENANT_ID, auditName]
+    );
+    res.json({ ok: true, auditName });
+  } catch(err) { return fail(res, err, 'api'); }
+});
+
+app.get('/api/orphaned-workpapers', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT w.ref, w.name, w.audit_name FROM workpapers w
+       WHERE w.tenant_id=$1
+         AND NOT EXISTS (SELECT 1 FROM audits a WHERE a.tenant_id=w.tenant_id AND a.name=w.audit_name)
+       ORDER BY w.audit_name, w.ref`,
+      [DEFAULT_TENANT_ID]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
+});
 
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
