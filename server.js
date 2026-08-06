@@ -998,9 +998,9 @@ app.patch('/api/audits/:oldName', async (req, res) => {
 // since it exercises the identical failure point.
 app.get('/api/recreate-audit/:name', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
+  const name = req.params.name;
+  if (!name) return res.status(400).json({ error: 'name required' });
   try {
-    const name = req.params.name;
-    if (!name) return res.status(400).json({ error: 'name required' });
     await pool.query(
       `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
        VALUES ($1,$2,'','','Financial','planned','Recreated via /api/recreate-audit.',NOW())
@@ -1011,8 +1011,47 @@ app.get('/api/recreate-audit/:name', async (req, res) => {
       'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
       [DEFAULT_TENANT_ID, name]
     );
-    res.json({ ok: true, audit: rows[0] || null });
-  } catch(err) { return fail(res, err, 'api'); }
+    return res.json({ ok: true, audit: rows[0] || null, method: 'insert_on_conflict' });
+  } catch(err) {
+    console.error('[recreate-audit] ON CONFLICT insert failed:', err.message);
+    // Fall back to a plain insert with no ON CONFLICT clause at all — if the
+    // conflict clause itself is what's failing (the unique constraint issue
+    // this whole investigation has been circling), this sidesteps it
+    // entirely and can still get the row into the table, which is the
+    // actual immediate goal, independent of whether that deeper problem is
+    // fully fixed yet.
+    try {
+      const { rows: existing } = await pool.query(
+        'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
+        [DEFAULT_TENANT_ID, name]
+      );
+      if (existing.length) {
+        return res.json({ ok: true, audit: existing[0], method: 'already_existed', firstError: err.message });
+      }
+      await pool.query(
+        `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
+         VALUES ($1,$2,'','','Financial','planned','Recreated via /api/recreate-audit (fallback path).',NOW())`,
+        [DEFAULT_TENANT_ID, name]
+      );
+      const { rows: created } = await pool.query(
+        'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
+        [DEFAULT_TENANT_ID, name]
+      );
+      return res.json({ ok: true, audit: created[0] || null, method: 'plain_insert_fallback', firstError: err.message });
+    } catch (fallbackErr) {
+      console.error('[recreate-audit] Fallback plain insert also failed:', fallbackErr.message);
+      // Both attempts genuinely failed — return the REAL Postgres error
+      // messages directly (this is a diagnostic tool, not a normal app
+      // route, so there's no reason to hide the real cause behind a
+      // generic message the way fail() correctly does elsewhere).
+      return res.status(500).json({
+        ok: false,
+        error: 'Both insert attempts failed.',
+        onConflictError: err.message,
+        plainInsertError: fallbackErr.message
+      });
+    }
+  }
 });
 
 app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
