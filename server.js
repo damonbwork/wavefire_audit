@@ -555,7 +555,7 @@ async function initDB() {
         sample_data            JSONB DEFAULT '{"columns":[],"rows":[]}',
         exceptions             JSONB DEFAULT '[]',
         archived               BOOLEAN DEFAULT false,
-        -- ── KPMG Template fields (new workpaper type, sections: Header,
+        -- ── M-Template fields (new workpaper type, sections: Header,
         -- Information About this Control, Nature of the TOC) — genuinely
         -- new columns, not reused from existing fields, except where the
         -- user explicitly said to map onto an existing one (reviewer =
@@ -910,7 +910,7 @@ async function initDB() {
       // archive/restore cycle untouched, so archiving a workpaper never
       // overwrites or loses whatever status it actually had.
       await pool.query(`ALTER TABLE workpapers         ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false`);
-      // KPMG Template workpaper type — new fields, added to the existing
+      // M-Template workpaper type — new fields, added to the existing
       // live table the same way every other migration here does.
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS audit_date DATE`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS peer_reviewer TEXT DEFAULT ''`);
@@ -1550,7 +1550,7 @@ app.get('/api/admin/users', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
 });
 
-// Non-admin users only — specifically for the KPMG Template workpaper
+// Non-admin users only — specifically for the M-Template workpaper
 // type's Peer Reviewer and GR Review dropdowns, which the user explicitly
 // asked to use the same user list as Preparer but restricted to
 // non-admins. Kept as a genuinely separate route from GET /api/admin/users
