@@ -7,9 +7,83 @@ const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
 const { Pool } = require('pg');
+const nodemailer = require('nodemailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// ── SMTP / outbound email ───────────────────────────────────────────────────
+// Same defensive pattern as the database URL and encryption key below: check
+// for real configuration, warn clearly if it's missing, and never silently
+// pretend email is working when it isn't — a user who never receives their
+// password-setup link with no visible error anywhere is a much worse
+// failure mode than a clear startup warning.
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+// The base URL used to build the password-setup link sent in the email —
+// e.g. "https://wavefireaudit-production.up.railway.app". Must be set
+// explicitly; guessing at a request's Host header for this would be
+// unreliable behind a proxy and is exactly the kind of thing that should
+// be configured once, deliberately, not inferred.
+const APP_BASE_URL = process.env.APP_BASE_URL || '';
+
+const SMTP_CONFIGURED = !!(SMTP_HOST && SMTP_USER && SMTP_PASS && APP_BASE_URL);
+if (!SMTP_CONFIGURED) {
+  console.error('[SMTP] Not fully configured — set SMTP_HOST, SMTP_USER, SMTP_PASS, and APP_BASE_URL. ' +
+    'Password-setup emails cannot be sent until this is done; user creation will still work, ' +
+    'but the new user will have no way to receive their setup link.');
+}
+const mailTransporter = SMTP_CONFIGURED ? nodemailer.createTransport({
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_PORT === 465, // true for port 465 (implicit TLS), false for 587/others (STARTTLS)
+  auth: { user: SMTP_USER, pass: SMTP_PASS },
+}) : null;
+
+// ── S3-compatible object storage (sample file attachments) ─────────────────
+// Same defensive pattern as SMTP above: real configuration required, a
+// clear startup warning if it's missing, and never silently pretend
+// storage is working when it isn't — a file upload that appears to
+// succeed but never actually lands anywhere is a much worse failure mode
+// than an explicit error at the point of use.
+//
+// Deliberately provider-agnostic — this works against Railway Buckets or
+// any other S3-compatible endpoint (real AWS S3, MinIO, etc.) via
+// STORAGE_ENDPOINT, rather than being hardcoded to one vendor's SDK
+// quirks. STORAGE_ENDPOINT is only required for non-AWS providers; real
+// AWS S3 resolves its endpoint automatically from the region and can
+// leave it unset.
+const { S3Client, GetObjectCommand, DeleteObjectCommand, HeadBucketCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+
+const STORAGE_ENDPOINT   = process.env.STORAGE_ENDPOINT || '';
+const STORAGE_REGION     = process.env.STORAGE_REGION || 'auto';
+const STORAGE_ACCESS_KEY = process.env.STORAGE_ACCESS_KEY || '';
+const STORAGE_SECRET_KEY = process.env.STORAGE_SECRET_KEY || '';
+const STORAGE_BUCKET     = process.env.STORAGE_BUCKET || '';
+
+const STORAGE_CONFIGURED = !!(STORAGE_ACCESS_KEY && STORAGE_SECRET_KEY && STORAGE_BUCKET);
+if (!STORAGE_CONFIGURED) {
+  console.error('[Storage] Not fully configured — set STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, and ' +
+    'STORAGE_BUCKET (and STORAGE_ENDPOINT for a non-AWS provider like Railway Buckets). ' +
+    'Sample file upload/download will fail with a clear error until this is set.');
+}
+const s3Client = STORAGE_CONFIGURED ? new S3Client({
+  region: STORAGE_REGION,
+  endpoint: STORAGE_ENDPOINT || undefined, // omit entirely for real AWS S3, which resolves its own endpoint
+  forcePathStyle: !!STORAGE_ENDPOINT, // path-style addressing is required by most non-AWS S3-compatible providers
+  credentials: { accessKeyId: STORAGE_ACCESS_KEY, secretAccessKey: STORAGE_SECRET_KEY },
+}) : null;
+
+// In-memory buffering, not disk — the file is immediately streamed on to
+// object storage (see uploadFileToStorage), so there's no reason to write
+// it to local disk first. 30MB matches the same ceiling already
+// established elsewhere in this file for the Claude API proxy.
+const multer = require('multer');
+const sampleFileUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 // ── Postgres ────────────────────────────────────────────────────────────────
 const dbUrl = process.env.DATABASE_URL
@@ -62,6 +136,152 @@ function decryptKey(ciphertext) {
     dec.setAuthTag(tag);
     return Buffer.concat([dec.update(enc), dec.final()]).toString('utf8');
   } catch(e) { return ''; }
+}
+
+// ── Password / token hashing ────────────────────────────────────────────────
+// scrypt is a memory-hard key derivation function — deliberately expensive
+// and resistant to GPU/ASIC-accelerated brute-forcing, unlike a fast
+// general-purpose hash (sha256, md5, etc.), which is the wrong tool for
+// password storage precisely because it's fast: an attacker with a stolen
+// hash could try billions of guesses per second against it. Each password
+// (and each token — see hashToken below) gets its own random, unique salt,
+// stored alongside the hash as "salt:hash" — reusing a salt across users
+// would let an attacker precompute one rainbow table and use it against
+// every account at once.
+const SCRYPT_KEYLEN = 64;
+
+function hashPassword(plaintext) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = crypto.scryptSync(plaintext, salt, SCRYPT_KEYLEN);
+  return salt + ':' + derivedKey.toString('hex');
+}
+
+function verifyPassword(plaintext, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) return false;
+  const [salt, keyHex] = storedHash.split(':');
+  const derivedKey = crypto.scryptSync(plaintext, salt, SCRYPT_KEYLEN);
+  const storedKey = Buffer.from(keyHex, 'hex');
+  // timingSafeEqual, not === — a naive string/buffer equality check
+  // short-circuits on the first mismatched byte, and the TIME that takes
+  // leaks information an attacker can use to guess the correct hash one
+  // byte at a time across many requests. Both buffers must be equal
+  // length for timingSafeEqual to run at all, so check that first.
+  if (storedKey.length !== derivedKey.length) return false;
+  return crypto.timingSafeEqual(storedKey, derivedKey);
+}
+
+// Password-setup/reset tokens use the SAME hashing approach as passwords,
+// for the same reason: the raw token is the only thing that should ever be
+// able to redeem the link, so what's stored in the database must be
+// useless on its own even if the database is exposed.
+function hashToken(rawToken) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derivedKey = crypto.scryptSync(rawToken, salt, SCRYPT_KEYLEN);
+  return salt + ':' + derivedKey.toString('hex');
+}
+
+function verifyToken(rawToken, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) return false;
+  const [salt, keyHex] = storedHash.split(':');
+  const derivedKey = crypto.scryptSync(rawToken, salt, SCRYPT_KEYLEN);
+  const storedKey = Buffer.from(keyHex, 'hex');
+  if (storedKey.length !== derivedKey.length) return false;
+  return crypto.timingSafeEqual(storedKey, derivedKey);
+}
+
+// Generates the actual raw token that goes in the emailed URL — 32 random
+// bytes, base64url-encoded (URL-safe: no +, /, or = characters that would
+// need escaping in a link) — cryptographically unguessable, per the
+// "randomly assigned" requirement. This is the ONLY place the raw value
+// exists outside of the moment it's emailed; the database only ever sees
+// its hash (see hashToken above).
+function generateSecureToken() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+// ── Object storage helpers ──────────────────────────────────────────────
+// Generates the actual S3 object key for a sample file — deliberately NOT
+// the user-supplied filename (see the sample_files table comment for why:
+// collision risk, and unsafe characters in an arbitrary filename). Scoped
+// by tenant and workpaper ref so objects are naturally namespaced, with a
+// random suffix for genuine uniqueness even if the same filename is
+// uploaded twice for the same workpaper (the second upload becomes an
+// UPDATE at the database-row level, but still gets its own distinct
+// object in storage rather than silently overwriting the first one in
+// place — see the upload route for how the OLD object gets cleaned up
+// once the new one is confirmed stored).
+function _buildBucketKey(tenantId, ref, filename) {
+  const safeExt = (filename.match(/\.[a-zA-Z0-9]+$/) || [''])[0];
+  return `sample-files/${tenantId}/${ref}/${crypto.randomUUID()}${safeExt}`;
+}
+
+// Uploads a file to object storage. Takes a Buffer or a Readable stream —
+// lib-storage's Upload handles multipart upload automatically for larger
+// files rather than requiring the whole file to be buffered into memory
+// as one PutObjectCommand call, which matters given this app's real
+// confirmed file sizes (attached sample PDFs have run several megabytes
+// each, with a combined request limit already raised to 30MB elsewhere
+// in this file for the Analyze feature).
+async function uploadFileToStorage(bucketKey, body, contentType) {
+  if (!STORAGE_CONFIGURED || !s3Client) {
+    throw new Error('Object storage is not configured on the server — cannot upload file.');
+  }
+  const upload = new Upload({
+    client: s3Client,
+    params: { Bucket: STORAGE_BUCKET, Key: bucketKey, Body: body, ContentType: contentType || 'application/octet-stream' },
+  });
+  await upload.done();
+}
+
+// Returns a readable stream for a stored file — the download route pipes
+// this directly to the HTTP response rather than buffering the entire
+// file into server memory first, which matters at the file sizes this
+// app actually handles.
+async function getFileFromStorage(bucketKey) {
+  if (!STORAGE_CONFIGURED || !s3Client) {
+    throw new Error('Object storage is not configured on the server — cannot retrieve file.');
+  }
+  const result = await s3Client.send(new GetObjectCommand({ Bucket: STORAGE_BUCKET, Key: bucketKey }));
+  return result; // .Body is the readable stream; caller also gets ContentType/ContentLength from here
+}
+
+async function deleteFileFromStorage(bucketKey) {
+  if (!STORAGE_CONFIGURED || !s3Client) {
+    throw new Error('Object storage is not configured on the server — cannot delete file.');
+  }
+  await s3Client.send(new DeleteObjectCommand({ Bucket: STORAGE_BUCKET, Key: bucketKey }));
+}
+
+// Sends the password-setup email. Throws (doesn't swallow the error) if
+// SMTP isn't configured or sending genuinely fails — the caller (the
+// user-creation route) needs to know the difference between "user created,
+// email sent" and "user created, but they have no way to receive their
+// setup link," since those are very different outcomes for whoever's
+// creating the account to know about.
+async function sendPasswordSetupEmail(toEmail, firstName, rawToken) {
+  if (!SMTP_CONFIGURED || !mailTransporter) {
+    throw new Error('SMTP is not configured on the server — cannot send password-setup email.');
+  }
+  const setupUrl = `${APP_BASE_URL.replace(/\/$/, '')}/set-password?token=${encodeURIComponent(rawToken)}`;
+  const greeting = firstName ? `Hi ${firstName},` : 'Hello,';
+  await mailTransporter.sendMail({
+    from: SMTP_FROM,
+    to: toEmail,
+    subject: 'Set up your Wavefire password',
+    text: `${greeting}\n\n` +
+      `An account has been created for you on Wavefire. To set your password and finish setting up your account, ` +
+      `visit the link below:\n\n${setupUrl}\n\n` +
+      `This link is valid for 7 days and can only be used once. If it expires before you use it, contact your ` +
+      `administrator to have a new one sent.\n\n` +
+      `If you weren't expecting this email, you can safely ignore it.`,
+    html: `<p>${greeting}</p>` +
+      `<p>An account has been created for you on Wavefire. To set your password and finish setting up your account, ` +
+      `click the link below:</p>` +
+      `<p><a href="${setupUrl}">${setupUrl}</a></p>` +
+      `<p><strong>This link is valid for 7 days and can only be used once.</strong> If it expires before you use it, ` +
+      `contact your administrator to have a new one sent.</p>` +
+      `<p style="color:#666;font-size:13px">If you weren't expecting this email, you can safely ignore it.</p>`,
+  });
 }
 
 // ── Security helpers ─────────────────────────────────────────────────────────
@@ -151,17 +371,18 @@ async function initDB() {
       -- role — that bypasses tenant/role scoping altogether, so it belongs
       -- on the user's own account, not on any one tenant relationship.
       CREATE TABLE IF NOT EXISTS users (
-        user_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id      TEXT NOT NULL DEFAULT 'default',
-        email          TEXT NOT NULL UNIQUE,
-        password_hash  TEXT NOT NULL DEFAULT '',
-        first_name     TEXT DEFAULT '',
-        last_name      TEXT DEFAULT '',
-        role           TEXT NOT NULL DEFAULT 'user',
-        is_superadmin  BOOLEAN NOT NULL DEFAULT false,
-        is_active      BOOLEAN NOT NULL DEFAULT true,
-        date_created   TIMESTAMPTZ DEFAULT NOW(),
-        date_updated   TIMESTAMPTZ DEFAULT NOW(),
+        user_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id            TEXT NOT NULL DEFAULT 'default',
+        email                TEXT NOT NULL UNIQUE,
+        password_hash        TEXT NOT NULL DEFAULT '',
+        first_name           TEXT DEFAULT '',
+        last_name            TEXT DEFAULT '',
+        role                 TEXT NOT NULL DEFAULT 'user',
+        is_superadmin        BOOLEAN NOT NULL DEFAULT false,
+        is_active            BOOLEAN NOT NULL DEFAULT true,
+        must_change_password BOOLEAN NOT NULL DEFAULT true,
+        date_created         TIMESTAMPTZ DEFAULT NOW(),
+        date_updated         TIMESTAMPTZ DEFAULT NOW(),
         FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
       );
 
@@ -185,6 +406,35 @@ async function initDB() {
         PRIMARY KEY (user_id, tenant_id),
         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
         FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+      );
+
+      -- ── Password setup / reset tokens ───────────────────────────────────────
+      -- Stores a HASH of the token, never the raw token itself — same
+      -- principle as password storage. The raw, random token only ever
+      -- exists in the emailed link and briefly in server memory while it's
+      -- generated; if this table (or a database backup/dump) were ever
+      -- exposed, a stored raw token would let an attacker use any
+      -- unexpired link immediately, whereas a hash is useless without the
+      -- original value. Verifying a submitted token means hashing IT the
+      -- same way and comparing hashes — see the /api/auth/set-password
+      -- route.
+      --
+      -- Deliberately generic (not "new_user_tokens") — the exact same
+      -- mechanism correctly covers both initial account setup (a brand-new
+      -- user with no password yet) and any future "forgot password" flow,
+      -- so there's no need for a second, near-duplicate table later.
+      -- used_at is set the moment a token is successfully redeemed, making
+      -- every token strictly single-use even if the link is somehow
+      -- clicked more than once before it naturally expires.
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        token_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id      UUID NOT NULL,
+        token_hash   TEXT NOT NULL,
+        purpose      TEXT NOT NULL DEFAULT 'initial_setup',
+        expires_at   TIMESTAMPTZ NOT NULL,
+        used_at      TIMESTAMPTZ,
+        date_created TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
       );
 
       -- ── Per-tenant AI credential store ─────────────────────────────────────
@@ -221,6 +471,43 @@ async function initDB() {
         updated_at  TIMESTAMPTZ DEFAULT NOW(),
         tenant_id   TEXT NOT NULL DEFAULT 'default',
         PRIMARY KEY (tenant_id, ref, filename)
+      );
+
+      -- ── Sample files (actual bytes live in object storage, not here) ────────
+      -- Metadata and a bucket reference only — the file's actual bytes are
+      -- uploaded directly to S3-compatible object storage (see
+      -- uploadFileToStorage/getFileFromStorage below) and never touch
+      -- Postgres. Keyed the same way as workpaper_annotations
+      -- (tenant_id, ref, filename) so the two relate naturally without a
+      -- foreign key or redesigning the existing annotations table.
+      --
+      -- bucket_key is the ACTUAL S3 object key — deliberately not the
+      -- same as filename. Two different uploads could plausibly share a
+      -- filename (a user re-uploads "contract.pdf" for a different
+      -- sample), and an arbitrary user-supplied filename could contain
+      -- characters that aren't safe as an S3 key — bucket_key is always a
+      -- generated, collision-proof identifier; filename is what's shown
+      -- to and typed by a person.
+      --
+      -- archived follows the same soft-hide pattern already used on
+      -- workpapers.archived — a removed file drops out of the visible
+      -- list without actually deleting the object, so it stays
+      -- recoverable rather than being gone the moment someone clicks
+      -- remove.
+      CREATE TABLE IF NOT EXISTS sample_files (
+        file_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id    TEXT NOT NULL DEFAULT 'default',
+        ref          TEXT NOT NULL,
+        filename     TEXT NOT NULL,
+        bucket_key   TEXT NOT NULL,
+        content_type TEXT DEFAULT 'application/octet-stream',
+        size_bytes   BIGINT DEFAULT 0,
+        bucket_name  TEXT DEFAULT '',
+        uploaded_by  TEXT DEFAULT '',
+        archived     BOOLEAN NOT NULL DEFAULT false,
+        date_created TIMESTAMPTZ DEFAULT NOW(),
+        date_updated TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, ref, filename)
       );
       CREATE TABLE IF NOT EXISTS audits (
         tenant_id   TEXT NOT NULL DEFAULT 'default',
@@ -538,6 +825,7 @@ async function initDB() {
       }
 
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT false`);
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT true`);
 
       // Fix users' email uniqueness if it's still the old per-tenant
       // version — same reasoning as the audits constraint fix above:
@@ -1239,6 +1527,16 @@ app.post('/api/admin/users', async (req, res) => {
   const { email, first_name, last_name, role, is_superadmin, is_active, tenant_id } = req.body;
   if (!email) return res.status(400).json({ error: 'email required' });
   try {
+    // Check whether this is a genuinely NEW user before writing anything —
+    // only a brand-new user gets a password-setup token and email. Checked
+    // explicitly up front rather than inferred after the INSERT via
+    // Postgres's xmax column, which Postgres's own developers have
+    // explicitly called unreliable/unsupported for this purpose — not
+    // something to base a security-relevant decision (issuing a new
+    // credential-setting token) on.
+    const { rows: existingRows } = await pool.query('SELECT user_id FROM users WHERE email=$1', [email]);
+    const isNewUser = existingRows.length === 0;
+
     const { rows } = await pool.query(
       `INSERT INTO users (tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_updated)
        VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
@@ -1249,7 +1547,39 @@ app.post('/api/admin/users', async (req, res) => {
        RETURNING user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
       [tenant_id || DEFAULT_TENANT_ID, email, first_name || '', last_name || '', role || 'user', !!is_superadmin, is_active !== false]
     );
-    res.json(rows[0]);
+    const user = rows[0];
+
+    if (!isNewUser) {
+      return res.json(user); // editing an existing user — no new token/email
+    }
+
+    // New user — generate a secure, single-use, 7-day token; store only
+    // its hash (see hashToken); email the raw token to the user, since
+    // that raw value is the only place it will ever exist outside of this
+    // one moment.
+    let emailStatus = 'sent';
+    let emailError = null;
+    try {
+      const rawToken = generateSecureToken();
+      const tokenHash = hashToken(rawToken);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, purpose, expires_at)
+         VALUES ($1,$2,'initial_setup',$3)`,
+        [user.user_id, tokenHash, expiresAt]
+      );
+      await sendPasswordSetupEmail(user.email, user.first_name, rawToken);
+    } catch (emailErr) {
+      // The USER was still created successfully — a failed email doesn't
+      // mean the account creation itself failed. Report both facts
+      // separately so whoever's creating the account knows the new user
+      // exists but may need their setup link resent some other way.
+      console.error('[POST /api/admin/users] User created but setup email failed:', emailErr.message);
+      emailStatus = 'failed';
+      emailError = emailErr.message;
+    }
+
+    res.json({ ...user, setupEmailStatus: emailStatus, setupEmailError: emailError });
   } catch(err) { return fail(res, err, 'POST /api/admin/users:'); }
 });
 
@@ -1282,6 +1612,71 @@ app.post('/api/admin/tenants', async (req, res) => {
 // This is also how an existing tenant's fields (name, description, domain,
 // plan) get modified — same INSERT ... ON CONFLICT DO UPDATE as above,
 // just called again with the same id and changed fields.
+// ── Public-facing password-setup / reset endpoints ──────────────────────────
+// No admin/session required — the person hasn't logged in yet, that's the
+// whole point of this flow. Security here comes entirely from the token
+// itself: unguessable (32 random bytes), single-use, and time-limited.
+
+// Checks a token WITHOUT consuming it — used by the set-password page to
+// decide what to show (a real form vs. an "this link has expired" message)
+// before the person has even typed a password. A token is valid only if
+// ALL THREE hold: it matches a stored hash (checked via verifyToken, which
+// uses a timing-safe comparison — see hashPassword/verifyPassword above for
+// why that matters), it hasn't already been used, and it hasn't expired.
+app.get('/api/auth/validate-token', async (req, res) => {
+  if (!pool) return res.status(503).json({ valid: false, error: 'No database configured' });
+  const rawToken = req.query.token || '';
+  if (!rawToken) return res.json({ valid: false, reason: 'missing' });
+  try {
+    // Tokens aren't looked up by their raw value (they're never stored raw
+    // — see hashToken) — every unexpired, unused token hash has to be
+    // checked against the submitted raw token instead. This table is
+    // expected to stay small (one row per pending setup/reset), so this is
+    // fine; it would need a different approach at much larger scale.
+    const { rows } = await pool.query(
+      `SELECT prt.token_id, prt.user_id, prt.token_hash, prt.expires_at, prt.used_at, u.email, u.first_name
+       FROM password_reset_tokens prt JOIN users u ON u.user_id = prt.user_id
+       WHERE prt.used_at IS NULL AND prt.expires_at > NOW()`
+    );
+    const match = rows.find(r => verifyToken(rawToken, r.token_hash));
+    if (!match) return res.json({ valid: false, reason: 'invalid_or_expired' });
+    res.json({ valid: true, email: match.email, firstName: match.first_name });
+  } catch(err) { return fail(res, err, 'GET /api/auth/validate-token:'); }
+});
+
+app.post('/api/auth/set-password', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { token: rawToken, password } = req.body;
+  if (!rawToken || !password) return res.status(400).json({ error: 'token and password required' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  try {
+    await pool.query('BEGIN');
+    // Re-validate inside the transaction, not just trusting an earlier
+    // validate-token call — re-checking here, immediately before marking
+    // the token used, closes the window where two simultaneous requests
+    // could both pass an earlier check before either actually consumed the
+    // token, which would let it be redeemed twice.
+    const { rows } = await pool.query(
+      `SELECT token_id, user_id, token_hash FROM password_reset_tokens
+       WHERE used_at IS NULL AND expires_at > NOW()
+       FOR UPDATE`
+    );
+    const match = rows.find(r => verifyToken(rawToken, r.token_hash));
+    if (!match) {
+      await pool.query('ROLLBACK');
+      return res.status(400).json({ error: 'This link is invalid, expired, or has already been used.' });
+    }
+    const newHash = hashPassword(password);
+    await pool.query('UPDATE users SET password_hash=$1, must_change_password=false, date_updated=NOW() WHERE user_id=$2', [newHash, match.user_id]);
+    await pool.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE token_id=$1', [match.token_id]);
+    await pool.query('COMMIT');
+    res.json({ ok: true });
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, 'POST /api/auth/set-password:');
+  }
+});
+
 app.patch('/api/admin/users/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { first_name, last_name, role, is_superadmin, is_active } = req.body;
@@ -1675,6 +2070,143 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+
+// ── Sample Files API (object storage) ───────────────────────────────────────
+// Metadata lives in Postgres (sample_files table); the actual file bytes
+// live in S3-compatible object storage — see uploadFileToStorage /
+// getFileFromStorage / deleteFileFromStorage above for why.
+
+app.get('/api/sample-files/:ref', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, archived, date_created, date_updated
+       FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/sample-files/:ref:'); }
+});
+
+// The counterpart to the route above — lists ARCHIVED files specifically
+// (the main list route deliberately excludes them), for a "View Archived"
+// panel to show what's been removed but not permanently deleted, with a
+// path to restore.
+app.get('/api/sample-files/:ref/archived', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
+       FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/sample-files/:ref/archived:'); }
+});
+
+app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage is not configured on the server.' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded (expected multipart field "file").' });
+  const ref = req.params.ref;
+  const filename = req.body.filename || req.file.originalname;
+  const uploadedBy = req.body.uploadedBy || '';
+
+  try {
+    // If a file with this same name already exists for this workpaper,
+    // remember its old bucket key so it can be cleaned up — but only
+    // AFTER the new upload is confirmed to have succeeded, so a failed
+    // re-upload never destroys the previously-good file.
+    const { rows: existingRows } = await pool.query(
+      'SELECT bucket_key FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3',
+      [DEFAULT_TENANT_ID, ref, filename]
+    );
+    const oldBucketKey = existingRows[0]?.bucket_key || null;
+
+    const bucketKey = _buildBucketKey(DEFAULT_TENANT_ID, ref, filename);
+    await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
+
+    const { rows } = await pool.query(
+      `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+       ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+         bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+         size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+         uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+       RETURNING file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated`,
+      [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy]
+    );
+
+    // Now that the new object and the database row are both confirmed
+    // good, clean up the old object — best-effort; a failure here doesn't
+    // fail the whole upload, since the new file is already correctly
+    // stored and recorded.
+    if (oldBucketKey && oldBucketKey !== bucketKey) {
+      deleteFileFromStorage(oldBucketKey).catch(function(e){
+        console.error('[sample-files] Could not clean up old object', oldBucketKey, ':', e.message);
+      });
+    }
+
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'POST /api/sample-files/:ref:'); }
+});
+
+app.get('/api/sample-files/:ref/:fileId/download', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT filename, bucket_key, content_type FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
+      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'File not found' });
+    const file = rows[0];
+    const stored = await getFileFromStorage(file.bucket_key);
+    res.setHeader('Content-Type', file.content_type || stored.ContentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${file.filename.replace(/"/g, '')}"`);
+    if (stored.ContentLength) res.setHeader('Content-Length', stored.ContentLength);
+    // Stream directly to the response — never buffer the whole file in
+    // server memory, which matters at the file sizes this app handles.
+    stored.Body.pipe(res);
+  } catch(err) { return fail(res, err, 'GET /api/sample-files/:ref/:fileId/download:'); }
+});
+
+// Soft-hide, not delete — matches the same archived pattern already used
+// on workpapers. The object itself and its database row both stay intact;
+// this just drops it out of the normal file list (see the GET route's
+// archived=false filter above).
+app.patch('/api/sample-files/:ref/:fileId/archive', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE sample_files SET archived=$4, date_updated=NOW()
+       WHERE tenant_id=$1 AND ref=$2 AND file_id=$3 RETURNING file_id`,
+      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId, req.body.archived !== false]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'File not found' });
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'PATCH /api/sample-files/:ref/:fileId/archive:'); }
+});
+
+// Genuine, permanent deletion — removes the object from storage AND the
+// database row. Distinct from the archive route above; this is the real
+// "gone for good" action, used deliberately rather than as the default.
+app.delete('/api/sample-files/:ref/:fileId', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT bucket_key FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
+      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'File not found' });
+    await deleteFileFromStorage(rows[0].bucket_key);
+    await pool.query(
+      'DELETE FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
+      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'DELETE /api/sample-files/:ref/:fileId:'); }
 });
 
 
@@ -2396,6 +2928,15 @@ app.post('/api/analysis-notes/:type/:id', async (req, res) => {
     await pool.query(ROUTES[req.params.type].sql, [notes||'', DEFAULT_TENANT_ID, req.params.id]);
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+// The emailed password-setup link points here — serves the same main app
+// file (the password-set modal lives inside it and is triggered by the
+// frontend detecting the ?token= query parameter on load), rather than a
+// separate page. Must come before the static/catch-all handlers below so
+// this specific path is matched first.
+app.get('/set-password', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── Serve the frontend HTML (after all /api routes) ──────────────────────────
