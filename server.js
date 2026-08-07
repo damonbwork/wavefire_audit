@@ -599,49 +599,52 @@ async function initDB() {
         PRIMARY KEY (tenant_id, ref)
       );
 
-      -- ── Workpaper Types (template reference table) ──────────────────────────
-      -- Names the selectable workpaper templates and, critically, maps each
-      -- one to the actual layout_key that determines which sections/fields
-      -- render for a workpaper of that type — this is the "links to each of
-      -- the template designs" the reference table exists to do, not just a
-      -- list of display names. layout_key values correspond to the existing
-      -- wpStyle concept already used elsewhere in this app: 'full' (long
-      -- form, all sections), 'skinny' (short form, admin/narrow sections
-      -- hidden), and 'mtemplate' (the new M-Template layout with its own
-      -- Header/Information About this Control/Nature-Timing-Extent of the
-      -- TOC sections). A workpaper_type row's OWN name is what a workpaper's
-      -- type column gets set to when created via this table's option — kept
-      -- as free text on workpapers itself (matching every existing
-      -- workpaper type already stored that way) rather than a foreign key,
-      -- so this table can be extended with new template names later without
-      -- a migration on the (much larger, live) workpapers table itself.
+      -- ── Workpaper Types (administrative categorization ONLY) ────────────────
+      -- Genuinely separate from templates — this has NO bearing on which
+      -- layout/sections render. A workpaper's type is just what it is:
+      -- Planning, Testwork, Report, Admin, or Other. This was previously
+      -- conflated with templates in one table (workpaper_types held both,
+      -- distinguished only by a plain_type_selectable flag) — split apart
+      -- per explicit correction: these are two genuinely different
+      -- concepts, not one list with an exclusion bit.
       CREATE TABLE IF NOT EXISTS workpaper_types (
+        name        TEXT PRIMARY KEY,
+        description TEXT DEFAULT '',
+        sort_order  INTEGER DEFAULT 0,
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO workpaper_types (name, description, sort_order) VALUES
+        ('Planning', 'Planning workpaper.', 1),
+        ('Testwork', 'Testwork workpaper.', 2),
+        ('Report',   'Report workpaper.', 3),
+        ('Admin',    'Administrative workpaper.', 4),
+        ('Other',    'Other workpaper type.', 5)
+      ON CONFLICT (name) DO NOTHING;
+
+      -- ── Workpaper Templates (New Workpaper modal only) ───────────────────────
+      -- The starting-point choice a user makes ONCE, at creation, in the
+      -- New Workpaper modal. layout_key is what actually determines which
+      -- sections/fields render — this is NOT stored as an ongoing field
+      -- on the workpaper itself; its effect (the chosen layout) is
+      -- captured once into workpapers.wp_style at creation time and
+      -- persists from there. This table exists purely to drive that
+      -- one-time modal choice.
+      CREATE TABLE IF NOT EXISTS workpaper_templates (
         name        TEXT PRIMARY KEY,
         layout_key  TEXT NOT NULL,
         description TEXT DEFAULT '',
         sort_order  INTEGER DEFAULT 0,
         active      BOOLEAN NOT NULL DEFAULT true,
-        -- Distinguishes "selectable as a plain, manually-picked Workpaper
-        -- Type value" from "selectable as a New Workpaper modal starting
-        -- template." M-Template is real, active data (the modal built
-        -- earlier still needs it) but should NOT appear in the plain
-        -- Workpaper Type dropdown/filter — this flag is how one table
-        -- correctly serves both without duplicating rows or hardcoding an
-        -- exclusion list in the frontend.
-        plain_type_selectable BOOLEAN NOT NULL DEFAULT true,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-      INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
-        ('Planning',                 'skinny',    'Planning workpaper.', 1, true),
-        ('Testwork',                 'full',      'Testwork workpaper.', 2, true),
-        ('Report',                   'full',      'Report workpaper.', 3, true),
-        ('Admin',                    'skinny',    'Administrative workpaper.', 4, true),
-        ('Other',                    'skinny',    'Other workpaper type.', 5, true),
-        ('Workpaper-Short Template', 'skinny',    'Short-form workpaper — admin/narrow sections only.', 6, true),
-        ('Workpaper-Long Template',  'full',      'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 7, true),
-        ('M-Template',               'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 8, false),
-        ('M-Template-Short',         'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections — keeps Sample Data, Test Attributes, Attached Sample Files, and Exceptions.', 9, false)
+      INSERT INTO workpaper_templates (name, layout_key, description, sort_order) VALUES
+        ('Workpaper-Short Template', 'skinny',    'Short-form workpaper — admin/narrow sections only.', 1),
+        ('Workpaper-Long Template',  'full',      'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 2),
+        ('M-Template',               'mtemplate', 'Structured control-testing template.', 3),
+        ('M-Template-Short',         'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 4)
       ON CONFLICT (name) DO NOTHING;
 
       -- ── Workpaper Statuses (reference table, mirrors workpaper_types) ───────
@@ -1002,57 +1005,74 @@ async function initDB() {
       }
 
       await pool.query(`ALTER TABLE tenants            ADD COLUMN IF NOT EXISTS description   TEXT DEFAULT ''`);
-      await pool.query(`ALTER TABLE workpaper_types ADD COLUMN IF NOT EXISTS plain_type_selectable BOOLEAN NOT NULL DEFAULT true`);
-      // Correct the default for M-Template specifically, in case this
-      // migration is running against a table that already existed from
-      // before this column was added (a fresh CREATE TABLE handles new
-      // rows correctly via the INSERT above; existing rows need this
-      // explicit correction).
-      await pool.query(`UPDATE workpaper_types SET plain_type_selectable=false WHERE name='M-Template'`);
-      // Backfill the five legacy workpaper types in case this table is
-      // already live from a prior deploy without them — safe to run every
-      // startup, since ON CONFLICT DO NOTHING makes this a no-op once
-      // they exist.
-      await pool.query(`
-        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
-          ('Planning', 'skinny', 'Planning workpaper.', 1, true),
-          ('Testwork', 'full',   'Testwork workpaper.', 2, true),
-          ('Report',   'full',   'Report workpaper.', 3, true),
-          ('Admin',    'skinny', 'Administrative workpaper.', 4, true),
-          ('Other',    'skinny', 'Other workpaper type.', 5, true)
-        ON CONFLICT (name) DO NOTHING`);
-      // Explicit backfill for both M-Template rows — this is almost
-      // certainly the actual root cause of "M-Template-Short doesn't
-      // appear as selectable": workpaper_types was very likely already
-      // live on the database by the time M-Template-Short's row was
-      // added to the CREATE TABLE-adjacent seed INSERT above, which
-      // means that whole block was a no-op against the real table —
-      // the same failure class already documented and fixed for the
-      // five legacy types, just never extended to cover these two rows
-      // added in later turns. Safe to run every startup; ON CONFLICT DO
-      // NOTHING makes this inert once the rows genuinely exist.
-      //
-      // Wrapped in its OWN try/catch, deliberately isolated from the
-      // shared migration try/catch that wraps everything else in this
-      // function — that shared catch swallows any failure with one
-      // generic 'DB: migration skipped' warning, and critically, a
-      // failure partway through that shared block means EVERY migration
-      // listed after the failure point never runs either. Isolating this
-      // specific insert means a real failure here (found necessary after
-      // this exact bug was reported a second time despite this fix being
-      // in place — direct evidence the statement was likely failing
-      // silently every startup) is now logged distinctly and cannot
-      // silently block unrelated migrations that come after it.
+
+      // ── Correcting the conflated workpaper_types table ───────────────────
+      // This table used to hold BOTH administrative types (Planning,
+      // Testwork, Report, Admin, Other) AND templates (Workpaper-Short/
+      // Long Template, M-Template, M-Template-Short) in one list,
+      // distinguished only by a plain_type_selectable flag — a genuine
+      // design mistake corrected per explicit instruction: these are two
+      // different concepts and belong in two different tables. This
+      // removes the four template rows and the now-unnecessary
+      // layout_key/plain_type_selectable columns from the live table,
+      // leaving it as purely administrative categorization. Each step
+      // isolated in its own try/catch — a hard lesson from several
+      // preceding turns, where a shared catch block silently swallowed a
+      // failure and prevented a column from ever reaching the live table
+      // across multiple deploys without any visible error.
       try {
         await pool.query(`
-          INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
-            ('M-Template', 'mtemplate', 'Structured control-testing template.', 8, false),
-            ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 9, false)
-          ON CONFLICT (name) DO NOTHING`);
-        console.log('DB: M-Template workpaper_types backfill applied successfully');
-      } catch (mtErr) {
-        console.error('DB: M-Template workpaper_types backfill FAILED:', mtErr.message);
+          DELETE FROM workpaper_types
+          WHERE name IN ('Workpaper-Short Template', 'Workpaper-Long Template', 'M-Template', 'M-Template-Short')`);
+        console.log('DB: removed template rows from workpaper_types (they now live in workpaper_templates)');
+      } catch (cleanupErr) {
+        console.error('DB: could not remove template rows from workpaper_types:', cleanupErr.message);
       }
+      try {
+        await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS layout_key`);
+        await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS plain_type_selectable`);
+        console.log('DB: workpaper_types columns corrected — now purely administrative categorization');
+      } catch (colDropErr) {
+        console.error('DB: could not drop obsolete workpaper_types columns:', colDropErr.message);
+      }
+
+      // Defensive backfill for workpaper_templates — in case it's already
+      // live from a prior deploy of this exact turn's change without
+      // these rows (the same failure class already found and fixed for
+      // the old table's M-Template rows). Safe to run every startup.
+      try {
+        await pool.query(`
+          INSERT INTO workpaper_templates (name, layout_key, description, sort_order) VALUES
+            ('Workpaper-Short Template', 'skinny', 'Short-form workpaper — admin/narrow sections only.', 1),
+            ('Workpaper-Long Template',  'full',   'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 2),
+            ('M-Template',               'mtemplate', 'Structured control-testing template.', 3),
+            ('M-Template-Short',         'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 4)
+          ON CONFLICT (name) DO NOTHING`);
+        console.log('DB: workpaper_templates backfill applied successfully');
+      } catch (templateErr) {
+        console.error('DB: workpaper_templates backfill FAILED:', templateErr.message);
+      }
+
+      // ── workpapers.wp_style — a genuine, real gap found while making this
+      // fix: wpStyle was previously only ever an IN-MEMORY value on the
+      // frontend's WORKPAPERS array, computed once at creation from the
+      // chosen template, but NEVER actually persisted to Postgres as its
+      // own column. This meant it was silently lost on every page reload,
+      // and several display-time code paths were papering over that gap
+      // by re-deriving a layout from w.type instead — which will no
+      // longer work correctly now that w.type no longer ever holds a
+      // template name. This column is the real fix: the template's
+      // EFFECT (which layout to use) is captured here once, at creation,
+      // and persists correctly from then on — matching the confirmed
+      // design that templates themselves are never stored as an ongoing
+      // field on the workpaper.
+      try {
+        await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS wp_style TEXT DEFAULT 'full'`);
+        console.log('DB: workpapers.wp_style column ready');
+      } catch (wpStyleErr) {
+        console.error('DB: could not add workpapers.wp_style column:', wpStyleErr.message);
+      }
+
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -1279,151 +1299,32 @@ app.get('/api/control-categories', async (req, res) => {
   catch(err) { return fail(res, err, 'api'); }
 });
 
-// Returns full rows (not just names) — the New Workpaper modal needs
-// layout_key to actually determine which form/sections a workpaper of
-// the selected type gets, not just a name to display.
-//
-// ?plainOnly=true filters to plain_type_selectable=true only — used by
-// the plain "Workpaper type" dropdown/filter (which should NOT offer
-// M-Template as a manually-pickable value) while leaving this route's
-// default, unfiltered behavior exactly as the New Workpaper modal
-// already depends on (that modal genuinely should still offer every
-// active template, M-Template included).
+// Purely administrative categorization now — Planning, Testwork, Report,
+// Admin, Other. Genuinely no bearing on layout; that's workpaper_templates'
+// job now (see below), not this table's.
 app.get('/api/workpaper-types', async (req, res) => {
   if (!pool) return res.json([]);
-  const plainOnly = req.query.plainOnly === 'true';
   try {
     const { rows } = await pool.query(
-      `SELECT name, layout_key, description FROM workpaper_types
-       WHERE active=true ${plainOnly ? 'AND plain_type_selectable=true' : ''}
-       ORDER BY sort_order, name`
+      `SELECT name, description FROM workpaper_types WHERE active=true ORDER BY sort_order, name`
     );
     res.json(rows);
-  } catch(err) {
-    // If plainOnly=true failed specifically (e.g. plain_type_selectable
-    // doesn't actually exist on the live table), degrade to the
-    // unfiltered list rather than a hard failure — the New Workpaper
-    // modal itself never sends plainOnly at all, so this fallback is
-    // purely a defensive measure for the plain Type dropdown/filter,
-    // which is better served by showing everything than showing nothing.
-    if (plainOnly) {
-      try {
-        const { rows } = await pool.query(`SELECT name, layout_key, description FROM workpaper_types WHERE active=true ORDER BY sort_order, name`);
-        console.error('[GET /api/workpaper-types] plainOnly query failed, fell back to unfiltered:', err.message);
-        return res.json(rows);
-      } catch (err2) { /* fall through to normal error handling below */ }
-    }
-    return fail(res, err, 'GET /api/workpaper-types:');
-  }
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
 });
 
-// Direct diagnostic: force-inserts both M-Template rows and returns the
-// REAL Postgres error if it fails, rather than the generic warning the
-// startup migration's shared catch block would otherwise produce. Visit
-// this directly in a browser to get a definitive answer on whether this
-// specific insert is genuinely failing on the live database, and why —
-// built after this exact bug was reported a second time despite an
-// earlier fix believed correct, to stop guessing and get real evidence.
-app.get('/api/diagnose-mtemplate', async (req, res) => {
-  if (!pool) return res.status(503).json({ error: 'No database' });
-  const result = { steps: [] };
+// The New Workpaper modal's own dedicated route — returns layout_key,
+// since that's specifically what determines which sections/fields render
+// once a template is chosen at creation. This choice is never stored as
+// an ongoing field on the workpaper itself; its EFFECT is captured once
+// into workpapers.wp_style at creation time (see submitNewWorkpaper).
+app.get('/api/workpaper-templates', async (req, res) => {
+  if (!pool) return res.json([]);
   try {
-    // Step 0: which schema(s) actually contain a table named
-    // workpaper_types — rules out the possibility that the CREATE TABLE
-    // and the ALTER TABLE (or the diagnostic's own SELECT) are somehow
-    // resolving against different tables via schema/search_path
-    // ambiguity, rather than genuinely the same one.
-    try {
-      const schemas = await pool.query(`
-        SELECT table_schema, table_name
-        FROM information_schema.tables
-        WHERE table_name = 'workpaper_types'`);
-      result.tables_named_workpaper_types = schemas.rows;
-      result.steps.push({ step: 'check_schemas', ok: true });
-    } catch (e) {
-      result.steps.push({ step: 'check_schemas', ok: false, error: { message: e.message, code: e.code } });
-    }
-
-    // Step 0.5: attempt the EXACT ALTER TABLE statement live, right now
-    // — this is the most direct possible test. If this succeeds here but
-    // the column still doesn't show up in step 1 afterward, that's
-    // genuinely strange and worth knowing. If it fails, the real error
-    // (not an inference about a past, unobservable startup run) tells us
-    // definitively what's actually wrong.
-    try {
-      await pool.query(`ALTER TABLE workpaper_types ADD COLUMN IF NOT EXISTS plain_type_selectable BOOLEAN NOT NULL DEFAULT true`);
-      result.live_alter_table_result = 'succeeded';
-      result.steps.push({ step: 'live_alter_table', ok: true });
-    } catch (e) {
-      result.live_alter_table_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
-      result.steps.push({ step: 'live_alter_table', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
-    }
-
-    // Step 1: what columns ACTUALLY exist on the live table right now —
-    // queried directly from Postgres's own system catalog, not assumed
-    // from this file's schema definition. This is the definitive check:
-    // if plain_type_selectable (or any other expected column) is
-    // genuinely missing here, that's the real, confirmed cause, not a
-    // guess.
-    try {
-      const cols = await pool.query(`
-        SELECT column_name, data_type, column_default
-        FROM information_schema.columns
-        WHERE table_name = 'workpaper_types'
-        ORDER BY ordinal_position`);
-      result.live_columns = cols.rows;
-      result.steps.push({ step: 'check_columns', ok: true });
-    } catch (e) {
-      result.steps.push({ step: 'check_columns', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
-    }
-
-    // Step 2: the actual SELECT the main /api/workpaper-types route runs
-    // — wrapped here so a real failure is captured and shown, not just
-    // turned into a generic 500 with no detail (which is what happened
-    // last time this route was hit — the equivalent unguarded SELECT
-    // below was almost certainly the real, actual cause).
-    try {
-      const before = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
-      result.before_insert = before.rows;
-      result.steps.push({ step: 'select_before', ok: true });
-    } catch (e) {
-      result.steps.push({ step: 'select_before', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
-      result.before_insert_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
-    }
-
-    // Step 3: the insert itself.
-    try {
-      await pool.query(`
-        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
-          ('M-Template', 'mtemplate', 'Structured control-testing template.', 8, false),
-          ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 9, false)
-        ON CONFLICT (name) DO NOTHING`);
-      result.insert_result = 'succeeded';
-      result.steps.push({ step: 'insert', ok: true });
-    } catch (e) {
-      result.insert_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
-      result.steps.push({ step: 'insert', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
-    }
-
-    // Step 4: re-check after the insert attempt.
-    try {
-      const after = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
-      result.after_insert = after.rows;
-      result.mtemplate_short_now_present = after.rows.some(r => r.name === 'M-Template-Short');
-      result.steps.push({ step: 'select_after', ok: true });
-    } catch (e) {
-      result.steps.push({ step: 'select_after', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
-    }
-
-    res.json(result);
-  } catch(err) {
-    // This outer catch should now be effectively unreachable — every
-    // real query above has its own try/catch — but kept as a genuine
-    // last resort. If THIS still fires, result.steps shows exactly how
-    // far execution got before something entirely unexpected happened.
-    result.unexpected_error = { message: err.message, code: err.code };
-    res.status(500).json(result);
-  }
+    const { rows } = await pool.query(
+      `SELECT name, layout_key, description FROM workpaper_templates WHERE active=true ORDER BY sort_order, name`
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-templates:'); }
 });
 
 // Real, canonical workpaper status values/labels — see the
@@ -2231,7 +2132,8 @@ app.post('/api/workpapers', async (req, res) => {
     toc_inquiry_performed, toc_observation_performed, toc_reperformance_performed,
     toc_period_from_mmyyyy, toc_period_to_mmyyyy,
     population_source, population_size, population_completeness_desc,
-    toc_sample_size, sample_selection_method, mt_entity_name, mt_itgc_ref
+    toc_sample_size, sample_selection_method, mt_entity_name, mt_itgc_ref,
+    wp_style
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -2246,11 +2148,11 @@ app.post('/api/workpapers', async (req, res) => {
          toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
          toc_period_from_mmyyyy,toc_period_to_mmyyyy,
          population_source,population_size,population_completeness_desc,
-         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,updated_at)
+         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
               $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
               $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
-              $43,$44,$45,$46,$47,$48,$49,$50,NOW())
+              $43,$44,$45,$46,$47,$48,$49,$50,$51,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -2293,6 +2195,7 @@ app.post('/api/workpapers', async (req, res) => {
         population_completeness_desc=EXCLUDED.population_completeness_desc,
         toc_sample_size=EXCLUDED.toc_sample_size, sample_selection_method=EXCLUDED.sample_selection_method,
         mt_entity_name=EXCLUDED.mt_entity_name, mt_itgc_ref=EXCLUDED.mt_itgc_ref,
+        wp_style=EXCLUDED.wp_style,
         updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
@@ -2311,7 +2214,7 @@ app.post('/api/workpapers', async (req, res) => {
        !!toc_inquiry_performed, !!toc_observation_performed, !!toc_reperformance_performed,
        toc_period_from_mmyyyy||'', toc_period_to_mmyyyy||'',
        population_source||'', population_size||'', population_completeness_desc||'',
-       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||''
+       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full'
       ]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
