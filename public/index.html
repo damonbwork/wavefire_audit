@@ -4526,7 +4526,14 @@ auditor's assessment.
           </div>
           <div class="sect-body">
             <div class="field-grid">
-              <div class="fld">
+              <div class="fld" style="display:none">
+                <!-- Hidden per explicit instruction — this field is no
+                     longer shown in the New Workpaper form. The select
+                     itself stays in the DOM and functioning: the New
+                     Workpaper modal (selectWorkpaperTemplate) writes the
+                     chosen template's name here, and submitNewWorkpaper()
+                     reads it at creation time. Deleting the element would
+                     break that flow; it's only hidden from view. -->
                 <div class="fl">Workpaper type</div>
                 <select id="nwp-type" class="aud-field-select">
                   <option value="">— Select type —</option>
