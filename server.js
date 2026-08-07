@@ -555,6 +555,36 @@ async function initDB() {
         sample_data            JSONB DEFAULT '{"columns":[],"rows":[]}',
         exceptions             JSONB DEFAULT '[]',
         archived               BOOLEAN DEFAULT false,
+        -- ── KPMG Template fields (new workpaper type, sections: Header,
+        -- Information About this Control, Nature of the TOC) — genuinely
+        -- new columns, not reused from existing fields, except where the
+        -- user explicitly said to map onto an existing one (reviewer =
+        -- "Final Reviewer" — no new column needed for that one).
+        audit_date               DATE,
+        peer_reviewer            TEXT DEFAULT '',
+        gr_review                TEXT DEFAULT '',
+        control_description      TEXT DEFAULT '',
+        it_process               TEXT DEFAULT '',
+        frequency                TEXT DEFAULT '',
+        frequency_other          TEXT DEFAULT '',
+        risk_of_failure          TEXT DEFAULT '',
+        rationale_higher_risk    TEXT DEFAULT '',
+        toc_inquiry_performed       BOOLEAN DEFAULT false,
+        toc_observation_performed   BOOLEAN DEFAULT false,
+        toc_reperformance_performed BOOLEAN DEFAULT false,
+        -- Timing of the TOC — stored as plain MM/YYYY text (matching how
+        -- the original ITGC file itself stored this: a genuine text
+        -- string, not a real date type, despite the visual date-like
+        -- formatting hint) — the actual masking/validation happens in
+        -- the input field itself, not the database column.
+        toc_period_from_mmyyyy    TEXT DEFAULT '',
+        toc_period_to_mmyyyy      TEXT DEFAULT '',
+        -- Extent of the TOC
+        population_source         TEXT DEFAULT '',
+        population_size           TEXT DEFAULT '', -- free text per explicit confirmation — may include a note alongside a number, not a strict integer
+        population_completeness_desc TEXT DEFAULT '',
+        toc_sample_size            TEXT DEFAULT '', -- free text, same reasoning as population_size
+        sample_selection_method    TEXT DEFAULT '',
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, ref)
@@ -880,6 +910,27 @@ async function initDB() {
       // archive/restore cycle untouched, so archiving a workpaper never
       // overwrites or loses whatever status it actually had.
       await pool.query(`ALTER TABLE workpapers         ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT false`);
+      // KPMG Template workpaper type — new fields, added to the existing
+      // live table the same way every other migration here does.
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS audit_date DATE`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS peer_reviewer TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS gr_review TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS control_description TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS it_process TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS frequency TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS frequency_other TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS risk_of_failure TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS rationale_higher_risk TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_inquiry_performed BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_observation_performed BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_reperformance_performed BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_period_from_mmyyyy TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_period_to_mmyyyy TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS population_source TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS population_size TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS population_completeness_desc TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_sample_size TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS sample_selection_method TEXT DEFAULT ''`);
       // Stable per-workpaper id, used to link sample_data_columns/rows and
       // extracted_data back to their workpaper — ref stays the
       // primary key and the human-readable/editable identifier used
@@ -1499,6 +1550,26 @@ app.get('/api/admin/users', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
 });
 
+// Non-admin users only — specifically for the KPMG Template workpaper
+// type's Peer Reviewer and GR Review dropdowns, which the user explicitly
+// asked to use the same user list as Preparer but restricted to
+// non-admins. Kept as a genuinely separate route from GET /api/admin/users
+// above (rather than a query-parameter toggle on it), since that route is
+// itself an admin-facing endpoint whose own correct behavior is to show
+// EVERY user including admins — conflating the two risks that list
+// silently excluding admins if a filter flag were ever left off by mistake.
+app.get('/api/users/non-admin', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT user_id, email, first_name, last_name FROM users
+       WHERE is_superadmin=false AND role != 'admin'
+       ORDER BY last_name, first_name`
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/users/non-admin:'); }
+});
+
 // Type-ahead search for the "assign users to this tenant" picker — matches
 // on first name, last name, or email, case-insensitively, as a substring.
 // Excludes users already assigned to the given tenant (if tenantId is
@@ -1804,7 +1875,13 @@ app.post('/api/workpapers', async (req, res) => {
     narrative, description, test_desc,
     linked_controls, linked_risks, linked_entities, fs_accounts,
     scope_entities, scope_fs_accounts,
-    test_attributes, sample_fields, sample_data, exceptions, archived
+    test_attributes, sample_fields, sample_data, exceptions, archived,
+    audit_date, peer_reviewer, gr_review, control_description,
+    it_process, frequency, frequency_other, risk_of_failure, rationale_higher_risk,
+    toc_inquiry_performed, toc_observation_performed, toc_reperformance_performed,
+    toc_period_from_mmyyyy, toc_period_to_mmyyyy,
+    population_source, population_size, population_completeness_desc,
+    toc_sample_size, sample_selection_method
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -1813,9 +1890,17 @@ app.post('/api/workpapers', async (req, res) => {
          date_started,review_date,date_submitted,secondary_review_date,
          population,sample_method,sample_size,narrative,description,test_desc,
          linked_controls,linked_risks,linked_entities,fs_accounts,
-         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,archived,updated_at)
+         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,archived,
+         audit_date,peer_reviewer,gr_review,control_description,
+         it_process,frequency,frequency_other,risk_of_failure,rationale_higher_risk,
+         toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
+         toc_period_from_mmyyyy,toc_period_to_mmyyyy,
+         population_source,population_size,population_completeness_desc,
+         toc_sample_size,sample_selection_method,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,NOW())
+              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
+              $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
+              $43,$44,$45,$46,$47,$48,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -1843,7 +1928,21 @@ app.post('/api/workpapers', async (req, res) => {
         -- while still writing whatever's provided (or the default) on first
         -- INSERT, keeps this column's content stable until the migration
         -- that depends on it is retired.
-        exceptions=EXCLUDED.exceptions, archived=EXCLUDED.archived, updated_at=NOW()`,
+        exceptions=EXCLUDED.exceptions, archived=EXCLUDED.archived,
+        audit_date=EXCLUDED.audit_date, peer_reviewer=EXCLUDED.peer_reviewer,
+        gr_review=EXCLUDED.gr_review, control_description=EXCLUDED.control_description,
+        it_process=EXCLUDED.it_process, frequency=EXCLUDED.frequency,
+        frequency_other=EXCLUDED.frequency_other, risk_of_failure=EXCLUDED.risk_of_failure,
+        rationale_higher_risk=EXCLUDED.rationale_higher_risk,
+        toc_inquiry_performed=EXCLUDED.toc_inquiry_performed,
+        toc_observation_performed=EXCLUDED.toc_observation_performed,
+        toc_reperformance_performed=EXCLUDED.toc_reperformance_performed,
+        toc_period_from_mmyyyy=EXCLUDED.toc_period_from_mmyyyy,
+        toc_period_to_mmyyyy=EXCLUDED.toc_period_to_mmyyyy,
+        population_source=EXCLUDED.population_source, population_size=EXCLUDED.population_size,
+        population_completeness_desc=EXCLUDED.population_completeness_desc,
+        toc_sample_size=EXCLUDED.toc_sample_size, sample_selection_method=EXCLUDED.sample_selection_method,
+        updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
        date_started||null, review_date||null, date_submitted||null, secondary_review_date||null,
@@ -1855,7 +1954,13 @@ app.post('/api/workpapers', async (req, res) => {
        JSON.stringify(test_attributes||[]), JSON.stringify(sample_fields||[]),
        JSON.stringify(sample_data||{columns:[],rows:[]}),
        JSON.stringify(exceptions||[]),
-       !!archived
+       !!archived,
+       audit_date||null, peer_reviewer||'', gr_review||'', control_description||'',
+       it_process||'', frequency||'', frequency_other||'', risk_of_failure||'', rationale_higher_risk||'',
+       !!toc_inquiry_performed, !!toc_observation_performed, !!toc_reperformance_performed,
+       toc_period_from_mmyyyy||'', toc_period_to_mmyyyy||'',
+       population_source||'', population_size||'', population_completeness_desc||'',
+       toc_sample_size||'', sample_selection_method||''
       ]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
