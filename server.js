@@ -1327,6 +1327,45 @@ app.get('/api/workpaper-types', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
 });
 
+// Direct diagnostic: lists every route Express has ACTUALLY registered
+// on the currently-running process, plus basic process info (uptime,
+// memory, start time). Built after three long-established, unrelated
+// GET routes were all reported 404ing simultaneously on what was
+// confirmed to be a genuinely fresh deploy — ruling out the "not yet
+// redeployed" explanation that resolved an earlier, similar-looking
+// report. This answers with certainty whether the routes are actually
+// registered on the live process (not just present in this file, which
+// only shows what SHOULD be registered) and how long that process has
+// actually been running, rather than guessing further.
+app.get('/api/diagnose-routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach(function(layer) {
+    if (layer.route) {
+      const methods = Object.keys(layer.route.methods).filter(m => layer.route.methods[m]).map(m => m.toUpperCase());
+      routes.push({ path: layer.route.path, methods });
+    } else if (layer.name === 'router' && layer.handle?.stack) {
+      layer.handle.stack.forEach(function(sub) {
+        if (sub.route) {
+          const methods = Object.keys(sub.route.methods).filter(m => sub.route.methods[m]).map(m => m.toUpperCase());
+          routes.push({ path: sub.route.path, methods });
+        }
+      });
+    }
+  });
+  const targetPaths = ['/api/admin/users', '/api/workpaper-statuses', '/api/sample-files/:ref'];
+  const targetStatus = targetPaths.map(function(p) {
+    return { path: p, registered: routes.some(function(r) { return r.path === p; }) };
+  });
+  res.json({
+    process_uptime_seconds: process.uptime(),
+    process_start_time: new Date(Date.now() - process.uptime()*1000).toISOString(),
+    total_routes_registered: routes.length,
+    target_routes_status: targetStatus,
+    all_routes: routes.map(r => r.methods.join(',') + ' ' + r.path),
+  });
+});
+
+
 // The New Workpaper modal's own dedicated route — returns layout_key,
 // since that's specifically what determines which sections/fields render
 // once a template is chosen at creation. This choice is never stored as
