@@ -590,6 +590,37 @@ async function initDB() {
         PRIMARY KEY (tenant_id, ref)
       );
 
+      -- ── Workpaper Types (template reference table) ──────────────────────────
+      -- Names the selectable workpaper templates and, critically, maps each
+      -- one to the actual layout_key that determines which sections/fields
+      -- render for a workpaper of that type — this is the "links to each of
+      -- the template designs" the reference table exists to do, not just a
+      -- list of display names. layout_key values correspond to the existing
+      -- wpStyle concept already used elsewhere in this app: 'full' (long
+      -- form, all sections), 'skinny' (short form, admin/narrow sections
+      -- hidden), and 'mtemplate' (the new M-Template layout with its own
+      -- Header/Information About this Control/Nature-Timing-Extent of the
+      -- TOC sections). A workpaper_type row's OWN name is what a workpaper's
+      -- type column gets set to when created via this table's option — kept
+      -- as free text on workpapers itself (matching every existing
+      -- workpaper type already stored that way) rather than a foreign key,
+      -- so this table can be extended with new template names later without
+      -- a migration on the (much larger, live) workpapers table itself.
+      CREATE TABLE IF NOT EXISTS workpaper_types (
+        name        TEXT PRIMARY KEY,
+        layout_key  TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        sort_order  INTEGER DEFAULT 0,
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO workpaper_types (name, layout_key, description, sort_order) VALUES
+        ('Workpaper-Short Template', 'skinny',    'Short-form workpaper — admin/narrow sections only.', 1),
+        ('Workpaper-Long Template',  'full',      'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 2),
+        ('M-Template',               'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 3)
+      ON CONFLICT (name) DO NOTHING;
+
       CREATE TABLE IF NOT EXISTS company_context (
         tenant_id   TEXT NOT NULL DEFAULT 'default',
         id          INTEGER DEFAULT 1,
@@ -1116,6 +1147,19 @@ app.get('/api/control-categories', async (req, res) => {
   if (!pool) return res.json([]);
   try { const { rows } = await pool.query('SELECT name FROM control_categories ORDER BY sort_order, name'); res.json(rows.map(r=>r.name)); }
   catch(err) { return fail(res, err, 'api'); }
+});
+
+// Returns full rows (not just names) — the New Workpaper modal needs
+// layout_key to actually determine which form/sections a workpaper of
+// the selected type gets, not just a name to display.
+app.get('/api/workpaper-types', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT name, layout_key, description FROM workpaper_types WHERE active=true ORDER BY sort_order, name'
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
 });
 
 app.post('/api/control-categories', async (req, res) => {
