@@ -615,12 +615,27 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-      INSERT INTO workpaper_types (name, description, sort_order) VALUES
-        ('Planning', 'Planning workpaper.', 1),
-        ('Testwork', 'Testwork workpaper.', 2),
-        ('Report',   'Report workpaper.', 3),
-        ('Admin',    'Administrative workpaper.', 4),
-        ('Other',    'Other workpaper type.', 5)
+      -- This INSERT deliberately does NOT rely on the CREATE TABLE above
+      -- alone: on a database where workpaper_types already exists from
+      -- before this session's Type/Template split, IF NOT EXISTS means
+      -- Postgres skips that CREATE TABLE entirely, leaving the LIVE
+      -- table's actual structure in place — which still has layout_key
+      -- defined as TEXT NOT NULL at this exact point in execution (the
+      -- migration that drops that column is a separate, LATER query,
+      -- not part of this same multi-statement batch). An INSERT that
+      -- omits layout_key would violate that constraint and throw,
+      -- silently aborting every statement after it in this one giant
+      -- query — including workpaper_templates' own CREATE TABLE further
+      -- below, which is the actual, now-confirmed reason it never
+      -- existed at all despite being correctly written. Providing an
+      -- explicit, harmless value here satisfies the live constraint
+      -- regardless of whether the later DROP COLUMN migration has run.
+      INSERT INTO workpaper_types (name, description, sort_order, layout_key) VALUES
+        ('Planning', 'Planning workpaper.', 1, 'n/a'),
+        ('Testwork', 'Testwork workpaper.', 2, 'n/a'),
+        ('Report',   'Report workpaper.', 3, 'n/a'),
+        ('Admin',    'Administrative workpaper.', 4, 'n/a'),
+        ('Other',    'Other workpaper type.', 5, 'n/a')
       ON CONFLICT (name) DO NOTHING;
 
       -- ── Workpaper Templates (New Workpaper modal only) ───────────────────────
