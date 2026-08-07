@@ -2262,14 +2262,7 @@
           <input type="text" id="wp-search" placeholder="Search ref or name…" oninput="filterWorkpapers()" style="min-width:160px">
           <!-- 2. Type -->
           <select id="wp-filter-type" onchange="filterWorkpapers()">
-            <option value="">—</option>
-                  <option value="" selected="selected">All types</option>
-            <option>Planning</option>
-            <option>Testwork</option>
-            <option>Report</option>
-                        <option>Admin</option>
-            <option>Other</option>
-            <option>M-Template</option>
+            <option value="">All types</option>
           </select>
           <!-- 3. Preparer -->
           <select id="wp-filter-preparer" onchange="filterWorkpapers()"><option value="">—</option>
@@ -2282,11 +2275,7 @@
                   <option value="" selected="selected">All review months</option><option value="2026-04">Apr 2026</option><option value="2026-05">May 2026</option><option value="2026-06">Jun 2026</option><option value="2026-07">Jul 2026</option></select>
           <!-- 6. Status -->
           <select id="wp-filter-status" onchange="filterWorkpapers()">
-            <option value="">—</option>
-                  <option value="" selected="selected">All statuses</option>
-            <option>Draft</option>
-            <option>In review</option>
-            <option>Reviewed</option>
+            <option value="">All statuses</option>
           </select>
           <!-- 7. Results -->
           <select id="wp-filter-results" onchange="filterWorkpapers()" style="min-width:160px">
@@ -2521,7 +2510,7 @@
                 <div class="pt" id="wpd-title">PRS Invoice Testwork</div>
                 <div id="wpd-tag-view" style="font-size:13px;font-weight:700;color:var(--wf-navy);letter-spacing:1px;flex-shrink:0">FIN</div>
               </div>
-              <div class="ps" id="wpd-sub">WP-2026-FIN-002 · Testwork · PRS Audits</div>
+              <div class="ps" id="wpd-sub">WP-2026-FIN-002</div>
             </div>
             <!-- Edit mode -->
             <div id="wpd-header-edit" style="display:none;flex-direction:column;gap:5px">
@@ -2579,9 +2568,6 @@
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Status</div>
               <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status'); setDogEarsVisible(this.value !== 'approved' &amp;&amp; this.value !== 'complete')">
                 <option value="">—</option>
-                  <option value="draft" selected="selected">Draft</option>
-                <option value="review">In review</option>
-                <option value="approved">Reviewed</option>
               </select>
             </div>
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
@@ -2659,6 +2645,160 @@
               </div>
             </div>
           </div></div>
+
+        <!-- M-Template Section 1: Header -->
+        <div class="sect-card" id="sect-mtemplate-header" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-file-text"></i>Header</div>
+          </div>
+          <div class="sect-body">
+            <div class="field-grid">
+              <div class="fld">
+                <div class="fl">Audit date</div>
+                <input type="date" id="mt-audit-date" onchange="mtFieldChanged('audit_date', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Preparer</div>
+                <select id="mt-preparer" onchange="mtPreparerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">Peer Reviewer</div>
+                <select id="mt-peer-reviewer" onchange="mtFieldChanged('peer_reviewer', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">GR Review</div>
+                <select id="mt-gr-review" onchange="mtFieldChanged('gr_review', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">Final Reviewer</div>
+                <select id="mt-final-reviewer" onchange="mtFinalReviewerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                  <option value="">—</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- M-Template Section 2: Information About this Control -->
+        <div class="sect-card" id="sect-mtemplate-control-info" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-info-circle"></i>Information About this Control</div>
+          </div>
+          <div class="sect-body">
+            <div class="fld" style="margin-bottom:10px">
+              <div class="fl">Control Description</div>
+              <textarea id="mt-control-description" oninput="autoResizeTA(this)" onblur="mtFieldChanged('control_description', this.value)" placeholder="Describe the control…" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 8px;resize:none;outline:none;line-height:1.5;overflow:hidden;min-height:80px"></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="fld">
+                <div class="fl">IT Process</div>
+                <input type="text" id="mt-it-process" onblur="mtFieldChanged('it_process', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Frequency</div>
+                <input type="text" id="mt-frequency" onblur="mtFieldChanged('frequency', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">If other, describe</div>
+                <input type="text" id="mt-frequency-other" onblur="mtFieldChanged('frequency_other', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Risk of failure</div>
+                <input type="text" id="mt-risk-of-failure" onblur="mtFieldChanged('risk_of_failure', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Rationale for Higher Risk</div>
+                <input type="text" id="mt-rationale-higher-risk" onblur="mtFieldChanged('rationale_higher_risk', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- M-Template Section 3: Nature of the TOC — checkboxes only, no text entry -->
+        <div class="sect-card" id="sect-mtemplate-nature-toc" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-checkbox"></i>Nature of the TOC</div>
+          </div>
+          <div class="sect-body" style="display:flex;flex-direction:column;gap:10px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="mt-toc-inquiry" onchange="mtFieldChanged('toc_inquiry_performed', this.checked)" style="width:16px;height:16px;accent-color:var(--wf-navy)">
+              Inquiry regarding performance of the control
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="mt-toc-observation" onchange="mtFieldChanged('toc_observation_performed', this.checked)" style="width:16px;height:16px;accent-color:var(--wf-navy)">
+              Observation of the control taking place
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="mt-toc-reperformance" onchange="mtFieldChanged('toc_reperformance_performed', this.checked)" style="width:16px;height:16px;accent-color:var(--wf-navy)">
+              Reperformance of the control
+            </label>
+          </div>
+        </div>
+
+        <!-- M-Template Section 4: Timing of the TOC — real MM/YYYY masked
+             text inputs, not a native month picker (its stored value is
+             fixed regardless of display, its ON-SCREEN format is locale-
+             dependent rather than a guaranteed literal "MM/YYYY", and
+             browser support outside Chrome/Edge is genuinely inconsistent
+             — confirmed by direct research before building this). -->
+        <div class="sect-card" id="sect-mtemplate-timing-toc" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-calendar"></i>Timing of the TOC</div>
+          </div>
+          <div class="sect-body">
+            <div class="field-grid">
+              <div class="fld">
+                <div class="fl">Period covered by the control test: From date</div>
+                <input type="text" id="mt-period-from" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
+                  oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_from_mmyyyy')"
+                  style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Period covered by the control test: To date</div>
+                <input type="text" id="mt-period-to" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
+                  oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_to_mmyyyy')"
+                  style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- M-Template Section 5: Extent of the TOC -->
+        <div class="sect-card" id="sect-mtemplate-extent-toc" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-list-details"></i>Extent of the TOC</div>
+          </div>
+          <div class="sect-body">
+            <div class="fld" style="margin-bottom:10px">
+              <div class="fl">Population source (system name or description)</div>
+              <input type="text" id="mt-population-source" onblur="mtFieldChanged('population_source', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+            </div>
+            <div class="field-grid">
+              <div class="fld">
+                <div class="fl">Population Size</div>
+                <input type="text" id="mt-population-size" onblur="mtFieldChanged('population_size', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+              <div class="fld">
+                <div class="fl">Sample Size</div>
+                <input type="text" id="mt-sample-size" onblur="mtFieldChanged('toc_sample_size', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+              </div>
+            </div>
+            <div class="fld" style="margin-top:10px;margin-bottom:10px">
+              <div class="fl">Description of the procedures performed to determine how the population was determined to be complete</div>
+              <textarea id="mt-population-completeness" oninput="autoResizeTA(this)" onblur="mtFieldChanged('population_completeness_desc', this.value)" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 8px;resize:none;outline:none;line-height:1.5;overflow:hidden;min-height:60px"></textarea>
+            </div>
+            <div class="fld">
+              <div class="fl">Sample selection method (e.g., random, systematic, haphazard. If random, reference the EY random workpaper or include it in a separate tab. If systematic, indicate the criteria used to select the sample.)</div>
+              <textarea id="mt-sample-selection-method" oninput="autoResizeTA(this)" onblur="mtFieldChanged('sample_selection_method', this.value)" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 8px;resize:none;outline:none;line-height:1.5;overflow:hidden;min-height:60px"></textarea>
+            </div>
+          </div>
+        </div>
 
         <!-- Section 2: Scope -->
         <div class="sect-card" id="sect-risks-controls">
@@ -4369,23 +4509,13 @@ auditor's assessment.
               <div class="fld">
                 <div class="fl">Workpaper type</div>
                 <select id="nwp-type" class="aud-field-select">
-                  <option value="">—</option>
-                  <option value="" selected="selected">— Select type —</option>
-                  <option>Planning</option>
-                  <option>Testwork</option>
-                  <option>Report</option>
-                                    <option>Admin</option>
-                  <option>Other</option>
-                  <option>M-Template</option>
+                  <option value="">— Select type —</option>
                 </select>
               </div>
               <div class="fld">
                 <div class="fl">Status</div>
                 <select id="nwp-status" class="aud-field-select">
                   <option value="">—</option>
-                  <option value="draft" selected="selected">Draft</option>
-                  <option value="review">In review</option>
-                  <option value="approved">Reviewed</option>
                 </select>
               </div>
             </div>
@@ -6138,7 +6268,7 @@ function openWP(i) {
   if (elBcAuditWp) elBcAuditWp.textContent = audit.name;
   if (elBcWpRef)   elBcWpRef.textContent   = w.ref;
   if (elWpdTitle)  elWpdTitle.textContent   = w.name;
-  if (elWpdSub)    elWpdSub.textContent     = `${w.ref} · ${w.type} · ${audit.name}`;
+  if (elWpdSub)    elWpdSub.textContent     = w.ref;
 
   // ── Audit information strip (compact) ──
   const elAuditName      = document.getElementById('wpd-audit-name');
@@ -6171,6 +6301,7 @@ function openWP(i) {
   }
   const statusSel = document.getElementById('wpd-status');
   if (statusSel) statusSel.value = w.status || 'draft';
+  populateWorkpaperStatusDropdowns(); // fire-and-forget — same pattern as populatePreparerReviewerDropdowns above
   const secRevSel = document.getElementById('wpd-secondary-reviewer');
   if (secRevSel) secRevSel.value = w.secondaryReviewer || '';
   const secRdEl = document.getElementById('wpd-secondary-review-date');
@@ -6319,18 +6450,39 @@ function openWP(i) {
   renderLinkedFSAccounts();
 
   // ── Show/hide sections based on workpaper style ──────────────────────
-  // Full workpaper (Testwork, Report, Memo): show all sections
-  // Skinny workpaper (Admin, Other, Planning): hide scope, narrative, test attrs, files, analyze
-  const fullTypes   = ['Testwork', 'Report'];
-  const isFull      = fullTypes.includes(w.type) || w.wpStyle === 'full';
+  // Looked up from the real workpaper_types data via _layoutKeyForType —
+  // NOT the old hardcoded fullTypes=['Testwork','Report'] check, which
+  // had no concept of M-Template (or any future template) at this
+  // DISPLAY-time location, even though the same bug was already fixed at
+  // CREATION time. A correctly-created M-Template workpaper would have
+  // silently rendered as a skinny workpaper here regardless, since this
+  // check never knew M-Template existed.
+  const layoutKey   = _layoutKeyForType(w.type);
+  const isFull      = layoutKey === 'full' || w.wpStyle === 'full';
+  const isMTemplate = layoutKey === 'mtemplate';
   const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-sample-data','sect-test-attributes','sect-sample-files','sect-analyze','sect-exceptions'];
   sectIds.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = isFull ? '' : 'none';
+    if (el) el.style.display = (isFull && !isMTemplate) ? '' : 'none';
   });
   // Attached workpaper files always visible (both full and skinny)
   const wpFilesEl = document.getElementById('sect-wp-files');
   if (wpFilesEl) wpFilesEl.style.display = '';
+
+  // M-Template gets its own dedicated sections (Header, Information
+  // About this Control, Nature/Timing/Extent of the TOC) instead of the
+  // shared Preparer/Reviewer/Status strip (sect-wpinfo) every other
+  // workpaper type uses — sect-wpinfo is hidden here specifically for
+  // M-Template; every other type keeps showing it exactly as before,
+  // since it was never part of the sectIds toggle list to begin with.
+  const wpInfoEl = document.getElementById('sect-wpinfo');
+  if (wpInfoEl) wpInfoEl.style.display = isMTemplate ? 'none' : '';
+  const mtSectIds = ['sect-mtemplate-header','sect-mtemplate-control-info','sect-mtemplate-nature-toc','sect-mtemplate-timing-toc','sect-mtemplate-extent-toc'];
+  mtSectIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isMTemplate ? '' : 'none';
+  });
+  if (isMTemplate) populateMTemplateSection(w);
 
   // Tag view — segment 3 of reference, or derive from title
   const tagView = document.getElementById('wpd-tag-view');
@@ -11384,6 +11536,247 @@ function _layoutKeyForType(typeName) {
   if (match) return match.layout_key;
   const legacyFullTypes = ['Testwork', 'Report'];
   return legacyFullTypes.includes(typeName) ? 'full' : 'skinny';
+}
+
+// Populates the PLAIN Workpaper Type dropdown/filter (nwp-type,
+// wp-filter-type) from the real workpaper_types table, filtered to
+// plain_type_selectable=true — this is what actually excludes M-Template
+// from these two specifically, while the New Workpaper modal's own
+// population (openTemplateSelectModal, via the unfiltered
+// _loadWorkpaperTypes) continues to offer every active template
+// including M-Template, per explicit instruction to leave that alone.
+var _plainWorkpaperTypesCache = null;
+
+async function populateWorkpaperTypeDropdowns() {
+  if (!_plainWorkpaperTypesCache) {
+    try {
+      const res = await fetch('/api/workpaper-types?plainOnly=true');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _plainWorkpaperTypesCache = await res.json();
+    } catch(e) {
+      console.error('[populateWorkpaperTypeDropdowns] Could not load workpaper types:', e.message);
+      _plainWorkpaperTypesCache = [];
+    }
+  }
+  const types = _plainWorkpaperTypesCache;
+
+  const nwpSel = document.getElementById('nwp-type');
+  if (nwpSel) {
+    const currentValue = nwpSel.value;
+    nwpSel.innerHTML = '<option value="">— Select type —</option>' +
+      types.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && types.some(function(t){ return t.name === currentValue; })) nwpSel.value = currentValue;
+  }
+
+  const filterSel = document.getElementById('wp-filter-type');
+  if (filterSel) {
+    const currentValue = filterSel.value;
+    filterSel.innerHTML = '<option value="">All types</option>' +
+      types.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && types.some(function(t){ return t.name === currentValue; })) filterSel.value = currentValue;
+  }
+}
+
+// Populates every Status dropdown/filter (nwp-status, wpd-status,
+// wp-filter-status) from the real workpaper_statuses table — with
+// EXPLICIT value= attributes set to the real stored code (draft/review/
+// approved), not the display label. This is the actual fix for a real,
+// independent bug found while building this: wp-filter-status previously
+// had no value attribute on its <option> elements at all, so selecting
+// "Draft" set the field's value to the literal text "Draft" — which
+// never matched any real workpaper, since w.status is always stored
+// lowercase ("draft"). That filter had been silently returning zero
+// results this entire time, unrelated to anything about M-Template.
+var _workpaperStatusesCache = null;
+
+async function populateWorkpaperStatusDropdowns() {
+  if (!_workpaperStatusesCache) {
+    try {
+      const res = await fetch('/api/workpaper-statuses');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _workpaperStatusesCache = await res.json();
+    } catch(e) {
+      console.error('[populateWorkpaperStatusDropdowns] Could not load workpaper statuses:', e.message);
+      _workpaperStatusesCache = [];
+    }
+  }
+  const statuses = _workpaperStatusesCache;
+  const optionsHtml = statuses.map(function(s){
+    return '<option value="' + escAttr(s.value) + '">' + escAttr(s.label) + '</option>';
+  }).join('');
+
+  const nwpSel = document.getElementById('nwp-status');
+  if (nwpSel) {
+    const currentValue = nwpSel.value;
+    nwpSel.innerHTML = '<option value="">—</option>' + optionsHtml;
+    if (currentValue && statuses.some(function(s){ return s.value === currentValue; })) nwpSel.value = currentValue;
+    else if (statuses.some(function(s){ return s.value === 'draft'; })) nwpSel.value = 'draft'; // matches the original hardcoded default
+  }
+
+  const wpdSel = document.getElementById('wpd-status');
+  if (wpdSel) {
+    const currentValue = wpdSel.value;
+    wpdSel.innerHTML = '<option value="">—</option>' + optionsHtml;
+    if (currentValue && statuses.some(function(s){ return s.value === currentValue; })) wpdSel.value = currentValue;
+  }
+
+  const filterSel = document.getElementById('wp-filter-status');
+  if (filterSel) {
+    const currentValue = filterSel.value;
+    filterSel.innerHTML = '<option value="">All statuses</option>' + optionsHtml;
+    if (currentValue && statuses.some(function(s){ return s.value === currentValue; })) filterSel.value = currentValue;
+  }
+}
+
+// ── M-Template section logic ─────────────────────────────────────────────
+
+// Generic single-field save — updates the in-memory workpaper object and
+// persists the whole thing, mirroring the exact pattern every other
+// inline-edit handler in this app already uses (see logWPDropdownChange,
+// inlineFieldBlurred).
+function mtFieldChanged(field, value) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  w[field] = value;
+  _saveWorkpaperToDB(w);
+}
+
+// Preparer in the M-Template Header section is the SAME underlying field
+// as wpd-preparer in the shared header strip (per explicit instruction to
+// move/reuse the existing field, not create a second, separate one) — so
+// changing it here must also keep wpd-preparer's own value in sync, in
+// case anything else in the app still reads that element directly.
+function mtPreparerChanged(value) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  w.preparer = value;
+  const wpdSel = document.getElementById('wpd-preparer');
+  if (wpdSel) wpdSel.value = value;
+  _saveWorkpaperToDB(w);
+}
+
+// Final Reviewer maps onto the existing w.reviewer field, per the user's
+// own explicit confirmed mapping — same reasoning/sync approach as
+// Preparer above.
+function mtFinalReviewerChanged(value) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  w.reviewer = value;
+  const wpdSel = document.getElementById('wpd-reviewer');
+  if (wpdSel) wpdSel.value = value;
+  _saveWorkpaperToDB(w);
+}
+
+// MM/YYYY input mask — auto-inserts the "/" after two digits, strips
+// anything non-numeric, caps at 4 digits for the year. A native
+// <input type="month"> was deliberately NOT used here: its stored value
+// format is fixed regardless of what's shown, its ON-SCREEN display is
+// locale-dependent rather than a guaranteed literal "MM/YYYY", and
+// browser support outside Chrome/Edge is genuinely inconsistent —
+// confirmed by direct research before building this, not assumed.
+function mtMaskMMYYYY(input) {
+  let digits = input.value.replace(/\D/g, '').slice(0, 6);
+  if (digits.length >= 3) {
+    input.value = digits.slice(0, 2) + '/' + digits.slice(2);
+  } else {
+    input.value = digits;
+  }
+}
+
+// On blur: reject an invalid month (must be 01-12) rather than silently
+// accept and save bad input — clears the field and alerts if invalid,
+// otherwise saves the real MM/YYYY string.
+function mtValidateAndSaveMMYYYY(input, field) {
+  const val = input.value.trim();
+  if (!val) { mtFieldChanged(field, ''); return; }
+  const match = val.match(/^(\d{2})\/(\d{4})$/);
+  if (!match || parseInt(match[1], 10) < 1 || parseInt(match[1], 10) > 12) {
+    alert('Enter a valid month and year in MM/YYYY format (e.g. 01/2026).');
+    input.focus();
+    return;
+  }
+  mtFieldChanged(field, val);
+}
+
+// Peer Reviewer / GR Review dropdowns — per explicit instruction, these
+// use the SAME dropdown VALUES as Preparer (email-local-part convention)
+// but restricted to non-admin users specifically, via the dedicated
+// /api/users/non-admin endpoint (kept genuinely separate from the
+// unfiltered list Preparer/Final Reviewer use — see that endpoint's own
+// comment in server.js for why it's not just a filter flag on the
+// existing admin-facing route).
+var _nonAdminUsersCache = null;
+
+async function populateMTemplateReviewerDropdowns() {
+  if (!_nonAdminUsersCache) {
+    try {
+      const res = await fetch('/api/users/non-admin');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _nonAdminUsersCache = await res.json();
+    } catch(e) {
+      console.error('[populateMTemplateReviewerDropdowns] Could not load non-admin users:', e.message);
+      _nonAdminUsersCache = [];
+    }
+  }
+  const users = _nonAdminUsersCache;
+  const optionsHtml = '<option value="">—</option>' + users.map(function(u){
+    const val = (u.email || '').split('@')[0] || u.email || u.user_id;
+    const label = ((u.first_name||'') + ' ' + (u.last_name||'')).trim() || u.email;
+    return '<option value="' + escAttr(val) + '">' + escAttr(label) + ' (' + escAttr(val) + ')</option>';
+  }).join('');
+  ['mt-peer-reviewer', 'mt-gr-review'].forEach(function(id){
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentValue = sel.value;
+    sel.innerHTML = optionsHtml;
+    if (currentValue && Array.from(sel.options).some(function(o){ return o.value === currentValue; })) {
+      sel.value = currentValue;
+    }
+  });
+}
+
+// Fills every M-Template field from the workpaper's real stored values —
+// called whenever an M-Template workpaper is opened (see the isMTemplate
+// branch in openWP). Preparer/Final Reviewer options come from the same
+// full user list Preparer/Reviewer already use elsewhere
+// (populatePreparerReviewerDropdowns); Peer Reviewer/GR Review are
+// populated separately, non-admin-only, above.
+async function populateMTemplateSection(w) {
+  await Promise.all([populatePreparerReviewerDropdowns(), populateMTemplateReviewerDropdowns()]);
+
+  const auditDateEl = document.getElementById('mt-audit-date');
+  if (auditDateEl) auditDateEl.value = w.audit_date ? new Date(w.audit_date).toISOString().split('T')[0] : '';
+  const prepEl = document.getElementById('mt-preparer'); if (prepEl) prepEl.value = w.preparer || '';
+  const peerEl = document.getElementById('mt-peer-reviewer'); if (peerEl) peerEl.value = w.peer_reviewer || '';
+  const grEl   = document.getElementById('mt-gr-review'); if (grEl) grEl.value = w.gr_review || '';
+  const finalEl = document.getElementById('mt-final-reviewer'); if (finalEl) finalEl.value = w.reviewer || '';
+
+  const setVal = function(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setVal('mt-control-description', w.control_description);
+  setVal('mt-it-process', w.it_process);
+  setVal('mt-frequency', w.frequency);
+  setVal('mt-frequency-other', w.frequency_other);
+  setVal('mt-risk-of-failure', w.risk_of_failure);
+  setVal('mt-rationale-higher-risk', w.rationale_higher_risk);
+
+  const setChecked = function(id, val) { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  setChecked('mt-toc-inquiry', w.toc_inquiry_performed);
+  setChecked('mt-toc-observation', w.toc_observation_performed);
+  setChecked('mt-toc-reperformance', w.toc_reperformance_performed);
+
+  setVal('mt-period-from', w.toc_period_from_mmyyyy);
+  setVal('mt-period-to', w.toc_period_to_mmyyyy);
+
+  setVal('mt-population-source', w.population_source);
+  setVal('mt-population-size', w.population_size);
+  setVal('mt-sample-size', w.toc_sample_size);
+  setVal('mt-population-completeness', w.population_completeness_desc);
+  setVal('mt-sample-selection-method', w.sample_selection_method);
+  // Trigger textarea auto-resize for the ones just populated with content
+  ['mt-control-description', 'mt-population-completeness', 'mt-sample-selection-method'].forEach(function(id){
+    const el = document.getElementById(id);
+    if (el && typeof autoResizeTA === 'function') autoResizeTA(el);
+  });
 }
 
 async function populatePreparerReviewerDropdowns() {
@@ -18318,16 +18711,17 @@ function closeTemplateSelectModal() {
 // (from workpaper_types) becomes the workpaper's Type once created;
 // openNewWorkpaper()'s own reset logic (nwp-type cleared to '') runs
 // first, so this value must be set AFTER that call, not before.
-function selectWorkpaperTemplate(templateName) {
+async function selectWorkpaperTemplate(templateName) {
   closeTemplateSelectModal();
-  openNewWorkpaper();
+  await openNewWorkpaper();
   const typeEl = document.getElementById('nwp-type');
   if (typeEl) typeEl.value = templateName;
 }
 
-function openNewWorkpaper() {
+async function openNewWorkpaper() {
   const audit = currentAudit;
   populatePreparerReviewerDropdowns();
+  await Promise.all([populateWorkpaperTypeDropdowns(), populateWorkpaperStatusDropdowns()]);
 
   // Populate audit info strip on the new-wp page
   const nwpBcAudit   = document.getElementById('nwp-bc-audit');
