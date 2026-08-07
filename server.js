@@ -1291,15 +1291,30 @@ app.get('/api/control-categories', async (req, res) => {
 // active template, M-Template included).
 app.get('/api/workpaper-types', async (req, res) => {
   if (!pool) return res.json([]);
+  const plainOnly = req.query.plainOnly === 'true';
   try {
-    const plainOnly = req.query.plainOnly === 'true';
     const { rows } = await pool.query(
       `SELECT name, layout_key, description FROM workpaper_types
        WHERE active=true ${plainOnly ? 'AND plain_type_selectable=true' : ''}
        ORDER BY sort_order, name`
     );
     res.json(rows);
-  } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
+  } catch(err) {
+    // If plainOnly=true failed specifically (e.g. plain_type_selectable
+    // doesn't actually exist on the live table), degrade to the
+    // unfiltered list rather than a hard failure — the New Workpaper
+    // modal itself never sends plainOnly at all, so this fallback is
+    // purely a defensive measure for the plain Type dropdown/filter,
+    // which is better served by showing everything than showing nothing.
+    if (plainOnly) {
+      try {
+        const { rows } = await pool.query(`SELECT name, layout_key, description FROM workpaper_types WHERE active=true ORDER BY sort_order, name`);
+        console.error('[GET /api/workpaper-types] plainOnly query failed, fell back to unfiltered:', err.message);
+        return res.json(rows);
+      } catch (err2) { /* fall through to normal error handling below */ }
+    }
+    return fail(res, err, 'GET /api/workpaper-types:');
+  }
 });
 
 // Direct diagnostic: force-inserts both M-Template rows and returns the
@@ -1311,29 +1326,73 @@ app.get('/api/workpaper-types', async (req, res) => {
 // earlier fix believed correct, to stop guessing and get real evidence.
 app.get('/api/diagnose-mtemplate', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
+  const result = { steps: [] };
   try {
-    const before = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
-    let insertResult = null;
-    let insertError = null;
+    // Step 1: what columns ACTUALLY exist on the live table right now —
+    // queried directly from Postgres's own system catalog, not assumed
+    // from this file's schema definition. This is the definitive check:
+    // if plain_type_selectable (or any other expected column) is
+    // genuinely missing here, that's the real, confirmed cause, not a
+    // guess.
+    try {
+      const cols = await pool.query(`
+        SELECT column_name, data_type, column_default
+        FROM information_schema.columns
+        WHERE table_name = 'workpaper_types'
+        ORDER BY ordinal_position`);
+      result.live_columns = cols.rows;
+      result.steps.push({ step: 'check_columns', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'check_columns', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+    }
+
+    // Step 2: the actual SELECT the main /api/workpaper-types route runs
+    // — wrapped here so a real failure is captured and shown, not just
+    // turned into a generic 500 with no detail (which is what happened
+    // last time this route was hit — the equivalent unguarded SELECT
+    // below was almost certainly the real, actual cause).
+    try {
+      const before = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
+      result.before_insert = before.rows;
+      result.steps.push({ step: 'select_before', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'select_before', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+      result.before_insert_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+    }
+
+    // Step 3: the insert itself.
     try {
       await pool.query(`
         INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
           ('M-Template', 'mtemplate', 'Structured control-testing template.', 8, false),
           ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 9, false)
         ON CONFLICT (name) DO NOTHING`);
-      insertResult = 'succeeded';
+      result.insert_result = 'succeeded';
+      result.steps.push({ step: 'insert', ok: true });
     } catch (e) {
-      insertError = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+      result.insert_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+      result.steps.push({ step: 'insert', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
     }
-    const after = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
-    res.json({
-      before_insert: before.rows,
-      insert_result: insertResult,
-      insert_error: insertError,
-      after_insert: after.rows,
-      mtemplate_short_now_present: after.rows.some(r => r.name === 'M-Template-Short'),
-    });
-  } catch(err) { return fail(res, err, 'GET /api/diagnose-mtemplate:'); }
+
+    // Step 4: re-check after the insert attempt.
+    try {
+      const after = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
+      result.after_insert = after.rows;
+      result.mtemplate_short_now_present = after.rows.some(r => r.name === 'M-Template-Short');
+      result.steps.push({ step: 'select_after', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'select_after', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+    }
+
+    res.json(result);
+  } catch(err) {
+    // This outer catch should now be effectively unreachable — every
+    // real query above has its own try/catch — but kept as a genuine
+    // last resort. If THIS still fires, result.steps shows exactly how
+    // far execution got before something entirely unexpected happened.
+    result.unexpected_error = { message: err.message, code: err.code };
+    res.status(500).json(result);
+  }
 });
 
 // Real, canonical workpaper status values/labels — see the
