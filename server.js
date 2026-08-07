@@ -1327,6 +1327,75 @@ app.get('/api/workpaper-templates', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/workpaper-templates:'); }
 });
 
+// Direct diagnostic for workpaper_templates specifically — built after
+// "Could not load workpaper templates" was reported on a deployment that
+// genuinely includes the table's own creation/backfill code. Every query
+// isolated in its own try/catch so a real Postgres error is surfaced
+// directly here, rather than hidden behind fail()'s generic message —
+// the same approach that finally cut through the equivalent mystery on
+// the old, now-corrected workpaper_types table.
+app.get('/api/diagnose-templates', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const result = { steps: [] };
+  try {
+    try {
+      const exists = await pool.query(`SELECT table_schema, table_name FROM information_schema.tables WHERE table_name = 'workpaper_templates'`);
+      result.table_exists_check = exists.rows;
+      result.steps.push({ step: 'table_exists', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'table_exists', ok: false, error: { message: e.message, code: e.code } });
+    }
+    try {
+      const cols = await pool.query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'workpaper_templates' ORDER BY ordinal_position`);
+      result.live_columns = cols.rows;
+      result.steps.push({ step: 'check_columns', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'check_columns', ok: false, error: { message: e.message, code: e.code } });
+    }
+    try {
+      const allRows = await pool.query(`SELECT * FROM workpaper_templates ORDER BY sort_order`);
+      result.all_rows_including_inactive = allRows.rows;
+      result.steps.push({ step: 'select_all', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'select_all', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+      result.select_all_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+    }
+    try {
+      const activeRows = await pool.query(`SELECT name, layout_key, description FROM workpaper_templates WHERE active=true ORDER BY sort_order, name`);
+      result.active_rows_real_route_query = activeRows.rows;
+      result.steps.push({ step: 'select_active_exact_route_query', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'select_active_exact_route_query', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+      result.select_active_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+    }
+    try {
+      await pool.query(`
+        INSERT INTO workpaper_templates (name, layout_key, description, sort_order) VALUES
+          ('Workpaper-Short Template', 'skinny', 'Short-form workpaper — admin/narrow sections only.', 1),
+          ('Workpaper-Long Template',  'full',   'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 2),
+          ('M-Template',               'mtemplate', 'Structured control-testing template.', 3),
+          ('M-Template-Short',         'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 4)
+        ON CONFLICT (name) DO NOTHING`);
+      result.live_insert_result = 'succeeded';
+      result.steps.push({ step: 'live_insert', ok: true });
+    } catch (e) {
+      result.live_insert_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+      result.steps.push({ step: 'live_insert', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+    }
+    try {
+      const after = await pool.query(`SELECT name, layout_key, active FROM workpaper_templates ORDER BY sort_order`);
+      result.rows_after_insert_attempt = after.rows;
+      result.steps.push({ step: 'select_after', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'select_after', ok: false, error: { message: e.message, code: e.code } });
+    }
+    res.json(result);
+  } catch(err) {
+    result.unexpected_error = { message: err.message, code: err.code };
+    res.status(500).json(result);
+  }
+});
+
 // Real, canonical workpaper status values/labels — see the
 // workpaper_statuses table comment for why this exists (the status
 // filter dropdown had been using mismatched values that never actually
