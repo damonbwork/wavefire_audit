@@ -862,8 +862,8 @@
       <div style="position:relative">
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
           style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px">
-          <i class="ti ti-user-circle" style="font-size:26px;color:var(--wf-navy)"></i>
-          <span id="wf-current-userid-label" style="font-size:10px;font-weight:600;color:var(--text-secondary);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jdavis</span>
+          <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
+          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jdavis</span>
         </button>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
@@ -2269,6 +2269,7 @@
             <option>Report</option>
                         <option>Admin</option>
             <option>Other</option>
+            <option>M-Template</option>
           </select>
           <!-- 3. Preparer -->
           <select id="wp-filter-preparer" onchange="filterWorkpapers()"><option value="">—</option>
@@ -4354,6 +4355,7 @@ auditor's assessment.
                   <option>Report</option>
                                     <option>Admin</option>
                   <option>Other</option>
+                  <option>M-Template</option>
                 </select>
               </div>
               <div class="fld">
@@ -6032,9 +6034,9 @@ function openAudit(i) {
   const selAudit = document.getElementById('sel-audit');
   if (selAudit && currentAudit) selAudit.value = currentAudit.name;
 
-  // Blank the WP ref dropdown — user navigates to a workpaper by clicking from the list
-  const selWpRef = document.getElementById('sel-wp-ref');
-  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>';
+  // Populate the WP ref dropdown with this audit's real workpapers —
+  // previously this was blanked and never repopulated at all.
+  _populateWpRefNavDropdown(currentAudit.name);
   // Reset workpaper filters when switching audits
   ['wp-search','wp-filter-type','wp-filter-status','wp-filter-results'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
@@ -6099,9 +6101,12 @@ function openWP(i) {
   if (selAudit)  selAudit.value = audit.name;
   if (selPeriod) selPeriod.textContent = audit.period;
   if (selWpRef) {
-    const matching = WORKPAPERS.filter(wp => wp.auditName === audit.name);
-    selWpRef.innerHTML = '<option value="">— Select —</option>' +
-      matching.map(wp => `<option value="${wp.ref}"${wp.ref === w.ref ? ' selected' : ''}>${wp.ref}</option>`).join('');
+    // Shared with openAudit/onNavAuditChange — also correctly excludes
+    // archived workpapers, which this previous inline version did not.
+    // currentWPIndex is already set above, so the shared function's
+    // "select whichever workpaper is actually open" fallback picks this
+    // one correctly.
+    _populateWpRefNavDropdown(audit.name);
   }
 
   // ── Breadcrumb & header ──
@@ -8979,7 +8984,79 @@ async function _loadAuditsFromDB() {
       await Promise.all(AUDITS.map(function(a){ return _saveAuditToDB(a).catch(function(){}); }));
       console.log('[DB] First-time seed: wrote', AUDITS.length, 'audit(s) to database');
     }
+
+    // Rebuild the nav dropdown from the real, now-current AUDITS array —
+    // previously this select only ever contained the six hardcoded seed
+    // names baked into the HTML, plus whatever got individually appended
+    // during the current session (see createNewAudit's own appendChild
+    // call, which still runs for the "just created it this session" case
+    // and doesn't need to change). Without this, an audit renamed or
+    // created in a PREVIOUS session would never actually show up here on
+    // a fresh page load, regardless of what's genuinely in Postgres.
+    _rebuildAuditNavDropdown();
   } catch(e) { console.warn('[DB] audits load failed:', e.message); }
+}
+
+// Rebuilds the #sel-audit nav dropdown from the real AUDITS array.
+// Deliberately no separate "value" attribute on each option — matching
+// the pre-existing convention this dropdown already used: a plain
+// <option>Name</option> with no value attribute defaults its .value to
+// its own text content, which is exactly what onNavAuditChange() (and
+// the rest of the app) already expects to read. Preserves whatever audit
+// is currently selected, if it still exists in the rebuilt list, rather
+// than always resetting to blank.
+function _rebuildAuditNavDropdown() {
+  const sel = document.getElementById('sel-audit');
+  if (!sel) return;
+  const currentValue = sel.value;
+  const sortedAudits = [...AUDITS].sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">—</option>' + sortedAudits.map(function(a){
+    return '<option>' + escAttr(a.name) + '</option>';
+  }).join('');
+  if (currentValue && sortedAudits.some(function(a){ return a.name === currentValue; })) {
+    sel.value = currentValue;
+  } else if (currentAudit) {
+    // Fall back to whichever audit the app is actually currently showing,
+    // so the dropdown never silently disagrees with what's on screen.
+    const stillExists = sortedAudits.some(function(a){ return a.name === currentAudit.name; });
+    if (stillExists) sel.value = currentAudit.name;
+  }
+}
+
+// Populates the #sel-wp-ref nav dropdown with the REAL workpapers
+// belonging to the given audit (defaults to currentAudit) — previously
+// this dropdown was deliberately blanked to "— Select —" every time the
+// audit changed and never actually repopulated with anything, so it was
+// permanently empty and non-functional as a navigation shortcut
+// regardless of how many real workpapers existed for that audit in
+// Postgres. Uses each workpaper's ref as the option value (not its
+// display text), matching exactly what onNavWpRefChange reads and how
+// the one hardcoded example option in the original HTML was structured.
+// Excludes archived workpapers, matching the same filter the main
+// workpaper list itself already applies.
+function _populateWpRefNavDropdown(auditName) {
+  const sel = document.getElementById('sel-wp-ref');
+  if (!sel) return;
+  const name = auditName || (currentAudit && currentAudit.name);
+  if (!name) { sel.innerHTML = '<option value="">— Select —</option>'; return; }
+
+  const currentValue = sel.value;
+  const auditWps = WORKPAPERS
+    .filter(w => w.auditName === name && !w.archived)
+    .sort((a, b) => a.ref.localeCompare(b.ref));
+
+  sel.innerHTML = '<option value="">— Select —</option>' + auditWps.map(function(w){
+    return '<option value="' + escAttr(w.ref) + '">' + escAttr(w.ref) + '</option>';
+  }).join('');
+
+  if (currentValue && auditWps.some(function(w){ return w.ref === currentValue; })) {
+    sel.value = currentValue;
+  } else if (currentWPIndex >= 0 && WORKPAPERS[currentWPIndex]) {
+    // Fall back to whichever workpaper is actually currently open, so the
+    // dropdown never silently disagrees with what's on screen.
+    const openRef = WORKPAPERS[currentWPIndex].ref;
+    if (auditWps.some(function(w){ return w.ref === openRef; })) sel.value = openRef;
+  }
 }
 
 async function _loadWorkpapersFromDB() {
@@ -18126,13 +18203,11 @@ function createNewAudit() {
   // from at all.
   _saveAuditToDB(newAudit);
 
-  // Update audit nav dropdown
-  const selAudit = document.getElementById('sel-audit');
-  if (selAudit) {
-    const opt = document.createElement('option');
-    opt.value = name; opt.textContent = name;
-    selAudit.appendChild(opt);
-  }
+  // Update audit nav dropdown — rebuilds from the full, current AUDITS
+  // array (same shared function used on initial load) rather than a
+  // one-off manual append, so this dropdown never has two separate,
+  // potentially-diverging ways it gets updated.
+  _rebuildAuditNavDropdown();
 
   closeNewAudit();
   renderAudits();
@@ -26295,16 +26370,11 @@ function onNavAuditChange() {
   const auditName = document.getElementById('sel-audit').value;
   if (!auditName) return; // blank option selected — do nothing
 
-  const selWpRef = document.getElementById('sel-wp-ref');
-
   // Save whatever page is currently open before switching
   try { saveCurrentPage(); } catch(e) {}
 
   // If we're on Foundations or KB, close those first so the audits section renders
   if (typeof activateAuditsSection === 'function') activateAuditsSection();
-
-  // Always blank the workpaper dropdown when an audit is selected
-  if (selWpRef) selWpRef.innerHTML = '<option value="">— Select —</option>';
 
   // Navigate to that audit's workpaper list
   const idx = AUDITS.findIndex(a => a.name === auditName);
