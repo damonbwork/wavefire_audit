@@ -1021,6 +1021,21 @@ async function initDB() {
           ('Admin',    'skinny', 'Administrative workpaper.', 4, true),
           ('Other',    'skinny', 'Other workpaper type.', 5, true)
         ON CONFLICT (name) DO NOTHING`);
+      // Explicit backfill for both M-Template rows — this is almost
+      // certainly the actual root cause of "M-Template-Short doesn't
+      // appear as selectable": workpaper_types was very likely already
+      // live on the database by the time M-Template-Short's row was
+      // added to the CREATE TABLE-adjacent seed INSERT above, which
+      // means that whole block was a no-op against the real table —
+      // the same failure class already documented and fixed for the
+      // five legacy types, just never extended to cover these two rows
+      // added in later turns. Safe to run every startup; ON CONFLICT DO
+      // NOTHING makes this inert once the rows genuinely exist.
+      await pool.query(`
+        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
+          ('M-Template', 'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 8, false),
+          ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections — keeps Sample Data, Test Attributes, Attached Sample Files, and Exceptions.', 9, false)
+        ON CONFLICT (name) DO NOTHING`);
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
