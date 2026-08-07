@@ -1365,6 +1365,35 @@ app.get('/api/diagnose-routes', (req, res) => {
   });
 });
 
+// Direct diagnostic: shows the REAL, live columns on every table the
+// user is asking about (audits, workpapers, sample_files,
+// workpaper_annotations), queried straight from Postgres's own system
+// catalog — not from this file's schema definitions, which only show
+// what SHOULD be there. Built after a report that tenant_id isn't
+// visible when querying the live database directly via Railway, despite
+// this file's CREATE TABLE statements including it — the same class of
+// gap between "this file says X" and "the live database actually has X"
+// that's shown up more than once this session.
+app.get('/api/diagnose-tenant-columns', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const tables = ['audits', 'workpapers', 'sample_files', 'workpaper_annotations'];
+    const result = {};
+    for (const t of tables) {
+      const cols = await pool.query(`
+        SELECT column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns
+        WHERE table_name = $1
+        ORDER BY ordinal_position`, [t]);
+      result[t] = {
+        columns: cols.rows,
+        has_tenant_id: cols.rows.some(r => r.column_name === 'tenant_id'),
+      };
+    }
+    res.json(result);
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-tenant-columns:'); }
+});
+
 
 // The New Workpaper modal's own dedicated route — returns layout_key,
 // since that's specifically what determines which sections/fields render
