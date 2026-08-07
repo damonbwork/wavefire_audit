@@ -4385,10 +4385,11 @@ auditor's assessment.
 
       <!-- New Workpaper: Template selection modal — shown FIRST, before
            the New Workpaper page itself, when "New workpaper" is clicked.
-           Populated from the real workpaper_types table (see
-           _loadWorkpaperTypes/renderTemplateSelectModal), not a hardcoded
-           option list — consistent with every other dropdown in this app
-           that had the same static-data problem fixed earlier. -->
+           Populated from the real workpaper_templates table (see
+           _loadWorkpaperTemplates/openTemplateSelectModal), not a
+           hardcoded option list — consistent with every other dropdown
+           in this app that had the same static-data problem fixed
+           earlier. -->
       <div id="template-select-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10003;align-items:center;justify-content:center">
         <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:520px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
           <div style="padding:20px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
@@ -4527,15 +4528,24 @@ auditor's assessment.
           <div class="sect-body">
             <div class="field-grid">
               <div class="fld" style="display:none">
-                <!-- Hidden per explicit instruction — this field is no
-                     longer shown in the New Workpaper form. The select
-                     itself stays in the DOM and functioning: the New
-                     Workpaper modal (selectWorkpaperTemplate) writes the
-                     chosen template's name here, and submitNewWorkpaper()
-                     reads it at creation time. Deleting the element would
-                     break that flow; it's only hidden from view. -->
-                <div class="fl">Workpaper type</div>
+                <!-- Hidden, and genuinely holds the chosen TEMPLATE now,
+                     never a type — the New Workpaper modal
+                     (selectWorkpaperTemplate) writes the chosen
+                     template's name here, and submitNewWorkpaper() reads
+                     it at creation time to determine layout only. This
+                     is NOT the workpaper's Type (see the real, visible
+                     Type field below) — that conflation was the actual
+                     underlying bug being corrected. Deleting this
+                     element would break the modal flow; it's only
+                     hidden from view. -->
+                <div class="fl">Template (internal)</div>
                 <select id="nwp-type" class="aud-field-select">
+                  <option value="">— Select template —</option>
+                </select>
+              </div>
+              <div class="fld">
+                <div class="fl">Type</div>
+                <select id="nwp-real-type" class="aud-field-select">
                   <option value="">— Select type —</option>
                 </select>
               </div>
@@ -6259,7 +6269,14 @@ function openWP(i) {
   const w = WORKPAPERS[i];
   currentWPIndex = i;
 
-  // Back-fill wpStyle for workpapers created before this feature
+  // Legacy-data fallback ONLY — for workpapers created before wp_style
+  // was a real, persisted column. Any workpaper created after this fix
+  // always has wp_style saved directly (see submitNewWorkpaper) and
+  // loaded back correctly (see _loadWorkpapersFromDB's wpStyle mapping),
+  // so it never reaches this fallback at all. This check against w.type
+  // is only meaningful for that old data, where type could still
+  // coincidentally hold a value like "Testwork" from before types and
+  // templates were split into two genuinely separate concepts.
   if (!w.wpStyle) {
     const fullTypes = ['Testwork', 'Report'];
     w.wpStyle = fullTypes.includes(w.type) ? 'full' : 'skinny';
@@ -6477,15 +6494,14 @@ function openWP(i) {
   renderLinkedFSAccounts();
 
   // ── Show/hide sections based on workpaper style ──────────────────────
-  // Looked up from the real workpaper_types data via _layoutKeyForType —
-  // NOT the old hardcoded fullTypes=['Testwork','Report'] check, which
-  // had no concept of M-Template (or any future template) at this
-  // DISPLAY-time location, even though the same bug was already fixed at
-  // CREATION time. A correctly-created M-Template workpaper would have
-  // silently rendered as a skinny workpaper here regardless, since this
-  // check never knew M-Template existed.
-  const layoutKey        = _layoutKeyForType(w.type);
-  const isFull           = layoutKey === 'full' || w.wpStyle === 'full';
+  // Reads the workpaper's own persisted wp_style DIRECTLY — this is the
+  // corrected design: wp_style is the EFFECT of a template choice made
+  // once at creation (see submitNewWorkpaper), captured and persisted at
+  // that moment. It is NOT re-derived from w.type on every display,
+  // since w.type is now purely administrative categorization (Planning,
+  // Testwork, Report, Admin, Other) and never holds a template name.
+  const layoutKey        = w.wpStyle || 'full';
+  const isFull           = layoutKey === 'full';
   const isMTemplate      = layoutKey === 'mtemplate';
   const isMTemplateShort = layoutKey === 'mtemplate-short';
   const isAnyMTemplate   = isMTemplate || isMTemplateShort;
@@ -9320,6 +9336,7 @@ async function _loadWorkpapersFromDB() {
         merge('narrative',           row.narrative);
         merge('description',         row.description);
         merge('testDesc',            row.test_desc);
+        merge('wpStyle',             row.wp_style);
         // Set directly, not via merge() — merge() skips falsy values as
         // "nothing to update," but false is a completely normal, common
         // value for this flag (not archived) that must always be applied.
@@ -11560,54 +11577,51 @@ function showAdminSection(section) {
 // technically correct but unreadable everywhere it's displayed as text.
 var _preparerReviewerUsersCache = null;
 
-// Real workpaper-type/template reference data — replaces the old
-// hardcoded fullTypes=['Testwork','Report'] check, which had no concept
-// of M-Template (or any future template) and would have silently
-// defaulted anything unrecognized to the 'skinny' layout. Cached once
-// per session; loaded on demand (New Workpaper modal, wpStyle derivation)
-// rather than at page-load time, since it's small, rarely-changing
-// reference data.
-var _workpaperTypesCache = null;
+// Real workpaper-TEMPLATE reference data (Workpaper-Short/Long Template,
+// M-Template, M-Template-Short) — genuinely separate from workpaper
+// TYPES (Planning, Testwork, Report, Admin, Other), which have no
+// bearing on layout at all. This is the New Workpaper modal's own data
+// source. Cached once per session; loaded on demand rather than at
+// page-load time, since it's small, rarely-changing reference data.
+var _workpaperTemplatesCache = null;
 
-async function _loadWorkpaperTypes() {
-  if (_workpaperTypesCache) return _workpaperTypesCache;
+async function _loadWorkpaperTemplates() {
+  if (_workpaperTemplatesCache) return _workpaperTemplatesCache;
   try {
-    const res = await fetch('/api/workpaper-types');
+    const res = await fetch('/api/workpaper-templates');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    _workpaperTypesCache = await res.json();
+    _workpaperTemplatesCache = await res.json();
   } catch(e) {
-    console.error('[_loadWorkpaperTypes] Could not load workpaper types:', e.message);
-    _workpaperTypesCache = [];
+    console.error('[_loadWorkpaperTemplates] Could not load workpaper templates:', e.message);
+    _workpaperTemplatesCache = [];
   }
-  return _workpaperTypesCache;
+  return _workpaperTemplatesCache;
 }
 
-// Looks up a type NAME's layout_key from the cached reference data —
-// falls back to the old fullTypes-style check for any pre-existing
-// workpaper type name not present in workpaper_types (Planning, Testwork,
-// Report, Admin, Other — these predate this table and were never added
-// to it, so a workpaper already using one of them must keep resolving
-// to the same layout it always has).
-function _layoutKeyForType(typeName) {
-  const match = (_workpaperTypesCache || []).find(function(t){ return t.name === typeName; });
+// Looks up a TEMPLATE name's layout_key — used ONLY at creation time
+// (submitNewWorkpaper), never for ongoing display-time resolution. The
+// template's EFFECT (which layout to use) is captured once into
+// workpapers.wp_style at that moment; display-time code reads w.wpStyle
+// directly from then on, since w.type no longer ever holds a template
+// name once a workpaper exists.
+function _layoutKeyForTemplate(templateName) {
+  const match = (_workpaperTemplatesCache || []).find(function(t){ return t.name === templateName; });
   if (match) return match.layout_key;
-  const legacyFullTypes = ['Testwork', 'Report'];
-  return legacyFullTypes.includes(typeName) ? 'full' : 'skinny';
+  return 'full'; // safe default if an unrecognized/legacy template name somehow reaches this
 }
 
-// Populates the PLAIN Workpaper Type dropdown/filter (nwp-type,
-// wp-filter-type) from the real workpaper_types table, filtered to
-// plain_type_selectable=true — this is what actually excludes M-Template
-// from these two specifically, while the New Workpaper modal's own
-// population (openTemplateSelectModal, via the unfiltered
-// _loadWorkpaperTypes) continues to offer every active template
-// including M-Template, per explicit instruction to leave that alone.
+// Populates the genuine, visible Workpaper Type dropdown/filter
+// (nwp-real-type, wp-filter-type) from the real workpaper_types table —
+// purely administrative categorization (Planning/Testwork/Report/Admin/
+// Other), with no bearing on layout at all. Genuinely separate from
+// workpaper_templates, which the New Workpaper modal uses for its own,
+// distinct purpose (see openTemplateSelectModal/_loadWorkpaperTemplates).
 var _plainWorkpaperTypesCache = null;
 
 async function populateWorkpaperTypeDropdowns() {
   if (!_plainWorkpaperTypesCache) {
     try {
-      const res = await fetch('/api/workpaper-types?plainOnly=true');
+      const res = await fetch('/api/workpaper-types');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       _plainWorkpaperTypesCache = await res.json();
     } catch(e) {
@@ -11617,40 +11631,44 @@ async function populateWorkpaperTypeDropdowns() {
   }
   const plainTypes = _plainWorkpaperTypesCache;
 
-  // nwp-type is now a HIDDEN field (per explicit instruction to remove
-  // the visible dropdown from the New Workpaper form) that serves two
-  // purposes: it's still what the New Workpaper modal's
-  // selectWorkpaperTemplate() writes a chosen template's name into. That
-  // means it needs an <option> for EVERY template the modal can offer —
-  // including M-Template and M-Template-Short, which are deliberately
-  // excluded from the plainOnly list — or setting .value to one of those
-  // names is a silent no-op (no matching option exists to select),
-  // leaving the field at its prior/default value. This was the actual
-  // cause of "selecting M-Template-Short creates a long-form workpaper
-  // instead": the value never actually applied, and creation fell back
-  // to the 'Testwork'/'full' default. Uses the full, unfiltered list
-  // (the same one the modal itself already fetches) specifically for
-  // this hidden field.
-  const allTypes = await _loadWorkpaperTypes();
+  // nwp-type is a HIDDEN field (per explicit instruction to remove the
+  // visible dropdown from the New Workpaper form) that exists SOLELY to
+  // hold the New Workpaper modal's chosen TEMPLATE — populated from the
+  // real templates table, not types. Types and templates are now
+  // genuinely separate concepts (per explicit correction), so this field
+  // no longer has any reason to merge in the plain types list at all.
+  const templates = await _loadWorkpaperTemplates();
   const nwpSel = document.getElementById('nwp-type');
   if (nwpSel) {
     const currentValue = nwpSel.value;
-    nwpSel.innerHTML = '<option value="">— Select type —</option>' +
-      allTypes.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
-    if (currentValue && allTypes.some(function(t){ return t.name === currentValue; })) nwpSel.value = currentValue;
+    nwpSel.innerHTML = '<option value="">— Select template —</option>' +
+      templates.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && templates.some(function(t){ return t.name === currentValue; })) nwpSel.value = currentValue;
   }
 
   // wp-filter-type is the genuine, visible, user-facing Type filter on
-  // the workpaper list — this one correctly keeps using the
-  // plainOnly-filtered list, since M-Template/M-Template-Short should
-  // NOT be manually selectable there (that exclusion was never the bug;
-  // only the hidden nwp-type field needed the full list).
+  // the workpaper list — shows real workpaper TYPES (Planning, Testwork,
+  // Report, Admin, Other) from the now-clean workpaper_types table,
+  // which no longer has any template data mixed in to exclude.
   const filterSel = document.getElementById('wp-filter-type');
   if (filterSel) {
     const currentValue = filterSel.value;
     filterSel.innerHTML = '<option value="">All types</option>' +
       plainTypes.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
     if (currentValue && plainTypes.some(function(t){ return t.name === currentValue; })) filterSel.value = currentValue;
+  }
+
+  // nwp-real-type is the New Workpaper form's own genuine, visible Type
+  // field — added specifically because the form previously had no real
+  // Type field at all (the only Type-like element was the one now
+  // correctly repurposed to hold the chosen Template). Same real
+  // workpaper_types data as the filter above.
+  const nwpRealTypeSel = document.getElementById('nwp-real-type');
+  if (nwpRealTypeSel) {
+    const currentValue = nwpRealTypeSel.value;
+    nwpRealTypeSel.innerHTML = '<option value="">— Select type —</option>' +
+      plainTypes.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && plainTypes.some(function(t){ return t.name === currentValue; })) nwpRealTypeSel.value = currentValue;
   }
 }
 
@@ -18339,9 +18357,8 @@ function openDashboard(showUnused) {
     { id:'wpfiles', label:'No workpaper files',            fn: w => !(inMemoryFiles[w.ref]?.workpaper?.length)&&!(w.files?.length) },
     { id:'sffiles', label:'No sample files',               fn: w => !(inMemoryFiles[w.ref]?.sample?.length)&&!(w.sampleFiles?.length) },
   ];
-  const fullTypes = ['Testwork','Report'];
   const missingRows = wpList.map(w => {
-    const isFull = fullTypes.includes(w.type)||w.wpStyle==='full';
+    const isFull = w.wpStyle === 'full';
     const failing = CHECKS.filter(c => {
       if (!isFull && ['ent','nar','attr','sffiles'].includes(c.id)) return false;
       return c.fn(w);
@@ -18755,20 +18772,22 @@ function createNewAudit() {
 // Shown first when "New workpaper" is clicked — gates entry into the
 // existing openNewWorkpaper()/creation-form flow behind a template
 // choice, per the explicit request. Templates are loaded from the real
-// workpaper_types table (see _loadWorkpaperTypes), not hardcoded here.
+// workpaper_templates table (see _loadWorkpaperTemplates) — genuinely
+// separate from workpaper_types (Planning/Testwork/Report/Admin/Other),
+// which has no bearing on layout at all.
 
 async function openTemplateSelectModal() {
   document.getElementById('template-select-overlay').style.display = 'flex';
   const listEl = document.getElementById('template-select-list');
   listEl.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary);padding:16px 0">Loading templates…</div>';
 
-  const types = await _loadWorkpaperTypes();
-  if (!types.length) {
+  const templates = await _loadWorkpaperTemplates();
+  if (!templates.length) {
     listEl.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary);padding:16px 0">Could not load workpaper templates. Try again, or contact your administrator.</div>';
     return;
   }
 
-  listEl.innerHTML = types.map(function(t){
+  listEl.innerHTML = templates.map(function(t){
     return `<div onclick="selectWorkpaperTemplate('${escAttr(t.name)}')"
         style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:14px 16px;cursor:pointer;transition:border-color 0.15s"
         onmouseenter="this.style.borderColor='var(--wf-navy)'" onmouseleave="this.style.borderColor='var(--border-light)'">
@@ -18968,10 +18987,20 @@ function updateRefPreview() {
 }
 
 function submitNewWorkpaper() {
-  const ref   = getPlainRef();
-  const name  = document.getElementById('nwp-name')?.value.trim();
-  const type  = document.getElementById('nwp-type')?.value || 'Testwork';
-  const seg4v = document.getElementById('nwp-seg4')?.value || '0';
+  const ref      = getPlainRef();
+  const name     = document.getElementById('nwp-name')?.value.trim();
+  // type and template are now genuinely separate values, read from two
+  // separate fields — this is the actual core fix: previously this
+  // function read a single 'type' value from what's now the hidden
+  // template-holder field and saved it directly as the workpaper's type,
+  // silently reintroducing the exact conflation being corrected
+  // everywhere else this turn. type is purely administrative
+  // categorization (Planning/Testwork/Report/Admin/Other); template is
+  // used ONLY to resolve which layout to build, never itself saved as
+  // the workpaper's type.
+  const type     = document.getElementById('nwp-real-type')?.value || 'Other';
+  const template = document.getElementById('nwp-type')?.value || 'Workpaper-Long Template';
+  const seg4v    = document.getElementById('nwp-seg4')?.value || '0';
 
   // Validate seg3 — derive from title if blank
   const seg3El = document.getElementById('nwp-seg3');
@@ -19007,18 +19036,19 @@ function submitNewWorkpaper() {
   }
   if (nameBubble) nameBubble.style.display = 'none';
 
-  // Determine workpaper style/layout — looked up from the real
-  // workpaper_types reference table (see _layoutKeyForType), not a
-  // hardcoded list, so M-Template and any future template correctly
-  // resolve to their real layout.
-  const wpStyle   = _layoutKeyForType(type || 'Testwork');
+  // Determine workpaper style/layout from the chosen TEMPLATE — not type,
+  // which has no bearing on layout at all now that the two concepts are
+  // genuinely separate. This is the actual, final piece of the core fix:
+  // the old broken call to the deleted _layoutKeyForType(type) is
+  // replaced with the correct _layoutKeyForTemplate(template).
+  const wpStyle   = _layoutKeyForTemplate(template);
 
   // Build the new workpaper object and push to WORKPAPERS
   const newWP = {
     auditName:    currentAudit.name,
     ref:          ref,
     name:         name,
-    type:         type || 'Testwork',
+    type:         type,
     wpStyle:      wpStyle,
     preparer:     document.getElementById('nwp-preparer')?.value || '',
     reviewer:     document.getElementById('nwp-reviewer')?.value || '',
