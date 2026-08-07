@@ -3823,7 +3823,7 @@ auditor's assessment.
         <div class="sect-card" id="sect-exceptions">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Exceptions</div>
-            <div style="display:flex;align-items:center;gap:6px">
+            <div style="display:flex;align-items:center;gap:6px" id="exceptions-toolbar">
               <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()">
                 <i class="ti ti-download"></i>Export exceptions
               </button>
@@ -3834,7 +3834,10 @@ auditor's assessment.
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+              <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
+                <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
+              </div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception name</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception description</div>
@@ -3846,7 +3849,6 @@ auditor's assessment.
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Type</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Status</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Delete</div>
             </div>
             <!-- Exception rows -->
             <div id="exceptions-rows">
@@ -8538,11 +8540,21 @@ function saveException(ref, idx, field, value) {
   ex[field] = value;
 }
 
+let _excSelected = new Set(); // exception indices currently checked, scoped per-ref (cleared on ref switch)
+let _excSelectedRef = null;   // which ref _excSelected currently applies to
+
 function renderExceptions(ref) {
   const container  = document.getElementById('exceptions-rows');
   const emptyEl    = document.getElementById('exceptions-empty');
   if (!container) return;
   const list = wpExceptions[ref] || [];
+
+  // Selection is scoped per-workpaper — switching to a different ref
+  // starts with a clean slate rather than carrying over indices that
+  // would refer to a different exception entirely.
+  if (_excSelectedRef !== ref) { _excSelected = new Set(); _excSelectedRef = ref; }
+
+  renderExceptionsToolbar(ref);
 
   if (!list.length) {
     container.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic" id="exceptions-empty">No exceptions recorded. Click "Add exception" to add one.</div>';
@@ -8555,7 +8567,10 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="${cellStyle}align-items:center;justify-content:center">
+        <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
+      </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
@@ -8618,15 +8633,79 @@ function renderExceptions(ref) {
           <option value="Remediated" ${ex.dispositionStatus==='Remediated'?'selected':''}>Remediated</option>
         </select>
       </div>
-      <div style="${cellStyle}align-items:center;justify-content:center;padding-top:8px">
-        <button class="icon-btn" style="color:var(--red-700);width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px" title="Delete exception"
-          onclick="confirmDeleteException('${ref}',${i})">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-        </button>
-      </div>
     </div>`
   ).join('');
 }
+
+// Renders the "Delete selected" button into the section toolbar,
+// conditionally, based on current selection — matches the exact pattern
+// the existing Foundations bulk-delete feature already uses (_rcmSelected).
+function renderExceptionsToolbar(ref) {
+  const toolbar = document.getElementById('exceptions-toolbar');
+  if (!toolbar) return;
+  const deleteBtn = _excSelected.size
+    ? `<button class="btn-s" onclick="deleteSelectedExceptions('${ref}')" style="font-size:11px;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected (${_excSelected.size})</button>`
+    : '';
+  toolbar.innerHTML = deleteBtn +
+    `<button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()"><i class="ti ti-download"></i>Export exceptions</button>` +
+    `<button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addException()"><i class="ti ti-plus"></i>Add exception</button>`;
+}
+
+function toggleExceptionSelected(i, checkbox) {
+  checkbox.checked ? _excSelected.add(i) : _excSelected.delete(i);
+  renderExceptionsToolbar(_excSelectedRef);
+  const allCb = document.getElementById('exceptions-select-all');
+  if (allCb) {
+    const total = (wpExceptions[_excSelectedRef] || []).length;
+    allCb.checked = total > 0 && _excSelected.size === total;
+  }
+}
+
+function toggleExceptionsSelectAll(checkbox) {
+  const ref = _excSelectedRef;
+  const list = wpExceptions[ref] || [];
+  if (checkbox.checked) {
+    list.forEach((_, i) => _excSelected.add(i));
+  } else {
+    _excSelected.clear();
+  }
+  renderExceptions(ref);
+}
+
+// Bulk delete with confirmation — reuses the existing, genuinely generic
+// rcmConfirmDelete dialog (title, bodyHtml, onConfirm) rather than
+// building a new confirmation UI, matching the established app pattern.
+function deleteSelectedExceptions(ref) {
+  if (!_excSelected.size) return;
+  const count = _excSelected.size;
+  const list = wpExceptions[ref] || [];
+  const names = [..._excSelected].map(i => {
+    const ex = list[i];
+    return escHtml(ex?.name ? ex.name : `Exception #${ex?.num || i + 1}`);
+  });
+  const listHtml = names.length <= 5
+    ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(n => '<li>'+n+'</li>').join('') + '</ul>'
+    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
+  rcmConfirmDelete(
+    'Delete ' + count + ' Exception' + (count!==1?'s':''),
+    'Are you sure you want to delete <strong>' + count + ' exception' + (count!==1?'s':'') + '</strong>? This cannot be undone.' + listHtml,
+    function() {
+      // Delete indices in descending order so earlier splices don't
+      // shift the position of indices still pending removal.
+      const sortedDesc = [..._excSelected].sort((a,b) => b - a);
+      pushUndo();
+      sortedDesc.forEach(i => {
+        const ex = wpExceptions[ref][i];
+        const label = ex?.name ? `Exception #${ex.num} "${ex.name}"` : `Exception #${ex?.num || i + 1}`;
+        logEvent(ref, `${label} deleted`);
+        wpExceptions[ref].splice(i, 1);
+      });
+      _excSelected.clear();
+      renderExceptions(ref);
+    }
+  );
+}
+
 
 function onExceptionRetested(ref, idx, checkbox) {
   if (!wpExceptions[ref]?.[idx]) return;
