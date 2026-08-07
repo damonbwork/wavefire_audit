@@ -1031,11 +1031,28 @@ async function initDB() {
       // five legacy types, just never extended to cover these two rows
       // added in later turns. Safe to run every startup; ON CONFLICT DO
       // NOTHING makes this inert once the rows genuinely exist.
-      await pool.query(`
-        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
-          ('M-Template', 'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 8, false),
-          ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections — keeps Sample Data, Test Attributes, Attached Sample Files, and Exceptions.', 9, false)
-        ON CONFLICT (name) DO NOTHING`);
+      //
+      // Wrapped in its OWN try/catch, deliberately isolated from the
+      // shared migration try/catch that wraps everything else in this
+      // function — that shared catch swallows any failure with one
+      // generic 'DB: migration skipped' warning, and critically, a
+      // failure partway through that shared block means EVERY migration
+      // listed after the failure point never runs either. Isolating this
+      // specific insert means a real failure here (found necessary after
+      // this exact bug was reported a second time despite this fix being
+      // in place — direct evidence the statement was likely failing
+      // silently every startup) is now logged distinctly and cannot
+      // silently block unrelated migrations that come after it.
+      try {
+        await pool.query(`
+          INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
+            ('M-Template', 'mtemplate', 'Structured control-testing template.', 8, false),
+            ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 9, false)
+          ON CONFLICT (name) DO NOTHING`);
+        console.log('DB: M-Template workpaper_types backfill applied successfully');
+      } catch (mtErr) {
+        console.error('DB: M-Template workpaper_types backfill FAILED:', mtErr.message);
+      }
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -1283,6 +1300,40 @@ app.get('/api/workpaper-types', async (req, res) => {
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
+});
+
+// Direct diagnostic: force-inserts both M-Template rows and returns the
+// REAL Postgres error if it fails, rather than the generic warning the
+// startup migration's shared catch block would otherwise produce. Visit
+// this directly in a browser to get a definitive answer on whether this
+// specific insert is genuinely failing on the live database, and why —
+// built after this exact bug was reported a second time despite an
+// earlier fix believed correct, to stop guessing and get real evidence.
+app.get('/api/diagnose-mtemplate', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const before = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
+    let insertResult = null;
+    let insertError = null;
+    try {
+      await pool.query(`
+        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
+          ('M-Template', 'mtemplate', 'Structured control-testing template.', 8, false),
+          ('M-Template-Short', 'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections.', 9, false)
+        ON CONFLICT (name) DO NOTHING`);
+      insertResult = 'succeeded';
+    } catch (e) {
+      insertError = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+    }
+    const after = await pool.query(`SELECT name, layout_key, active, plain_type_selectable FROM workpaper_types ORDER BY sort_order`);
+    res.json({
+      before_insert: before.rows,
+      insert_result: insertResult,
+      insert_error: insertError,
+      after_insert: after.rows,
+      mtemplate_short_now_present: after.rows.some(r => r.name === 'M-Template-Short'),
+    });
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-mtemplate:'); }
 });
 
 // Real, canonical workpaper status values/labels — see the
