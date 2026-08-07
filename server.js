@@ -1394,6 +1394,65 @@ app.get('/api/diagnose-tenant-columns', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/diagnose-tenant-columns:'); }
 });
 
+// Direct diagnostic for the real, confirmed 500 on POST /api/workpapers
+// (seen live via the browser's own network tab, response body
+// genuinely just "Internal server error" — fail()'s generic message,
+// which hides the real Postgres error). Reproduces the EXACT same
+// insert, column list, and defaulting logic as the real route, with
+// realistic data, so the actual underlying error is surfaced directly
+// instead of guessed at.
+app.get('/api/diagnose-workpaper-save', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const testRef = 'DIAGNOSTIC-TEST-' + Date.now();
+  try {
+    await pool.query(`INSERT INTO workpapers
+        (ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
+         date_started,review_date,date_submitted,secondary_review_date,
+         population,sample_method,sample_size,narrative,description,test_desc,
+         linked_controls,linked_risks,linked_entities,fs_accounts,
+         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,archived,
+         audit_date,peer_reviewer,gr_review,control_description,
+         it_process,frequency,frequency_other,risk_of_failure,rationale_higher_risk,
+         toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
+         toc_period_from_mmyyyy,toc_period_to_mmyyyy,
+         population_source,population_size,population_completeness_desc,
+         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
+              $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
+              $43,$44,$45,$46,$47,$48,$49,$50,$51,NOW())
+      ON CONFLICT (ref) DO UPDATE SET updated_at=NOW()`,
+      [testRef, 'Diagnostic Audit', 'Diagnostic Workpaper', 'Other', 'draft', '',
+       '', '', '',
+       null, null, null, null,
+       '', '', null,
+       '', '', '',
+       JSON.stringify([]), JSON.stringify([]),
+       JSON.stringify([]), JSON.stringify([]),
+       JSON.stringify([]), JSON.stringify([]),
+       JSON.stringify([]), JSON.stringify([]),
+       JSON.stringify({columns:[],rows:[]}),
+       JSON.stringify([]),
+       false,
+       null, '', '', '',
+       '', '', '', '', '',
+       false, false, false,
+       '', '',
+       '', '', '',
+       '', '', '', '', 'full'
+      ]);
+    // Clean up the diagnostic row immediately — this is purely a write
+    // test, not real data meant to persist.
+    await pool.query('DELETE FROM workpapers WHERE ref=$1', [testRef]);
+    res.json({ insert_result: 'succeeded', message: 'The exact real insert structure works correctly with realistic data.' });
+  } catch(err) {
+    res.status(500).json({
+      insert_result: 'FAILED',
+      error: { message: err.message, code: err.code, detail: err.detail, hint: err.hint, column: err.column, table: err.table, constraint: err.constraint }
+    });
+  }
+});
+
 
 // The New Workpaper modal's own dedicated route — returns layout_key,
 // since that's specifically what determines which sections/fields render
