@@ -1007,7 +1007,7 @@
               <div style="font-size:18px;font-weight:700;color:var(--text-primary)">Users</div>
               <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Create users, assign roles, and manage which tenants each user can access.</div>
             </div>
-            <button class="btn-p" onclick="addAdminUser()" style="flex-shrink:0;margin-left:20px"><i class="ti ti-plus"></i>Add User</button>
+            <button class="btn-p" id="adm-add-user-btn" onclick="addAdminUser()" style="flex-shrink:0;margin-left:20px"><i class="ti ti-plus"></i>Add User</button>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:13px">
             <thead><tr style="background:var(--bg-secondary)">
@@ -1050,6 +1050,147 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- Add User dialog — first/last name and email are required; UserID
+       auto-derives from the email's local part (before the @) as the user
+       types, but stays independently editable in case they want something
+       different from that default. -->
+  <div id="adm-add-user-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:420px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Add User</div>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">First Name <span style="color:#be123c">*</span></label>
+          <input type="text" id="adm-add-user-firstname" oninput="_admSyncUserIdFromEmail()"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Last Name <span style="color:#be123c">*</span></label>
+          <input type="text" id="adm-add-user-lastname" oninput="_admSyncUserIdFromEmail()"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Email <span style="color:#be123c">*</span></label>
+          <input type="email" id="adm-add-user-email" oninput="_admSyncUserIdFromEmail()"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">UserID</label>
+          <input type="text" id="adm-add-user-userid"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+          <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Defaults to the email address — edit if you want something different.</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Role</label>
+          <select id="adm-add-user-role" style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            <option value="user" selected>user</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div id="adm-add-user-error" style="display:none;font-size:12px;color:#be123c"></div>
+      </div>
+      <div style="padding:14px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-s" onclick="closeAddUserDialog()" style="font-size:12px">Cancel</button>
+        <button class="btn-p" onclick="submitAddUser()" style="font-size:12px">Add User</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Tenant dialog — Name is required; Tenant ID auto-derives from
+       the name as a slug (same auto-sync-until-manually-edited pattern as
+       the Add User dialog's UserID field), but stays independently
+       editable. Description, Domain, and Plan are optional and match the
+       real tenants table columns, so a tenant can be fully set up in one
+       step rather than needing follow-up edits after creation. -->
+  <div id="adm-add-tenant-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:9998;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.25);width:420px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary)">Add Tenant</div>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Name <span style="color:#be123c">*</span></label>
+          <input type="text" id="adm-add-tenant-name" oninput="_admSyncTenantIdFromName()"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Tenant ID</label>
+          <input type="text" id="adm-add-tenant-id" oninput="_admSyncTenantIdFromName()"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+          <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Short, unique, no spaces. Defaults from the name — edit if you want something different.</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Description</label>
+          <textarea id="adm-add-tenant-description"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px;min-height:56px;resize:vertical"></textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Domain</label>
+          <input type="text" id="adm-add-tenant-domain" placeholder="e.g. acme.com"
+            style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Plan</label>
+          <select id="adm-add-tenant-plan" style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            <option value="trial" selected>trial</option>
+            <option value="standard">standard</option>
+            <option value="enterprise">enterprise</option>
+          </select>
+        </div>
+        <div id="adm-add-tenant-error" style="display:none;font-size:12px;color:#be123c"></div>
+      </div>
+      <div style="padding:14px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-s" onclick="closeAddTenantDialog()" style="font-size:12px">Cancel</button>
+        <button class="btn-p" onclick="submitAddTenant()" style="font-size:12px">Add Tenant</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Password modal — triggered by loading the app with ?token=...
+       in the URL (the link from the password-setup email). Distinct
+       states: validating the token, a real password-entry form once
+       validated, an invalid/expired message, and a success confirmation. -->
+  <div id="set-password-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:10500;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.3);width:420px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:20px 24px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:center;gap:10px">
+        <i class="ti ti-lock" style="font-size:18px;color:var(--wf-navy)"></i>
+        <div style="font-size:15px;font-weight:700;color:var(--text-primary)">Set your password</div>
+      </div>
+
+      <!-- Validating state -->
+      <div id="sp-state-validating" style="padding:32px 24px;text-align:center;font-size:13px;color:var(--text-tertiary)">
+        Checking your link…
+      </div>
+
+      <!-- Invalid/expired state -->
+      <div id="sp-state-invalid" style="display:none;padding:24px">
+        <div style="font-size:13px;color:var(--text-primary);line-height:1.5">This link is invalid, has already been used, or has expired. Setup links are only valid for 7 days — contact your administrator to have a new one sent.</div>
+      </div>
+
+      <!-- Real password form -->
+      <div id="sp-state-form" style="display:none;padding:24px">
+        <div id="sp-greeting" style="font-size:13px;color:var(--text-secondary);margin-bottom:16px"></div>
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">New Password</label>
+        <input type="password" id="sp-password" autocomplete="new-password"
+          style="width:100%;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px;margin-bottom:14px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Confirm Password</label>
+        <input type="password" id="sp-password-confirm" autocomplete="new-password"
+          style="width:100%;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px">At least 8 characters.</div>
+        <div id="sp-form-error" style="display:none;font-size:12px;color:#be123c;margin-bottom:12px"></div>
+        <button class="btn-p" onclick="submitSetPassword()" style="width:100%;font-size:13px">Set Password</button>
+      </div>
+
+      <!-- Success state -->
+      <div id="sp-state-success" style="display:none;padding:32px 24px;text-align:center">
+        <i class="ti ti-circle-check" style="font-size:32px;color:#16a34a;margin-bottom:10px;display:block"></i>
+        <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:4px">Password set successfully</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">You can now sign in with your new password.</div>
       </div>
     </div>
   </div>
@@ -2015,14 +2156,6 @@
                 <div class="fl">Audit owner</div>
                 <select id="aud-owner" class="aud-field-select" disabled="disabled" style="opacity: 0.55; pointer-events: none; cursor: not-allowed;">
                   <option value="">—</option>
-                  <option value="jdavis" selected="selected">J. Davis (jdavis)</option>
-                  <option value="mchen">M. Chen (mchen)</option>
-                  <option value="rpatel">R. Patel (rpatel)</option>
-                  <option value="ltorres">L. Torres (ltorres)</option>
-                  <option value="skim">S. Kim (skim)</option>
-                  <option value="lmgr">L. Manager (lmgr)</option>
-                  <option value="awong">A. Wong (awong)</option>
-                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
                 </select>
               </div>
               <!-- Business Owner -->
@@ -2317,6 +2450,32 @@
         </div>
       </div>
 
+      <!-- Archived Sample Files — same structure as Archived Workpapers
+           above, scoped to the currently-open workpaper's sample files. -->
+      <div id="archived-sf-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:10002;align-items:center;justify-content:center">
+        <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:680px;max-width:92vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+          <div style="padding:20px 24px 14px;display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Archived Sample Files</div>
+              <div style="font-size:12px;color:var(--text-secondary)" id="archived-sf-msg"></div>
+            </div>
+            <button class="btn-s" onclick="closeArchivedSampleFiles()" style="font-size:12px">Close</button>
+          </div>
+          <div style="padding:0 24px 20px;overflow-y:auto;flex:1">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="background:var(--bg-secondary)">
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Filename</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Size</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Uploaded by</th>
+                <th style="padding:6px 8px;text-align:left;border-bottom:0.5px solid var(--border-light)">Uploaded on</th>
+                <th style="padding:6px 8px;text-align:right;border-bottom:0.5px solid var(--border-light)"></th>
+              </tr></thead>
+              <tbody id="archived-sf-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ══════════════════════════
            PAGE 3 — WORKPAPER DETAIL
       ══════════════════════════ -->
@@ -2433,14 +2592,6 @@
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
               <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-preparer','Preparer')">
                 <option value="">—</option>
-                  <option value="jdavis">J. Davis (jdavis)</option>
-                <option value="mchen">M. Chen (mchen)</option>
-                <option value="rpatel">R. Patel (rpatel)</option>
-                <option value="ltorres">L. Torres (ltorres)</option>
-                <option value="skim">S. Kim (skim)</option>
-                <option value="lmgr">L. Manager (lmgr)</option>
-                <option value="awong">A. Wong (awong)</option>
-                <option value="bnguyen">B. Nguyen (bnguyen)</option>
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date started</div>
               <input type="date" id="wpd-date-started" onchange="logWPDropdownChange('wpd-date-started','Date started')" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
@@ -2451,14 +2602,6 @@
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
               <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-reviewer','Reviewer')">
                 <option value="">—</option>
-                  <option value="mchen">M. Chen (mchen)</option>
-                <option value="jdavis">J. Davis (jdavis)</option>
-                <option value="rpatel">R. Patel (rpatel)</option>
-                <option value="ltorres">L. Torres (ltorres)</option>
-                <option value="skim">S. Kim (skim)</option>
-                <option value="lmgr">L. Manager (lmgr)</option>
-                <option value="awong">A. Wong (awong)</option>
-                <option value="bnguyen">B. Nguyen (bnguyen)</option>
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date submitted for review</div>
               <input type="date" id="wpd-date-submitted" onchange="logWPDropdownChange('wpd-date-submitted','Date submitted for review')" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
@@ -3448,6 +3591,7 @@ to the facility name.  If not found return an empty cell</textarea>
               <span style="font-weight:400;color:var(--text-tertiary);margin-left:4px" id="sample-file-count">1 file</span>
             </div>
             <div style="display:flex;gap:7px;align-items:center">
+              <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="openArchivedSampleFiles()"><i class="ti ti-archive"></i>Archived</button>
               <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('sample-file-input').click()"><i class="ti ti-upload"></i>Upload</button>
               <input type="file" id="sample-file-input" multiple="" accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,application/pdf" style="display:none" onchange="handleFileUpload(event,'sample')">
             </div>
@@ -4186,14 +4330,6 @@ auditor's assessment.
                 <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
                 <select id="nwp-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
                   <option value="">—</option>
-                  <option value="jdavis" selected="selected">J. Davis (jdavis)</option>
-                  <option value="mchen">M. Chen (mchen)</option>
-                  <option value="rpatel">R. Patel (rpatel)</option>
-                  <option value="ltorres">L. Torres (ltorres)</option>
-                  <option value="skim">S. Kim (skim)</option>
-                  <option value="lmgr">L. Manager (lmgr)</option>
-                  <option value="awong">A. Wong (awong)</option>
-                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
                 </select>
 
               </div>
@@ -4202,14 +4338,6 @@ auditor's assessment.
                 <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
                 <select id="nwp-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
                   <option value="">—</option>
-                  <option value="mchen" selected="selected">M. Chen (mchen)</option>
-                  <option value="jdavis">J. Davis (jdavis)</option>
-                  <option value="rpatel">R. Patel (rpatel)</option>
-                  <option value="ltorres">L. Torres (ltorres)</option>
-                  <option value="skim">S. Kim (skim)</option>
-                  <option value="lmgr">L. Manager (lmgr)</option>
-                  <option value="awong">A. Wong (awong)</option>
-                  <option value="bnguyen">B. Nguyen (bnguyen)</option>
                 </select>
               </div>
             </div>
@@ -5837,6 +5965,61 @@ function restoreWorkpaper(ref) {
   renderWorkpapers();
 }
 
+async function openArchivedSampleFiles() {
+  const ref = getWPRef();
+  if (!ref) return;
+  const msgEl  = document.getElementById('archived-sf-msg');
+  const listEl = document.getElementById('archived-sf-list');
+  msgEl.textContent = 'Loading…';
+  listEl.innerHTML = '';
+  document.getElementById('archived-sf-overlay').style.display = 'flex';
+  try {
+    const res = await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/archived');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const files = await res.json();
+    msgEl.textContent = files.length
+      ? `${files.length} archived sample file${files.length !== 1 ? 's' : ''}.`
+      : 'No archived sample files.';
+    listEl.innerHTML = files.map(f => `
+      <tr style="border-bottom:0.5px solid var(--border-light)">
+        <td style="padding:6px 8px;font-weight:500">${escAttr(f.filename)}</td>
+        <td style="padding:6px 8px">${formatFileSize(f.size_bytes || 0)}</td>
+        <td style="padding:6px 8px">${escAttr(f.uploaded_by || '')}</td>
+        <td style="padding:6px 8px;color:var(--text-tertiary)">${f.date_created ? new Date(f.date_created).toLocaleDateString() : ''}</td>
+        <td style="padding:6px 8px;text-align:right">
+          <button class="btn-s" style="font-size:11px;padding:4px 9px" onclick="restoreSampleFile('${escAttr(ref)}','${escAttr(f.file_id)}')">
+            <i class="ti ti-arrow-back-up"></i> Restore
+          </button>
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    msgEl.textContent = 'Could not load archived sample files: ' + e.message;
+  }
+}
+
+function closeArchivedSampleFiles() {
+  document.getElementById('archived-sf-overlay').style.display = 'none';
+}
+
+async function restoreSampleFile(ref, fileId) {
+  try {
+    const res = await fetch(`/api/sample-files/${encodeURIComponent(ref)}/${encodeURIComponent(fileId)}/archive`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: false }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (typeof logEvent === 'function') logEvent(ref, 'Sample file restored from archive');
+    // Refresh the archived panel (this file should disappear from it) and
+    // reload the real sample files list so the restored file reappears —
+    // uses the existing _loadSampleFilesFromBackend, which correctly
+    // merges in backend-confirmed files without duplicating anything
+    // already present in the in-memory session state.
+    openArchivedSampleFiles();
+    _loadSampleFilesFromBackend(ref);
+  } catch(e) {
+    alert('Could not restore file: ' + e.message);
+  }
+}
+
 /* ══════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════ */
@@ -5948,6 +6131,11 @@ function openWP(i) {
   const revSel  = document.getElementById('wpd-reviewer');
   if (prepSel) prepSel.value = w.preparer;
   if (revSel)  revSel.value  = w.reviewer;
+  // Populate from the real users list — fire-and-forget (not awaited, so
+  // this doesn't require making openWP async); the population function's
+  // own preserve-current-value logic reads sel.value once its fetch
+  // resolves, which will correctly be whatever was just set above.
+  populatePreparerReviewerDropdowns();
 
   // Results dropdown
   const resSel = document.getElementById('wpd-results');
@@ -6061,6 +6249,7 @@ function openWP(i) {
   refreshFileList(w.ref, 'workpaper');
 
   // ── Attached sample files ──
+  _loadSampleFilesFromBackend(w.ref); // fire-and-forget — merges in real, durable files; refreshFileList runs again once this resolves
   refreshFileList(w.ref, 'sample');
 
   // ── Test Attributes ──
@@ -6338,9 +6527,6 @@ let currentWPIndex = -1;
 // Per-workpaper sign-off log: { ref: [ {reviewer, ts} ] }
 const wpReviewLog = {};
 
-const _demoReviewers = ['jdavis', 'mchen', 'rpatel', 'ltorres', 'skim', 'awong'];
-let   _demoReviewerIdx = 0;
-
 function updateWPDateReviewed(ref) {
   const el  = document.getElementById('wpd-date-reviewed');
   const log = wpReviewLog[ref] || [];
@@ -6382,9 +6568,10 @@ function addWPReview() {
   const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
-  // Cycle through demo reviewers on each press
-  const reviewer = _demoReviewers[_demoReviewerIdx % _demoReviewers.length];
-  _demoReviewerIdx++;
+  // Stamp with the CURRENT user's actual first/last name — not a cycled
+  // demo name. Uses the shared _admCurrentUserName() helper (see its own
+  // definition for why this is centralized rather than re-derived here).
+  const reviewer = _admCurrentUserName();
 
   if (!wpReviewLog[ref]) wpReviewLog[ref] = [];
   // Always add a new row (no de-duplication by username)
@@ -6403,11 +6590,16 @@ function addWPReview() {
     btn.style.borderColor = '#86efac';
   }
 
-  // On first press — update the Reviewer dropdown to the first demo user
-  if (wpReviewLog[ref].length === 1) {
+  // On first press — update the Reviewer dropdown to the current user, if
+  // they're one of the real, dynamically-populated options (matches by
+  // display name, since the dropdown's visible text — not value — carries
+  // the name; see populatePreparerReviewerDropdowns for how these options
+  // are built).
+  if (wpReviewLog[ref].length === 1 && _currentDisplayUser) {
     const revSel = document.getElementById('wpd-reviewer');
+    const currentUserVal = (_currentDisplayUser.email || '').split('@')[0] || _currentDisplayUser.email;
     if (revSel) {
-      const match = Array.from(revSel.options).find(o => o.value === reviewer);
+      const match = Array.from(revSel.options).find(o => o.value === currentUserVal);
       if (match) revSel.value = match.value;
     }
   }
@@ -7667,7 +7859,7 @@ async function saveAnnotatedPDF() {
       entry.size        = formatFileSize(annotatedFile.size);
       entry._annotations = serialized;
       entry._autoGenerated = false; // user-edited — never let a later automatic re-burn silently overwrite this
-      entry.updatedBy   = 'jdavis';
+      entry.updatedBy   = _admCurrentUserName();
       entry.updatedOn   = nowStr;
     } else {
       // If an annotated version of this same source file already exists,
@@ -7679,7 +7871,7 @@ async function saveAnnotatedPDF() {
         annEntry.size        = formatFileSize(annotatedFile.size);
         annEntry._annotations = serialized;
         annEntry._autoGenerated = false; // user-edited — see above
-        annEntry.updatedBy   = 'jdavis';
+        annEntry.updatedBy   = _admCurrentUserName();
         annEntry.updatedOn   = nowStr;
       } else {
         bucketArr.push({
@@ -7994,7 +8186,7 @@ async function exportExceptions() {
   const wsData = [
     [wp?.auditName || ''],                              // A1: Audit name
     [`${ref} - ${wp?.name || ''}`],                    // A2: Ref - Title
-    ['jdavis'],                                         // A3: Username
+    [_admCurrentUserName()],                            // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
@@ -8193,9 +8385,10 @@ function onExceptionRetested(ref, idx, checkbox) {
     const now  = new Date();
     const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
     const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-    ex.retestedBy   = 'jdavis';
+    const retesterName = _admCurrentUserName();
+    ex.retestedBy   = retesterName;
     ex.retestedDate = `${date} ${time}`;
-    logEvent(ref, `Exception #${ex.num} marked as Retested by jdavis on ${date} ${time}`);
+    logEvent(ref, `Exception #${ex.num} marked as Retested by ${retesterName} on ${date} ${time}`);
   } else {
     logChange(ref, `Exception #${ex.num} — Retested`, `Retested by ${ex.retestedBy} on ${ex.retestedDate}`, 'Retest cleared');
     ex.retestedBy   = '';
@@ -8321,7 +8514,6 @@ function minimizeNotesWindow() {
 }
 
 function addNoteEntry(container, text, focusNew) {
-  const DEMO_CLEARERS = ['mchen', 'rpatel', 'ltorres', 'skim', 'awong', 'bnguyen'];
   const entry = document.createElement('div');
   entry.style.cssText = 'display:flex;flex-direction:row;gap:6px;align-items:flex-start;width:100%';
 
@@ -8352,15 +8544,13 @@ function addNoteEntry(container, text, focusNew) {
   const stamp = document.createElement('div');
   stamp.style.cssText = 'font-size:8px;color:var(--text-tertiary);text-align:center;line-height:1.4;display:none;word-break:break-all';
 
-  let clearerIdx = Math.floor(Math.random() * DEMO_CLEARERS.length);
-
   clearBtn.addEventListener('click', () => {
     const isCleared = clearBtn.dataset.cleared === '1';
     if (!isCleared) {
       const now  = new Date();
       const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
       const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-      const clearer = DEMO_CLEARERS[clearerIdx % DEMO_CLEARERS.length];
+      const clearer = _admCurrentUserName();
       clearBtn.dataset.cleared = '1';
       clearBtn.style.background = '#2563eb';
       clearBtn.style.color = '#fff';
@@ -8553,7 +8743,7 @@ function logChange(ref, field, oldVal, newVal, user) {
   if (!wpChangeLog[ref]) wpChangeLog[ref] = [];
   wpChangeLog[ref].unshift({ // newest first
     ts:     nowStamp(),
-    user:   user || 'jdavis',
+    user:   user || _admCurrentUserName(),
     field,
     oldVal: oldVal != null ? String(oldVal) : '',
     newVal: newVal != null ? String(newVal) : '',
@@ -8565,7 +8755,7 @@ function logEvent(ref, description, user) {
   if (!wpChangeLog[ref]) wpChangeLog[ref] = [];
   wpChangeLog[ref].unshift({
     ts:     nowStamp(),
-    user:   user || 'jdavis',
+    user:   user || _admCurrentUserName(),
     field:  'Event',
     oldVal: '',
     newVal: description,
@@ -11048,6 +11238,90 @@ function showAdminSection(section) {
 // session handling) already documented as the next planned phase — this
 // scaffolding gives the Admin tab a genuine home to build that into, without
 // guessing at fields or behavior that hasn't been decided yet.
+// Populates every Preparer/Reviewer dropdown in the app from the real
+// users list — replacing what used to be a static, hardcoded roster of
+// fictional names baked directly into the HTML. Called on page load and
+// whenever the New Workpaper form or a workpaper's own detail view is
+// opened, so these always reflect whoever is actually in the users table,
+// not a fixed list that could only ever change by editing this file.
+//
+// Uses each user's email local-part (the part before @) as the option's
+// value — the same "UserID" convention already used for the top-right
+// user switcher — because that's what actually gets stored as
+// w.preparer/w.reviewer and shown as plain text elsewhere in the app
+// (workpaper list rows, exports); the raw user_id (a UUID) would be
+// technically correct but unreadable everywhere it's displayed as text.
+var _preparerReviewerUsersCache = null;
+
+async function populatePreparerReviewerDropdowns() {
+  if (!_preparerReviewerUsersCache) {
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _preparerReviewerUsersCache = await res.json();
+    } catch(e) {
+      console.error('[populatePreparerReviewerDropdowns] Could not load users:', e.message);
+      _preparerReviewerUsersCache = [];
+    }
+  }
+  const users = _preparerReviewerUsersCache;
+  const optionsHtml = '<option value="">—</option>' + users.map(function(u){
+    const val = (u.email || '').split('@')[0] || u.email || u.user_id;
+    const label = ((u.first_name||'') + ' ' + (u.last_name||'')).trim() || u.email;
+    return '<option value="' + escAttr(val) + '">' + escAttr(label) + ' (' + escAttr(val) + ')</option>';
+  }).join('');
+
+  ['wpd-preparer', 'wpd-reviewer', 'nwp-preparer', 'nwp-reviewer'].forEach(function(id){
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentValue = sel.value; // preserve whatever was already selected
+    sel.innerHTML = optionsHtml;
+    if (currentValue && Array.from(sel.options).some(function(o){ return o.value === currentValue; })) {
+      sel.value = currentValue;
+    }
+  });
+}
+
+// Populates the Audit Owner dropdown from the same real users list — this
+// was the one remaining static roster left over from the original fix:
+// its own hardcoded <option> list, PLUS a separate hardcoded name-to-id
+// lookup table (with "jdavis" hardcoded as the fallback default for any
+// name that didn't match) that populateAuditInfoCard used to restore the
+// selection when opening an audit. Both are gone now — this function
+// replaces both, and the selection is restored by matching audit.owner
+// against each option's actual visible text, exactly as the field's own
+// save logic already reads it (see the aud-owner save handler, which
+// reads option text and strips the "(id)" suffix — audit.owner is
+// genuinely stored as a display name here, not a short id, unlike
+// Preparer/Reviewer above).
+async function populateAuditOwnerDropdown(selectedOwnerName) {
+  if (!_preparerReviewerUsersCache) {
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _preparerReviewerUsersCache = await res.json();
+    } catch(e) {
+      console.error('[populateAuditOwnerDropdown] Could not load users:', e.message);
+      _preparerReviewerUsersCache = [];
+    }
+  }
+  const users = _preparerReviewerUsersCache;
+  const sel = document.getElementById('aud-owner');
+  if (!sel) return;
+
+  const labelFor = function(u){ return ((u.first_name||'') + ' ' + (u.last_name||'')).trim() || u.email; };
+  const idFor = function(u){ return (u.email || '').split('@')[0] || u.email || u.user_id; };
+
+  sel.innerHTML = '<option value="">—</option>' + users.map(function(u){
+    return '<option value="' + escAttr(idFor(u)) + '">' + escAttr(labelFor(u)) + ' (' + escAttr(idFor(u)) + ')</option>';
+  }).join('');
+
+  if (selectedOwnerName) {
+    const match = users.find(function(u){ return labelFor(u) === selectedOwnerName; });
+    if (match) sel.value = idFor(match);
+  }
+}
+
 async function renderAdminUsers() {
   const listEl = document.getElementById('adm-users-list');
   if (!listEl) return;
@@ -11056,6 +11330,9 @@ async function renderAdminUsers() {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const users = await res.json();
+    // The Admin Users list and the Preparer/Reviewer dropdowns both need
+    // the same real user data — share the cache instead of fetching twice.
+    _preparerReviewerUsersCache = users;
     if (!users.length) {
       listEl.innerHTML = '<tr><td colspan="6" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
       return;
@@ -11179,13 +11456,47 @@ function filterUserSwitcherList(query) {
 // planned phase). Once real authentication exists, this is the natural
 // place to also actually switch the active session — for now it's
 // display-only, and that limitation is intentional, not an oversight.
+//
+// _currentDisplayUser holds the FULL selected user record (not just the
+// label string) — this is what lets other UI, like the Admin tab's Add
+// User button below, check fields like is_superadmin. This is still
+// entirely a client-side display convenience, not a real session: nothing
+// server-side knows or enforces who this is, and anyone could pick any
+// user from this same list to make the UI show SuperAdmin-only buttons.
+// It exists only to hide/show UI affordances sensibly for someone
+// legitimately using the app as intended — it is NOT a security boundary,
+// and no server route should ever trust anything set by this function.
+var _currentDisplayUser = null;
+
+// Single shared source for "the current user's display name, with a
+// sensible fallback." Every place in this app that stamps an action with
+// who performed it (file uploads, annotation saves, exception retesting,
+// exports, audit logging, etc.) should call this rather than re-deriving
+// first-name + last-name (or worse, a hardcoded literal) independently at
+// each call site — that duplication is exactly how several real
+// hardcoded-username bugs made it into this codebase in the first place.
+function _admCurrentUserName() {
+  if (!_currentDisplayUser) return 'Unknown user';
+  return `${_currentDisplayUser.first_name || ''} ${_currentDisplayUser.last_name || ''}`.trim() || _currentDisplayUser.email || 'Unknown user';
+}
+
 function selectSwitcherUser(userId, label) {
   const labelEl = document.getElementById('wf-current-userid-label');
   if (labelEl) labelEl.textContent = label;
+  _currentDisplayUser = (_userSwitcherAllUsers || []).find(function(u){ return u.user_id === userId; }) || null;
   const panel = document.getElementById('wf-user-switcher-panel');
   if (panel) panel.style.display = 'none';
 }
 
+// Shows/hides the Add User button based on the CURRENTLY SELECTED DISPLAY
+// USER's is_superadmin field. Hidden by default — no user selected, or a
+// selected user that isn't marked SuperAdmin, both hide it; it only shows
+// once a user explicitly confirmed as SuperAdmin (via the switcher) is
+// selected. This is a UI convenience for someone legitimately using the
+// app as intended, NOT a real access-control boundary — see the extensive
+// comment on _currentDisplayUser above. Nothing server-side enforces this;
+// this only controls what's visually shown.
+// Single source of truth for "is the currently-selected display user a
 // Click-anywhere-outside-the-panel closes it — the standard dropdown
 // pattern. Registered once, checks whether the click landed inside the
 // panel or the toggle button itself before closing.
@@ -11378,24 +11689,232 @@ async function removeAdminTenantUser(tenantId, userId) {
 }
 
 function addAdminUser() {
-  alert('Adding users through this form isn\'t built yet — this needs the login/authentication system (password hashing, sessions) to be built first, so a new user actually has a way to sign in. The users table and the /api/admin/users API can already accept a new user record; only the create-user dialog itself is still needed.');
+  document.getElementById('adm-add-user-firstname').value = '';
+  document.getElementById('adm-add-user-lastname').value = '';
+  document.getElementById('adm-add-user-email').value = '';
+  document.getElementById('adm-add-user-userid').value = '';
+  document.getElementById('adm-add-user-role').value = 'user';
+  document.getElementById('adm-add-user-error').style.display = 'none';
+  _admUserIdManuallyEdited = false; // reset so a fresh dialog always starts auto-syncing from email
+  document.getElementById('adm-add-user-overlay').style.display = 'flex';
+  document.getElementById('adm-add-user-firstname').focus();
 }
 
-async function addAdminTenant() {
-  const name = prompt('Tenant name:');
-  if (!name || !name.trim()) return;
-  const id = prompt('Tenant ID (short, unique, no spaces — e.g. "acme-co"):', name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'));
-  if (!id || !id.trim()) return;
+function closeAddUserDialog() {
+  document.getElementById('adm-add-user-overlay').style.display = 'none';
+}
+
+// Tracks whether the user has manually typed into the UserID field
+// themselves — once they have, their own value is respected and no longer
+// silently overwritten every time they edit first/last name or email.
+// Only reset when the dialog is freshly opened via addAdminUser() above.
+var _admUserIdManuallyEdited = false;
+
+function _admSyncUserIdFromEmail() {
+  const userIdField = document.getElementById('adm-add-user-userid');
+  // If THIS keystroke happened directly in the UserID field, mark it as
+  // manually edited and stop auto-syncing from here on — this function is
+  // wired to all four fields' oninput, so it needs to tell which one fired.
+  if (document.activeElement === userIdField) {
+    _admUserIdManuallyEdited = true;
+    return;
+  }
+  if (_admUserIdManuallyEdited) return; // respect their prior manual edit
+  userIdField.value = document.getElementById('adm-add-user-email').value.trim();
+}
+
+// Same auto-sync-until-manually-edited pattern as _admSyncUserIdFromEmail
+// above, for the Add Tenant dialog's ID field — derives a URL/identifier-
+// safe slug from the Name field (lowercase, non-alphanumeric runs
+// collapsed to a single hyphen, no leading/trailing hyphen) as the user
+// types, but stops overwriting the ID field the moment they edit it
+// directly themselves.
+var _admTenantIdManuallyEdited = false;
+
+function _admSyncTenantIdFromName() {
+  const idField = document.getElementById('adm-add-tenant-id');
+  if (document.activeElement === idField) {
+    _admTenantIdManuallyEdited = true;
+    return;
+  }
+  if (_admTenantIdManuallyEdited) return;
+  const name = document.getElementById('adm-add-tenant-name').value;
+  idField.value = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+async function submitAddUser() {
+  const firstName = document.getElementById('adm-add-user-firstname').value.trim();
+  const lastName  = document.getElementById('adm-add-user-lastname').value.trim();
+  const email     = document.getElementById('adm-add-user-email').value.trim();
+  const userId    = document.getElementById('adm-add-user-userid').value.trim() || email; // falls back to email if somehow left blank
+  const role      = document.getElementById('adm-add-user-role').value;
+  const errEl     = document.getElementById('adm-add-user-error');
+
+  const missing = [];
+  if (!firstName) missing.push('First Name');
+  if (!lastName)  missing.push('Last Name');
+  if (!email)     missing.push('Email');
+  if (missing.length) {
+    errEl.textContent = missing.join(', ') + (missing.length > 1 ? ' are' : ' is') + ' required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  // Basic email shape check — genuine validation (MX lookup, confirmation
+  // email, etc.) isn't meaningful without the login/authentication system
+  // this is explicitly deferred until, but catching an obviously malformed
+  // address here is a cheap, real improvement over letting it reach the
+  // database unchecked.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Enter a valid email address.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/admin/users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ first_name: firstName, last_name: lastName, email: email, role: role })
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(function(){ return {}; });
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+    closeAddUserDialog();
+    renderAdminUsers();
+    // The user-switcher's cached list is now stale — clear it so the next
+    // time it's opened, it reloads and includes the user just created.
+    _userSwitcherAllUsers = null;
+  } catch(e) {
+    errEl.textContent = 'Could not create user: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// ── Set Password (from the emailed setup link) ──────────────────────────
+function _spShowState(state) {
+  ['validating', 'invalid', 'form', 'success'].forEach(function(s){
+    const el = document.getElementById('sp-state-' + s);
+    if (el) el.style.display = (s === state) ? 'block' : 'none';
+  });
+}
+
+var _spRawToken = null;
+
+async function checkForSetPasswordToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  if (!token) return; // no token in the URL — nothing to do, most page loads
+
+  _spRawToken = token;
+  document.getElementById('set-password-overlay').style.display = 'flex';
+  _spShowState('validating');
+
+  try {
+    const res = await fetch('/api/auth/validate-token?token=' + encodeURIComponent(token));
+    const data = await res.json();
+    if (!data.valid) {
+      _spShowState('invalid');
+      return;
+    }
+    const greetEl = document.getElementById('sp-greeting');
+    if (greetEl) {
+      greetEl.textContent = (data.firstName ? 'Hi ' + data.firstName + ', s' : 'S') + 'et a password for ' + data.email + '.';
+    }
+    _spShowState('form');
+    document.getElementById('sp-password').focus();
+  } catch(e) {
+    _spShowState('invalid');
+  }
+}
+
+async function submitSetPassword() {
+  const password = document.getElementById('sp-password').value;
+  const confirm  = document.getElementById('sp-password-confirm').value;
+  const errEl    = document.getElementById('sp-form-error');
+
+  if (password.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (password !== confirm) {
+    errEl.textContent = 'Passwords do not match.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/auth/set-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: _spRawToken, password: password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    _spShowState('success');
+    // Remove the token from the URL — a page refresh (or someone reopening
+    // this tab later) should never re-trigger validation against a token
+    // that's now already been used.
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function addAdminTenant() {
+  document.getElementById('adm-add-tenant-name').value = '';
+  document.getElementById('adm-add-tenant-id').value = '';
+  document.getElementById('adm-add-tenant-description').value = '';
+  document.getElementById('adm-add-tenant-domain').value = '';
+  document.getElementById('adm-add-tenant-plan').value = 'trial';
+  document.getElementById('adm-add-tenant-error').style.display = 'none';
+  _admTenantIdManuallyEdited = false; // reset so a fresh dialog always starts auto-syncing from name
+  document.getElementById('adm-add-tenant-overlay').style.display = 'flex';
+  document.getElementById('adm-add-tenant-name').focus();
+}
+
+function closeAddTenantDialog() {
+  document.getElementById('adm-add-tenant-overlay').style.display = 'none';
+}
+
+async function submitAddTenant() {
+  const name        = document.getElementById('adm-add-tenant-name').value.trim();
+  const id          = document.getElementById('adm-add-tenant-id').value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  const description = document.getElementById('adm-add-tenant-description').value.trim();
+  const domain       = document.getElementById('adm-add-tenant-domain').value.trim();
+  const plan         = document.getElementById('adm-add-tenant-plan').value;
+  const errEl        = document.getElementById('adm-add-tenant-error');
+
+  if (!name) {
+    errEl.textContent = 'Name is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!id) {
+    errEl.textContent = 'Tenant ID is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
   try {
     const res = await fetch('/api/admin/tenants', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id.trim(), name: name.trim() })
+      body: JSON.stringify({ id, name, description, domain, plan })
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.json().catch(function(){ return {}; });
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+    closeAddTenantDialog();
     await renderAdminTenants();
-    selectAdminTenant(id.trim());
+    selectAdminTenant(id);
   } catch(e) {
-    alert('Could not create tenant: ' + e.message);
+    errEl.textContent = 'Could not create tenant: ' + e.message;
+    errEl.style.display = 'block';
   }
 }
 
@@ -17590,7 +18109,7 @@ function createNewAudit() {
     name,
     year:   parseInt(year) || new Date().getFullYear(),
     type:   type  || 'Financial',
-    owner:  owner || 'jdavis',
+    owner:  owner || _admCurrentUserName(),
     period,
     status: 'Planned',
     desc:   document.getElementById('na-desc')?.value.trim() || '',
@@ -17633,6 +18152,7 @@ function createNewAudit() {
 
 function openNewWorkpaper() {
   const audit = currentAudit;
+  populatePreparerReviewerDropdowns();
 
   // Populate audit info strip on the new-wp page
   const nwpBcAudit   = document.getElementById('nwp-bc-audit');
@@ -18485,16 +19005,10 @@ function populateAuditInfoCard(audit) {
     const year = audit.year || (audit.period?.match(/\b(20\d{2})\b/) || [])[1] || (audit.name?.match(/\b(20\d{2})\b/) || [])[1] || '';
     yearInput.value = year;
   }
-  // Sync owner dropdown
-  const ownerSel = document.getElementById('aud-owner');
-  if (ownerSel) {
-    // Find matching option by owner name
-    const ownerVal = {
-      "J. Davis": "jdavis", "M. Chen": "mchen", "R. Patel": "rpatel",
-      "L. Torres": "ltorres", "S. Kim": "skim", "L. Manager": "lmgr"
-    }[audit.owner] || "jdavis";
-    ownerSel.value = ownerVal;
-  }
+  // Sync owner dropdown — populated from the real users list, with the
+  // audit's own stored owner name (a display name, e.g. "J. Davis", not a
+  // short id) used to restore the correct selection.
+  populateAuditOwnerDropdown(audit.owner);
   // Sync type
   const typeSel = document.getElementById('aud-type');
   if (typeSel) typeSel.value = audit.type;
@@ -20134,7 +20648,7 @@ async function exportToXlsx(attachOnly = false) {
   const wsData = [
     [wp?.auditName || ''],                              // A1: Audit name
     [`${ref} - ${wp?.name || ''}`],                    // A2: Ref - Title
-    ['jdavis'],                                         // A3: Username
+    [_admCurrentUserName()],                            // A3: Username
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank spacer
   ];
@@ -20283,7 +20797,7 @@ async function exportToXlsx(attachOnly = false) {
     ['Workpaper Reference', ref],
     ['Workpaper Name', wp?.name || ''],
     ['Audit', wp?.auditName || ''],
-    ['Exported by', 'jdavis'],
+    ['Exported by', _admCurrentUserName()],
     ['Export date', new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })],
     ['Files analyzed', analysisResults.length],
     ['Attributes evaluated', attributes.length],
@@ -21807,10 +22321,13 @@ function markFileReviewed(key, fileName) {
   const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
   const prev = fileReviewState[key];
-  fileReviewState[key] = { reviewer: 'jdavis', reviewedAt: `${date} at ${time}` };
+  // Stamp with the CURRENT user's actual first/last name — via the shared
+  // _admCurrentUserName() helper, not a hardcoded literal.
+  const reviewerName = _admCurrentUserName();
+  fileReviewState[key] = { reviewer: reviewerName, reviewedAt: `${date} at ${time}` };
   const ref = getWPRef();
   const fileLabel = fileName ? `${fileName} · ` : '';
-  logEvent(ref, `REVIEWED - ${fileLabel}jdavis ${date} at ${time}${prev ? ' (updated)' : ''}`);
+  logEvent(ref, `REVIEWED - ${fileLabel}${reviewerName} ${date} at ${time}${prev ? ' (updated)' : ''}`);
   applyReviewedState(key);
 }
 
@@ -22255,12 +22772,13 @@ function processUploadedFiles(files, bucket) {
 function _addFilesToStore(files, bucket, ref) {
   if (!files.length) return;
   files.forEach(file => {
+    const uploaderName = _admCurrentUserName();
     const entry = {
       file,
       name: file.name,
       size: formatFileSize(file.size),
       type: file.type,
-      uploadedBy: 'jdavis',
+      uploadedBy: uploaderName,
       uploadedOn: (() => {
         const now = new Date();
         const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -22270,8 +22788,112 @@ function _addFilesToStore(files, bucket, ref) {
     };
     inMemoryFiles[ref][bucket].push(entry);
     logEvent(ref, `File added to ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${file.name} (${formatFileSize(file.size)})`);
+
+    // Persist SAMPLE files to real, durable storage (object storage for
+    // the bytes, Postgres for metadata) — this is what makes a sample
+    // file survive beyond the current browser session/tab, rather than
+    // only ever existing in this in-memory object. Fire-and-forget: the
+    // in-memory entry (used by the PDF viewer, Analyze, annotation
+    // burning, etc.) is already updated above and works immediately
+    // regardless of network timing; this just makes it durable in the
+    // background. Workpaper files (the other bucket) are intentionally
+    // NOT persisted here — this was specifically about sample files.
+    if (bucket === 'sample') {
+      _persistSampleFileToBackend(ref, entry, uploaderName);
+    }
   });
   refreshFileList(ref, bucket);
+}
+
+// Uploads one sample file's actual bytes to the backend (object storage +
+// Postgres metadata row) via multipart/form-data. Stores the returned
+// file_id on the in-memory entry so later actions (download, archive,
+// delete) know which backend record this entry corresponds to.
+async function _persistSampleFileToBackend(ref, entry, uploaderName) {
+  try {
+    const formData = new FormData();
+    formData.append('file', entry.file, entry.name);
+    formData.append('filename', entry.name);
+    formData.append('uploadedBy', uploaderName);
+    const res = await fetch('/api/sample-files/' + encodeURIComponent(ref), {
+      method: 'POST',
+      body: formData, // NOT JSON — browser sets the correct multipart Content-Type/boundary automatically
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(function(){ return {}; });
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+    const saved = await res.json();
+    entry.fileId = saved.file_id; // links this in-memory entry to its durable backend record
+  } catch(e) {
+    console.error('[_persistSampleFileToBackend] Could not save', entry.name, 'to durable storage:', e.message);
+    // Deliberately NOT shown as a blocking alert — the file is already
+    // usable for the rest of this session via the in-memory entry above;
+    // surfacing this as a quiet console warning (rather than a modal that
+    // interrupts the person mid-upload) while still making the failure
+    // genuinely discoverable is the right balance until this has been
+    // exercised against a real bucket and proven reliable enough to
+    // warrant a more visible failure state.
+  }
+}
+
+// A File/Blob-like stand-in for a sample file whose metadata has been
+// loaded from the backend but whose actual bytes have NOT been downloaded
+// yet. Every existing consumer of entry.file in this app only ever calls
+// .arrayBuffer() (already an async method) — never reads bytes
+// synchronously — so this lazy wrapper is completely transparent to all
+// of them: the real download only happens the first time something
+// actually needs the bytes (opening the viewer, burning annotations,
+// running Analyze), and the result is cached so a second read doesn't
+// re-download. This is what makes "list a workpaper's sample files"
+// cheap and immediate, without needing to download every attached file's
+// full bytes just to show the file list.
+function _makeLazyBackendFile(ref, fileId, name, size, type) {
+  let cachedBytes = null;
+  return {
+    name, size, type,
+    _fileId: fileId, // exposed for code that needs the backend id directly (archive/delete actions)
+    async arrayBuffer() {
+      if (cachedBytes) return cachedBytes;
+      const res = await fetch(`/api/sample-files/${encodeURIComponent(ref)}/${encodeURIComponent(fileId)}/download`);
+      if (!res.ok) throw new Error('Could not download ' + name + ' (HTTP ' + res.status + ')');
+      cachedBytes = await res.arrayBuffer();
+      return cachedBytes;
+    },
+  };
+}
+
+// Loads a workpaper's sample files from the backend (metadata only — see
+// _makeLazyBackendFile above for how actual bytes get fetched on demand)
+// and merges them into inMemoryFiles. Existing in-memory entries for
+// files not yet confirmed saved to the backend (e.g. an upload still in
+// flight, or one that failed to persist) are preserved rather than wiped
+// — this only ADDS backend-confirmed entries that aren't already present
+// (matched by filename), so it's safe to call multiple times without
+// creating duplicates or losing session-only state.
+async function _loadSampleFilesFromBackend(ref) {
+  try {
+    const res = await fetch('/api/sample-files/' + encodeURIComponent(ref));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const files = await res.json();
+    if (!inMemoryFiles[ref]) inMemoryFiles[ref] = { workpaper: [], sample: [] };
+    const existingNames = new Set(inMemoryFiles[ref].sample.map(f => f.name));
+    files.forEach(f => {
+      if (existingNames.has(f.filename)) return; // already present in this session — don't duplicate
+      inMemoryFiles[ref].sample.push({
+        file: _makeLazyBackendFile(ref, f.file_id, f.filename, f.size_bytes, f.content_type),
+        name: f.filename,
+        size: formatFileSize(f.size_bytes || 0),
+        type: f.content_type,
+        uploadedBy: f.uploaded_by || '',
+        uploadedOn: f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
+        fileId: f.file_id,
+      });
+    });
+    refreshFileList(ref, 'sample');
+  } catch(e) {
+    console.error('[_loadSampleFilesFromBackend] Could not load sample files for', ref, ':', e.message);
+  }
 }
 
 function formatFileSize(bytes) {
@@ -22482,11 +23104,18 @@ function escJs(str) {
     .replace(/>/g, '\\x3E');
 }
 
-// Download a real in-memory File object
-function downloadMemFile(ref, bucket, idx) {
+// Download a real in-memory (or lazily-backend-loaded) File object.
+// createObjectURL requires an actual Blob — for a lazy backend-loaded
+// entry (see _makeLazyBackendFile), entry.file only implements
+// .arrayBuffer(), not the full Blob interface, so bytes are read via that
+// async method and wrapped in a genuine Blob here before creating the
+// object URL. Works identically for a real in-session File object too.
+async function downloadMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   if (!entry?.file) return;
-  const url = URL.createObjectURL(entry.file);
+  const bytes = await entry.file.arrayBuffer();
+  const blob  = new Blob([bytes], { type: entry.type || entry.file.type || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = entry.name;
   document.body.appendChild(a); a.click();
@@ -22510,6 +23139,15 @@ function deleteMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   const name = entry?.name || 'file';
   if (inMemoryFiles[ref]?.[bucket]) {
+    // Archive (not permanently delete) the backend copy for sample files
+    // — same soft-hide pattern already used for workpapers, so removing
+    // a file from view doesn't destroy the durable copy. Fire-and-forget:
+    // the in-memory removal below already updates the UI immediately.
+    if (bucket === 'sample' && entry?.fileId) {
+      fetch(`/api/sample-files/${encodeURIComponent(ref)}/${encodeURIComponent(entry.fileId)}/archive`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: true }),
+      }).catch(function(e){ console.error('[deleteMemFile] Could not archive backend file record:', e.message); });
+    }
     inMemoryFiles[ref][bucket].splice(idx, 1);
     logEvent(ref, `File deleted from ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${name}`);
     refreshFileList(ref, bucket);
@@ -25866,6 +26504,7 @@ onNavAuditChange();
 populateWpFilters();
 populateControlFilter();
 populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default audit on load
+checkForSetPasswordToken(); // shows the Set Password modal if the URL has ?token=... (from the password-setup email)
 
 // Set initial browser history state and handle any deep-link hash
 try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } catch(e) {}
