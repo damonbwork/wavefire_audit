@@ -585,6 +585,15 @@ async function initDB() {
         population_completeness_desc TEXT DEFAULT '',
         toc_sample_size            TEXT DEFAULT '', -- free text, same reasoning as population_size
         sample_selection_method    TEXT DEFAULT '',
+        -- M-Template Header: a genuinely independent, free-form text
+        -- field per explicit instruction — deliberately NOT linked to
+        -- the existing entities array/reference table on this workpaper.
+        mt_entity_name             TEXT DEFAULT '',
+        -- M-Template Header: "ITGC name/ref:" — defaults to the
+        -- workpaper's own ref but is independently editable/overridable,
+        -- per "should default as the workpaper ID" implying it can
+        -- diverge from it, not always mirror it live.
+        mt_itgc_ref                TEXT DEFAULT '',
         created_at             TIMESTAMPTZ DEFAULT NOW(),
         updated_at             TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, ref)
@@ -612,14 +621,78 @@ async function initDB() {
         description TEXT DEFAULT '',
         sort_order  INTEGER DEFAULT 0,
         active      BOOLEAN NOT NULL DEFAULT true,
+        -- Distinguishes "selectable as a plain, manually-picked Workpaper
+        -- Type value" from "selectable as a New Workpaper modal starting
+        -- template." M-Template is real, active data (the modal built
+        -- earlier still needs it) but should NOT appear in the plain
+        -- Workpaper Type dropdown/filter — this flag is how one table
+        -- correctly serves both without duplicating rows or hardcoding an
+        -- exclusion list in the frontend.
+        plain_type_selectable BOOLEAN NOT NULL DEFAULT true,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-      INSERT INTO workpaper_types (name, layout_key, description, sort_order) VALUES
-        ('Workpaper-Short Template', 'skinny',    'Short-form workpaper — admin/narrow sections only.', 1),
-        ('Workpaper-Long Template',  'full',      'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 2),
-        ('M-Template',               'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 3)
+      INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
+        ('Planning',                 'skinny',    'Planning workpaper.', 1, true),
+        ('Testwork',                 'full',      'Testwork workpaper.', 2, true),
+        ('Report',                   'full',      'Report workpaper.', 3, true),
+        ('Admin',                    'skinny',    'Administrative workpaper.', 4, true),
+        ('Other',                    'skinny',    'Other workpaper type.', 5, true),
+        ('Workpaper-Short Template', 'skinny',    'Short-form workpaper — admin/narrow sections only.', 6, true),
+        ('Workpaper-Long Template',  'full',      'Long-form workpaper — full set of sections including scope, narrative, test attributes, sample data, and analysis.', 7, true),
+        ('M-Template',               'mtemplate', 'Structured control-testing template — Header, Information About this Control, Nature/Timing/Extent of the TOC sections.', 8, false),
+        ('M-Template-Short',         'mtemplate-short', 'M-Template without the Header, Information About this Control, and Nature/Timing/Extent of the TOC sections — keeps Sample Data, Test Attributes, Attached Sample Files, and Exceptions.', 9, false)
       ON CONFLICT (name) DO NOTHING;
+
+      -- ── Workpaper Statuses (reference table, mirrors workpaper_types) ───────
+      -- Real canonical status codes — confirmed against the existing
+      -- statusLabel mapping and every status-setting control already in
+      -- the app (workpaper detail header, New Workpaper form): draft /
+      -- review / approved. The workpaper list's own status FILTER
+      -- dropdown had been using plain display text as its values instead
+      -- (no value attribute set, defaulting to "Draft"/"In review"/
+      -- "Reviewed") — which never actually matched any real workpaper's
+      -- stored status (always lowercase "draft"/"review"/"approved"), so
+      -- that filter had silently returned zero results this whole time.
+      -- This table is the single source of truth going forward for both
+      -- the value AND the label, fixing that mismatch at its root.
+      CREATE TABLE IF NOT EXISTS workpaper_statuses (
+        value       TEXT PRIMARY KEY,
+        label       TEXT NOT NULL,
+        sort_order  INTEGER DEFAULT 0,
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO workpaper_statuses (value, label, sort_order) VALUES
+        ('draft',    'Draft',     1),
+        ('review',   'In review', 2),
+        ('approved', 'Reviewed',  3)
+      ON CONFLICT (value) DO NOTHING;
+
+      -- ── Workpaper Tag Descriptions ────────────────────────────────────────
+      -- Maps each real workpaper tag code (the same codes already in the
+      -- wpd-tag-options datalist elsewhere in this app — CC, SEC, OPS,
+      -- FIN, IPE) to a human-readable description. Seeded with empty
+      -- descriptions deliberately — the actual meaning of each code
+      -- (e.g. what "SEC" stands for) is domain-specific to this firm's
+      -- own workpaper-naming convention, which only the user actually
+      -- knows; these should be filled in through the app (or directly in
+      -- this table) rather than guessed at here.
+      CREATE TABLE IF NOT EXISTS workpaper_tag_descriptions (
+        code        TEXT PRIMARY KEY,
+        description TEXT DEFAULT '',
+        sort_order  INTEGER DEFAULT 0,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      INSERT INTO workpaper_tag_descriptions (code, description, sort_order) VALUES
+        ('CC',  '', 1),
+        ('SEC', '', 2),
+        ('OPS', '', 3),
+        ('FIN', '', 4),
+        ('IPE', '', 5)
+      ON CONFLICT (code) DO NOTHING;
 
       CREATE TABLE IF NOT EXISTS company_context (
         tenant_id   TEXT NOT NULL DEFAULT 'default',
@@ -929,6 +1002,25 @@ async function initDB() {
       }
 
       await pool.query(`ALTER TABLE tenants            ADD COLUMN IF NOT EXISTS description   TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpaper_types ADD COLUMN IF NOT EXISTS plain_type_selectable BOOLEAN NOT NULL DEFAULT true`);
+      // Correct the default for M-Template specifically, in case this
+      // migration is running against a table that already existed from
+      // before this column was added (a fresh CREATE TABLE handles new
+      // rows correctly via the INSERT above; existing rows need this
+      // explicit correction).
+      await pool.query(`UPDATE workpaper_types SET plain_type_selectable=false WHERE name='M-Template'`);
+      // Backfill the five legacy workpaper types in case this table is
+      // already live from a prior deploy without them — safe to run every
+      // startup, since ON CONFLICT DO NOTHING makes this a no-op once
+      // they exist.
+      await pool.query(`
+        INSERT INTO workpaper_types (name, layout_key, description, sort_order, plain_type_selectable) VALUES
+          ('Planning', 'skinny', 'Planning workpaper.', 1, true),
+          ('Testwork', 'full',   'Testwork workpaper.', 2, true),
+          ('Report',   'full',   'Report workpaper.', 3, true),
+          ('Admin',    'skinny', 'Administrative workpaper.', 4, true),
+          ('Other',    'skinny', 'Other workpaper type.', 5, true)
+        ON CONFLICT (name) DO NOTHING`);
       await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS description    TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS objective_id  TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE controls          ADD COLUMN IF NOT EXISTS analyst_notes TEXT DEFAULT ''`);
@@ -962,6 +1054,12 @@ async function initDB() {
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS population_completeness_desc TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS toc_sample_size TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS sample_selection_method TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_entity_name TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_itgc_ref TEXT DEFAULT ''`);
+      await pool.query(`
+        INSERT INTO workpaper_tag_descriptions (code, description, sort_order) VALUES
+          ('CC', '', 1), ('SEC', '', 2), ('OPS', '', 3), ('FIN', '', 4), ('IPE', '', 5)
+        ON CONFLICT (code) DO NOTHING`);
       // Stable per-workpaper id, used to link sample_data_columns/rows and
       // extracted_data back to their workpaper — ref stays the
       // primary key and the human-readable/editable identifier used
@@ -1152,14 +1250,66 @@ app.get('/api/control-categories', async (req, res) => {
 // Returns full rows (not just names) — the New Workpaper modal needs
 // layout_key to actually determine which form/sections a workpaper of
 // the selected type gets, not just a name to display.
+//
+// ?plainOnly=true filters to plain_type_selectable=true only — used by
+// the plain "Workpaper type" dropdown/filter (which should NOT offer
+// M-Template as a manually-pickable value) while leaving this route's
+// default, unfiltered behavior exactly as the New Workpaper modal
+// already depends on (that modal genuinely should still offer every
+// active template, M-Template included).
 app.get('/api/workpaper-types', async (req, res) => {
   if (!pool) return res.json([]);
   try {
+    const plainOnly = req.query.plainOnly === 'true';
     const { rows } = await pool.query(
-      'SELECT name, layout_key, description FROM workpaper_types WHERE active=true ORDER BY sort_order, name'
+      `SELECT name, layout_key, description FROM workpaper_types
+       WHERE active=true ${plainOnly ? 'AND plain_type_selectable=true' : ''}
+       ORDER BY sort_order, name`
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
+});
+
+// Real, canonical workpaper status values/labels — see the
+// workpaper_statuses table comment for why this exists (the status
+// filter dropdown had been using mismatched values that never actually
+// matched a real workpaper's stored status).
+app.get('/api/workpaper-statuses', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT value, label FROM workpaper_statuses WHERE active=true ORDER BY sort_order, label'
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-statuses:'); }
+});
+
+// Real tag-code-to-description mapping (CC, SEC, OPS, FIN, IPE) — see the
+// workpaper_tag_descriptions table comment for why these are seeded
+// blank rather than pre-filled: the actual meaning of each code is
+// specific to this firm's own naming convention.
+app.get('/api/workpaper-tag-descriptions', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT code, description FROM workpaper_tag_descriptions ORDER BY sort_order, code'
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-tag-descriptions:'); }
+});
+
+app.patch('/api/workpaper-tag-descriptions/:code', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { description } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE workpaper_tag_descriptions SET description=$2, updated_at=NOW()
+       WHERE code=$1 RETURNING code, description`,
+      [req.params.code, description || '']
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Tag code not found' });
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'PATCH /api/workpaper-tag-descriptions/:code:'); }
 });
 
 app.post('/api/control-categories', async (req, res) => {
@@ -1925,7 +2075,7 @@ app.post('/api/workpapers', async (req, res) => {
     toc_inquiry_performed, toc_observation_performed, toc_reperformance_performed,
     toc_period_from_mmyyyy, toc_period_to_mmyyyy,
     population_source, population_size, population_completeness_desc,
-    toc_sample_size, sample_selection_method
+    toc_sample_size, sample_selection_method, mt_entity_name, mt_itgc_ref
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -1940,11 +2090,11 @@ app.post('/api/workpapers', async (req, res) => {
          toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
          toc_period_from_mmyyyy,toc_period_to_mmyyyy,
          population_source,population_size,population_completeness_desc,
-         toc_sample_size,sample_selection_method,updated_at)
+         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
               $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
               $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
-              $43,$44,$45,$46,$47,$48,NOW())
+              $43,$44,$45,$46,$47,$48,$49,$50,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -1986,6 +2136,7 @@ app.post('/api/workpapers', async (req, res) => {
         population_source=EXCLUDED.population_source, population_size=EXCLUDED.population_size,
         population_completeness_desc=EXCLUDED.population_completeness_desc,
         toc_sample_size=EXCLUDED.toc_sample_size, sample_selection_method=EXCLUDED.sample_selection_method,
+        mt_entity_name=EXCLUDED.mt_entity_name, mt_itgc_ref=EXCLUDED.mt_itgc_ref,
         updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
@@ -2004,7 +2155,7 @@ app.post('/api/workpapers', async (req, res) => {
        !!toc_inquiry_performed, !!toc_observation_performed, !!toc_reperformance_performed,
        toc_period_from_mmyyyy||'', toc_period_to_mmyyyy||'',
        population_source||'', population_size||'', population_completeness_desc||'',
-       toc_sample_size||'', sample_selection_method||''
+       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||''
       ]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
