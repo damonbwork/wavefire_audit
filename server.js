@@ -1328,6 +1328,37 @@ app.get('/api/diagnose-mtemplate', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const result = { steps: [] };
   try {
+    // Step 0: which schema(s) actually contain a table named
+    // workpaper_types — rules out the possibility that the CREATE TABLE
+    // and the ALTER TABLE (or the diagnostic's own SELECT) are somehow
+    // resolving against different tables via schema/search_path
+    // ambiguity, rather than genuinely the same one.
+    try {
+      const schemas = await pool.query(`
+        SELECT table_schema, table_name
+        FROM information_schema.tables
+        WHERE table_name = 'workpaper_types'`);
+      result.tables_named_workpaper_types = schemas.rows;
+      result.steps.push({ step: 'check_schemas', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'check_schemas', ok: false, error: { message: e.message, code: e.code } });
+    }
+
+    // Step 0.5: attempt the EXACT ALTER TABLE statement live, right now
+    // — this is the most direct possible test. If this succeeds here but
+    // the column still doesn't show up in step 1 afterward, that's
+    // genuinely strange and worth knowing. If it fails, the real error
+    // (not an inference about a past, unobservable startup run) tells us
+    // definitively what's actually wrong.
+    try {
+      await pool.query(`ALTER TABLE workpaper_types ADD COLUMN IF NOT EXISTS plain_type_selectable BOOLEAN NOT NULL DEFAULT true`);
+      result.live_alter_table_result = 'succeeded';
+      result.steps.push({ step: 'live_alter_table', ok: true });
+    } catch (e) {
+      result.live_alter_table_error = { message: e.message, code: e.code, detail: e.detail, hint: e.hint };
+      result.steps.push({ step: 'live_alter_table', ok: false, error: { message: e.message, code: e.code, detail: e.detail } });
+    }
+
     // Step 1: what columns ACTUALLY exist on the live table right now —
     // queried directly from Postgres's own system catalog, not assumed
     // from this file's schema definition. This is the definitive check:
