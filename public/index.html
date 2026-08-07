@@ -2651,39 +2651,61 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-file-text"></i>Header</div>
           </div>
-          <div class="sect-body">
-            <div class="field-grid">
-              <div class="fld">
-                <div class="fl">Audit date</div>
-                <input type="date" id="mt-audit-date" onchange="mtFieldChanged('audit_date', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-              </div>
-              <div class="fld">
-                <div class="fl">Preparer</div>
-                <select id="mt-preparer" onchange="mtPreparerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-                  <option value="">—</option>
-                </select>
-              </div>
-              <div class="fld">
-                <div class="fl">Peer Reviewer</div>
-                <select id="mt-peer-reviewer" onchange="mtFieldChanged('peer_reviewer', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-                  <option value="">—</option>
-                </select>
-              </div>
-              <div class="fld">
-                <div class="fl">GR Review</div>
-                <select id="mt-gr-review" onchange="mtFieldChanged('gr_review', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-                  <option value="">—</option>
-                </select>
-              </div>
-              <div class="fld">
-                <div class="fl">Final Reviewer</div>
-                <select id="mt-final-reviewer" onchange="mtFinalReviewerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-                  <option value="">—</option>
-                </select>
-              </div>
+          <div class="sect-body" style="display:flex;flex-direction:column;gap:12px">
+            <div class="fld">
+              <div class="fl">ITGC name/ref:</div>
+              <input type="text" id="mt-itgc-ref" onblur="mtFieldChanged('mt_itgc_ref', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+            </div>
+            <div class="fld">
+              <div class="fl">Description</div>
+              <input type="text" id="mt-tag-description" disabled style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:var(--bg-secondary);color:var(--text-secondary)">
+            </div>
+            <div class="fld">
+              <div class="fl">Entity name</div>
+              <input type="text" id="mt-entity-name" onblur="mtFieldChanged('mt_entity_name', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+            </div>
+            <div class="fld">
+              <div class="fl">Audit date</div>
+              <input type="date" id="mt-audit-date" onchange="mtFieldChanged('audit_date', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+            </div>
+            <div class="fld">
+              <div class="fl">Preparer</div>
+              <select id="mt-preparer" onchange="mtPreparerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="fld">
+              <div class="fl">Peer reviewer</div>
+              <select id="mt-peer-reviewer" onchange="mtFieldChanged('peer_reviewer', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="fld">
+              <div class="fl">GR review</div>
+              <select id="mt-gr-review" onchange="mtFieldChanged('gr_review', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="fld">
+              <div class="fl">Final reviewer</div>
+              <select id="mt-final-reviewer" onchange="mtFinalReviewerChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="fld">
+              <div class="fl">Effectiveness conclusion</div>
+              <select id="mt-effectiveness-conclusion" onchange="mtResultsChanged(this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+                <option value="">— Select —</option>
+                <option value="pass">Pass</option>
+                <option value="passex">Pass w/ Exceptions</option>
+                <option value="fail">Fail</option>
+                <option value="met">Objectives Met</option>
+                <option value="notmet">Objectives Not Met</option>
+              </select>
             </div>
           </div>
         </div>
+
 
         <!-- M-Template Section 2: Information About this Control -->
         <div class="sect-card" id="sect-mtemplate-control-info" style="display:none">
@@ -2692,12 +2714,12 @@
           </div>
           <div class="sect-body">
             <div class="fld" style="margin-bottom:10px">
-              <div class="fl">Control Description</div>
+              <div class="fl">Control description</div>
               <textarea id="mt-control-description" oninput="autoResizeTA(this)" onblur="mtFieldChanged('control_description', this.value)" placeholder="Describe the control…" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px 8px;resize:none;outline:none;line-height:1.5;overflow:hidden;min-height:80px"></textarea>
             </div>
-            <div class="field-grid">
+            <div style="display:flex;flex-direction:column;gap:12px">
               <div class="fld">
-                <div class="fl">IT Process</div>
+                <div class="fl">IT process</div>
                 <input type="text" id="mt-it-process" onblur="mtFieldChanged('it_process', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
               </div>
               <div class="fld">
@@ -2713,7 +2735,7 @@
                 <input type="text" id="mt-risk-of-failure" onblur="mtFieldChanged('risk_of_failure', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
               </div>
               <div class="fld">
-                <div class="fl">Rationale for Higher Risk</div>
+                <div class="fl">Rationale for higher risk</div>
                 <input type="text" id="mt-rationale-higher-risk" onblur="mtFieldChanged('rationale_higher_risk', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
               </div>
             </div>
@@ -2751,20 +2773,18 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-calendar"></i>Timing of the TOC</div>
           </div>
-          <div class="sect-body">
-            <div class="field-grid">
-              <div class="fld">
-                <div class="fl">Period covered by the control test: From date</div>
-                <input type="text" id="mt-period-from" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
-                  oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_from_mmyyyy')"
-                  style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-              </div>
-              <div class="fld">
-                <div class="fl">Period covered by the control test: To date</div>
-                <input type="text" id="mt-period-to" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
-                  oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_to_mmyyyy')"
-                  style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
-              </div>
+          <div class="sect-body" style="display:flex;flex-direction:column;gap:12px">
+            <div class="fld">
+              <div class="fl">Period covered by the control test: from date</div>
+              <input type="text" id="mt-period-from" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
+                oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_from_mmyyyy')"
+                style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
+            </div>
+            <div class="fld">
+              <div class="fl">Period covered by the control test: to date</div>
+              <input type="text" id="mt-period-to" placeholder="MM/YYYY" maxlength="7" inputmode="numeric"
+                oninput="mtMaskMMYYYY(this)" onblur="mtValidateAndSaveMMYYYY(this, 'toc_period_to_mmyyyy')"
+                style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
             </div>
           </div>
         </div>
@@ -2779,13 +2799,13 @@
               <div class="fl">Population source (system name or description)</div>
               <input type="text" id="mt-population-source" onblur="mtFieldChanged('population_source', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
             </div>
-            <div class="field-grid">
+            <div style="display:flex;flex-direction:column;gap:12px">
               <div class="fld">
-                <div class="fl">Population Size</div>
+                <div class="fl">Population size</div>
                 <input type="text" id="mt-population-size" onblur="mtFieldChanged('population_size', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
               </div>
               <div class="fld">
-                <div class="fl">Sample Size</div>
+                <div class="fl">Sample size</div>
                 <input type="text" id="mt-sample-size" onblur="mtFieldChanged('toc_sample_size', this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);background:transparent">
               </div>
             </div>
@@ -6457,14 +6477,34 @@ function openWP(i) {
   // CREATION time. A correctly-created M-Template workpaper would have
   // silently rendered as a skinny workpaper here regardless, since this
   // check never knew M-Template existed.
-  const layoutKey   = _layoutKeyForType(w.type);
-  const isFull      = layoutKey === 'full' || w.wpStyle === 'full';
-  const isMTemplate = layoutKey === 'mtemplate';
-  const sectIds = ['sect-risks-controls','sect-narrative','sect-test-description','sect-sample-data','sect-test-attributes','sect-sample-files','sect-analyze','sect-exceptions'];
-  sectIds.forEach(id => {
+  const layoutKey        = _layoutKeyForType(w.type);
+  const isFull           = layoutKey === 'full' || w.wpStyle === 'full';
+  const isMTemplate      = layoutKey === 'mtemplate';
+  const isMTemplateShort = layoutKey === 'mtemplate-short';
+  const isAnyMTemplate   = isMTemplate || isMTemplateShort;
+
+  // Full-template-only sections — NOT requested for either M-Template
+  // variant, stay exclusive to the long/full layout exactly as before.
+  const fullOnlySectIds = ['sect-risks-controls', 'sect-narrative', 'sect-test-description'];
+  fullOnlySectIds.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = (isFull && !isMTemplate) ? '' : 'none';
+    if (el) el.style.display = (isFull && !isAnyMTemplate) ? '' : 'none';
   });
+
+  // Sections shared between the full/long template AND both M-Template
+  // variants, per explicit request: Sample Data, Test Attributes,
+  // Attached Sample Files (which contains the nested Analyze & Create
+  // Workpaper button/description — see the /sect-card sample files
+  // comment marking sect-analyze as a sub-element of sect-sample-files,
+  // not its own independent card), and Exceptions. M-Template-Short keeps
+  // all four of these — only the Header/Information/Nature/Timing/Extent
+  // sections below are excluded for it specifically.
+  const sharedSectIds = ['sect-sample-data', 'sect-test-attributes', 'sect-sample-files', 'sect-analyze', 'sect-exceptions'];
+  sharedSectIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (isFull || isAnyMTemplate) ? '' : 'none';
+  });
+
   // Attached workpaper files always visible (both full and skinny)
   const wpFilesEl = document.getElementById('sect-wp-files');
   if (wpFilesEl) wpFilesEl.style.display = '';
@@ -6473,10 +6513,20 @@ function openWP(i) {
   // About this Control, Nature/Timing/Extent of the TOC) instead of the
   // shared Preparer/Reviewer/Status strip (sect-wpinfo) every other
   // workpaper type uses — sect-wpinfo is hidden here specifically for
-  // M-Template; every other type keeps showing it exactly as before,
-  // since it was never part of the sectIds toggle list to begin with.
+  // EITHER M-Template variant; every other type keeps showing it exactly
+  // as before, since it was never part of the sectIds toggle list to
+  // begin with. M-Template-Short does NOT get sect-wpinfo back as a
+  // substitute — the request excludes the Header section entirely, with
+  // the workpaper's own reference already shown elsewhere on the page
+  // (the subtitle under the workpaper name) being sufficient per explicit
+  // confirmation, not a reason to fall back to the shared strip.
   const wpInfoEl = document.getElementById('sect-wpinfo');
-  if (wpInfoEl) wpInfoEl.style.display = isMTemplate ? 'none' : '';
+  if (wpInfoEl) wpInfoEl.style.display = isAnyMTemplate ? 'none' : '';
+
+  // These five sections are the actual "Workpaper information" (Header)
+  // plus Information About this Control / Nature / Timing / Extent of
+  // the TOC — shown ONLY for genuine M-Template, explicitly excluded for
+  // M-Template-Short per this request.
   const mtSectIds = ['sect-mtemplate-header','sect-mtemplate-control-info','sect-mtemplate-nature-toc','sect-mtemplate-timing-toc','sect-mtemplate-extent-toc'];
   mtSectIds.forEach(id => {
     const el = document.getElementById(id);
@@ -18959,6 +19009,16 @@ function submitNewWorkpaper() {
   };
 
   WORKPAPERS.push(newWP);
+
+  // Persist to Postgres immediately — this was the actual reported bug:
+  // a newly created workpaper previously only ever existed in the
+  // in-memory WORKPAPERS array for the current browser session. Nothing
+  // here ever wrote it to the database, so it would silently vanish on
+  // refresh, in a new session, or after a deploy, with nothing in
+  // Postgres to recover it from — exactly the same class of gap already
+  // fixed earlier for audit creation, just never carried over to
+  // workpaper creation itself.
+  _saveWorkpaperToDB(newWP);
 
   // Update the WP ref nav dropdown
   const selWpRef = document.getElementById('sel-wp-ref');
