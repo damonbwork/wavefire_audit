@@ -11615,22 +11615,42 @@ async function populateWorkpaperTypeDropdowns() {
       _plainWorkpaperTypesCache = [];
     }
   }
-  const types = _plainWorkpaperTypesCache;
+  const plainTypes = _plainWorkpaperTypesCache;
 
+  // nwp-type is now a HIDDEN field (per explicit instruction to remove
+  // the visible dropdown from the New Workpaper form) that serves two
+  // purposes: it's still what the New Workpaper modal's
+  // selectWorkpaperTemplate() writes a chosen template's name into. That
+  // means it needs an <option> for EVERY template the modal can offer —
+  // including M-Template and M-Template-Short, which are deliberately
+  // excluded from the plainOnly list — or setting .value to one of those
+  // names is a silent no-op (no matching option exists to select),
+  // leaving the field at its prior/default value. This was the actual
+  // cause of "selecting M-Template-Short creates a long-form workpaper
+  // instead": the value never actually applied, and creation fell back
+  // to the 'Testwork'/'full' default. Uses the full, unfiltered list
+  // (the same one the modal itself already fetches) specifically for
+  // this hidden field.
+  const allTypes = await _loadWorkpaperTypes();
   const nwpSel = document.getElementById('nwp-type');
   if (nwpSel) {
     const currentValue = nwpSel.value;
     nwpSel.innerHTML = '<option value="">— Select type —</option>' +
-      types.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
-    if (currentValue && types.some(function(t){ return t.name === currentValue; })) nwpSel.value = currentValue;
+      allTypes.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && allTypes.some(function(t){ return t.name === currentValue; })) nwpSel.value = currentValue;
   }
 
+  // wp-filter-type is the genuine, visible, user-facing Type filter on
+  // the workpaper list — this one correctly keeps using the
+  // plainOnly-filtered list, since M-Template/M-Template-Short should
+  // NOT be manually selectable there (that exclusion was never the bug;
+  // only the hidden nwp-type field needed the full list).
   const filterSel = document.getElementById('wp-filter-type');
   if (filterSel) {
     const currentValue = filterSel.value;
     filterSel.innerHTML = '<option value="">All types</option>' +
-      types.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
-    if (currentValue && types.some(function(t){ return t.name === currentValue; })) filterSel.value = currentValue;
+      plainTypes.map(function(t){ return '<option>' + escAttr(t.name) + '</option>'; }).join('');
+    if (currentValue && plainTypes.some(function(t){ return t.name === currentValue; })) filterSel.value = currentValue;
   }
 }
 
