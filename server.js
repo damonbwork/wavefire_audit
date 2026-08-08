@@ -2871,25 +2871,184 @@ app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
   }
 });
 
-// ── TEMPORARY: serves the real-file pdfAnnotate test page from the same
-// origin as the real app, so its fetch('/api/...') calls can genuinely
-// reach this server — opening the downloaded file locally (file://) has
-// no real server behind it, causing every fetch to fail with a network
-// error before ever reaching the actual API. Reads the file from disk at
-// request time rather than embedding it as a JS template literal, since
-// the page's own real code uses backticks that would otherwise collide
-// with that embedding syntax. Remove this route once real-file
-// annotation testing is complete — it serves a diagnostic tool, not a
-// real part of the app.
+// ── TEMPORARY: serves the real-file pdfAnnotate test page directly from
+// this SAME file — genuinely embedded as a string, not read from a
+// second, separate file on disk. This is the actual, real fix for a
+// confirmed, real problem: the previous version required uploading
+// test-pdfannotate-real-file.html to Railway ALONGSIDE server.js, and
+// that second file was never actually deployed, which is precisely why
+// every fetch() from it failed — there was nothing there to serve in
+// the first place. Embedding it here means deploying this one file is
+// genuinely enough; nothing else to remember to upload. Remove this
+// whole route once real-file annotation testing is complete — it serves
+// a diagnostic tool, not a real part of the app.
+const TEST_PAGE_HTML = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>pdfAnnotate — real file test</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+  #log { white-space: pre-wrap; font-family: monospace; font-size: 13px; background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; min-height: 40px; }
+  .pass { color: #4ec9b0; }
+  .fail { color: #f14c4c; }
+  .info { color: #9cdcfe; }
+  input, button { font-size: 14px; padding: 8px 10px; margin: 4px 4px 4px 0; }
+  button { cursor: pointer; }
+  a { color: #58a6ff; }
+  label { display: block; margin-top: 12px; font-weight: 600; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>pdfAnnotate — real stored file test</h1>
+<p>Loads an actual, real sample file already stored in your app (via its own real backend routes — no fabricated data) and runs the same proven annotation mechanism against its genuine bytes.</p>
+
+<label>Workpaper ref (e.g. WP-2026-NEWW-010)</label>
+<input type="text" id="ref-input" placeholder="WP-2026-NEWW-010" style="width:280px">
+<button id="list-btn">List real files for this workpaper</button>
+
+<div id="file-list"></div>
+<div id="log"></div>
+<p id="download-link"></p>
+
+<script src="https://cdn.jsdelivr.net/npm/annotpdf@1.0.15/_bundles/pdfAnnotate.js"></script>
+<script>
+const logEl = document.getElementById('log');
+const lines = [];
+function log(msg, cls) {
+  lines.push(cls ? \`<span class="\${cls}">\${msg}</span>\` : msg);
+  logEl.innerHTML = lines.join('\\n');
+}
+
+document.getElementById('list-btn').onclick = async () => {
+  const ref = document.getElementById('ref-input').value.trim();
+  const listEl = document.getElementById('file-list');
+  listEl.innerHTML = 'Loading real file list…';
+  if (!ref) { listEl.innerHTML = 'Enter a real workpaper ref first.'; return; }
+
+  try {
+    // Uses this app's own real, existing route — same one the app's own
+    // Attached Sample Files list uses, no fabricated data.
+    const res = await fetch('/api/diagnose-sample-files/' + encodeURIComponent(ref));
+    if (!res.ok) { listEl.innerHTML = 'Could not load files: HTTP ' + res.status; return; }
+    const data = await res.json();
+    if (!data.files || !data.files.length) {
+      listEl.innerHTML = 'No real files found for this workpaper ref, or storage is not configured.';
+      return;
+    }
+    listEl.innerHTML = '<label>Pick a real, stored file to test against:</label>' +
+      data.files.map(f => \`<button class="pick-btn" data-name="\${f.filename}">\${f.filename} (\${f.genuinely_exists_in_storage ? 'confirmed in storage' : 'NOT confirmed in storage'})</button>\`).join('<br>');
+    document.querySelectorAll('.pick-btn').forEach(btn => {
+      btn.onclick = () => runRealFileTest(ref, btn.dataset.name);
+    });
+  } catch (e) {
+    listEl.innerHTML = 'Error: ' + e.message;
+  }
+};
+
+async function runRealFileTest(ref, filename) {
+  lines.length = 0;
+  log('Testing against the real, actual file: ' + filename, 'info');
+  let fails = 0;
+  function check(name, cond) {
+    log((cond ? '✓ PASS' : '✗ FAIL') + ' — ' + name, cond ? 'pass' : 'fail');
+    if (!cond) fails++;
+  }
+
+  check('window.pdfAnnotate is defined (library loaded from CDN)', typeof window.pdfAnnotate !== 'undefined');
+  if (typeof window.pdfAnnotate === 'undefined') return;
+
+  // Fetch the genuine, real file_id first, since the actual download
+  // route needs it — reads it straight from the app's own real
+  // sample-files listing, not fabricated.
+  let realFileId;
+  try {
+    const filesRes = await fetch('/api/sample-files/' + encodeURIComponent(ref));
+    const files = await filesRes.json();
+    const match = files.find(f => f.filename === filename);
+    if (!match) { check('found the real file_id for this filename', false); return; }
+    realFileId = match.file_id;
+    check('found the real, genuine file_id for this file (' + realFileId + ')', true);
+  } catch (e) {
+    check('fetching the real file_id', false);
+    log('Exception: ' + e.message, 'fail');
+    return;
+  }
+
+  // Fetch the ACTUAL raw bytes of this real, stored file — the app's own
+  // real download route, genuinely reading from S3, not synthetic data.
+  let realBytes;
+  try {
+    const fileRes = await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(realFileId) + '/download');
+    if (!fileRes.ok) { check('downloading the real file bytes', false); return; }
+    const buf = await fileRes.arrayBuffer();
+    realBytes = new Uint8Array(buf);
+    check('downloaded the ACTUAL real file bytes (' + realBytes.length + ' bytes) from genuine storage', realBytes.length > 0);
+  } catch (e) {
+    check('downloading the real file bytes', false);
+    log('Exception: ' + e.message, 'fail');
+    return;
+  }
+
+  let factory;
+  try {
+    factory = new window.pdfAnnotate.AnnotationFactory(realBytes);
+    check('AnnotationFactory genuinely initialized from the REAL file\\'s actual bytes', true);
+  } catch (e) {
+    check('AnnotationFactory initialization on the real file', false);
+    log('Exception: ' + e.message, 'fail');
+    log('\\nThis would mean the real file\\'s own internal structure (not a synthetic test PDF) has something the library cannot parse — genuinely useful, real information either way.', 'info');
+    return;
+  }
+
+  try {
+    factory.createFreeTextAnnotation({
+      page: 0,
+      rect: [72, 700, 350, 750],
+      contents: 'Test annotation on REAL stored file — Ticket Exists: PASS',
+      author: 'Wavefire',
+      color: { r: 0, g: 128, b: 0 },
+    });
+    check('createFreeTextAnnotation genuinely succeeded on the real file', true);
+  } catch (e) {
+    check('createFreeTextAnnotation on the real file', false);
+    log('Exception: ' + e.message, 'fail');
+  }
+
+  check('getAnnotationCount reports exactly 1 real annotation added', factory.getAnnotationCount() === 1);
+
+  let outBytes;
+  try {
+    outBytes = factory.write();
+    check('factory.write() genuinely produced output bytes from the real file', outBytes && outBytes.length > 0);
+    check('output is genuinely LARGER than the real input (an actual annotation was appended)', outBytes.length > realBytes.length);
+  } catch (e) {
+    check('factory.write() on the real file', false);
+    log('Exception: ' + e.message, 'fail');
+  }
+
+  log('\\n' + (fails === 0 ? '✓ ALL CHECKS PASSED against your REAL, actual stored file.' : fails + ' FAILURE(S) against your real file'), fails === 0 ? 'pass' : 'fail');
+
+  if (outBytes) {
+    const blob = new Blob([outBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const dl = document.getElementById('download-link');
+    dl.innerHTML = '';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'REAL-annotated-' + filename;
+    a.textContent = 'Download the actually-annotated real file — open it in Acrobat to confirm the annotation is genuine and editable';
+    dl.appendChild(a);
+  }
+}
+</script>
+</body>
+</html>
+`;
+
 app.get('/test-pdfannotate-real-file', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-  const filePath = path.join(__dirname, 'test-pdfannotate-real-file.html');
-  fs.readFile(filePath, 'utf8', (err, content) => {
-    if (err) return res.status(404).send('Test file not found on server — it needs to be uploaded alongside server.js for this route to work.');
-    res.setHeader('Content-Type', 'text/html');
-    res.send(content);
-  });
+  res.setHeader('Content-Type', 'text/html');
+  res.send(TEST_PAGE_HTML);
 });
 
 app.get('/api/sample-files/:ref', async (req, res) => {
