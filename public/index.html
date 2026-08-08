@@ -863,7 +863,7 @@
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
           style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px">
           <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
-          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">jdavis</span>
+          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
         </button>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
@@ -7930,7 +7930,14 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   // Snapshot the ORIGINAL entries before this loop starts adding annotated
   // ones into the same array — otherwise the loop would also iterate over
   // (and try to re-annotate) the annotated copies it just added.
-  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom);
+  // Genuinely excludes BOTH derived-copy types: files already carrying
+  // _annotatedFrom (this mechanism's own prior output) AND files carrying
+  // _isPristineCopy (the separate, standalone pristine-copy-to-filesystem
+  // mechanism's output) — a real, confirmed gap found after this loop was
+  // discovered processing "_copy.pdf" files as if they were originals,
+  // producing mismatched, never-matching annotated names and immediately
+  // deleting them again when no analysis results matched.
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !f._isPristineCopy);
   if (!originalEntries.length) return;
 
   let PDFLib;
@@ -24156,6 +24163,20 @@ function toggleSampleFileSelected(i, checkbox) {
   renderSampleFilesToolbar(_sfSelectedRef);
 }
 
+// Per-category select-all, per explicit instruction — selects/deselects
+// every file within ONE specific category (Original / Copy / Annotated)
+// only, not the whole section. indicesStr arrives as a comma-separated
+// list of the real row indices belonging to that category (built at
+// render time from that category's own list), parsed back into numbers
+// here. A full grid re-render is used rather than just the toolbar,
+// since toggling a whole category changes several individual row
+// checkboxes' visual state at once, not just the toolbar's count.
+function toggleSampleFileCategorySelected(indicesStr, checked) {
+  const indices = indicesStr.split(',').filter(s => s !== '').map(Number);
+  indices.forEach(i => { checked ? _sfSelected.add(i) : _sfSelected.delete(i); });
+  refreshFileList(_sfSelectedRef, 'sample');
+}
+
 // Renders the "Delete selected" button into the section toolbar,
 // conditionally, based on current selection — matches the exact pattern
 // already proven correct for the Exceptions bulk-delete feature.
@@ -24270,7 +24291,15 @@ function refreshFileList(ref, bucket) {
         copy:      'File system copies',
         annotated: 'Annotated files',
       };
-      const categoryHeaderHtml = (key) => `<div style="padding:8px 16px 4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);background:var(--bg-secondary)">${categoryLabels[key]}</div>`;
+      const categoryHeaderHtml = (key, list) => {
+        const indices = list.map(({ i }) => i);
+        const allSelected = indices.length > 0 && indices.every(i => _sfSelected.has(i));
+        const idxAttr = indices.join(',');
+        return `<div style="padding:8px 16px 4px;display:flex;align-items:center;gap:6px;background:var(--bg-secondary)">
+          <input type="checkbox" ${allSelected ? 'checked' : ''} onchange="toggleSampleFileCategorySelected('${idxAttr}',this.checked)" style="width:12px;height:12px;accent-color:var(--wf-navy);cursor:pointer" title="Select all files in ${escAttr(categoryLabels[key])}">
+          <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">${categoryLabels[key]}</span>
+        </div>`;
+      };
 
       const dynRows = ['original', 'copy', 'annotated'].map(catKey => {
         const list = categorized[catKey];
@@ -24356,7 +24385,7 @@ function refreshFileList(ref, bucket) {
           </div>
         </div>`;
         }).join('');
-        return categoryHeaderHtml(catKey) + rowsHtml;
+        return categoryHeaderHtml(catKey, list) + rowsHtml;
       }).join('');
       sfl.innerHTML = (staticRows + dynRows) || `<div style="padding:16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No sample files attached yet.</div>`;
     }
@@ -28039,6 +28068,34 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
 // empty in memory while the DOM kept showing whatever it last rendered.
 (async function launchToDefaultWP() {
   await _bootstrapLoadPromise;
+
+  // ── Initialize the current-user display (upper-right corner) to a
+  // real, genuine user — per explicit clarification that this selector
+  // IS the intended source of "who's using the app right now," and will
+  // map onto real login soon. Previously this stayed unset until someone
+  // manually opened the switcher, meaning _currentDisplayUser — the
+  // actual variable _admCurrentUserName() reads for every upload/action
+  // stamp — was null from page load onward, which is the real, direct
+  // cause of new uploads showing "Unknown user." Runs independently of
+  // the workpaper-landing logic below, since this needs to happen
+  // regardless of which workpaper ends up loading. ──
+  try {
+    if (!_userSwitcherAllUsers) await loadUserSwitcherList();
+    if (_userSwitcherAllUsers && _userSwitcherAllUsers.length && !_currentDisplayUser) {
+      // Only consider ACTIVE users for the default — the real backend
+      // query returns inactive/deactivated accounts too, with no
+      // filtering, and defaulting to one of those would be a genuine,
+      // meaningful mistake, not just a cosmetic one.
+      const activeUsers = _userSwitcherAllUsers.filter(u => u.is_active !== false);
+      const firstUser = activeUsers[0] || _userSwitcherAllUsers[0];
+      if (firstUser) {
+        const label = `${firstUser.first_name || ''} ${firstUser.last_name || ''}`.trim() || firstUser.email || firstUser.user_id;
+        selectSwitcherUser(firstUser.user_id, label);
+      }
+    }
+  } catch (e) {
+    console.error('[CurrentUser] Could not initialize default current user:', e.message);
+  }
 
   // ── A real URL hash always takes priority — checked FIRST. This
   // corrects a genuine, confirmed bug: the previous version of this
