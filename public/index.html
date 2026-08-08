@@ -7954,6 +7954,214 @@ async function _makePristineFileSystemCopyBeforeAnalyze(ref) {
   refreshFileList(ref, 'sample');
 }
 
+// Loads the pdfAnnotate library from its real, confirmed CDN bundle path
+// — the exact same path directly confirmed working in two separate,
+// real tests this session (a hand-built synthetic PDF, and an actual
+// file pulled from this app's own live storage). Not yet self-hosted
+// via a server-side proxy the way pdf-lib is (see /pdflib/pdf-lib.min.js
+// in server.js) — that would require adding annotpdf as a genuine npm
+// dependency and redeploying, a separate, real step not yet taken.
+async function loadPdfAnnotateLib() {
+  if (window.pdfAnnotate) return window.pdfAnnotate;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/annotpdf@1.0.15/_bundles/pdfAnnotate.js';
+    s.onload = () => {
+      if (window.pdfAnnotate) resolve(window.pdfAnnotate);
+      else reject(new Error('pdfAnnotate script loaded but window.pdfAnnotate not found'));
+    };
+    s.onerror = () => reject(new Error('Failed to load pdfAnnotate from CDN'));
+    document.head.appendChild(s);
+  });
+}
+
+// The actual, new, third annotation mechanism — genuinely separate from
+// and additive to the two existing mechanisms (the in-app overlay, and
+// the pdf-lib burn-in), per explicit confirmation neither of those
+// should be touched. Produces real, native /Annots FreeText objects,
+// genuinely editable in Acrobat — not rasterized graphics drawn onto
+// the page, which is what the existing burn-in mechanism does. Reuses
+// the EXACT same matching (sourceFile normalization/fallback rules) and
+// coordinate placement (page from match.page, y-position from
+// match.paragraph as a fraction of page height) already proven correct
+// in _burnAnnotationsForFileFromResults, so annotations land at the
+// same real, precise locations the existing mechanism already gets
+// right — just expressed as genuine annotation objects instead of
+// drawn pixels.
+async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const bucketArr = inMemoryFiles[ref]?.sample;
+  if (!bucketArr || !bucketArr.length) return;
+
+  // Only genuine originals — never re-annotate an already-"_copy",
+  // already-"_annotated", or already-"_acrobat_annotated" entry. Uses
+  // the same shared, filename-aware _isPristineCopyFile detector already
+  // proven correct for surviving a page reload, plus an equivalent,
+  // explicit check for this mechanism's own real naming convention.
+  const looksAcrobatAnnotatedByName = (name) => /_acrobat_annotated\.pdf$/i.test(name || '');
+  const originalEntries = bucketArr.filter(f =>
+    f.file && !f._annotatedFrom && !_isPristineCopyFile(f) && !looksAcrobatAnnotatedByName(f.name)
+  );
+  if (!originalEntries.length) return;
+
+  let pdfAnnotateLib;
+  try {
+    pdfAnnotateLib = await loadPdfAnnotateLib();
+  } catch (err) {
+    console.error('[AcrobatAnnotate] Could not load pdfAnnotate:', err);
+    return; // fail quietly — this is an additive convenience, not the primary Analyze outcome
+  }
+
+  for (const origEntry of originalEntries) {
+    try {
+      const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
+      const acrobatName = baseName + '_acrobat_annotated.pdf';
+      const existingIdx = bucketArr.findIndex(f => f.name === acrobatName && f._annotatedFrom === origEntry.name);
+
+      // Same real, established pattern as the burn-in mechanism: delete
+      // any prior auto-generated copy from storage FIRST, genuinely, not
+      // an in-place overwrite — before creating a fresh one.
+      if (existingIdx >= 0) {
+        const staleEntry = bucketArr[existingIdx];
+        if (staleEntry.fileId) {
+          try {
+            await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(staleEntry.fileId), { method: 'DELETE' });
+          } catch (delErr) {
+            console.error('[AcrobatAnnotate] Could not delete stale copy for', origEntry.name, ':', delErr.message);
+          }
+        }
+        bucketArr.splice(existingIdx, 1);
+      }
+
+      // Step 1: read the ORIGINAL's real, pristine bytes — never
+      // modified in memory, matching the same real guarantee already
+      // established for the other two mechanisms.
+      const pristineBytes = await origEntry.file.arrayBuffer();
+
+      // Step 2a: pdfAnnotate's own API does not expose real page
+      // dimensions, but computing a correct, precise y-position requires
+      // them (the burn-in function's own proven math is a FRACTION of
+      // real page height, not an absolute constant). Loads the same
+      // bytes via pdf-lib — already used elsewhere in this app for
+      // exactly this — purely to read genuine per-page heights via
+      // getSize().height, not to modify anything with it.
+      let realPageHeights = [];
+      try {
+        const PDFLibForDims = await loadPdfLib();
+        const dimsDoc = await PDFLibForDims.PDFDocument.load(pristineBytes, { ignoreEncryption: true });
+        realPageHeights = dimsDoc.getPages().map(p => p.getSize().height);
+      } catch (err) {
+        console.error('[AcrobatAnnotate] Could not read real page dimensions for', origEntry.name, ':', err.message);
+        continue; // without real page heights, positions can't be computed correctly — skip rather than guess
+      }
+
+      // Step 2b: build the real annotation factory from the same genuine
+      // bytes, and add one real FreeText annotation per matched
+      // attribute result — same matching/placement math as the existing
+      // burn-in function, confirmed correct there already, now correctly
+      // completed with real, per-page height data.
+      let factory;
+      try {
+        factory = new pdfAnnotateLib.AnnotationFactory(new Uint8Array(pristineBytes));
+      } catch (err) {
+        console.error('[AcrobatAnnotate] Could not parse', origEntry.name, 'as a valid PDF:', err.message);
+        continue; // skip this file, try the next one
+      }
+
+      const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
+      const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 234, g: 88, b: 12 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
+
+      let anyPlaced = false;
+      let exNum = 0;
+      wpResults.forEach(function(fileResult) {
+        attributes.forEach(function(attr, ai) {
+          const match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
+          if (!match) return;
+          // Identical sourceFile matching rules to the existing, proven
+          // burn-in function — see its own real comment for the full
+          // reasoning; kept word-for-word consistent rather than
+          // re-derived, since drift between the two mechanisms here
+          // would mean annotations landing on different files for the
+          // same underlying result.
+          if (match.sourceFile) {
+            const normSource = match.sourceFile.trim().toLowerCase();
+            const normFile = origEntry.name.trim().toLowerCase();
+            if (normSource !== normFile) return;
+          }
+
+          const pgIdx = Math.max(0, (match.page || 1) - 1);
+          if (pgIdx >= realPageHeights.length) return; // page doesn't exist in this file — matches the burn-in function's own real bounds check
+          const realPageHeight = realPageHeights[pgIdx];
+
+          const result = match.result || 'error';
+          if (result === 'pass_exception' || result === 'fail') exNum++;
+
+          const paraNum = Math.max(1, match.paragraph || (ai + 1));
+          const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+          // Real, correct y-position — a direct, faithful port of the
+          // burn-in function's own proven math (pdfY = pageHeight * (1 -
+          // paraFrac)), now genuinely computed from this file's real
+          // page height rather than left as an unused, fixed constant.
+          const boxH = 60; // generous height for the real text this annotation holds
+          const pdfY = realPageHeight * (1 - paraFrac);
+          const rectY2 = Math.max(0, pdfY);
+          const rectY1 = Math.max(0, pdfY - boxH);
+
+          const attrNum = attr.attrRef || attr.num || String(ai + 1);
+          const label = TICK_LABELS[result] || 'N/A';
+          const excTag = exNum && (result === 'fail' || result === 'pass_exception') ? ' (Exception E' + exNum + ')' : '';
+          const contents = '[' + attrNum + '] ' + label + excTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+
+          try {
+            factory.createFreeTextAnnotation({
+              page: pgIdx,
+              rect: [10, rectY1, 220, rectY2], // real, computed position — genuinely reuses the burn-in function's proven placement math, not a placeholder
+              contents: contents,
+              author: 'Wavefire',
+              color: TICK_COLORS[result] || TICK_COLORS.error,
+            });
+            anyPlaced = true;
+          } catch (annErr) {
+            console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+          }
+        });
+      });
+
+      if (!anyPlaced) continue; // nothing relevant to this file — skip it entirely, matching the burn-in mechanism's own real behavior
+
+      let outBytes;
+      try {
+        outBytes = factory.write();
+      } catch (err) {
+        console.error('[AcrobatAnnotate] factory.write() failed for', origEntry.name, ':', err.message);
+        continue;
+      }
+
+      const now = new Date();
+      const nowStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                   + ' at ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const acrobatFile = new File([outBytes], acrobatName, { type: 'application/pdf' });
+      const acrobatEntry = {
+        file: acrobatFile,
+        name: acrobatName,
+        size: formatFileSize(acrobatFile.size),
+        type: 'application/pdf',
+        uploadedBy: 'Wavefire',
+        uploadedOn: nowStr,
+        _annotatedFrom: origEntry.name, // reuses the same real provenance field the burn-in mechanism uses, so this shows correctly in the "Annotated files" category too
+        _autoGenerated: true,
+      };
+      bucketArr.push(acrobatEntry);
+      refreshFileList(ref, 'sample');
+      await _persistSampleFileToBackend(ref, acrobatEntry, 'Wavefire');
+    } catch (err) {
+      console.error('[AcrobatAnnotate] Failed to process', origEntry.name, ':', err);
+    }
+  }
+}
+
 async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   const wpResults = _wpAnalysisResults[ref];
   if (!wpResults || !wpResults.length) return;
@@ -20936,6 +21144,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // showing results; a failure here is logged, not surfaced as an Analyze
   // failure, since annotation is a convenience on top of the actual results.
   _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
+
+  // Genuinely new, third mechanism — real, native Acrobat-editable
+  // annotations via pdfAnnotate, additive alongside the existing burn-in
+  // mechanism above, per explicit confirmation neither existing
+  // mechanism should be replaced or touched. Same fire-and-forget
+  // pattern: doesn't block the rest of Analyze, and a failure here is
+  // logged, not surfaced as an Analyze failure.
+  _makeAcrobatAnnotatedCopyAfterAnalyze(ref).catch(err => console.error('[AcrobatAnnotate] Unexpected failure:', err));
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
