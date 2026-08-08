@@ -1262,6 +1262,58 @@ async function ensureAnnotatedFromColumn() {
 }
 ensureAnnotatedFromColumn();
 
+// ── Standalone, independent addition: workpapers.template_used ──────────
+// Tracks the actual TEMPLATE NAME chosen at creation (e.g.
+// "M-Template-Short", "Workpaper-Long Template") — genuinely distinct
+// from wp_style, which stores the template's EFFECT (the layout key,
+// e.g. "mtemplate-short") rather than which named template produced it.
+// Built as its own standalone function, following the exact same proven
+// pattern as ensureAnnotatedFromColumn above, rather than one more line
+// inside initDB()'s long, shared migration chain — that chain has
+// repeatedly, silently failed to reach later lines when an earlier,
+// unrelated statement threw first.
+async function ensureTemplateUsedColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS template_used TEXT DEFAULT NULL`);
+    console.log('DB: workpapers.template_used column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone template_used check FAILED:', err.message, err.code);
+  }
+}
+
+// ── One-time backfill: existing workpapers' template_used ───────────────
+// Per explicit request — derives the real template name for
+// already-existing workpapers from their existing, reliable wp_style
+// (layout key), reversing the true, known, one-to-one mapping already
+// seeded in workpaper_templates, rather than guessing. Only updates rows
+// where template_used is still NULL, so this is safe to run on every
+// deploy without ever overwriting a real value correctly captured at
+// creation time by the save route going forward.
+async function backfillTemplateUsedForExistingWorkpapers() {
+  if (!pool) return;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE workpapers w
+       SET template_used = wt.name
+       FROM workpaper_templates wt
+       WHERE w.template_used IS NULL
+         AND w.wp_style = wt.layout_key
+       RETURNING w.ref, w.wp_style, w.template_used`
+    );
+    console.log(`DB: backfilled template_used for ${rows.length} existing workpaper(s)`);
+  } catch (err) {
+    console.error('DB: template_used backfill FAILED:', err.message, err.code);
+  }
+}
+// Runs the column-add and the backfill in guaranteed, correct sequence —
+// awaiting the former before ever attempting the latter, rather than an
+// arbitrary timer that could race ahead of a slow ALTER TABLE.
+(async function() {
+  await ensureTemplateUsedColumn();
+  await backfillTemplateUsedForExistingWorkpapers();
+})();
+
 // Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
 // Without this, req.ip is the proxy's address and the per-IP rate limiter would
 // lump every user into one bucket. 1 = trust the first proxy hop.
@@ -2399,7 +2451,7 @@ app.post('/api/workpapers', async (req, res) => {
     toc_period_from_mmyyyy, toc_period_to_mmyyyy,
     population_source, population_size, population_completeness_desc,
     toc_sample_size, sample_selection_method, mt_entity_name, mt_itgc_ref,
-    wp_style
+    wp_style, template_used
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
@@ -2414,11 +2466,11 @@ app.post('/api/workpapers', async (req, res) => {
          toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
          toc_period_from_mmyyyy,toc_period_to_mmyyyy,
          population_source,population_size,population_completeness_desc,
-         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,updated_at)
+         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,template_used,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
               $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
               $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
-              $43,$44,$45,$46,$47,$48,$49,$50,$51,$52,NOW())
+              $43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,NOW())
       ON CONFLICT (ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -2461,7 +2513,7 @@ app.post('/api/workpapers', async (req, res) => {
         population_completeness_desc=EXCLUDED.population_completeness_desc,
         toc_sample_size=EXCLUDED.toc_sample_size, sample_selection_method=EXCLUDED.sample_selection_method,
         mt_entity_name=EXCLUDED.mt_entity_name, mt_itgc_ref=EXCLUDED.mt_itgc_ref,
-        wp_style=EXCLUDED.wp_style,
+        wp_style=EXCLUDED.wp_style, template_used=EXCLUDED.template_used,
         updated_at=NOW()`,
       [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
@@ -2480,7 +2532,7 @@ app.post('/api/workpapers', async (req, res) => {
        !!toc_inquiry_performed, !!toc_observation_performed, !!toc_reperformance_performed,
        toc_period_from_mmyyyy||'', toc_period_to_mmyyyy||'',
        population_source||'', population_size||'', population_completeness_desc||'',
-       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full'
+       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full', template_used||null
       ]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
