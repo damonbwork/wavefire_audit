@@ -505,6 +505,14 @@ async function initDB() {
         bucket_name  TEXT DEFAULT '',
         uploaded_by  TEXT DEFAULT '',
         archived     BOOLEAN NOT NULL DEFAULT false,
+        -- Real, durable provenance — which original filename (if any)
+        -- this file was annotated/derived from. NULL/empty means this
+        -- IS the pristine original. Mirrors the in-memory _annotatedFrom
+        -- field the frontend already used, which was never persisted —
+        -- the actual root cause of a genuinely annotated file showing as
+        -- "Original" once reloaded from storage, since that in-memory-
+        -- only field silently evaporated on every reload.
+        annotated_from TEXT DEFAULT NULL,
         date_created TIMESTAMPTZ DEFAULT NOW(),
         date_updated TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE (tenant_id, ref, filename)
@@ -1123,6 +1131,7 @@ async function initDB() {
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS sample_selection_method TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_entity_name TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_itgc_ref TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS annotated_from TEXT DEFAULT NULL`);
       await pool.query(`
         INSERT INTO workpaper_tag_descriptions (code, description, sort_order) VALUES
           ('CC', '', 1), ('SEC', '', 2), ('OPS', '', 3), ('FIN', '', 4), ('IPE', '', 5)
@@ -2686,10 +2695,10 @@ app.get('/api/diagnose-sample-files/:ref', async (req, res) => {
         filename: row.filename,
         bucket_key: row.bucket_key,
         archived: row.archived,
-        db_size_bytes: row.size_bytes,
+        db_size_bytes: Number(row.size_bytes),
         genuinely_exists_in_storage: exists,
         real_size_bytes_in_storage: realSizeBytes,
-        size_matches: exists && realSizeBytes === row.size_bytes,
+        size_matches: exists && Number(realSizeBytes) === Number(row.size_bytes),
         error,
       });
     }
@@ -2707,7 +2716,7 @@ app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
-      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, archived, date_created, date_updated
+      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, archived, date_created, date_updated
        FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
       [DEFAULT_TENANT_ID, req.params.ref]
     );
@@ -2723,7 +2732,7 @@ app.get('/api/sample-files/:ref/archived', async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
-      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
+      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated
        FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
       [DEFAULT_TENANT_ID, req.params.ref]
     );
@@ -2738,6 +2747,7 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
   const ref = req.params.ref;
   const filename = req.body.filename || req.file.originalname;
   const uploadedBy = req.body.uploadedBy || '';
+  const annotatedFrom = req.body.annotatedFrom || null;
 
   try {
     // If a file with this same name already exists for this workpaper,
@@ -2754,14 +2764,14 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
     await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
 
     const { rows } = await pool.query(
-      `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, date_updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+      `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
        ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
          bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
          size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
-         uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
-       RETURNING file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated`,
-      [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy]
+         uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
+       RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated`,
+      [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom]
     );
 
     // Now that the new object and the database row are both confirmed
