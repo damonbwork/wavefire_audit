@@ -2717,6 +2717,67 @@ app.get('/api/diagnose-sample-files/:ref', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/diagnose-sample-files/:ref:'); }
 });
 
+// Direct diagnostic reproducing the EXACT real upload path — a genuine
+// storage write, then the metadata insert with annotated_from — with a
+// minimal, real, valid PDF, isolating each step so the actual error
+// surfaces directly. Built after a fresh, real console log showed the
+// exact same 500 on this route persisting even after a write-side
+// fallback was added for a missing annotated_from column — meaning
+// either that fix hasn't reached the live deployment, or the real cause
+// is something else entirely, and this settles which with direct
+// evidence rather than another guess.
+app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage not configured' });
+  const result = { steps: [] };
+  const testFilename = 'DIAGNOSTIC_UPLOAD_TEST.pdf';
+  // A genuine, minimal, valid single-page PDF — not a placeholder string.
+  const minimalPdfBytes = Buffer.from(
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\nxref\n0 4\n0000000000 65535 f \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n0\n%%EOF',
+    'utf-8'
+  );
+
+  try {
+    const bucketKey = _buildBucketKey(DEFAULT_TENANT_ID, req.params.ref, testFilename);
+    result.bucket_key_used = bucketKey;
+
+    try {
+      await uploadFileToStorage(bucketKey, minimalPdfBytes, 'application/pdf');
+      result.steps.push({ step: 'storage_upload', ok: true });
+    } catch (e) {
+      result.steps.push({ step: 'storage_upload', ok: false, error: { message: e.message, name: e.name, code: e.code } });
+      return res.json(result); // storage itself failed — no point continuing to the insert
+    }
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, date_updated)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+         ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+           bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+           size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+           uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
+         RETURNING file_id, filename, annotated_from`,
+        [DEFAULT_TENANT_ID, req.params.ref, testFilename, bucketKey, 'application/pdf', minimalPdfBytes.length, STORAGE_BUCKET, 'diagnostic', null]
+      );
+      result.steps.push({ step: 'metadata_insert_with_annotated_from', ok: true, row: rows[0] });
+    } catch (e) {
+      result.steps.push({ step: 'metadata_insert_with_annotated_from', ok: false, error: { message: e.message, code: e.code, detail: e.detail, hint: e.hint, column: e.column, table: e.table } });
+    }
+
+    // Clean up the diagnostic row/object either way.
+    try {
+      await pool.query('DELETE FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3', [DEFAULT_TENANT_ID, req.params.ref, testFilename]);
+      await deleteFileFromStorage(bucketKey);
+    } catch (cleanupErr) { result.cleanup_error = cleanupErr.message; }
+
+    res.json(result);
+  } catch(err) {
+    result.unexpected_error = { message: err.message, code: err.code };
+    res.status(500).json(result);
+  }
+});
+
 app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
@@ -2802,16 +2863,46 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
     const bucketKey = _buildBucketKey(DEFAULT_TENANT_ID, ref, filename);
     await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
 
-    const { rows } = await pool.query(
-      `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, date_updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-       ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
-         bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
-         size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
-         uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
-       RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated`,
-      [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom]
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, date_updated)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+         ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+           bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+           size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+           uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
+         RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated`,
+        [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom]
+      ));
+    } catch (insertErr) {
+      // Same real, confirmed gap already fixed on the GET routes two
+      // turns ago, but never applied here on the write side — if
+      // annotated_from genuinely hasn't reached the live table yet, this
+      // exact insert throws with NO fallback, meaning the file's bytes
+      // are already safely uploaded to storage above, but the whole
+      // request still fails with a 500 because the metadata write can't
+      // complete. This directly explains a real, confirmed set of 500s
+      // on this exact route from an actual console log. Falls back to
+      // the pre-annotated_from insert shape rather than losing the
+      // upload outright.
+      if (insertErr.code === '42703') {
+        console.error('[POST /api/sample-files/:ref] annotated_from column missing on live table — saved without it. Migration likely has not reached this database yet.');
+        ({ rows } = await pool.query(
+          `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, date_updated)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
+           ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+             bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+             size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+             uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+           RETURNING file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated`,
+          [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy]
+        ));
+        rows = rows.map(r => ({ ...r, annotated_from: null }));
+      } else {
+        throw insertErr;
+      }
+    }
 
     // Now that the new object and the database row are both confirmed
     // good, clean up the old object — best-effort; a failure here doesn't
