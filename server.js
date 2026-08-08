@@ -2871,6 +2871,27 @@ app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
   }
 });
 
+// ── TEMPORARY: serves the real-file pdfAnnotate test page from the same
+// origin as the real app, so its fetch('/api/...') calls can genuinely
+// reach this server — opening the downloaded file locally (file://) has
+// no real server behind it, causing every fetch to fail with a network
+// error before ever reaching the actual API. Reads the file from disk at
+// request time rather than embedding it as a JS template literal, since
+// the page's own real code uses backticks that would otherwise collide
+// with that embedding syntax. Remove this route once real-file
+// annotation testing is complete — it serves a diagnostic tool, not a
+// real part of the app.
+app.get('/test-pdfannotate-real-file', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const filePath = path.join(__dirname, 'test-pdfannotate-real-file.html');
+  fs.readFile(filePath, 'utf8', (err, content) => {
+    if (err) return res.status(404).send('Test file not found on server — it needs to be uploaded alongside server.js for this route to work.');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(content);
+  });
+});
+
 app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
