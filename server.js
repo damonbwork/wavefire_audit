@@ -1240,6 +1240,28 @@ async function initDB() {
 }
 initDB();
 
+// ── Standalone, independent fix for sample_files.annotated_from ─────────
+// Direct, confirmed evidence (via /api/diagnose-sample-upload) showed
+// this column still does not exist on the live table, despite multiple
+// prior attempts to add it from inside initDB()'s own long, shared
+// migration chain — where an earlier, unrelated line failing (any of the
+// many un-isolated ALTER TABLE statements before it) would silently
+// prevent execution from ever reaching this one. This runs as a
+// genuinely separate function, with its own connection and error
+// handling, entirely independent of whatever does or doesn't succeed
+// inside initDB() itself — nothing else can interfere with this specific
+// column ever finally landing.
+async function ensureAnnotatedFromColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS annotated_from TEXT DEFAULT NULL`);
+    console.log('DB: sample_files.annotated_from column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone annotated_from check FAILED:', err.message, err.code);
+  }
+}
+ensureAnnotatedFromColumn();
+
 // Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
 // Without this, req.ip is the proxy's address and the per-IP rate limiter would
 // lump every user into one bucket. 1 = trust the first proxy hop.
