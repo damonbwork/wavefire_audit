@@ -56,7 +56,7 @@ const mailTransporter = SMTP_CONFIGURED ? nodemailer.createTransport({
 // quirks. STORAGE_ENDPOINT is only required for non-AWS providers; real
 // AWS S3 resolves its endpoint automatically from the region and can
 // leave it unset.
-const { S3Client, GetObjectCommand, DeleteObjectCommand, HeadBucketCommand } = require('@aws-sdk/client-s3');
+const { S3Client, GetObjectCommand, DeleteObjectCommand, HeadBucketCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 
 const STORAGE_ENDPOINT   = process.env.STORAGE_ENDPOINT || '';
@@ -2647,6 +2647,61 @@ app.delete('/api/annotations/:ref/:filename', async (req, res) => {
 // Metadata lives in Postgres (sample_files table); the actual file bytes
 // live in S3-compatible object storage — see uploadFileToStorage /
 // getFileFromStorage / deleteFileFromStorage above for why.
+
+// Direct diagnostic: answers "are my sample files actually stored"
+// precisely, not just "does a database row exist claiming they are."
+// sample_files holds only metadata and a bucket_key pointer — the
+// row existing proves the metadata save succeeded, nothing about
+// whether the actual bytes ever reached object storage. This checks
+// each row's bucket_key directly against the real bucket with
+// HeadObjectCommand (confirms existence + size without downloading
+// the file), the same distinction that mattered for the
+// database-vs-live-server gaps found elsewhere in this project.
+app.get('/api/diagnose-sample-files/:ref', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT file_id, filename, bucket_key, bucket_name, content_type, size_bytes, archived, date_created
+       FROM sample_files WHERE tenant_id=$1 AND ref=$2 ORDER BY filename`,
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    if (!STORAGE_CONFIGURED) {
+      return res.json({
+        database_rows: rows,
+        storage_configured: false,
+        message: 'Object storage is not configured on this server — database rows exist, but no check against real storage could be performed.'
+      });
+    }
+    const checked = [];
+    for (const row of rows) {
+      let exists = false, realSizeBytes = null, error = null;
+      try {
+        const head = await s3Client.send(new HeadObjectCommand({ Bucket: STORAGE_BUCKET, Key: row.bucket_key }));
+        exists = true;
+        realSizeBytes = head.ContentLength;
+      } catch (e) {
+        error = e.name === 'NotFound' ? 'Object does not exist in storage' : e.message;
+      }
+      checked.push({
+        filename: row.filename,
+        bucket_key: row.bucket_key,
+        archived: row.archived,
+        db_size_bytes: row.size_bytes,
+        genuinely_exists_in_storage: exists,
+        real_size_bytes_in_storage: realSizeBytes,
+        size_matches: exists && realSizeBytes === row.size_bytes,
+        error,
+      });
+    }
+    res.json({
+      ref: req.params.ref,
+      storage_configured: true,
+      total_db_rows: rows.length,
+      total_confirmed_in_storage: checked.filter(c => c.genuinely_exists_in_storage).length,
+      files: checked,
+    });
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-sample-files/:ref:'); }
+});
 
 app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
