@@ -1131,7 +1131,12 @@ async function initDB() {
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS sample_selection_method TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_entity_name TEXT DEFAULT ''`);
       await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS mt_itgc_ref TEXT DEFAULT ''`);
-      await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS annotated_from TEXT DEFAULT NULL`);
+      try {
+        await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS annotated_from TEXT DEFAULT NULL`);
+        console.log('DB: sample_files.annotated_from column ready');
+      } catch (annFromErr) {
+        console.error('DB: could not add sample_files.annotated_from column:', annFromErr.message);
+      }
       await pool.query(`
         INSERT INTO workpaper_tag_descriptions (code, description, sort_order) VALUES
           ('CC', '', 1), ('SEC', '', 2), ('OPS', '', 3), ('FIN', '', 4), ('IPE', '', 5)
@@ -2721,7 +2726,29 @@ app.get('/api/sample-files/:ref', async (req, res) => {
       [DEFAULT_TENANT_ID, req.params.ref]
     );
     res.json(rows);
-  } catch(err) { return fail(res, err, 'GET /api/sample-files/:ref:'); }
+  } catch(err) {
+    // If annotated_from genuinely doesn't exist yet on the live table
+    // (the migration adding it is a separate, later query — this
+    // session has repeatedly found real cases where such a migration
+    // hasn't reached an already-live table), this exact query would
+    // throw and — without this fallback — take the ENTIRE file list
+    // down with it, making genuinely safe, untouched files appear to
+    // have vanished from the app even though nothing about them was
+    // ever touched. Falls back to the pre-annotated_from column list
+    // rather than failing outright.
+    if (err.code === '42703') { // undefined_column
+      try {
+        const { rows } = await pool.query(
+          `SELECT file_id, filename, content_type, size_bytes, uploaded_by, archived, date_created, date_updated
+           FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
+          [DEFAULT_TENANT_ID, req.params.ref]
+        );
+        console.error('[GET /api/sample-files/:ref] annotated_from column missing on live table — served without it. Migration likely has not reached this database yet.');
+        return res.json(rows.map(r => ({ ...r, annotated_from: null })));
+      } catch (err2) { /* fall through to normal error handling below */ }
+    }
+    return fail(res, err, 'GET /api/sample-files/:ref:');
+  }
 });
 
 // The counterpart to the route above — lists ARCHIVED files specifically
@@ -2737,7 +2764,19 @@ app.get('/api/sample-files/:ref/archived', async (req, res) => {
       [DEFAULT_TENANT_ID, req.params.ref]
     );
     res.json(rows);
-  } catch(err) { return fail(res, err, 'GET /api/sample-files/:ref/archived:'); }
+  } catch(err) {
+    if (err.code === '42703') {
+      try {
+        const { rows } = await pool.query(
+          `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
+           FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
+          [DEFAULT_TENANT_ID, req.params.ref]
+        );
+        return res.json(rows.map(r => ({ ...r, annotated_from: null })));
+      } catch (err2) { /* fall through */ }
+    }
+    return fail(res, err, 'GET /api/sample-files/:ref/archived:');
+  }
 });
 
 app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, res) => {
