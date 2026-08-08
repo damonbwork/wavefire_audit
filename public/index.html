@@ -2966,6 +2966,7 @@
             <div class="sect-hdr">
               <div class="sect-hdr-title" style="flex:1;min-width:0" title="Enter or copy/paste sample data you already have from outside the application. Add rows or columns as needed."><i class="ti ti-table"></i>Sample Data</div>
               <div style="display:flex;gap:6px;flex-shrink:0">
+              <span id="sd-bulk-delete-slot"></span>
               <button class="btn-s" onclick="addSampleDataColumn()" title="Add a new column to the right" style="font-size:10px;padding:2px 8px;white-space:nowrap">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add column
@@ -2993,6 +2994,9 @@
               <table id="sd-table" style="border-collapse:collapse;width:100%;min-width:100%">
                 <thead>
                   <tr id="sd-hdr-row" style="background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">
+                    <th style="width:24px;min-width:24px;flex-shrink:0;padding:7px 2px;text-align:center;border-right:0.5px solid var(--border-light)">
+                      <input type="checkbox" id="sd-select-all" onchange="toggleSampleDataSelectAll(this)" style="width:13px;height:13px;accent-color:var(--wf-navy);cursor:pointer" title="Select all rows">
+                    </th>
                     <th id="sd-numcol-hdr" style="width:6px;min-width:6px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 1px;text-align:center;border-right:0.5px solid var(--border-light);position:relative">#</th>
                     <!-- User-added column headers render here via JS -->
                   </tr>
@@ -3229,6 +3233,7 @@
         <div class="sect-card" id="sect-test-attributes" style="overflow-x:auto">
           <div class="sect-hdr">
             <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-list-details"></i>Test attributes</div>
+            <span id="attr-bulk-delete-slot"></span>
             <button id="attr-criteria-toggle" onclick="toggleAttrCriteria()" title="Show/hide Pass/Fail Criteria columns" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0">
               <i class="ti ti-circle-check" style="font-size:11px"></i> Pass/Fail Criteria
               <span id="attr-criteria-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:#3b82f6;vertical-align:middle;margin-left:3px"></span>
@@ -3237,6 +3242,9 @@
           <div class="sect-body" style="padding:0">
             <!-- Resizable column headers -->
             <div id="attr-col-hdr" style="display:flex;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);user-select:none">
+              <div class="attr-col-hdr-cell" style="width:24px;min-width:24px;flex-shrink:0;padding:7px 2px;text-align:center">
+                <input type="checkbox" id="attr-select-all" onchange="toggleAttrSelectAll(this)" style="width:13px;height:13px;accent-color:var(--wf-navy);cursor:pointer" title="Select all rows">
+              </div>
               <div class="attr-col-hdr-cell" data-col="num" style="width:36px;min-width:36px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center">#</div>
               <div class="attr-col-hdr-cell" data-col="attrRef" style="width:80px;min-width:50px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Attr #<span class="attr-col-resize" onmousedown="startAttrColResize(event,'attrRef')"></span></div>
               <div class="attr-col-hdr-cell" data-col="title" style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
@@ -3751,7 +3759,7 @@ to the facility name.  If not found return an empty cell</textarea>
               <i class="ti ti-file-type-pdf"></i>Attached sample files
               <span style="font-weight:400;color:var(--text-tertiary);margin-left:4px" id="sample-file-count">1 file</span>
             </div>
-            <div style="display:flex;gap:7px;align-items:center">
+            <div style="display:flex;gap:7px;align-items:center" id="sample-files-toolbar">
               <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="openArchivedSampleFiles()"><i class="ti ti-archive"></i>Archived</button>
               <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('sample-file-input').click()"><i class="ti ti-upload"></i>Upload</button>
               <input type="file" id="sample-file-input" multiple="" accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,application/pdf" style="display:none" onchange="handleFileUpload(event,'sample')">
@@ -6692,7 +6700,7 @@ window.addEventListener('popstate', (e) => {
 // Handle deep-link hashes on initial load (e.g. #wp=WP-2026-IPE-001)
 function handleInitialHash() {
   const hash = window.location.hash.replace(/^#/, '');
-  if (!hash) return;
+  if (!hash) return false; // no hash at all — caller should fall through to its own default
   const params = new URLSearchParams(hash.replace(/^([a-z]+)/, '').replace(/^&/, ''));
   const pageMatch = hash.match(/^([a-z]+)/);
   const page = pageMatch ? pageMatch[1] : '';
@@ -6706,7 +6714,7 @@ function handleInitialHash() {
       currentAudit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
       openWP(idx);
       _suppressHistory = false;
-      return;
+      return true; // a real hash was present and successfully handled
     }
   }
   const auditName = params.get('audit');
@@ -6717,9 +6725,10 @@ function handleInitialHash() {
       currentAudit = audit;
       if (page === 'workpapers') openAudit(AUDITS.indexOf(audit));
       _suppressHistory = false;
-      return;
+      return true; // a real hash was present and successfully handled
     }
   }
+  return false; // a hash was present but didn't match anything real — fall through to default
 }
 
 function updateWPNavArrows() {
@@ -24094,7 +24103,8 @@ async function _loadSampleFilesFromBackend(ref) {
         size: formatFileSize(f.size_bytes || 0),
         type: f.content_type,
         uploadedBy: f.uploaded_by || '',
-        uploadedOn: f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
+        uploadedOn: f.date_created ? (new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                     + ' at ' + new Date(f.date_created).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })) : '',
         fileId: f.file_id,
         // The actual, real fix: reads the now-durably-persisted
         // annotated_from column back into the in-memory field this app's
@@ -24138,6 +24148,55 @@ function getFileIcon(file) {
   return 'ti-file';
 }
 
+let _sfSelected = new Set(); // sample-file indices currently checked, scoped per-ref (cleared on ref switch)
+let _sfSelectedRef = null;   // which ref _sfSelected currently applies to
+
+function toggleSampleFileSelected(i, checkbox) {
+  checkbox.checked ? _sfSelected.add(i) : _sfSelected.delete(i);
+  renderSampleFilesToolbar(_sfSelectedRef);
+}
+
+// Renders the "Delete selected" button into the section toolbar,
+// conditionally, based on current selection — matches the exact pattern
+// already proven correct for the Exceptions bulk-delete feature.
+function renderSampleFilesToolbar(ref) {
+  const toolbar = document.getElementById('sample-files-toolbar');
+  if (!toolbar) return;
+  const deleteBtn = _sfSelected.size
+    ? `<button class="btn-s" onclick="deleteSelectedSampleFiles('${ref}')" style="font-size:11px;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected (${_sfSelected.size})</button>`
+    : '';
+  toolbar.innerHTML = deleteBtn +
+    `<button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="openArchivedSampleFiles()"><i class="ti ti-archive"></i>Archived</button>` +
+    `<button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="document.getElementById('sample-file-input').click()"><i class="ti ti-upload"></i>Upload</button>` +
+    `<input type="file" id="sample-file-input" multiple accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp,application/pdf" style="display:none" onchange="handleFileUpload(event,'sample')">`;
+}
+
+// Bulk delete with confirmation — reuses the same generic rcmConfirmDelete
+// dialog already proven correct for the Exceptions bulk-delete feature,
+// and reuses deleteMemFile's own real, existing deletion mechanism (a
+// soft archive via the backend, not a separate, more destructive path)
+// for each selected file, applied in descending index order so earlier
+// removals don't shift the position of indices still pending deletion.
+function deleteSelectedSampleFiles(ref) {
+  if (!_sfSelected.size) return;
+  const count = _sfSelected.size;
+  const list = inMemoryFiles[ref]?.sample || [];
+  const names = [..._sfSelected].map(i => escHtml(list[i]?.name || `File #${i + 1}`));
+  const listHtml = names.length <= 5
+    ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(n => '<li>'+n+'</li>').join('') + '</ul>'
+    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
+  rcmConfirmDelete(
+    'Delete ' + count + ' File' + (count!==1?'s':''),
+    'Are you sure you want to delete <strong>' + count + ' file' + (count!==1?'s':'') + '</strong> from Attached Sample Files? This cannot be undone.' + listHtml,
+    function() {
+      const sortedDesc = [..._sfSelected].sort((a,b) => b - a);
+      sortedDesc.forEach(i => deleteMemFile(ref, 'sample', i));
+      _sfSelected.clear();
+      renderSampleFilesToolbar(ref);
+    }
+  );
+}
+
 function refreshFileList(ref, bucket) {
   ensureFileStore(ref);
   const memFiles = inMemoryFiles[ref][bucket] || [];
@@ -24170,12 +24229,54 @@ function refreshFileList(ref, bucket) {
     const wpSF  = WORKPAPERS[currentWPIndex]?.sampleFiles || [];
     const total = wpSF.length + memFiles.length;
     if (cnt) cnt.textContent = `${total} file${total !== 1 ? 's' : ''}`;
+
+    // Selection is scoped per-workpaper — switching to a different ref
+    // starts with a clean slate rather than carrying over indices that
+    // would refer to an entirely different file.
+    if (_sfSelectedRef !== ref) { _sfSelected = new Set(); _sfSelectedRef = ref; }
+    renderSampleFilesToolbar(ref);
+
     if (sfl) {
       const staticRows = wpSF.map(f => fileRowHtml(f.icon, f.name, f.meta, false, null, '#dc2626', null)).join('');
-      const dynRows = memFiles.map((f,i) => {
-        const uploadLine  = `${f.name.split('.').pop().toUpperCase()} · ${f.size} · Uploaded by ${f.uploadedBy} on ${f.uploadedOn}`;
-        const updateLine  = f.updatedBy ? `Updated by ${f.updatedBy} on ${f.updatedOn}` : '';
-        const meta = updateLine ? `${uploadLine}<br><span style="color:var(--text-tertiary);font-style:italic">${updateLine}</span>` : uploadLine;
+      const uploadLineTemplate = (f) => {
+        const uploadLine  = f.uploadedBy === 'Wavefire'
+          ? `${f.name.split('.').pop().toUpperCase()} · ${f.size} · Created by Wavefire on ${f.uploadedOn}`
+          : `${f.name.split('.').pop().toUpperCase()} · ${f.size} · Uploaded by ${f.uploadedBy} on ${f.uploadedOn}`;
+        const updateLine  = f.updatedBy ? `Updated by ${f.updatedBy === 'Wavefire' ? 'Wavefire' : f.updatedBy} on ${f.updatedOn}` : '';
+        return updateLine ? `${uploadLine}<br><span style="color:var(--text-tertiary);font-style:italic">${updateLine}</span>` : uploadLine;
+      };
+
+      // ── Real categorization, per explicit definitions ──────────────────
+      // "Copy" = matches this app's own established "_copy" naming
+      // convention (the pristine file-system duplicate mechanism).
+      // "Annotated" = matches the "_annotated" convention (the burn-in
+      // mechanism) OR carries a real _annotatedFrom provenance link.
+      // "Original" = neither of the above.
+      const looksCopyByName = (name) => /_copy\.pdf$/i.test(name);
+      const looksAnnotatedByName = (name) => /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(name);
+      const categoryOf = (f) => {
+        if (f._isPristineCopy || looksCopyByName(f.name)) return 'copy';
+        if (f._annotatedFrom || looksAnnotatedByName(f.name)) return 'annotated';
+        return 'original';
+      };
+
+      const categorized = { original: [], copy: [], annotated: [] };
+      memFiles.forEach((f, i) => { categorized[categoryOf(f)].push({ f, i }); });
+      // Alphabetical by filename WITHIN each category, per explicit instruction.
+      Object.values(categorized).forEach(list => list.sort((a, b) => a.f.name.localeCompare(b.f.name)));
+
+      const categoryLabels = {
+        original:  'Original files',
+        copy:      'File system copies',
+        annotated: 'Annotated files',
+      };
+      const categoryHeaderHtml = (key) => `<div style="padding:8px 16px 4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);background:var(--bg-secondary)">${categoryLabels[key]}</div>`;
+
+      const dynRows = ['original', 'copy', 'annotated'].map(catKey => {
+        const list = categorized[catKey];
+        if (!list.length) return ''; // no discreet header for a category with nothing in it
+        const rowsHtml = list.map(({ f, i }) => {
+        const meta = uploadLineTemplate(f);
       const fileId = 'sf_' + ref.replace(/[^a-z0-9]/gi, '_') + '_' + i;
       const safeName = f.name.replace(/'/g, "\\'");
       const safeRef  = ref.replace(/'/g, "\\'");
@@ -24190,25 +24291,21 @@ function refreshFileList(ref, bucket) {
       const storageDot = `<span title="${isStored ? 'Stored on server' : 'Not yet saved to server — this session only'}"
         style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-right:5px;
         background:${isStored ? '#16a34a' : 'transparent'};border:1.5px solid ${isStored ? '#16a34a' : '#9ca3af'}"></span>`;
-      // Original badge: reuses the app's own existing, real provenance
-      // field (_annotatedFrom) already used elsewhere to link a derived
-      // copy back to its pristine source — not a new concept invented for
-      // this indicator. A file with no _annotatedFrom IS the original.
-      // A file whose name already matches this app's own established
-      // "_annotated" convention (used by both existing burn-in
-      // mechanisms) is unambiguously a derived copy even without a real
-      // _annotatedFrom link — this fallback specifically covers files
-      // created before annotated_from existed as a durable column, so
-      // already-existing mislabeled files (like a real one reported:
-      // "..._annotated_20260627_1746.pdf" showing as "Original") self-
-      // correct without needing to be re-uploaded.
-      const looksAnnotatedByName = /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(f.name);
-      const isOriginal = !f._annotatedFrom && !looksAnnotatedByName;
+      // Original badge: per explicit correction, this must exist ONLY for
+      // files genuinely uploaded by the user — never for anything
+      // Wavefire itself created, even one that happens to have no
+      // annotation-like name (a Wavefire-generated file was never
+      // something a user uploaded, so labeling it "Original" would be
+      // misleading regardless of its provenance link or filename).
+      const isOriginal = catKey === 'original' && f.uploadedBy !== 'Wavefire';
       const originalBadge = isOriginal
         ? `<span title="Pristine original — never modified" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:#0f766e;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle"><i class="ti ti-shield-check" style="font-size:10px"></i>Original</span>`
         : '';
       return `<div class="file-row" style="flex-direction:column;padding:0;align-items:stretch">
           <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px">
+            <div style="display:flex;align-items:center;padding-top:3px">
+              <input type="checkbox" ${_sfSelected.has(i) ? 'checked' : ''} onchange="toggleSampleFileSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select ${escAttr(f.name)}">
+            </div>
             <div class="file-icon" style="color:${getSampleFileColor(f.name)};margin-top:2px"><i class="ti ${getFileIcon(f.file)}"></i></div>
             <div style="min-width:0;margin-right:6px">
               <div class="file-name">${storageDot}${f.name}${originalBadge}</div>
@@ -24258,6 +24355,8 @@ function refreshFileList(ref, bucket) {
             <div class="bm-loading">Click "Bookmarks" to load bookmarks and destinations from this PDF.</div>
           </div>
         </div>`;
+        }).join('');
+        return categoryHeaderHtml(catKey) + rowsHtml;
       }).join('');
       sfl.innerHTML = (staticRows + dynRows) || `<div style="padding:16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No sample files attached yet.</div>`;
     }
@@ -24606,12 +24705,86 @@ function _sdEnsureGridFloor(data) {
   }
 }
 
+var _sdBulkSelected = {}; // { [ref]: Set<rowIndex> } — genuinely separate from _sdSelectedRow (single-row, used by Add row above/below)
+
+function toggleSampleDataRowSelected(ref, rowIdx, checked) {
+  if (!_sdBulkSelected[ref]) _sdBulkSelected[ref] = new Set();
+  checked ? _sdBulkSelected[ref].add(rowIdx) : _sdBulkSelected[ref].delete(rowIdx);
+  renderSampleDataBulkToolbar(ref);
+  var selectAllCb = document.getElementById('sd-select-all');
+  if (selectAllCb) {
+    var data = _daSampleDataFor(ref);
+    var total = data ? data.rows.length : 0;
+    selectAllCb.checked = total > 0 && _sdBulkSelected[ref].size === total;
+  }
+}
+
+function toggleSampleDataSelectAll(checkbox) {
+  var ref = getWPRef();
+  var data = _daSampleDataFor(ref);
+  if (!data) return;
+  if (!_sdBulkSelected[ref]) _sdBulkSelected[ref] = new Set();
+  if (checkbox.checked) {
+    data.rows.forEach(function(_, i){ _sdBulkSelected[ref].add(i); });
+  } else {
+    _sdBulkSelected[ref].clear();
+  }
+  renderSampleDataGrid(ref);
+}
+
+// Renders the "Delete selected" button into its dedicated slot,
+// conditionally, based on current selection — matches the exact pattern
+// already proven correct for Exceptions and Attached Sample Files.
+function renderSampleDataBulkToolbar(ref) {
+  var slot = document.getElementById('sd-bulk-delete-slot');
+  if (!slot) return;
+  var count = (_sdBulkSelected[ref] && _sdBulkSelected[ref].size) || 0;
+  slot.innerHTML = count
+    ? '<button class="btn-s" onclick="deleteSelectedSampleDataRows(\'' + ref.replace(/'/g,"\\'") + '\')" style="font-size:10px;padding:2px 8px;white-space:nowrap;color:var(--red-700);border-color:var(--red-700)"><i class="ti ti-trash"></i>Delete selected (' + count + ')</button>'
+    : '';
+}
+
+// Bulk delete with confirmation — a single confirmation for the whole
+// batch (via the same generic rcmConfirmDelete dialog already proven
+// correct for Exceptions/Sample Files), NOT removeSampleDataRow's own
+// per-row confirm dialog called once per selected row, which would mean
+// N separate prompts for N selected rows rather than one bulk action.
+// Splices data.rows directly, in descending index order, so earlier
+// removals don't shift the position of indices still pending deletion —
+// the same correctness-critical detail already tested for the other two
+// bulk-delete features.
+function deleteSelectedSampleDataRows(ref) {
+  var selected = _sdBulkSelected[ref];
+  if (!selected || !selected.size) return;
+  var data = _daSampleDataFor(ref);
+  if (!data) return;
+  var count = selected.size;
+  rcmConfirmDelete(
+    'Delete ' + count + ' Row' + (count!==1?'s':''),
+    'Are you sure you want to delete <strong>' + count + ' row' + (count!==1?'s':'') + '</strong> from Sample Data? This cannot be undone.',
+    function() {
+      pushUndo(ref);
+      var sortedDesc = Array.from(selected).sort(function(a,b){ return b - a; });
+      sortedDesc.forEach(function(idx){ data.rows.splice(idx, 1); });
+      // Keep the existing single-row selection sane too, matching
+      // removeSampleDataRow's own established clamping behavior.
+      if (_sdSelectedRow[ref] !== undefined && _sdSelectedRow[ref] >= data.rows.length) {
+        _sdSelectedRow[ref] = data.rows.length - 1;
+      }
+      selected.clear();
+      renderSampleDataGrid(ref);
+      saveSampleDataGrid(ref);
+    }
+  );
+}
+
 function renderSampleDataGrid(ref) {
   var data = _daSampleDataFor(ref);
   _sdEnsureGridFloor(data);
   var hdrRow      = document.getElementById('sd-hdr-row');
   var bodyEl      = document.getElementById('sd-body-rows');
   var hintEl      = document.getElementById('sd-empty-hint');
+  renderSampleDataBulkToolbar(ref);
   if (!hdrRow || !bodyEl) return;
 
   var selectedIdx = _sdResolveSelectedIndex(ref);
@@ -24703,6 +24876,18 @@ function renderSampleDataGrid(ref) {
     // cell itself does that, and moving focus off it (to a data cell, or
     // anywhere else) dismisses it again (see _sdEnsureRowDeselectListener
     // and ta.onfocus).
+
+    var checkTd = document.createElement('td');
+    checkTd.style.cssText = 'width:24px;min-width:24px;text-align:center;padding:6px 2px;border-right:0.5px solid var(--border-light);vertical-align:top';
+    var checkInput = document.createElement('input');
+    checkInput.type = 'checkbox';
+    checkInput.checked = _sdBulkSelected[ref] && _sdBulkSelected[ref].has(i);
+    checkInput.style.cssText = 'width:13px;height:13px;accent-color:var(--wf-navy);cursor:pointer';
+    checkInput.title = 'Select row ' + (i + 1);
+    checkInput.onclick = function(e){ e.stopPropagation(); }; // don't trigger the row's own selection behavior
+    checkInput.onchange = (function(rowIdx){ return function(){ toggleSampleDataRowSelected(ref, rowIdx, this.checked); }; })(i);
+    checkTd.appendChild(checkInput);
+    tr.appendChild(checkTd);
 
     var numTd = document.createElement('td');
     numTd.textContent = i + 1; // auto-generated, next number — never user-editable
@@ -26785,11 +26970,100 @@ function downloadExtractedDataXLSX(ref) {
   XLSX.writeFile(wb, (ref||'ExtractedData') + '_ExtractedData_' + ts + '_' + hhmm + '.xlsx');
 }
 
+var _attrBulkSelected = {}; // { [ref]: Set<rowIndex> } — genuinely separate from _selectedAttrRowIdx (single-row, used by the move up/down arrows)
+
+function toggleAttrRowBulkSelected(idx, checked) {
+  if (!currentAttrWPRef) return;
+  if (!_attrBulkSelected[currentAttrWPRef]) _attrBulkSelected[currentAttrWPRef] = new Set();
+  checked ? _attrBulkSelected[currentAttrWPRef].add(idx) : _attrBulkSelected[currentAttrWPRef].delete(idx);
+  renderAttrBulkToolbar(currentAttrWPRef);
+  const selectAllCb = document.getElementById('attr-select-all');
+  if (selectAllCb) {
+    const total = (wpTestAttributes[currentAttrWPRef] || []).length;
+    selectAllCb.checked = total > 0 && _attrBulkSelected[currentAttrWPRef].size === total;
+  }
+}
+
+function toggleAttrSelectAll(checkbox) {
+  if (!currentAttrWPRef) return;
+  const rows = wpTestAttributes[currentAttrWPRef] || [];
+  if (!_attrBulkSelected[currentAttrWPRef]) _attrBulkSelected[currentAttrWPRef] = new Set();
+  if (checkbox.checked) {
+    rows.forEach((_, i) => _attrBulkSelected[currentAttrWPRef].add(i));
+  } else {
+    _attrBulkSelected[currentAttrWPRef].clear();
+  }
+  renderTestAttributes(currentAttrWPRef);
+}
+
+// Renders "Delete selected" into its dedicated slot, conditionally,
+// matching the exact pattern already proven correct for the other three
+// sections.
+function renderAttrBulkToolbar(ref) {
+  const slot = document.getElementById('attr-bulk-delete-slot');
+  if (!slot) return;
+  const count = (_attrBulkSelected[ref] && _attrBulkSelected[ref].size) || 0;
+  slot.innerHTML = count
+    ? `<button class="btn-s" onclick="deleteSelectedAttrRows()" style="font-size:10px;padding:2px 8px;white-space:nowrap;color:var(--red-700);border-color:var(--red-700);margin-right:6px"><i class="ti ti-trash"></i>Delete selected (${count})</button>`
+    : '';
+}
+
+// Bulk delete with a single confirmation for the whole batch (the same
+// generic rcmConfirmDelete dialog already proven correct for the other
+// three sections). Rebuilds the array fresh from LIVE DOM values,
+// excluding every selected index — the same deliberate design
+// removeAttrRow itself uses for a single deletion (reading the DOM
+// rather than the in-memory model, since an unblurred edit wouldn't be
+// reflected there yet), extended here to exclude multiple indices at
+// once rather than just one.
+function deleteSelectedAttrRows() {
+  if (!currentAttrWPRef) return;
+  const selected = _attrBulkSelected[currentAttrWPRef];
+  if (!selected || !selected.size) return;
+  const count = selected.size;
+  const rows = wpTestAttributes[currentAttrWPRef] || [];
+  const names = [...selected].map(i => escHtml(rows[i]?.title || rows[i]?.attrRef || `Row ${i + 1}`));
+  const listHtml = names.length <= 5
+    ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(n => '<li>'+n+'</li>').join('') + '</ul>'
+    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
+
+  rcmConfirmDelete(
+    'Delete ' + count + ' Attribute' + (count!==1?'s':''),
+    'Are you sure you want to delete <strong>' + count + ' attribute' + (count!==1?'s':'') + '</strong>? This cannot be undone.' + listHtml,
+    function() {
+      const ref = currentAttrWPRef;
+      // Read ALL current DOM values into a fresh array, excluding every
+      // selected index — matches removeAttrRow's own authoritative-DOM
+      // approach exactly, extended to exclude a whole set of indices at
+      // once rather than just one.
+      const domRows = [];
+      document.querySelectorAll('#test-attr-rows .attr-row').forEach((row, i) => {
+        if (selected.has(i)) return; // skip every selected row being deleted
+        domRows.push({
+          num:            String(domRows.length + 1),
+          attrRef:        row.querySelector('.attr-ref-input')?.value || '',
+          title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
+          desc:           row.querySelector('.attr-desc')?.value || '',
+          additionalInfo: row.querySelector('.attr-additional')?.value || '',
+        });
+      });
+      wpTestAttributes[ref] = domRows;
+      _selectedAttrRowIdx[ref] = undefined; // matches removeAttrRow — indices have shifted, old selection no longer means anything real
+      selected.clear();
+
+      renderTestAttributes(ref);
+      const w = WORKPAPERS.find(w => w.ref === ref);
+      if (w) _saveWorkpaperToDB(w);
+    }
+  );
+}
+
 function renderTestAttributes(ref) {
   currentAttrWPRef = ref;
   const rows = wpTestAttributes[ref] || [];
   const container = document.getElementById('test-attr-rows');
   if (!container) return;
+  renderAttrBulkToolbar(ref);
 
   const selectedIdx = _selectedAttrRowIdx[ref];
   let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '', rows.length, i === selectedIdx)).join('');
@@ -26860,6 +27134,11 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
       style="width:16px;height:14px;font-size:9px;padding:0;line-height:1;${idx===totalRows-1?'opacity:0.3;cursor:default':''}" ${idx===totalRows-1?'disabled':''}>&#x25BC;</button>
   ` : '';
   return `<div class="attr-row" id="attr-row-${idx}" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
+    <div style="flex-shrink:0;width:24px;padding:9px 2px 6px;display:flex;align-items:center;justify-content:center">
+      <input type="checkbox" ${(_attrBulkSelected[currentAttrWPRef] && _attrBulkSelected[currentAttrWPRef].has(idx)) ? 'checked' : ''}
+        onclick="event.stopPropagation()" onchange="toggleAttrRowBulkSelected(${idx},this.checked)"
+        style="width:13px;height:13px;accent-color:var(--wf-navy);cursor:pointer" title="Select row ${rowNum}">
+    </div>
     <div onclick="toggleAttrRowSelected(${idx})" title="Click to select this row and reorder it" style="flex-shrink:0;width:52px;padding:9px 4px 6px;display:flex;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--text-tertiary);font-weight:500;user-select:none;cursor:pointer;${selectedStyle}">
       ${isSelected ? `<div style="display:flex;flex-direction:column;gap:1px">${arrowsHtml}</div>` : ''}
       <span>${rowNum}</span>
@@ -27760,15 +28039,34 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
 // empty in memory while the DOM kept showing whatever it last rendered.
 (async function launchToDefaultWP() {
   await _bootstrapLoadPromise;
-  const targetAudit = AUDITS.find(a => a.name === 'PRS Audits');
-  const targetWP    = WORKPAPERS.findIndex(w => w.name === 'PRS Invoice Testwork' && w.auditName === 'PRS Audits');
+
+  // ── A real URL hash always takes priority — checked FIRST. This
+  // corrects a genuine, confirmed bug: the previous version of this
+  // function checked its own hardcoded default BEFORE the hash, meaning
+  // even an exact, correct deep link (e.g. #wpdetail&audit=...&wp=...)
+  // was being silently overridden. ──
+  if (handleInitialHash()) return; // a real hash was present and successfully handled — done
+
+  // ══════════════════════════════════════════════════════════════════
+  // ⚠️  TEMPORARY DEVELOPMENT-ONLY DEFAULT — REMOVE BEFORE PRODUCTION ⚠️
+  // ══════════════════════════════════════════════════════════════════
+  // Set explicitly per user request, purely to save time while actively
+  // developing/testing — NOT a considered choice of production landing
+  // page. The user has explicitly said this will likely change again
+  // during development, and that a real, sensible landing experience
+  // will be designed before this app actually goes to production. If
+  // you're reading this while preparing a production deploy, this
+  // block needs a real decision made about it, not a silent carry-over.
+  console.warn('[DEV DEFAULT] Landing on a hardcoded workpaper (WP-2026-NEWW-010) for development convenience — see the comment above launchToDefaultWP() before shipping to production.');
+  const targetAudit = AUDITS.find(a => a.name === 'SAP Change Management');
+  const targetWP    = WORKPAPERS.findIndex(w => w.ref === 'WP-2026-NEWW-010' && w.auditName === 'SAP Change Management');
+  // ══════════════════════════════════════════════════════════════════
+
   if (targetAudit && targetWP !== -1) {
     currentAudit = targetAudit;
     const selAudit = document.getElementById('sel-audit');
     if (selAudit) selAudit.value = targetAudit.name;
     openWP(targetWP);
-  } else {
-    handleInitialHash();
   }
 })();
 
