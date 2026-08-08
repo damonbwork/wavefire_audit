@@ -9544,6 +9544,18 @@ async function _loadAuditsFromDB() {
     // created in a PREVIOUS session would never actually show up here on
     // a fresh page load, regardless of what's genuinely in Postgres.
     _rebuildAuditNavDropdown();
+
+    // The actual, real fix for a confirmed bug: the initial renderAudits()
+    // call at the bottom of this file runs synchronously, before this
+    // async load has any chance to complete — so it only ever displays
+    // the six hardcoded, static seed audits. Any real audit that exists
+    // only in Postgres (not part of that static seed list) would load
+    // correctly into the AUDITS array right here, but never actually get
+    // rendered, since nothing previously told the visible list to
+    // refresh once the real data finished loading. This is precisely
+    // what a reported "audit disappeared" turned out to be — genuinely
+    // present in the database the whole time, just never displayed.
+    if (typeof renderAudits === 'function') renderAudits();
   } catch(e) { console.warn('[DB] audits load failed:', e.message); }
 }
 
