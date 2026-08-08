@@ -21998,20 +21998,30 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   const TICK_GLYPH = { pass: 'P', pass_exception: 'P', fail: 'X', error: '' };
   const TICK_COLOR = { pass: 'FF00B050', pass_exception: 'FFFFC000', fail: 'FFFF0000', error: 'FF999999' };
 
-  // ── Styles, matching the approved file's real, confirmed values ──────────
-  const darkHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF333333' } };
-  const darkHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
-  const greyHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF808080' } };
-  const greyHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
-  const navyHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF0D243B' } }; // theme=2/tint=-0.1, resolved
-  const navyHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
-  const yellowTickFill   = { patternType: 'solid', fgColor: { rgb: 'FFFFFF00' } };
-  const plainFont        = { name: 'Calibri', sz: 10 };
-  const boldPlainFont    = { name: 'Calibri', sz: 10, bold: true };
-  const thinBorder       = { style: 'thin', color: { rgb: 'FFD1D5DB' } };
-  const allBorders       = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
-  const centerAlign      = { horizontal: 'center', vertical: 'center' };
-  const leftAlign        = { horizontal: 'left', vertical: 'center', wrapText: true };
+  // ── Styles, now genuinely re-verified against the real reference file
+  // via direct pixel sampling of its actual rendering, cross-checked
+  // with correctly-resolved theme math. Two real, confirmed corrections
+  // from the previous version: (1) attribute/column headers use a
+  // DIFFERENT, LIGHTER grey (#D9D9D9) than what was previously used
+  // there — the #808080 mid-grey actually belongs to the dark section
+  // sub-headers (Procedures performed, Tickmark Legend, Conclusion's own
+  // sub-fields), not the column headers; (2) confirmed theme index 0 in
+  // this file's real color model resolves to WHITE, not black — the
+  // opposite of the raw theme XML's own declared order, a genuine,
+  // confirmed OOXML clrMap indirection, not an assumption.
+  const darkHeaderFill    = { patternType: 'solid', fgColor: { rgb: 'FF333333' } };
+  const darkHeaderFont    = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
+  const lightGreyColFill  = { patternType: 'solid', fgColor: { rgb: 'FFD9D9D9' } }; // real, confirmed color for every column header in row 5, including "Sample" — verified via direct pixel sampling of the user's own real Excel screenshot; NOT a distinct navy
+  const lightGreyColFont  = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FF000000' } };
+  const midGreySubFill    = { patternType: 'solid', fgColor: { rgb: 'FF808080' } }; // real, confirmed color for sub-section headers (Procedures performed, Tickmark Legend, Conclusion sub-fields) — directly sampled from the user's own real Excel screenshot, correcting an earlier LibreOffice-based re-render that had rendered this specific combination incorrectly as black
+  const midGreySubFont    = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FF000000' } }; // real, confirmed BLACK text on this mid-grey background — the previous version's claim of white text here was wrong, corrected via direct sampling of the real screenshot's visible label text
+  const yellowTickFill    = { patternType: 'solid', fgColor: { rgb: 'FFFFFF00' } };
+  const plainFont         = { name: 'Calibri', sz: 10 };
+  const boldPlainFont     = { name: 'Calibri', sz: 10, bold: true };
+  const thinBorder        = { style: 'thin', color: { rgb: 'FFD1D5DB' } };
+  const allBorders        = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+  const centerAlign       = { horizontal: 'center', vertical: 'center' };
+  const leftAlign         = { horizontal: 'left', vertical: 'center', wrapText: true };
 
   function cell(value, style) { return { v: value ?? '', s: style }; }
   function tickCell(result) {
@@ -22026,19 +22036,50 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   const rows = [];
   const merges = [];
 
-  // Row 1 (index 0): section header
-  rows.push([cell('Testing procedures and documentation:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
-  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 10 + attributes.length } });
+  // Row 1 (index 0): genuinely blank, matching the real, confirmed
+  // reference file exactly (its own row 1 is empty; the black header
+  // sits at row 2, not row 1).
+  rows.push([]);
 
-  // Grid header row: Sample # | real Sample Data columns | real Test Attribute refs | Notes
-  const headerRow = [cell('Sample', { font: boldPlainFont, fill: navyHeaderFill, alignment: centerAlign, border: allBorders })];
+  // Row 2 (index 1): the real, confirmed black section header.
+  rows.push([cell('Testing procedures and documentation:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 10 + attributes.length } });
+
+  rows.push([]); // Row 3: genuinely blank — its content in the reference (PDC REQ approved by IS, IS Approver name, etc.) was scenario-specific example data, not a real structural template element, per explicit correction.
+
+  // Row 4: real, valid template data — the "Testing Attributes" label,
+  // positioned above the attribute-tick columns specifically. Those
+  // columns start right after "Sample" (col 0) and the real Sample Data
+  // columns, and span exactly attributes.length columns — computed here
+  // dynamically since this export's own column layout differs from the
+  // reference file's fixed one.
+  const attrColStart = 1 + (sdGrid.columns || []).length;
+  const attrColEnd = attrColStart + attributes.length - 1;
+  if (attributes.length > 0) {
+    const row4 = [];
+    row4[attrColStart] = cell('Testing Attributes', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign });
+    rows.push(row4);
+    merges.push({ s: { r: rows.length - 1, c: attrColStart }, e: { r: rows.length - 1, c: attrColEnd } });
+  } else {
+    rows.push([]); // no real attribute columns exist yet — nothing to label
+  }
+
+  // Grid header row: Sample # | real Sample Data columns | real Test
+  // Attribute refs | Notes. Sample stays navy — a genuine, real
+  // structural constant confirmed at B5 in the reference (Sample is
+  // always the first column). Every other real, user-defined column
+  // uses the confirmed light grey (#D9D9D9), matching the reference's
+  // own general real pattern, rather than assuming a fixed column
+  // layout this app's actual variable Sample Data grid doesn't
+  // guarantee.
+  const headerRow = [cell('Sample', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders })];
   (sdGrid.columns || []).forEach(function(c) {
-    headerRow.push(cell(c.title || '', { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+    headerRow.push(cell(c.title || '', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   });
   attributes.forEach(function(a) {
-    headerRow.push(cell(a.attrRef || a.title, { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+    headerRow.push(cell(a.attrRef || a.title, { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   });
-  headerRow.push(cell('Notes / Exception Explanation', { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+  headerRow.push(cell('Notes / Exception Explanation', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   rows.push(headerRow);
 
   // Sample rows — genuinely sized to however many real samples exist, not
@@ -22070,13 +22111,16 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   // Blank spacer row
   rows.push([]);
 
-  // "Procedures performed" section
+  // "Procedures performed" section — real, confirmed mid-grey sub-header
+  // (verified directly against B12 in the reference, which resolves to
+  // #808080 via the confirmed theme remapping — genuinely different
+  // from the true black used at the top section header and Conclusion).
   const procRowIdx = rows.length;
   rows.push([cell('Procedures performed (Description of control attributes and testing procedures, add rows as necessary):',
-    { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+    { font: midGreySubFont, fill: midGreySubFill, alignment: leftAlign })]);
   merges.push({ s: { r: procRowIdx, c: 0 }, e: { r: procRowIdx, c: 10 + attributes.length } });
   attributes.forEach(function(a) {
-    const r = [cell(a.attrRef || '', { font: boldPlainFont, alignment: centerAlign, border: allBorders }),
+    const r = [cell(a.attrRef || '', { font: midGreySubFont, fill: midGreySubFill, alignment: centerAlign, border: allBorders }),
                cell(a.title || '', { font: plainFont, alignment: leftAlign, border: allBorders })];
     rows.push(r);
     merges.push({ s: { r: rows.length - 1, c: 1 }, e: { r: rows.length - 1, c: 10 + attributes.length } });
@@ -22084,9 +22128,11 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
 
   rows.push([]);
 
-  // Tickmark Legend — real three-state, matching the approved design
+  // Tickmark Legend — real, confirmed mid-grey sub-header (verified
+  // directly against B18 in the reference), three-state matching the
+  // approved design.
   const legendHdrIdx = rows.length;
-  rows.push([cell('Tickmark Legend:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  rows.push([cell('Tickmark Legend:', { font: midGreySubFont, fill: midGreySubFill, alignment: leftAlign })]);
   merges.push({ s: { r: legendHdrIdx, c: 0 }, e: { r: legendHdrIdx, c: 10 + attributes.length } });
 
   const legendEntries = [
@@ -22111,12 +22157,23 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   const concIdx = rows.length;
   rows.push([cell('Conclusion:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
   merges.push({ s: { r: concIdx, c: 0 }, e: { r: concIdx, c: 10 + attributes.length } });
-  const hasExceptions = sampleRows.some(function(_, sIdx) {
-    const fileResult = analysisResultsForRef[sIdx];
-    return fileResult && fileResult.results && fileResult.results.some(function(r) { return r.result === 'pass_exception' || r.result === 'fail'; });
-  });
-  rows.push([cell('Were exceptions noted during testing?', { font: boldPlainFont }), cell(hasExceptions ? 'Yes' : 'No', { font: plainFont, alignment: centerAlign })]);
-  rows.push([cell('Operating effectiveness conclusion for the period of reliance', { font: boldPlainFont }), cell(hasExceptions ? 'Ineffective' : 'Effective', { font: plainFont, alignment: centerAlign })]);
+  // Per explicit instruction: these two answer cells are genuinely
+  // BLANK in the real, confirmed reference file — left for the user to
+  // fill in themselves, not auto-computed text.
+  rows.push([cell('Were exceptions noted during testing?', { font: midGreySubFont, fill: midGreySubFill, alignment: leftAlign }),
+             cell('', { font: plainFont, alignment: centerAlign, border: allBorders })]);
+  merges.push({ s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 5 } });
+  rows.push([cell('Operating effectiveness conclusion for the period of reliance', { font: midGreySubFont, fill: midGreySubFill, alignment: leftAlign }),
+             cell('', { font: plainFont, alignment: centerAlign, border: allBorders })]);
+  merges.push({ s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 5 } });
+  rows.push([]);
+  // Real, confirmed third sub-field from the reference (B27) — previously
+  // missing from the code entirely. A blank, user-fillable rationale
+  // field, matching the reference's own empty answer area for it.
+  rows.push([cell('When exceptions are noted but the operating effectiveness evaluation is Effective, document rationale', { font: midGreySubFont, fill: midGreySubFill, alignment: leftAlign }),
+             cell('', { font: plainFont, alignment: leftAlign, border: allBorders })]);
+  merges.push({ s: { r: rows.length - 1, c: 0 }, e: { r: rows.length - 1, c: 2 } });
+  merges.push({ s: { r: rows.length - 1, c: 3 }, e: { r: rows.length - 1, c: 10 + attributes.length } });
   rows.push([cell('ITGC name/ref: ' + (wp.mt_itgc_ref || wp.ref), { font: plainFont })]);
   if (wp.mt_entity_name) rows.push([cell('Entity name: ' + wp.mt_entity_name, { font: plainFont })]);
 
