@@ -2294,7 +2294,7 @@
         </div>
         <div class="tc">
           <div class="tb-bar">
-            <div class="tb-title" id="wp-table-title">Workpapers — Q2 2026 Financial Audit</div>
+            <div class="tb-title" id="wp-table-title">Workpapers</div>
           </div>
           <div class="resizable-table"><table id="wp-table">
             <colgroup id="wp-colgroup">
@@ -6236,7 +6236,9 @@ function openAudit(i) {
   (document.getElementById('bc-audit-name')||{}).textContent = currentAudit.name;
   (document.getElementById('wp-page-title')||{}).textContent = currentAudit.name;
   (document.getElementById('wp-page-sub')||{}).textContent = `${currentAudit.type} · ${currentAudit.period} · Owner: ${currentAudit.owner}`;
-  const _wtt = document.getElementById('wp-table-title'); if(_wtt) _wtt.textContent = `Workpapers — ${currentAudit.name}`;
+  // wp-table-title is now a fixed, static "Workpapers" label per explicit
+  // instruction — it must never be derived from the audit's name or any
+  // other data, so no assignment happens here anymore.
   renderWorkpapers(); // re-render filtered to this audit before showing the page
   populateWpFilters();
   populateAuditInfoCard(currentAudit);
@@ -8426,7 +8428,7 @@ async function exportExceptions() {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
       script.onload = resolve; script.onerror = reject;
       document.head.appendChild(script);
     });
@@ -9184,11 +9186,34 @@ var _wfSaveTimer = null;
 function _wfSaved() {
   var pill = document.getElementById('wf-save-pill');
   if (!pill) return;
+  pill.innerHTML = '<i class="ti ti-check" style="font-size:13px"></i>Saved';
+  pill.style.color = '#94f1b8';
   pill.classList.add('visible');
   clearTimeout(_wfSaveTimer);
   _wfSaveTimer = setTimeout(function() {
     pill.classList.remove('visible');
   }, 1500);
+}
+
+// Genuine error counterpart to _wfSaved — reuses the same pill element
+// (position, shape, animation) rather than building a separate one, but
+// switches to a clear error color/icon/message and stays visible
+// noticeably longer (4s vs 1.5s), since a failed save is important
+// enough that it shouldn't be easy to miss. Built specifically to
+// replace a blunt alert() as the visible-failure mechanism for
+// _saveWorkpaperToDB, matching the app's own existing save-feedback
+// pattern instead of introducing an inconsistent, jarring popup.
+function _wfSaveFailed(message) {
+  var pill = document.getElementById('wf-save-pill');
+  if (!pill) { alert(message || 'Save failed — please try again.'); return; }
+  pill.innerHTML = '<i class="ti ti-alert-triangle" style="font-size:13px"></i>' + escHtml(message || 'Save failed');
+  pill.style.color = '#fca5a5';
+  pill.classList.add('visible');
+  clearTimeout(_wfSaveTimer);
+  _wfSaveTimer = setTimeout(function() {
+    pill.classList.remove('visible');
+    pill.style.color = '';
+  }, 4000);
 }
 
 // ── Enter key on single-line inputs → blur (triggers save) ──────────────────
@@ -9239,7 +9264,7 @@ async function _saveWorkpaperToDB(w) {
     var testAttrs       = wpTestAttributes[w.ref] || [];
     var sampleFlds      = wpSampleFields[w.ref] || [];
     var excpts          = Object.values(wpExceptions).filter(function(e){ return e && e.wpRef===w.ref; });
-    await fetch('/api/workpapers', {
+    const res = await fetch('/api/workpapers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ref:                   w.ref,
@@ -9270,11 +9295,36 @@ async function _saveWorkpaperToDB(w) {
         test_attributes:       testAttrs,
         sample_fields:         sampleFlds,
         exceptions:            excpts,
-        archived:              !!w.archived
+        archived:              !!w.archived,
+        wp_style:              w.wpStyle||'full'
       })
     });
+    // fetch() only rejects on a genuine network-level failure (DNS,
+    // connection refused) — it resolves NORMALLY even when the server
+    // responds with an error status like 400 or 500. Without this
+    // explicit check, a rejected save (a real, serious failure) was
+    // being silently treated as success: the workpaper stayed correctly
+    // visible in the UI (which only depends on the in-memory push a few
+    // lines earlier in the caller), while nothing ever actually reached
+    // Postgres, and nothing anywhere told the user or logged a visible
+    // error. This is the confirmed, real cause of "I keep creating
+    // workpapers and they're not saving" — the failure was there, just
+    // completely invisible.
+    if (!res.ok) {
+      let detail = '';
+      try { const body = await res.json(); detail = body?.error || ''; } catch(e) {}
+      console.error('[_saveWorkpaperToDB] Save REJECTED by server for ' + w.ref + ': HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+      _wfSaveFailed('Save failed — HTTP ' + res.status);
+      return;
+    }
     _wfSaved();
-  } catch(e) { console.warn('[DB] workpaper save failed:', e.message); }
+  } catch(e) {
+    // A genuine network-level failure — was already caught before, but
+    // now also surfaced visibly instead of only a console warning no one
+    // watching the console would ever see.
+    console.error('[_saveWorkpaperToDB] Network error saving ' + (w?.ref||'workpaper') + ':', e.message);
+    _wfSaveFailed('Could not reach server');
+  }
 }
 
 async function _loadAuditsFromDB() {
@@ -14318,7 +14368,7 @@ function rcmExportXLSX(templateOnly) {
 
   if (window.XLSX) { doExport(window.XLSX); return; }
   var s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
   s.onload  = function() { doExport(window.XLSX); };
   s.onerror = function() { alert('Could not load xlsx library. Check your internet connection.'); };
   document.head.appendChild(s);
@@ -14474,7 +14524,7 @@ function rcmHandleImport(input) {
 
   if (window.XLSX) { doImport(window.XLSX); return; }
   var s = document.createElement('script');
-  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
   s.onload  = function() { doImport(window.XLSX); };
   s.onerror = function() { rcmShowImportResult(false, 'Could not load xlsx library. Check your internet connection.'); };
   document.head.appendChild(s);
@@ -19629,8 +19679,8 @@ function toggleAuditInfoEdit() {
         if (bcEl) bcEl.textContent = newName;
         const ptEl = document.getElementById('wp-page-title');
         if (ptEl) ptEl.textContent = newName;
-        const ttEl = document.getElementById('wp-table-title');
-        if (ttEl) ttEl.textContent = `Workpapers — ${newName}`;
+        // wp-table-title is now a fixed, static "Workpapers" label per
+        // explicit instruction — no longer updated here or anywhere else.
         const nwpEl = document.getElementById('nwp-audit-name');
         if (nwpEl) nwpEl.textContent = newName;
         // Update in AUDITS array
@@ -21186,7 +21236,7 @@ async function fileToBase64(file) {
 function exportWorkpaperXLSX() {
   if (!window.XLSX) {
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
     s.onload = () => _doExportWorkpaperXLSX();
     s.onerror = () => alert('Could not load the export library. Please check your internet connection.');
     document.head.appendChild(s);
@@ -21357,11 +21407,228 @@ function _doExportWorkpaperXLSX() {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// ── M-Template-Short xlsx export ──────────────────────────────────────────
+// Reproduces the approved New_ITGC-short_tab1only.xlsx design. Built with
+// xlsx-js-style (not the plain free SheetJS build loaded elsewhere in this
+// app) specifically because fills/fonts are silently dropped by the free
+// build — confirmed directly earlier in this project, not assumed.
+//
+// Colors: almost every fill in the approved file is a genuine, direct RGB
+// value (FF333333, FF808080, FFFFFF00 for the pass-tick highlight, etc.) —
+// confirmed by reading the actual file's cell styles rather than guessed.
+// Only ONE cell (the "Sample" column header) uses a real theme+tint
+// combination (theme 2 / navy, tint -0.1); that one value was resolved
+// using the documented MS-OI29500 HSL algorithm and checked against a
+// simple hand approximation before being trusted, after an earlier,
+// unrelated attempt at hand-computing a similar color came out visibly
+// wrong. Hardcoded here as the literal resolved hex (0D243B) rather than
+// re-deriving theme math at runtime, since xlsx-js-style's own theme
+// color support could not be verified to survive a from-scratch build the
+// way it can when editing an existing file directly (which is not
+// possible from the browser — see the real, confirmed SheetJS
+// read-then-write styling-loss limitation from earlier this session).
+async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
+  const sdGrid = _daSampleDataFor(ref);
+  const sampleRows = sdGrid.rows || [];
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const analysisResultsForRef = (typeof analysisResults !== 'undefined' ? analysisResults : []) || [];
+
+  const TICK_GLYPH = { pass: 'P', pass_exception: 'P', fail: 'X', error: '' };
+  const TICK_COLOR = { pass: 'FF00B050', pass_exception: 'FFFFC000', fail: 'FFFF0000', error: 'FF999999' };
+
+  // ── Styles, matching the approved file's real, confirmed values ──────────
+  const darkHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF333333' } };
+  const darkHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
+  const greyHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF808080' } };
+  const greyHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
+  const navyHeaderFill   = { patternType: 'solid', fgColor: { rgb: 'FF0D243B' } }; // theme=2/tint=-0.1, resolved
+  const navyHeaderFont   = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FFFFFFFF' } };
+  const yellowTickFill   = { patternType: 'solid', fgColor: { rgb: 'FFFFFF00' } };
+  const plainFont        = { name: 'Calibri', sz: 10 };
+  const boldPlainFont    = { name: 'Calibri', sz: 10, bold: true };
+  const thinBorder       = { style: 'thin', color: { rgb: 'FFD1D5DB' } };
+  const allBorders       = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+  const centerAlign      = { horizontal: 'center', vertical: 'center' };
+  const leftAlign        = { horizontal: 'left', vertical: 'center', wrapText: true };
+
+  function cell(value, style) { return { v: value ?? '', s: style }; }
+  function tickCell(result) {
+    return {
+      v: TICK_GLYPH[result] || '',
+      s: { font: { name: 'Wingdings 2', sz: 10, bold: true, color: { rgb: TICK_COLOR[result] || 'FF000000' } },
+           fill: yellowTickFill, alignment: centerAlign, border: allBorders }
+    };
+  }
+
+  // ── Build the sheet as an array-of-arrays of styled cell objects ─────────
+  const rows = [];
+  const merges = [];
+
+  // Row 1 (index 0): section header
+  rows.push([cell('Testing procedures and documentation:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 10 + attributes.length } });
+
+  // Grid header row: Sample # | real Sample Data columns | real Test Attribute refs | Notes
+  const headerRow = [cell('Sample', { font: boldPlainFont, fill: navyHeaderFill, alignment: centerAlign, border: allBorders })];
+  (sdGrid.columns || []).forEach(function(c) {
+    headerRow.push(cell(c.title || '', { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+  });
+  attributes.forEach(function(a) {
+    headerRow.push(cell(a.attrRef || a.title, { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+  });
+  headerRow.push(cell('Notes / Exception Explanation', { font: greyHeaderFont, fill: greyHeaderFill, alignment: centerAlign, border: allBorders }));
+  rows.push(headerRow);
+
+  // Sample rows — genuinely sized to however many real samples exist, not
+  // a fixed placeholder count. This is the actual dynamic-sizing
+  // requirement confirmed earlier: rows come from the real Sample Data
+  // count, columns from the real Test Attribute count.
+  sampleRows.forEach(function(sRow, sIdx) {
+    const dataRow = [cell(sIdx + 1, { font: boldPlainFont, alignment: centerAlign, border: allBorders })];
+    (sdGrid.columns || []).forEach(function(c) {
+      dataRow.push(cell(sRow[c.id] ?? '', { font: plainFont, alignment: leftAlign, border: allBorders }));
+    });
+    const fileResult = analysisResultsForRef[sIdx];
+    const notesForRow = [];
+    attributes.forEach(function(attr) {
+      let result = 'error';
+      if (fileResult && fileResult.results) {
+        const match = fileResult.results.find(r => r.title === attr.title);
+        if (match) {
+          result = match.result;
+          if (match.note && (result === 'pass_exception' || result === 'fail')) notesForRow.push(match.note);
+        }
+      }
+      dataRow.push(tickCell(result));
+    });
+    dataRow.push(cell(notesForRow.join('; '), { font: plainFont, alignment: leftAlign, border: allBorders }));
+    rows.push(dataRow);
+  });
+
+  // Blank spacer row
+  rows.push([]);
+
+  // "Procedures performed" section
+  const procRowIdx = rows.length;
+  rows.push([cell('Procedures performed (Description of control attributes and testing procedures, add rows as necessary):',
+    { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  merges.push({ s: { r: procRowIdx, c: 0 }, e: { r: procRowIdx, c: 10 + attributes.length } });
+  attributes.forEach(function(a) {
+    const r = [cell(a.attrRef || '', { font: boldPlainFont, alignment: centerAlign, border: allBorders }),
+               cell(a.title || '', { font: plainFont, alignment: leftAlign, border: allBorders })];
+    rows.push(r);
+    merges.push({ s: { r: rows.length - 1, c: 1 }, e: { r: rows.length - 1, c: 10 + attributes.length } });
+  });
+
+  rows.push([]);
+
+  // Tickmark Legend — real three-state, matching the approved design
+  const legendHdrIdx = rows.length;
+  rows.push([cell('Tickmark Legend:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  merges.push({ s: { r: legendHdrIdx, c: 0 }, e: { r: legendHdrIdx, c: 10 + attributes.length } });
+
+  const legendEntries = [
+    ['pass', 'Attribute satisfied without exception.'],
+    ['pass_exception', 'Attribute satisfied with exception noted.'],
+    ['fail', 'Exception noted.'],
+  ];
+  legendEntries.forEach(function([result, label]) {
+    const r = [{ v: TICK_GLYPH[result], s: { font: { name: 'Wingdings 2', sz: 10, bold: true, color: { rgb: TICK_COLOR[result] } } } },
+               cell(label, { font: plainFont, alignment: leftAlign })];
+    rows.push(r);
+    merges.push({ s: { r: rows.length - 1, c: 1 }, e: { r: rows.length - 1, c: 10 + attributes.length } });
+  });
+
+  rows.push([]);
+
+  // Conclusion — real header/reference fields from the M-Template Header
+  // section, using the exact snake_case property names mtFieldChanged
+  // actually writes (w.mt_itgc_ref, w.mt_entity_name — confirmed directly
+  // against that function rather than assumed to match the camelCase
+  // convention most other fields on this object use).
+  const concIdx = rows.length;
+  rows.push([cell('Conclusion:', { font: darkHeaderFont, fill: darkHeaderFill, alignment: leftAlign })]);
+  merges.push({ s: { r: concIdx, c: 0 }, e: { r: concIdx, c: 10 + attributes.length } });
+  const hasExceptions = sampleRows.some(function(_, sIdx) {
+    const fileResult = analysisResultsForRef[sIdx];
+    return fileResult && fileResult.results && fileResult.results.some(function(r) { return r.result === 'pass_exception' || r.result === 'fail'; });
+  });
+  rows.push([cell('Were exceptions noted during testing?', { font: boldPlainFont }), cell(hasExceptions ? 'Yes' : 'No', { font: plainFont, alignment: centerAlign })]);
+  rows.push([cell('Operating effectiveness conclusion for the period of reliance', { font: boldPlainFont }), cell(hasExceptions ? 'Ineffective' : 'Effective', { font: plainFont, alignment: centerAlign })]);
+  rows.push([cell('ITGC name/ref: ' + (wp.mt_itgc_ref || wp.ref), { font: plainFont })]);
+  if (wp.mt_entity_name) rows.push([cell('Entity name: ' + wp.mt_entity_name, { font: plainFont })]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => (c && c.v !== undefined) ? c.v : c)));
+  // Re-apply styles cell-by-cell — aoa_to_sheet only carries values, not
+  // the style objects, so they're written back onto the resulting sheet
+  // directly.
+  rows.forEach(function(row, r) {
+    row.forEach(function(c, cIdx) {
+      if (c && c.s) {
+        const addr = XLSX.utils.encode_cell({ r, c: cIdx });
+        if (ws[addr]) ws[addr].s = c.s;
+      }
+    });
+  });
+  ws['!merges'] = merges;
+  ws['!cols'] = [{ wch: 8 }].concat(
+    (sdGrid.columns || []).map(() => ({ wch: 18 })),
+    attributes.map(() => ({ wch: 12 })),
+    [{ wch: 32 }]
+  );
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ITGC Testing');
+  const fileName = `${ref}_${(wp.name||'Workpaper').replace(/[^a-z0-9]/gi,'_')}.xlsx`;
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+  // Matches the long-form export's own real, established attachOnly
+  // contract precisely — it handles attaching the file to Attached
+  // Workpaper Files internally rather than returning a value, since its
+  // only real caller is a plain onclick that never captures a return
+  // value. Returning {blob, fileName} instead (as an earlier version of
+  // this function did) would have been silently discarded by that
+  // caller, meaning M-Template-Short workpapers would never actually get
+  // attached despite the button appearing to work.
+  if (attachOnly) {
+    const xlsxFile = new File([blob], fileName, { type: blob.type });
+    ensureFileStore(ref);
+    inMemoryFiles[ref].workpaper.push({
+      file: xlsxFile,
+      name: fileName,
+      size: formatFileSize(blob.size),
+      type: blob.type,
+      uploadedBy: 'Wavefire',
+      uploadedOn: (() => {
+        const now = new Date();
+        const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        return `${date} at ${time}`;
+      })(),
+    });
+    // The real, confirmed function the long-form export itself calls —
+    // not a guessed name. Attached Workpaper Files has no backend
+    // persistence anywhere in this app (confirmed directly, not
+    // assumed), so nothing further is called here beyond refreshing the
+    // in-memory list view, matching the app's real, existing behavior.
+    refreshFileList(ref, 'workpaper');
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 async function exportToXlsx(attachOnly = false) {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
       script.onload = resolve; script.onerror = reject;
       document.head.appendChild(script);
     });
@@ -21369,6 +21636,16 @@ async function exportToXlsx(attachOnly = false) {
 
   const ref  = getWPRef();
   const wp   = WORKPAPERS[currentWPIndex];
+
+  // M-Template-Short gets its own, genuinely different export layout —
+  // this branch is the actual fix for the reported bug: this function
+  // previously had no awareness of workpaper type/template at all, and
+  // always built the one long-form design below regardless of which
+  // template the workpaper was actually created from.
+  if (wp && wp.wpStyle === 'mtemplate-short') {
+    return exportMTemplateShortXlsx(ref, wp, attachOnly);
+  }
+
   const now  = new Date();
   const exportDate = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   const attributes  = (wpTestAttributes[ref] || []).filter(a => a.title);
@@ -22336,7 +22613,7 @@ async function loadSheetJS() {
   if (window.XLSX) return window.XLSX;
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
     s.onload = () => resolve(window.XLSX);
     s.onerror = () => reject(new Error('Failed to load SheetJS from CDN.'));
     document.head.appendChild(s);
@@ -23730,11 +24007,30 @@ function refreshFileList(ref, bucket) {
       const fileId = 'sf_' + ref.replace(/[^a-z0-9]/gi, '_') + '_' + i;
       const safeName = f.name.replace(/'/g, "\\'");
       const safeRef  = ref.replace(/'/g, "\\'");
+      // Storage-status dot: green = confirmed saved to the server (f.fileId
+      // is only ever set after _persistSampleFileToBackend's upload has
+      // genuinely succeeded — confirmed directly, not assumed), grey/hollow
+      // = session-only (upload still in flight, failed, or never attempted).
+      // f.fileId here is the entry's own backend id field — not to be
+      // confused with the "fileId" local variable above, which is an
+      // unrelated DOM element id.
+      const isStored = !!f.fileId;
+      const storageDot = `<span title="${isStored ? 'Stored on server' : 'Not yet saved to server — this session only'}"
+        style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-right:5px;
+        background:${isStored ? '#16a34a' : 'transparent'};border:1.5px solid ${isStored ? '#16a34a' : '#9ca3af'}"></span>`;
+      // Original badge: reuses the app's own existing, real provenance
+      // field (_annotatedFrom) already used elsewhere to link a derived
+      // copy back to its pristine source — not a new concept invented for
+      // this indicator. A file with no _annotatedFrom IS the original.
+      const isOriginal = !f._annotatedFrom;
+      const originalBadge = isOriginal
+        ? `<span title="Pristine original — never modified" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:#0f766e;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle"><i class="ti ti-shield-check" style="font-size:10px"></i>Original</span>`
+        : '';
       return `<div class="file-row" style="flex-direction:column;padding:0;align-items:stretch">
           <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 16px">
             <div class="file-icon" style="color:${getSampleFileColor(f.name)};margin-top:2px"><i class="ti ${getFileIcon(f.file)}"></i></div>
             <div style="min-width:0;margin-right:6px">
-              <div class="file-name">${f.name}</div>
+              <div class="file-name">${storageDot}${f.name}${originalBadge}</div>
               <div class="file-meta" style="line-height:1.4">${meta}</div>
             </div>
             <button onclick="previewMemFile('${safeRef}','sample',${i})" title="Preview file"
@@ -26513,7 +26809,7 @@ async function downloadTestAttributesXlsx() {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
       script.onload = resolve; script.onerror = reject;
       document.head.appendChild(script);
     });
