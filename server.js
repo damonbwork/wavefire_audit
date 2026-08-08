@@ -1489,6 +1489,25 @@ app.get('/api/diagnose-workpaper-save', async (req, res) => {
   }
 });
 
+// Direct diagnostic: shows the exact, real, current wp_style value for
+// a specific workpaper by ref. Built to answer precisely whether a
+// pre-existing workpaper already has the correct stored value for the
+// M-Template-Short display/reordering logic to apply to it — that logic
+// reads wp_style live every time a workpaper opens, so this is the one
+// real fact that determines whether an existing workpaper reflects
+// those changes, not anything about the display code itself.
+app.get('/api/diagnose-wp-style/:ref', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT ref, name, audit_name, type, wp_style FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No workpaper found with that ref', ref: req.params.ref });
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-wp-style/:ref:'); }
+});
+
 
 // The New Workpaper modal's own dedicated route — returns layout_key,
 // since that's specifically what determines which sections/fields render
