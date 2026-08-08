@@ -9453,7 +9453,8 @@ async function _saveWorkpaperToDB(w) {
         sample_fields:         sampleFlds,
         exceptions:            excpts,
         archived:              !!w.archived,
-        wp_style:              w.wpStyle||'full'
+        wp_style:              w.wpStyle||'full',
+        template_used:         w.templateUsed||null
       })
     });
     // fetch() only rejects on a genuine network-level failure (DNS,
@@ -9623,6 +9624,7 @@ async function _loadWorkpapersFromDB() {
         merge('description',         row.description);
         merge('testDesc',            row.test_desc);
         merge('wpStyle',             row.wp_style);
+        merge('templateUsed',        row.template_used);
         // Set directly, not via merge() — merge() skips falsy values as
         // "nothing to update," but false is a completely normal, common
         // value for this flag (not archived) that must always be applied.
@@ -19336,6 +19338,7 @@ function submitNewWorkpaper() {
     name:         name,
     type:         type,
     wpStyle:      wpStyle,
+    templateUsed: template,
     preparer:     document.getElementById('nwp-preparer')?.value || '',
     reviewer:     document.getElementById('nwp-reviewer')?.value || '',
     description:  document.getElementById('nwp-description')?.value || '',
