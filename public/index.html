@@ -3817,7 +3817,27 @@ Attached Workpaper File above with the results of the analysis. The
 results should be reviewed and modified as necessary based upon the 
 auditor's assessment.
             </p>
-          </div></div><!-- /sect-analyze --></div><!-- /sect-card sample files -->
+          </div></div><!-- /sect-analyze -->
+          <!-- Legend for the storage-status dot and Original badge shown
+               next to each file's name — explains what each real
+               indicator means, using the exact same colors/shapes as the
+               indicators themselves. -->
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary);font-size:11px;color:var(--text-secondary)">
+            <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
+            <span style="display:inline-flex;align-items:center;gap:5px">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;border:1.5px solid #16a34a"></span>
+              Stored on server
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:5px">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:transparent;border:1.5px solid #9ca3af"></span>
+              Not yet saved to server — this session only
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:5px">
+              <span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:#0f766e;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:3px;padding:1px 5px"><i class="ti ti-shield-check" style="font-size:10px"></i>Original</span>
+              Pristine original — never modified
+            </span>
+          </div>
+        </div><!-- /sect-card sample files -->
 
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
