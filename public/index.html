@@ -7892,13 +7892,30 @@ async function downloadAllAnnotatedPDFs() {
 // version of the original is left completely alone, exactly as
 // instructed. The copy IS added to the visible Sample Files list (per
 // explicit confirmation), but as its own, genuinely independent entry.
+// Genuinely shared, reusable detection for "is this file a pristine
+// copy" — checks the real, durable filename convention FIRST (survives
+// a page reload), falling back to the in-memory-only _isPristineCopy
+// flag as a secondary signal for a copy still in the same session
+// before its first save round-trip. Promoted from what was previously a
+// local, display-only regex, after finding a real, confirmed bug: the
+// in-memory flag alone is not persisted to Postgres anywhere, so a
+// reloaded page would silently lose it, letting an already-existing
+// copy be treated as a genuine original again — producing exactly the
+// kind of double-copy filename ("..._copy_copy.pdf") that was actually
+// reported.
+function _isPristineCopyFile(f) {
+  return !!(f._isPristineCopy || /_copy\.pdf$/i.test(f.name || ''));
+}
+
 async function _makePristineFileSystemCopyBeforeAnalyze(ref) {
   const bucketArr = inMemoryFiles[ref]?.sample;
   if (!bucketArr || !bucketArr.length) return;
 
   // Only original files — never copy an already-"_annotated" or
-  // already-"_copy" entry a second time.
-  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !f._isPristineCopy);
+  // already-"_copy" entry a second time. Uses the shared, filename-aware
+  // detector so this protection survives a page reload, not just the
+  // current session.
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !_isPristineCopyFile(f));
 
   for (const origEntry of originalEntries) {
     try {
@@ -7910,7 +7927,7 @@ async function _makePristineFileSystemCopyBeforeAnalyze(ref) {
       // create a duplicate or re-upload unnecessarily — this function's
       // job is ensuring a pristine copy EXISTS, not forcing a fresh one
       // on every single run.
-      if (bucketArr.some(f => f.name === copyName && f._isPristineCopy)) continue;
+      if (bucketArr.some(f => f.name === copyName && _isPristineCopyFile(f))) continue;
 
       const pristineBytes = await origEntry.file.arrayBuffer();
       const pristineCopyFile = new File([pristineBytes], copyName, { type: 'application/pdf' });
@@ -7954,7 +7971,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   // discovered processing "_copy.pdf" files as if they were originals,
   // producing mismatched, never-matching annotated names and immediately
   // deleting them again when no analysis results matched.
-  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !f._isPristineCopy);
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !_isPristineCopyFile(f));
   if (!originalEntries.length) return;
 
   let PDFLib;
@@ -20281,7 +20298,7 @@ async function analyzeWithClaude() {
   // pre-existing gap (memFiles was previously used unfiltered for both
   // display AND the analysis payload) made concretely worse by this
   // turn's new copy mechanism adding one more duplicate into the mix.
-  const memFiles = memFilesForDisplay.filter(f => !f._annotatedFrom && !f._isPristineCopy);
+  const memFiles = memFilesForDisplay.filter(f => !f._annotatedFrom && !_isPristineCopyFile(f));
   const staticSampleFiles = WORKPAPERS[currentWPIndex]?.sampleFiles || [];
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
 
@@ -24289,14 +24306,16 @@ function refreshFileList(ref, bucket) {
 
       // ── Real categorization, per explicit definitions ──────────────────
       // "Copy" = matches this app's own established "_copy" naming
-      // convention (the pristine file-system duplicate mechanism).
+      // convention (the pristine file-system duplicate mechanism) — uses
+      // the shared, top-level _isPristineCopyFile helper, the same one
+      // used everywhere else this distinction matters, rather than a
+      // second, local copy of the same detection logic.
       // "Annotated" = matches the "_annotated" convention (the burn-in
       // mechanism) OR carries a real _annotatedFrom provenance link.
       // "Original" = neither of the above.
-      const looksCopyByName = (name) => /_copy\.pdf$/i.test(name);
       const looksAnnotatedByName = (name) => /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(name);
       const categoryOf = (f) => {
-        if (f._isPristineCopy || looksCopyByName(f.name)) return 'copy';
+        if (_isPristineCopyFile(f)) return 'copy';
         if (f._annotatedFrom || looksAnnotatedByName(f.name)) return 'annotated';
         return 'original';
       };
