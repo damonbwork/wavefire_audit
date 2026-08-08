@@ -21297,6 +21297,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     : `Analysis complete — ${analysisResults.length} sample${analysisResults.length !== 1 ? 's' : ''} tested successfully.`
   );
 
+  // Per explicit confirmation: this prompt appears at the true end of
+  // Analyze, before any export has been requested — scoped specifically
+  // to M-Template-Short workpapers, since the affected column only
+  // exists in that specific export format.
+  if (wp && wp.wpStyle === 'mtemplate-short') {
+    promptIncludeFileNamesInExport(wp);
+  }
+
   // Show any narrative commentary Claude returned
   const allCommentary = analysisResults
     .filter(r => r.commentary)
@@ -21989,6 +21997,48 @@ function _doExportWorkpaperXLSX() {
 // way it can when editing an existing file directly (which is not
 // possible from the browser — see the real, confirmed SheetJS
 // read-then-write styling-loss limitation from earlier this session).
+// Per explicit request: asks, at the true end of Analyze, whether the
+// upcoming M-Template-Short .xlsx export should include a column of
+// real sample file names following "Notes / Exception Explanation".
+// Matches this app's established modal pattern (see rcmConfirmDelete)
+// but with neutral, non-destructive styling appropriate for a genuine
+// feature choice rather than a delete confirmation. The resulting
+// choice is stored on the workpaper object itself (wp.includeFileNamesInXlsx)
+// — a genuinely durable, per-workpaper setting, since the actual export
+// could happen much later or be triggered multiple times, not a
+// transient shared variable that a different workpaper's Analyze run
+// could overwrite in between.
+function promptIncludeFileNamesInExport(wp) {
+  const id = 'include-filenames-overlay';
+  document.getElementById(id)?.remove();
+  const html =
+    '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">' +
+      '<div style="background:var(--bg-primary);border-radius:12px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+        '<div style="padding:18px 20px 14px;display:flex;align-items:flex-start;gap:14px">' +
+          '<div style="width:38px;height:38px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+            '<i class="ti ti-file-spreadsheet" style="font-size:18px;color:#7c3aed"></i>' +
+          '</div>' +
+          '<div style="flex:1">' +
+            '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Include sample file names in the export?</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Add a column of the real sample file names, right after "Notes / Exception Explanation", to the workpaper\'s .xlsx export.</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">' +
+          '<button class="btn-s" id="include-filenames-no-btn">No</button>' +
+          '<button class="btn-p" id="include-filenames-yes-btn"><i class="ti ti-check"></i>Yes, include them</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  const overlay = document.getElementById(id);
+  function resolve(choice) {
+    if (wp) wp.includeFileNamesInXlsx = choice;
+    overlay?.remove();
+  }
+  document.getElementById('include-filenames-yes-btn').onclick = () => resolve(true);
+  document.getElementById('include-filenames-no-btn').onclick = () => resolve(false);
+}
+
 async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   const sdGrid = _daSampleDataFor(ref);
   const sampleRows = sdGrid.rows || [];
@@ -22072,6 +22122,7 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   // own general real pattern, rather than assuming a fixed column
   // layout this app's actual variable Sample Data grid doesn't
   // guarantee.
+  const includeFileNames = !!(wp && wp.includeFileNamesInXlsx);
   const headerRow = [cell('Sample', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders })];
   (sdGrid.columns || []).forEach(function(c) {
     headerRow.push(cell(c.title || '', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
@@ -22080,6 +22131,9 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
     headerRow.push(cell(a.attrRef || a.title, { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   });
   headerRow.push(cell('Notes / Exception Explanation', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
+  if (includeFileNames) {
+    headerRow.push(cell('Sample File Name(s)', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
+  }
   rows.push(headerRow);
 
   // Sample rows — genuinely sized to however many real samples exist, not
@@ -22089,7 +22143,8 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   sampleRows.forEach(function(sRow, sIdx) {
     const dataRow = [cell(sIdx + 1, { font: boldPlainFont, alignment: centerAlign, border: allBorders })];
     (sdGrid.columns || []).forEach(function(c) {
-      dataRow.push(cell(sRow[c.id] ?? '', { font: plainFont, alignment: leftAlign, border: allBorders }));
+      const cellVal = (sRow.cells && sRow.cells[c.id] !== undefined) ? sRow.cells[c.id] : '';
+      dataRow.push(cell(cellVal, { font: plainFont, alignment: leftAlign, border: allBorders }));
     });
     const fileResult = analysisResultsForRef[sIdx];
     const notesForRow = [];
@@ -22099,12 +22154,23 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
         const match = fileResult.results.find(r => r.title === attr.title);
         if (match) {
           result = match.result;
-          if (match.note && (result === 'pass_exception' || result === 'fail')) notesForRow.push(match.note);
+          // Per explicit instruction: include every real note the model
+          // provided, not just ones tied to a fail/exception result —
+          // matching the app's own established convention (see the
+          // real, proven legend/summary logic, which includes any note
+          // present with no pass/fail restriction).
+          if (match.note) {
+            const attrTag = attr.attrRef || attr.num || attr.title;
+            notesForRow.push('[' + attrTag + '] ' + match.note);
+          }
         }
       }
       dataRow.push(tickCell(result));
     });
     dataRow.push(cell(notesForRow.join('; '), { font: plainFont, alignment: leftAlign, border: allBorders }));
+    if (includeFileNames) {
+      dataRow.push(cell((fileResult && fileResult.fileName) || '', { font: plainFont, alignment: leftAlign, border: allBorders }));
+    }
     rows.push(dataRow);
   });
 
