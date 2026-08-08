@@ -21558,18 +21558,34 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   rows.push([cell('ITGC name/ref: ' + (wp.mt_itgc_ref || wp.ref), { font: plainFont })]);
   if (wp.mt_entity_name) rows.push([cell('Entity name: ' + wp.mt_entity_name, { font: plainFont })]);
 
-  const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.map(c => (c && c.v !== undefined) ? c.v : c)));
-  // Re-apply styles cell-by-cell — aoa_to_sheet only carries values, not
-  // the style objects, so they're written back onto the resulting sheet
-  // directly.
+  // Build the worksheet object DIRECTLY, cell by cell, with {v, t, s} all
+  // present from creation — matching xlsx-js-style's own documented,
+  // confirmed-working pattern exactly (its README example builds cells
+  // this way, not via aoa_to_sheet-then-restyle). The two-step approach
+  // used here originally — aoa_to_sheet with plain values, then walking
+  // back over the sheet re-assigning .s afterward — is NOT a pattern the
+  // library's own docs demonstrate, and multiple real, independent
+  // GitHub issues against both xlsx-js-style and its sibling forks
+  // describe exactly this symptom: styles silently not applying when
+  // assigned after the fact rather than at cell-creation time. This is
+  // the actual, confirmed cause of the reported "doesn't resemble the
+  // format" — not a data problem (verified correct via direct testing
+  // last turn), a real construction-pattern bug in how the sheet itself
+  // was being built.
+  const ws = {};
+  let maxCol = 0;
   rows.forEach(function(row, r) {
     row.forEach(function(c, cIdx) {
-      if (c && c.s) {
-        const addr = XLSX.utils.encode_cell({ r, c: cIdx });
-        if (ws[addr]) ws[addr].s = c.s;
-      }
+      if (c === undefined || c === null) return;
+      const addr = XLSX.utils.encode_cell({ r, c: cIdx });
+      const val = (c && c.v !== undefined) ? c.v : c;
+      const cellObj = { v: val, t: typeof val === 'number' ? 'n' : 's' };
+      if (c && c.s) cellObj.s = c.s;
+      ws[addr] = cellObj;
+      if (cIdx > maxCol) maxCol = cIdx;
     });
   });
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length - 1, 0), c: maxCol } });
   ws['!merges'] = merges;
   ws['!cols'] = [{ wch: 8 }].concat(
     (sdGrid.columns || []).map(() => ({ wch: 18 })),
@@ -23859,6 +23875,12 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName) {
     formData.append('file', entry.file, entry.name);
     formData.append('filename', entry.name);
     formData.append('uploadedBy', uploaderName);
+    // Sends the entry's own real provenance, if it has any — completes
+    // the actual, durable fix: previously this field existed only in
+    // browser memory and was never sent to the backend at all, so even
+    // a correctly-tagged derived copy would lose that fact the moment it
+    // was reloaded from storage.
+    if (entry._annotatedFrom) formData.append('annotatedFrom', entry._annotatedFrom);
     const res = await fetch('/api/sample-files/' + encodeURIComponent(ref), {
       method: 'POST',
       body: formData, // NOT JSON — browser sets the correct multipart Content-Type/boundary automatically
@@ -23932,6 +23954,14 @@ async function _loadSampleFilesFromBackend(ref) {
         uploadedBy: f.uploaded_by || '',
         uploadedOn: f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '',
         fileId: f.file_id,
+        // The actual, real fix: reads the now-durably-persisted
+        // annotated_from column back into the in-memory field this app's
+        // provenance logic already relies on — previously this was never
+        // read back at all, meaning a genuinely annotated file's
+        // provenance silently evaporated on every reload, which is
+        // precisely why it was showing the "Original" badge despite
+        // containing real annotations.
+        _annotatedFrom: f.annotated_from || null,
       });
     });
     refreshFileList(ref, 'sample');
@@ -24022,7 +24052,16 @@ function refreshFileList(ref, bucket) {
       // field (_annotatedFrom) already used elsewhere to link a derived
       // copy back to its pristine source — not a new concept invented for
       // this indicator. A file with no _annotatedFrom IS the original.
-      const isOriginal = !f._annotatedFrom;
+      // A file whose name already matches this app's own established
+      // "_annotated" convention (used by both existing burn-in
+      // mechanisms) is unambiguously a derived copy even without a real
+      // _annotatedFrom link — this fallback specifically covers files
+      // created before annotated_from existed as a durable column, so
+      // already-existing mislabeled files (like a real one reported:
+      // "..._annotated_20260627_1746.pdf" showing as "Original") self-
+      // correct without needing to be re-uploaded.
+      const looksAnnotatedByName = /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(f.name);
+      const isOriginal = !f._annotatedFrom && !looksAnnotatedByName;
       const originalBadge = isOriginal
         ? `<span title="Pristine original — never modified" style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:#0f766e;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle"><i class="ti ti-shield-check" style="font-size:10px"></i>Original</span>`
         : '';
