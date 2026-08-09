@@ -2463,6 +2463,32 @@ app.get('/api/auth/me', async (req, res) => {
   res.json({ user });
 });
 
+// Real, new, self-service "change my own password" route — genuinely
+// distinct from both existing password routes: not the superadmin-only
+// set-password route (wrong fit for a regular user changing their own),
+// and not the email-token reset route (wrong fit for someone who just
+// successfully logged in with a temporary password and now needs to set
+// a real, new one). Uses the real, actual, just-established session
+// itself as authorization — the caller is already genuinely
+// authenticated (via the middleware above, into req.currentUser), which
+// is precisely the right basis for "let this specific, real, logged-in
+// person change their own password."
+app.post('/api/auth/change-password', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  if (!req.currentUser) return res.status(401).json({ error: 'Not authenticated' });
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ error: 'newPassword required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  try {
+    const newHash = hashPassword(newPassword);
+    await pool.query(
+      'UPDATE users SET password_hash=$1, must_change_password=false, date_updated=NOW() WHERE user_id=$2',
+      [newHash, req.currentUser.user_id]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'POST /api/auth/change-password:'); }
+});
+
 app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
