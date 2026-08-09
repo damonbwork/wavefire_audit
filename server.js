@@ -1786,16 +1786,44 @@ app.get('/api/diagnose-workpaper-save', async (req, res) => {
 // reads wp_style live every time a workpaper opens, so this is the one
 // real fact that determines whether an existing workpaper reflects
 // those changes, not anything about the display code itself.
-app.get('/api/diagnose-wp-style/:ref', async (req, res) => {
+// Real, targeted diagnostic for "a user cannot login" — built to
+// directly, precisely settle which SPECIFIC real condition is actually
+// failing, since the real login route deliberately returns an
+// identical, generic error for every different, real failure reason
+// (a correct, real security practice — see its own comment), which
+// means the reported symptom alone can't distinguish between them.
+// Deliberately NEVER exposes the real password hash, and never
+// attempts to verify a submitted password — a diagnostic that checked
+// actual credentials would itself be a real, meaningful security risk.
+app.get('/api/diagnose-login/:loginId', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try {
     const { rows } = await pool.query(
-      `SELECT ref, name, audit_name, type, wp_style FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
-      [DEFAULT_TENANT_ID, req.params.ref]
+      `SELECT user_id, login_id, email, is_active, is_superadmin, must_change_password,
+              (password_hash IS NOT NULL AND password_hash != '') AS has_real_password_set,
+              date_updated
+       FROM users WHERE login_id=$1`,
+      [req.params.loginId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'No workpaper found with that ref', ref: req.params.ref });
-    res.json(rows[0]);
-  } catch(err) { return fail(res, err, 'GET /api/diagnose-wp-style/:ref:'); }
+    if (!rows.length) {
+      return res.json({ found: false, note: 'No user exists with this exact login_id. Check for a typo, or whether this user\'s real login_id is actually something different from their name/email.' });
+    }
+    const u = rows[0];
+    const likelyCause =
+      !u.is_active ? 'This account is marked INACTIVE — inactive accounts are always rejected at login, regardless of password.' :
+      !u.has_real_password_set ? 'This account genuinely has NO real password set at all yet (password_hash is empty) — a superadmin needs to set one via the Admin > Users page before this user can log in.' :
+      'A real password IS set and the account is active — if login is still failing, the most likely real cause is the password the user is actually typing simply does not match what was set (a genuine typo either when it was set, or when it\'s being entered now).';
+    res.json({
+      found: true,
+      login_id: u.login_id,
+      is_active: u.is_active,
+      is_superadmin: u.is_superadmin,
+      must_change_password: u.must_change_password,
+      has_real_password_set: u.has_real_password_set,
+      password_last_updated: u.date_updated,
+      likely_cause: likelyCause,
+    });
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-login/:loginId:'); }
 });
 
 
