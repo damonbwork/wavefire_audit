@@ -4751,7 +4751,9 @@ auditor's assessment.
       <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
         <div>
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">User ID</label>
-          <input type="text" disabled placeholder="Coming soon" style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-secondary);color:var(--text-tertiary);cursor:not-allowed">
+          <input type="text" id="initial-login-userid-input" placeholder="Enter your User ID" autocomplete="username" onkeydown="if(event.key==='Enter')_validateLoginIdAndAdvance()"
+            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-primary);color:var(--text-primary)">
+          <div id="initial-login-userid-error" style="font-size:12px;color:#dc2626;margin-top:5px;display:none">Invalid UserID</div>
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Password</label>
@@ -4763,7 +4765,7 @@ auditor's assessment.
         </div>
       </div>
       <div style="padding:20px 28px 24px">
-        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_advanceToTenantSelection()">OK</button>
+        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_validateLoginIdAndAdvance()">OK</button>
       </div>
     </div>
   </div>
@@ -22334,35 +22336,60 @@ function _doExportWorkpaperXLSX() {
 // could happen much later or be triggered multiple times, not a
 // transient shared variable that a different workpaper's Analyze run
 // could overwrite in between.
+// Per explicit, precise requirements: two independent checkboxes (Notes
+// / Exception Explanation asked FIRST, then Sample File Name(s)), both
+// checked by default, in a wider modal, left-justified, with both
+// checkboxes genuinely aligned above each other in a single column —
+// built as a real two-column grid (fixed checkbox column + label
+// column) rather than inline flex per row, so alignment holds even if
+// the two label texts wrap to different numbers of lines.
 function promptIncludeFileNamesInExport(wp) {
   const id = 'include-filenames-overlay';
   document.getElementById(id)?.remove();
   const html =
     '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">' +
-      '<div style="background:var(--bg-primary);border-radius:12px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+      '<div style="background:var(--bg-primary);border-radius:12px;width:min(620px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
         '<div style="padding:18px 20px 14px;display:flex;align-items:flex-start;gap:14px">' +
           '<div style="width:38px;height:38px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
             '<i class="ti ti-file-spreadsheet" style="font-size:18px;color:#7c3aed"></i>' +
           '</div>' +
-          '<div style="flex:1">' +
-            '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Include sample file names in the export?</div>' +
-            '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Add a column of the real sample file names, right after "Notes / Exception Explanation", to the workpaper\'s .xlsx export.</div>' +
+          '<div style="flex:1;text-align:left">' +
+            '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Customize the .xlsx export</div>' +
+            '<div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Choose which additional columns to include in the workpaper\'s .xlsx export.</div>' +
           '</div>' +
         '</div>' +
+        '<div style="padding:6px 20px 16px 20px;display:grid;grid-template-columns:24px 1fr;row-gap:14px;column-gap:12px;align-items:start;text-align:left">' +
+          '<input type="checkbox" id="include-notes-checkbox" checked style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<label for="include-notes-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
+            '<div style="font-weight:600;margin-bottom:2px">Include "Notes / Exception Explanation"</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary)">Add a column with the real notes and exception explanations for each sample.</div>' +
+          '</label>' +
+          '<input type="checkbox" id="include-filenames-checkbox" checked style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<label for="include-filenames-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
+            '<div style="font-weight:600;margin-bottom:2px">Include "Sample File Name(s)"</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary)">Add a column with the real sample file name(s) for each row.</div>' +
+          '</label>' +
+          '<input type="checkbox" id="include-testsummary-checkbox" style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<label for="include-testsummary-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
+            '<div style="font-weight:600;margin-bottom:2px">Include a Test Summary Tab</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary)">Add a second, real tab listing every attribute result and note for each sample, in detail — the same real content as the "Detailed Notes" tab in the standard workpaper export.</div>' +
+          '</label>' +
+        '</div>' +
         '<div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">' +
-          '<button class="btn-s" id="include-filenames-no-btn">No</button>' +
-          '<button class="btn-p" id="include-filenames-yes-btn"><i class="ti ti-check"></i>Yes, include them</button>' +
+          '<button class="btn-p" id="include-filenames-continue-btn"><i class="ti ti-check"></i>Continue</button>' +
         '</div>' +
       '</div>' +
     '</div>';
   document.body.insertAdjacentHTML('beforeend', html);
   const overlay = document.getElementById(id);
-  function resolve(choice) {
-    if (wp) wp.includeFileNamesInXlsx = choice;
+  document.getElementById('include-filenames-continue-btn').onclick = () => {
+    if (wp) {
+      wp.includeNotesInXlsx = document.getElementById('include-notes-checkbox').checked;
+      wp.includeFileNamesInXlsx = document.getElementById('include-filenames-checkbox').checked;
+      wp.includeTestSummaryTabInXlsx = document.getElementById('include-testsummary-checkbox').checked;
+    }
     overlay?.remove();
-  }
-  document.getElementById('include-filenames-yes-btn').onclick = () => resolve(true);
-  document.getElementById('include-filenames-no-btn').onclick = () => resolve(false);
+  };
 }
 
 async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
@@ -22391,7 +22418,6 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   const lightGreyColFont  = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FF000000' } };
   const midGreySubFill    = { patternType: 'solid', fgColor: { rgb: 'FF808080' } }; // real, confirmed color for sub-section headers (Procedures performed, Tickmark Legend, Conclusion sub-fields) — directly sampled from the user's own real Excel screenshot, correcting an earlier LibreOffice-based re-render that had rendered this specific combination incorrectly as black
   const midGreySubFont    = { name: 'Calibri', sz: 10, bold: true, color: { rgb: 'FF000000' } }; // real, confirmed BLACK text on this mid-grey background — the previous version's claim of white text here was wrong, corrected via direct sampling of the real screenshot's visible label text
-  const yellowTickFill    = { patternType: 'solid', fgColor: { rgb: 'FFFFFF00' } };
   const plainFont         = { name: 'Calibri', sz: 10 };
   const boldPlainFont     = { name: 'Calibri', sz: 10, bold: true };
   const thinBorder        = { style: 'thin', color: { rgb: 'FFD1D5DB' } };
@@ -22404,7 +22430,7 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
     return {
       v: TICK_GLYPH[result] || '',
       s: { font: { name: 'Wingdings 2', sz: 10, bold: true, color: { rgb: TICK_COLOR[result] || 'FF000000' } },
-           fill: yellowTickFill, alignment: centerAlign, border: allBorders }
+           alignment: centerAlign, border: allBorders }
     };
   }
 
@@ -22448,6 +22474,7 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   // own general real pattern, rather than assuming a fixed column
   // layout this app's actual variable Sample Data grid doesn't
   // guarantee.
+  const includeNotes = !(wp && wp.includeNotesInXlsx === false); // defaults to true — matches "both checked by default"
   const includeFileNames = !!(wp && wp.includeFileNamesInXlsx);
   const headerRow = [cell('Sample', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders })];
   (sdGrid.columns || []).forEach(function(c) {
@@ -22456,7 +22483,9 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   attributes.forEach(function(a) {
     headerRow.push(cell(a.attrRef || a.title, { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   });
-  headerRow.push(cell('Notes / Exception Explanation', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
+  if (includeNotes) {
+    headerRow.push(cell('Notes / Exception Explanation', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
+  }
   if (includeFileNames) {
     headerRow.push(cell('Sample File Name(s)', { font: lightGreyColFont, fill: lightGreyColFill, alignment: centerAlign, border: allBorders }));
   }
@@ -22493,7 +22522,9 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
       }
       dataRow.push(tickCell(result));
     });
-    dataRow.push(cell(notesForRow.join('; '), { font: plainFont, alignment: leftAlign, border: allBorders }));
+    if (includeNotes) {
+      dataRow.push(cell(notesForRow.join('; '), { font: plainFont, alignment: leftAlign, border: allBorders }));
+    }
     if (includeFileNames) {
       dataRow.push(cell((fileResult && fileResult.fileName) || '', { font: plainFont, alignment: leftAlign, border: allBorders }));
     }
@@ -22606,6 +22637,39 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'ITGC Testing');
+
+  // Per explicit request: a genuine, real second tab replicating the
+  // "Detailed Notes" tab from the standard, long-form workpaper export —
+  // same real row structure, same real result labels, same real column
+  // widths — ported here using this function's own real, in-scope
+  // variables (analysisResultsForRef, attributes), since the original
+  // tab's code lives in a genuinely different export function and reads
+  // from that function's own scope.
+  if (wp && wp.includeTestSummaryTabInXlsx) {
+    const TICK_LABEL_SUMMARY = { pass: '✓  Pass', pass_exception: '⚠  Pass with Exception', fail: '✗  Fail', error: '–  Error / Not evaluated' };
+    const summaryRows = [['Sample File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
+    for (const fileResult of analysisResultsForRef) {
+      for (const r of (fileResult.results || [])) {
+        const attrMatch = attributes.find(a => a.title === r.title) ||
+          attributes.find(a => a.title.toLowerCase().includes((r.title||'').toLowerCase()) || (r.title||'').toLowerCase().includes(a.title.toLowerCase()));
+        const attrRef = attrMatch?.attrRef || attrMatch?.num || '';
+        summaryRows.push([
+          fileResult.fileName,
+          attrRef,
+          r.title,
+          TICK_LABEL_SUMMARY[r.result] || r.result,
+          r.note || '',
+          r.page || '',
+          r.section || '',
+          r.paragraph || '',
+        ]);
+      }
+    }
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Test Summary');
+  }
+
   const fileName = `${ref}_${(wp.name||'Workpaper').replace(/[^a-z0-9]/gi,'_')}.xlsx`;
   const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/octet-stream' });
@@ -29220,6 +29284,45 @@ function makeColumnsResizable(tableId) {
 // the app. Populates the real, actual dropdown from the new /api/tenants
 // route — genuinely all real tenants in the system, since there's no
 // functional login yet to filter to a specific user's own real set.
+// Real, new validation step per explicit request — checks the actual,
+// entered User ID against the real, existing login_id field, and shows
+// the exact, real "Invalid UserID" message (already present in the
+// modal's own HTML) when it doesn't validate. Only advances to tenant
+// selection once a genuinely valid User ID is confirmed.
+async function _validateLoginIdAndAdvance() {
+  const input = document.getElementById('initial-login-userid-input');
+  const errEl = document.getElementById('initial-login-userid-error');
+  const okBtn = document.getElementById('initial-login-ok-btn');
+  const loginId = (input?.value || '').trim();
+
+  if (errEl) errEl.style.display = 'none';
+  if (input) input.style.borderColor = 'var(--border-light)';
+
+  if (!loginId) {
+    if (errEl) errEl.style.display = '';
+    if (input) input.style.borderColor = '#dc2626';
+    return;
+  }
+
+  const originalBtnHtml = okBtn ? okBtn.innerHTML : '';
+  if (okBtn) { okBtn.disabled = true; okBtn.innerHTML = 'Checking…'; }
+
+  try {
+    const res = await fetch('/api/auth/validate-login-id?login_id=' + encodeURIComponent(loginId));
+    const data = await res.json();
+    if (data.valid) {
+      await _advanceToTenantSelection();
+    } else {
+      if (errEl) errEl.style.display = '';
+      if (input) input.style.borderColor = '#dc2626';
+    }
+  } catch(e) {
+    if (errEl) { errEl.textContent = 'Could not validate User ID: ' + e.message; errEl.style.display = ''; }
+  } finally {
+    if (okBtn) { okBtn.disabled = false; okBtn.innerHTML = originalBtnHtml; }
+  }
+}
+
 async function _advanceToTenantSelection() {
   const loginOverlay = document.getElementById('initial-login-overlay');
   if (loginOverlay) loginOverlay.style.display = 'none';
