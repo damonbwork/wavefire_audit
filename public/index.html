@@ -4746,26 +4746,26 @@ auditor's assessment.
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 20px; text-align: center">
         <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Sign in to Wavefire</div>
-        <div style="font-size:12px;color:var(--text-tertiary)">Authentication is not yet enforced — this is a preview of the sign-in experience.</div>
       </div>
       <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
         <div>
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">User ID</label>
-          <input type="text" id="initial-login-userid-input" placeholder="Enter your User ID" autocomplete="username" onkeydown="if(event.key==='Enter')_validateLoginIdAndAdvance()"
+          <input type="text" id="initial-login-userid-input" placeholder="Enter your User ID" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('initial-login-password-input').focus()"
             style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-primary);color:var(--text-primary)">
-          <div id="initial-login-userid-error" style="font-size:12px;color:#dc2626;margin-top:5px;display:none">Invalid UserID</div>
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Password</label>
-          <input type="password" disabled placeholder="Coming soon" style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-secondary);color:var(--text-tertiary);cursor:not-allowed">
+          <input type="password" id="initial-login-password-input" placeholder="Enter your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')_doRealLogin()"
+            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-primary);color:var(--text-primary)">
         </div>
+        <div id="initial-login-error" style="font-size:12px;color:#dc2626;margin-top:2px;display:none"></div>
         <div style="display:flex;justify-content:space-between;margin-top:2px">
           <span style="font-size:11px;color:var(--text-tertiary);cursor:default;text-decoration:none">Forgot ID?</span>
           <span style="font-size:11px;color:var(--text-tertiary);cursor:default;text-decoration:none">Forgot Password?</span>
         </div>
       </div>
       <div style="padding:20px 28px 24px">
-        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_validateLoginIdAndAdvance()">OK</button>
+        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_doRealLogin()">Sign In</button>
       </div>
     </div>
   </div>
@@ -4775,6 +4775,38 @@ auditor's assessment.
        (unlike the sign-in modal it follows): populated from the actual,
        real tenants table, since there's no functional login yet to
        filter down to a specific user's own real, actual set. -->
+  <!-- Required Password Change Modal — per the existing, established
+       must_change_password behavior, genuinely required before the user
+       can proceed, since they logged in with a temporary/reset password
+       that must be replaced with a real one of their own. -->
+  <div id="required-password-change-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99998; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
+      <div style="padding: 28px 28px 18px; text-align: center">
+        <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+          <i class="ti ti-key" style="font-size:20px;color:#7c3aed"></i>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Set a new password</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">Your password was reset and needs to be replaced before you continue.</div>
+      </div>
+      <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">New Password</label>
+          <input type="password" id="required-password-change-input" placeholder="At least 8 characters" autocomplete="new-password"
+            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Confirm New Password</label>
+          <input type="password" id="required-password-change-confirm-input" placeholder="Re-enter your new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')_submitRequiredPasswordChange()"
+            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+        </div>
+        <div id="required-password-change-error" style="font-size:12px;color:#dc2626;display:none"></div>
+      </div>
+      <div style="padding:20px 28px 24px">
+        <button class="btn-p" id="required-password-change-btn" style="width:100%;justify-content:center;padding:10px" onclick="_submitRequiredPasswordChange()">Set Password &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+
   <div id="tenant-selection-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99998; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 18px; text-align: center">
@@ -29384,37 +29416,108 @@ function makeColumnsResizable(tableId) {
 // the exact, real "Invalid UserID" message (already present in the
 // modal's own HTML) when it doesn't validate. Only advances to tenant
 // selection once a genuinely valid User ID is confirmed.
-async function _validateLoginIdAndAdvance() {
-  const input = document.getElementById('initial-login-userid-input');
-  const errEl = document.getElementById('initial-login-userid-error');
+// Real, actual currently-logged-in user, per this turn's genuine login
+// enforcement — distinct from _currentDisplayUser (the older,
+// switcher-based convenience) since this reflects who is genuinely,
+// actually authenticated via the real backend session.
+var _loggedInUser = null;
+
+async function _doRealLogin() {
+  const useridInput = document.getElementById('initial-login-userid-input');
+  const passwordInput = document.getElementById('initial-login-password-input');
+  const errEl = document.getElementById('initial-login-error');
   const okBtn = document.getElementById('initial-login-ok-btn');
-  const loginId = (input?.value || '').trim();
+  const loginId = (useridInput?.value || '').trim();
+  const password = passwordInput?.value || '';
 
-  if (errEl) errEl.style.display = 'none';
-  if (input) input.style.borderColor = 'var(--border-light)';
-
-  if (!loginId) {
-    if (errEl) errEl.style.display = '';
-    if (input) input.style.borderColor = '#dc2626';
-    return;
+  function showError(msg) {
+    if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+    [useridInput, passwordInput].forEach(function(el) { if (el) el.style.borderColor = '#dc2626'; });
   }
+  function clearError() {
+    if (errEl) errEl.style.display = 'none';
+    [useridInput, passwordInput].forEach(function(el) { if (el) el.style.borderColor = 'var(--border-light)'; });
+  }
+  clearError();
+
+  if (!loginId) { showError('Enter your User ID.'); useridInput?.focus(); return; }
+  if (!password) { showError('Enter your password.'); passwordInput?.focus(); return; }
 
   const originalBtnHtml = okBtn ? okBtn.innerHTML : '';
-  if (okBtn) { okBtn.disabled = true; okBtn.innerHTML = 'Checking…'; }
+  if (okBtn) { okBtn.disabled = true; okBtn.innerHTML = 'Signing in…'; }
 
   try {
-    const res = await fetch('/api/auth/validate-login-id?login_id=' + encodeURIComponent(loginId));
+    const res = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login_id: loginId, password: password }),
+    });
     const data = await res.json();
-    if (data.valid) {
-      await _advanceToTenantSelection();
-    } else {
-      if (errEl) errEl.style.display = '';
-      if (input) input.style.borderColor = '#dc2626';
+    if (!res.ok) {
+      // Per explicit instruction: give the user a real, specific
+      // response when the password is not current, rather than a
+      // vague, generic message.
+      showError('Password is incorrect. Contact your administrator.');
+      passwordInput?.focus();
+      passwordInput?.select();
+      return;
     }
+    _loggedInUser = data.user;
+    if (data.must_change_password) {
+      _promptRequiredPasswordChange();
+      return;
+    }
+    await _advanceToTenantSelection();
   } catch(e) {
-    if (errEl) { errEl.textContent = 'Could not validate User ID: ' + e.message; errEl.style.display = ''; }
+    showError('Could not sign in: ' + e.message);
   } finally {
     if (okBtn) { okBtn.disabled = false; okBtn.innerHTML = originalBtnHtml; }
+  }
+}
+
+function _promptRequiredPasswordChange() {
+  const overlay = document.getElementById('required-password-change-overlay');
+  if (overlay) overlay.style.display = 'flex';
+  const input = document.getElementById('required-password-change-input');
+  if (input) { input.value = ''; input.focus(); }
+  const confirmInput = document.getElementById('required-password-change-confirm-input');
+  if (confirmInput) confirmInput.value = '';
+  const errEl = document.getElementById('required-password-change-error');
+  if (errEl) errEl.style.display = 'none';
+}
+
+async function _submitRequiredPasswordChange() {
+  const input = document.getElementById('required-password-change-input');
+  const confirmInput = document.getElementById('required-password-change-confirm-input');
+  const errEl = document.getElementById('required-password-change-error');
+  const btn = document.getElementById('required-password-change-btn');
+  const pw = input?.value || '';
+  const confirmPw = confirmInput?.value || '';
+
+  function showError(msg) { if (errEl) { errEl.textContent = msg; errEl.style.display = ''; } }
+  if (errEl) errEl.style.display = 'none';
+
+  if (pw.length < 8) { showError('Password must be at least 8 characters.'); return; }
+  if (pw !== confirmPw) { showError('Passwords do not match.'); return; }
+
+  const originalBtnHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Saving…'; }
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword: pw }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showError(data.error || 'Could not set your new password.');
+      return;
+    }
+    const overlay = document.getElementById('required-password-change-overlay');
+    if (overlay) overlay.style.display = 'none';
+    await _advanceToTenantSelection();
+  } catch(e) {
+    showError('Could not set your new password: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }
   }
 }
 
