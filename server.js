@@ -1314,6 +1314,64 @@ async function backfillTemplateUsedForExistingWorkpapers() {
   await backfillTemplateUsedForExistingWorkpapers();
 })();
 
+// ── Standalone, independent addition: users.login_id ─────────────────────
+// Per explicit request — a new, genuinely distinct field from user_id
+// (the internal UUID primary key, never something a person types) and
+// from email (the existing real login identifier). login_id defaults to
+// a user's email but is stored and editable as its own separate,
+// durable field. UNIQUE, matching the real, intended use as an
+// identifier a person would actually type to log in — same real
+// constraint email already has. Built as its own standalone function,
+// following the exact same proven pattern as ensureTemplateUsedColumn
+// above, rather than one more line inside initDB()'s long, shared
+// migration chain.
+async function ensureLoginIdColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id TEXT`);
+    // A separate statement, not inline in the ALTER above — adding a
+    // UNIQUE constraint to a column that may already have real,
+    // non-unique NULL values (before the backfill below runs) needs to
+    // happen carefully; NULLs don't conflict with a UNIQUE constraint
+    // in Postgres, so this is safe to add immediately, before the
+    // backfill populates real values.
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'users_login_id_key'
+        ) THEN
+          ALTER TABLE users ADD CONSTRAINT users_login_id_key UNIQUE (login_id);
+        END IF;
+      END $$;
+    `);
+    console.log('DB: users.login_id column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone login_id check FAILED:', err.message, err.code);
+  }
+}
+
+// ── One-time backfill: existing users' login_id ──────────────────────────
+// Per explicit requirement — defaults login_id to each user's existing,
+// real email for any user who doesn't already have one set. Only
+// updates rows where login_id is still NULL, so this is safe to run on
+// every deploy without ever overwriting a value a user has since
+// customized to be genuinely different from their email.
+async function backfillLoginIdForExistingUsers() {
+  if (!pool) return;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE users SET login_id = email WHERE login_id IS NULL RETURNING user_id, email, login_id`
+    );
+    console.log(`DB: backfilled login_id for ${rows.length} existing user(s)`);
+  } catch (err) {
+    console.error('DB: login_id backfill FAILED:', err.message, err.code);
+  }
+}
+(async function() {
+  await ensureLoginIdColumn();
+  await backfillLoginIdForExistingUsers();
+})();
+
 // Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
 // Without this, req.ip is the proxy's address and the per-IP rate limiter would
 // lump every user into one bucket. 1 = trust the first proxy hop.
@@ -2113,7 +2171,7 @@ app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
-      'SELECT user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated FROM users ORDER BY last_name, first_name'
+      'SELECT user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated FROM users ORDER BY last_name, first_name'
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
@@ -2164,7 +2222,7 @@ app.get('/api/admin/users/search', async (req, res) => {
 
 app.post('/api/admin/users', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { email, first_name, last_name, role, is_superadmin, is_active, tenant_id } = req.body;
+  const { email, login_id, first_name, last_name, role, is_superadmin, is_active, tenant_id } = req.body;
   if (!email) return res.status(400).json({ error: 'email required' });
   try {
     // Check whether this is a genuinely NEW user before writing anything —
@@ -2178,14 +2236,15 @@ app.post('/api/admin/users', async (req, res) => {
     const isNewUser = existingRows.length === 0;
 
     const { rows } = await pool.query(
-      `INSERT INTO users (tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+      `INSERT INTO users (tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
        ON CONFLICT (email) DO UPDATE SET
+         login_id=COALESCE(EXCLUDED.login_id, users.login_id),
          first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
          role=EXCLUDED.role, is_superadmin=EXCLUDED.is_superadmin,
          is_active=EXCLUDED.is_active, date_updated=NOW()
-       RETURNING user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
-      [tenant_id || DEFAULT_TENANT_ID, email, first_name || '', last_name || '', role || 'user', !!is_superadmin, is_active !== false]
+       RETURNING user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
+      [tenant_id || DEFAULT_TENANT_ID, email, login_id || email, first_name || '', last_name || '', role || 'user', !!is_superadmin, is_active !== false]
     );
     const user = rows[0];
 
@@ -2361,16 +2420,17 @@ app.post('/api/admin/users/:id/set-password', async (req, res) => {
 
 app.patch('/api/admin/users/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { first_name, last_name, role, is_superadmin, is_active } = req.body;
+  const { login_id, first_name, last_name, role, is_superadmin, is_active } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE users SET
+         login_id=COALESCE($7,login_id),
          first_name=COALESCE($2,first_name), last_name=COALESCE($3,last_name),
          role=COALESCE($4,role), is_superadmin=COALESCE($5,is_superadmin),
          is_active=COALESCE($6,is_active), date_updated=NOW()
        WHERE user_id=$1
-       RETURNING user_id, tenant_id, email, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
-      [req.params.id, first_name, last_name, role, is_superadmin, is_active]
+       RETURNING user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
+      [req.params.id, first_name, last_name, role, is_superadmin, is_active, login_id]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(rows[0]);
@@ -3091,6 +3151,28 @@ async function runRealFileTest(ref, filename) {
 app.get('/test-pdfannotate-real-file', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   res.send(TEST_PAGE_HTML);
+});
+
+// Direct diagnostic: shows the exact, real, current sample_data JSON for
+// a specific workpaper — built to settle precisely whether a reported
+// "column too wide" issue is a genuine CSS/layout bug or a real,
+// already-stored width value from a prior manual resize, since a
+// column's width is a real, persisted field on each column object, not
+// something re-derived from CSS on every render.
+app.get('/api/diagnose-sample-data-widths/:ref', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT ref, sample_data FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
+      [DEFAULT_TENANT_ID, req.params.ref]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No workpaper found with that ref', ref: req.params.ref });
+    const sd = rows[0].sample_data || { columns: [] };
+    res.json({
+      ref: rows[0].ref,
+      columns: (sd.columns || []).map(c => ({ id: c.id, title: c.title, width: c.width })),
+    });
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-sample-data-widths/:ref:'); }
 });
 
 app.get('/api/sample-files/:ref', async (req, res) => {
