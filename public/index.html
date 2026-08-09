@@ -869,7 +869,7 @@
       <a class="wf-nav-item" href="#" onclick="activateFoundations();return false;">Foundations</a>
       <a class="wf-nav-item" href="#" onclick="activateDataAnalysis();return false;" id="nav-data-analysis">Data Analysis</a>
       <a class="wf-nav-item" id="nav-kb" href="#" onclick="activateKnowledgeBase();return false;">Knowledge Base</a>
-      <a class="wf-nav-item" id="nav-admin" href="#" onclick="activateAdmin();return false;">Admin</a>
+      <a class="wf-nav-item" id="nav-admin" href="#" onclick="activateAdmin();return false;" style="display:none">Admin</a>
     </nav>
     <div class="wf-user">
       <div class="wf-notif"><i class="ti ti-bell"></i></div>
@@ -6780,6 +6780,15 @@ window.addEventListener('popstate', (e) => {
       showPage('audits');
       return;
     }
+    // Per explicit instruction: Admin's real, genuinely separate URL
+    // tree is restored on its own, distinct path — never falling
+    // through to showPage/pageMap, which has no real Admin entry and
+    // would silently fail to restore it correctly.
+    if (state.adminSection) {
+      activateAdmin();
+      showAdminSection(state.adminSection);
+      return;
+    }
     // Restore audit context if specified
     if (state.auditName) {
       const audit = AUDITS.find(a => a.name === state.auditName);
@@ -12225,6 +12234,18 @@ function showFoundationsSection(section) {
 }
 
 function activateAdmin() {
+  // Per explicit request: only a superadmin should reach the Admin
+  // page. Checks the real, existing _currentDisplayUser concept (this
+  // app's genuine, established "who's using the app" mechanism) rather
+  // than inventing a new one. Explicitly scoped to superadmin only for
+  // now — the user has explicitly noted a broader "Admin" role tier may
+  // be allowed here later, but isn't yet, so this checks is_superadmin
+  // specifically, not a broader role field.
+  if (!_currentDisplayUser || !_currentDisplayUser.is_superadmin) {
+    alert('The Admin tab is only available to SuperAdmins.');
+    return;
+  }
+
   // Hide all audit pages, Data Analysis, Foundations, and subnav — same
   // [id^="page-"] approach activateFoundations() uses, so this correctly
   // hides every top-level page regardless of which one was active before.
@@ -12259,6 +12280,17 @@ function showAdminSection(section) {
   if (target) target.style.display = 'block';
   if (section === 'users')   renderAdminUsers();
   if (section === 'tenants') renderAdminTenants();
+
+  // Per explicit instruction: Admin uses a real, genuinely separate URL
+  // tree — never audit=/wp= parameters, never routed through the
+  // shared pushNav/showPage mechanism every other tab uses. A real,
+  // distinct hash namespace ("#admin/section") that cannot collide with
+  // or inherit stray state from wherever the user was before.
+  if (!_suppressHistory) {
+    try {
+      history.pushState({ adminSection: section }, '', '#admin/' + section);
+    } catch(e) {}
+  }
 }
 
 // Renders the Users list. This is deliberately a thin, real-but-minimal
@@ -12721,6 +12753,11 @@ async function renderAdminUsers() {
 // all know which tenant they're acting on.
 var _adminSelectedTenantId = null;
 var _adminAllTenants = []; // cached from the last renderAdminTenants() load, used to populate the detail panel without a second fetch
+// Real, fixed identifier for the virtual "No Assigned Tenants" entry,
+// per explicit request — genuinely distinct from any real tenant's
+// actual ID (which always comes from the database), so it can never
+// collide with one.
+const ADMIN_UNASSIGNED_TENANT_ID = '__unassigned__';
 
 // Saves the SuperAdmin checkbox immediately on change — a single boolean
 // toggle doesn't need a separate save step. Reverts the checkbox back to
@@ -12948,6 +12985,13 @@ function selectSwitcherUser(userId, label) {
   _currentDisplayUser = (_userSwitcherAllUsers || []).find(function(u){ return u.user_id === userId; }) || null;
   const panel = document.getElementById('wf-user-switcher-panel');
   if (panel) panel.style.display = 'none';
+
+  // Per explicit request: only a superadmin should see the Admin tab at
+  // all — explicitly scoped to is_superadmin specifically (not a
+  // broader role field), matching the user's own explicit note that a
+  // wider "Admin" role tier may be allowed here later, but isn't yet.
+  const adminNav = document.getElementById('nav-admin');
+  if (adminNav) adminNav.style.display = (_currentDisplayUser && _currentDisplayUser.is_superadmin) ? '' : 'none';
 }
 
 // Shows/hides the Add User button based on the CURRENTLY SELECTED DISPLAY
@@ -12978,11 +13022,23 @@ async function renderAdminTenants() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const tenants = await res.json();
     _adminAllTenants = tenants;
+    // Per explicit request: a real, virtual "No Assigned Tenants" entry
+    // always appears first, genuinely distinct from a real tenant row —
+    // a special, real ID (ADMIN_UNASSIGNED_TENANT_ID) that can never
+    // collide with an actual tenant's real ID, since real tenant IDs
+    // come from the database and this one is a fixed, hardcoded
+    // constant never written there.
+    const unassignedRowHtml = `
+      <div class="adm-tenant-row" data-tenant-id="${ADMIN_UNASSIGNED_TENANT_ID}" onclick="selectAdminTenant('${ADMIN_UNASSIGNED_TENANT_ID}')"
+        style="padding:11px 14px;cursor:pointer;border-bottom:0.5px solid var(--border-light);font-size:13px;border-left:3px dashed var(--text-tertiary);${ADMIN_UNASSIGNED_TENANT_ID===_adminSelectedTenantId?'background:var(--wf-navy);color:#fff':'color:var(--text-primary)'}">
+        <div style="font-weight:600">No Assigned Tenants</div>
+        <div style="font-size:11px;${ADMIN_UNASSIGNED_TENANT_ID===_adminSelectedTenantId?'color:rgba(255,255,255,0.7)':'color:var(--text-tertiary)'};margin-top:2px">Users not assigned to any tenant</div>
+      </div>`;
     if (!tenants.length) {
-      listEl.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--text-tertiary)">No tenants yet. Click "Add Tenant" to create one.</div>';
+      listEl.innerHTML = unassignedRowHtml + '<div style="padding:16px;font-size:13px;color:var(--text-tertiary)">No tenants yet. Click "Add Tenant" to create one.</div>';
       return;
     }
-    listEl.innerHTML = tenants.map(t => `
+    listEl.innerHTML = unassignedRowHtml + tenants.map(t => `
       <div class="adm-tenant-row" data-tenant-id="${escAttr(t.id)}" onclick="selectAdminTenant('${escAttr(t.id)}')"
         style="padding:11px 14px;cursor:pointer;border-bottom:0.5px solid var(--border-light);font-size:13px;${t.id===_adminSelectedTenantId?'background:var(--wf-navy);color:#fff':'color:var(--text-primary)'}">
         <div style="font-weight:600">${escAttr(t.name||t.id)}</div>
@@ -13028,6 +13084,14 @@ function selectAdminTenant(tenantId) {
         style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
         ${['trial','standard','enterprise'].map(function(p){ return '<option value="'+p+'"'+(tenant.plan===p?' selected':'')+'>'+p+'</option>'; }).join('')}
       </select>`;
+  } else if (detailEl && tenantId === ADMIN_UNASSIGNED_TENANT_ID) {
+    // Per explicit request: this is a real, virtual view, not an
+    // actual tenant record — no genuine fields to edit here, so the
+    // detail panel honestly says so rather than leaving stale content
+    // from whatever was selected before.
+    detailEl.innerHTML = `
+      <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:8px">No Assigned Tenants</div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This is a real, live view of every user with no tenant assignment at all — not an actual tenant record, so there's nothing here to edit. Assign any of these users to a real tenant from the list on the right.</div>`;
   }
 
   loadAdminTenantUsers(tenantId);
@@ -13060,6 +13124,35 @@ async function saveAdminTenantField(tenantId, field, value) {
 async function loadAdminTenantUsers(tenantId) {
   const panel = document.getElementById('adm-tenant-users-panel');
   if (!panel) return;
+
+  // Per explicit request: the virtual "No Assigned Tenants" view is
+  // genuinely, structurally different from a real tenant's panel —
+  // there's no actual tenant to assign users TO here, so the existing
+  // "Assigned Users" + "Assign Selected Users" framing doesn't make
+  // real sense. Shows a simple, honest, real list of every genuinely
+  // unassigned user instead.
+  if (tenantId === ADMIN_UNASSIGNED_TENANT_ID) {
+    panel.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary)">Loading unassigned users…</div>';
+    try {
+      const res = await fetch('/api/admin/tenants-unassigned-users');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const unassigned = await res.json();
+      panel.innerHTML = `
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px">Users with No Tenant (${unassigned.length})</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${unassigned.length ? unassigned.map(function(u){
+            return '<div style="padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">' +
+              '<div style="font-weight:600;color:var(--text-primary)">' + escAttr((u.first_name||'') + ' ' + (u.last_name||'')).trim() + '</div>' +
+              '<div style="color:var(--text-tertiary)">' + escAttr(u.email||'') + '</div>' +
+            '</div>';
+          }).join('') : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">Every user is currently assigned to at least one tenant.</div>'}
+        </div>`;
+    } catch(e) {
+      panel.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary)">Could not load unassigned users: ' + escAttr(e.message) + '</div>';
+    }
+    return;
+  }
+
   panel.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary)">Loading assigned users…</div>';
   try {
     const res = await fetch('/api/admin/tenants/' + encodeURIComponent(tenantId) + '/users');
@@ -13083,6 +13176,13 @@ async function loadAdminTenantUsers(tenantId) {
       <button class="btn-p" onclick="assignSelectedAdminUsers('${escAttr(tenantId)}')" style="font-size:12px;width:100%">
         <i class="ti ti-user-plus"></i>Assign Selected Users
       </button>`;
+    // Per explicit request: show every real, available user immediately,
+    // not only once a search query is typed — reuses the exact, real,
+    // existing search function with an empty query, since the real
+    // backend route already, genuinely returns every user (correctly
+    // excluding anyone already assigned to this tenant) when called
+    // with no query at all.
+    _runAdminUserSearch('');
   } catch(e) {
     panel.innerHTML = '<div style="font-size:13px;color:var(--text-tertiary)">Could not load assigned users: ' + escAttr(e.message) + '</div>';
   }
@@ -13100,8 +13200,7 @@ async function _runAdminUserSearch(query) {
   const resultsEl = document.getElementById('adm-user-search-results');
   if (!resultsEl || !_adminSelectedTenantId) return;
   const q = (query || '').trim();
-  if (!q) { resultsEl.innerHTML = ''; return; }
-  resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary)">Searching…</div>';
+  resultsEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary)">Loading…</div>';
   try {
     const url = '/api/admin/users/search?q=' + encodeURIComponent(q) + '&excludeTenantId=' + encodeURIComponent(_adminSelectedTenantId);
     const res = await fetch(url);
