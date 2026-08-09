@@ -29519,6 +29519,14 @@ async function _doRealLogin() {
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = (data.user && data.user.is_superadmin) ? '' : 'none';
     if (data.must_change_password) {
+      // Fix for the real, confirmed bug: this branch never hid the
+      // login overlay before showing the password-change modal, unlike
+      // the other real branch below. Since the login overlay's z-index
+      // is genuinely higher, the new modal was becoming technically
+      // visible but completely hidden behind it — the exact, real cause
+      // of the reported "no response" after a successful sign-in.
+      const loginOverlayEl = document.getElementById('initial-login-overlay');
+      if (loginOverlayEl) loginOverlayEl.style.display = 'none';
       _promptRequiredPasswordChange();
       return;
     }
