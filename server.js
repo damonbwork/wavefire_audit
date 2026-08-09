@@ -2181,6 +2181,25 @@ app.get('/api/tenants', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/tenants:'); }
 });
 
+// Validates a User ID against the real, actual login_id field, per
+// explicit request. Deliberately returns only a minimal, real boolean —
+// never leaking any other real user data, or distinguishing "not found"
+// from other failure modes in its response — reasonable, real practice
+// for a public-facing login check even though this app has no real
+// session/auth enforcement yet.
+app.get('/api/auth/validate-login-id', async (req, res) => {
+  if (!pool) return res.json({ valid: false });
+  const loginId = (req.query.login_id || '').trim();
+  if (!loginId) return res.json({ valid: false });
+  try {
+    const { rows } = await pool.query(
+      'SELECT 1 FROM users WHERE login_id=$1 AND is_active=true',
+      [loginId]
+    );
+    res.json({ valid: rows.length > 0 });
+  } catch(err) { return fail(res, err, 'GET /api/auth/validate-login-id:'); }
+});
+
 app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
