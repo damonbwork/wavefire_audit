@@ -882,6 +882,11 @@
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
         <div id="wf-user-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+          <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+            <button onclick="_doRealLogout()" style="width:100%;display:flex;align-items:center;gap:8px;padding:8px 10px;background:transparent;border:none;border-radius:6px;font-size:13px;color:#dc2626;cursor:pointer;text-align:left">
+              <i class="ti ti-logout" style="font-size:15px"></i>Log out
+            </button>
+          </div>
           <div style="padding:10px 12px;border-bottom:0.5px solid var(--border-light)">
             <input type="text" id="wf-user-switcher-search" placeholder="Search users…" oninput="filterUserSwitcherList(this.value)"
               style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
@@ -4785,19 +4790,31 @@ auditor's assessment.
         <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
           <i class="ti ti-key" style="font-size:20px;color:#7c3aed"></i>
         </div>
-        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Set a new password</div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Establish Password</div>
         <div style="font-size:12px;color:var(--text-tertiary)">Your password was reset and needs to be replaced before you continue.</div>
       </div>
       <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">New Password</label>
-          <input type="password" id="required-password-change-input" placeholder="At least 8 characters" autocomplete="new-password"
-            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Enter New Password</label>
+          <div style="position:relative">
+            <input type="password" id="required-password-change-input" placeholder="At least 8 characters" autocomplete="new-password"
+              style="width:100%;padding:9px 36px 9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+            <button type="button" onclick="_toggleRealPasswordVisibility('required-password-change-input', this)" title="Show password"
+              style="position:absolute;top:50%;right:8px;transform:translateY(-50%);background:transparent;border:none;padding:4px;cursor:pointer;color:var(--text-tertiary);display:flex">
+              <i class="ti ti-eye" style="font-size:16px"></i>
+            </button>
+          </div>
         </div>
         <div>
-          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Confirm New Password</label>
-          <input type="password" id="required-password-change-confirm-input" placeholder="Re-enter your new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')_submitRequiredPasswordChange()"
-            style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Confirm Password</label>
+          <div style="position:relative">
+            <input type="password" id="required-password-change-confirm-input" placeholder="Re-enter your new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')_submitRequiredPasswordChange()"
+              style="width:100%;padding:9px 36px 9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box">
+            <button type="button" onclick="_toggleRealPasswordVisibility('required-password-change-confirm-input', this)" title="Show password"
+              style="position:absolute;top:50%;right:8px;transform:translateY(-50%);background:transparent;border:none;padding:4px;cursor:pointer;color:var(--text-tertiary);display:flex">
+              <i class="ti ti-eye" style="font-size:16px"></i>
+            </button>
+          </div>
         </div>
         <div id="required-password-change-error" style="font-size:12px;color:#dc2626;display:none"></div>
       </div>
@@ -29422,6 +29439,25 @@ function makeColumnsResizable(tableId) {
 // actually authenticated via the real backend session.
 var _loggedInUser = null;
 
+// Real, complete logout, per explicit request. Calls the real,
+// existing backend logout route first — this genuinely deletes the
+// actual session server-side (not just a client-side gesture that
+// would leave the real session still valid if someone had captured the
+// token), then reloads the page, which naturally, correctly re-triggers
+// the existing, real bootstrap logic that shows the sign-in modal —
+// resetting every real, in-memory piece of state at once, rather than
+// needing each one individually tracked down and cleared by hand.
+async function _doRealLogout() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+  } catch(e) {
+    // Even if the real network call fails, still reload — the user
+    // clicked Log out and should genuinely end up back at the sign-in
+    // screen either way, not stuck on a failed request.
+  }
+  window.location.reload();
+}
+
 async function _doRealLogin() {
   const useridInput = document.getElementById('initial-login-userid-input');
   const passwordInput = document.getElementById('initial-login-password-input');
@@ -29462,6 +29498,24 @@ async function _doRealLogin() {
       return;
     }
     _loggedInUser = data.user;
+    // Per explicit correctness requirement: the name shown in the upper
+    // right must always genuinely reflect the actual, currently
+    // logged-in user — not just whoever the older, pre-real-auth
+    // switcher panel happened to have last displayed. Sets
+    // _currentDisplayUser (the real, established variable every other
+    // "who's using the app" check in this codebase already reads from,
+    // including the Admin-tab visibility gate) here, at the true moment
+    // a real login succeeds, and updates the real, visible label
+    // immediately — using the same, established name-formatting
+    // convention as _admCurrentUserName, rather than a second,
+    // duplicated version of that same logic.
+    _currentDisplayUser = data.user;
+    const labelEl = document.getElementById('wf-current-userid-label');
+    if (labelEl) {
+      labelEl.textContent = `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim() || data.user.email || data.user.login_id || 'Unknown user';
+    }
+    const adminNav = document.getElementById('nav-admin');
+    if (adminNav) adminNav.style.display = (data.user && data.user.is_superadmin) ? '' : 'none';
     if (data.must_change_password) {
       _promptRequiredPasswordChange();
       return;
@@ -29474,13 +29528,29 @@ async function _doRealLogin() {
   }
 }
 
+// Real, genuinely reusable show/hide password toggle, per explicit
+// request — swaps the real input's type between password and text, and
+// correctly swaps the button's own icon and title to match the new,
+// real state (an eye icon when hidden — click to reveal; an eye-off
+// icon when revealed — click to hide again).
+function _toggleRealPasswordVisibility(inputId, btnEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const icon = btnEl.querySelector('i');
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  if (icon) icon.className = isHidden ? 'ti ti-eye-off' : 'ti ti-eye';
+  btnEl.title = isHidden ? 'Hide password' : 'Show password';
+}
+
 function _promptRequiredPasswordChange() {
   const overlay = document.getElementById('required-password-change-overlay');
   if (overlay) overlay.style.display = 'flex';
   const input = document.getElementById('required-password-change-input');
-  if (input) { input.value = ''; input.focus(); }
+  if (input) { input.value = ''; input.type = 'password'; input.focus(); }
   const confirmInput = document.getElementById('required-password-change-confirm-input');
-  if (confirmInput) confirmInput.value = '';
+  if (confirmInput) { confirmInput.value = ''; confirmInput.type = 'password'; }
+  overlay?.querySelectorAll('button[onclick*="_toggleRealPasswordVisibility"] i').forEach(function(icon) { icon.className = 'ti ti-eye'; });
   const errEl = document.getElementById('required-password-change-error');
   if (errEl) errEl.style.display = 'none';
 }
