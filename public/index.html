@@ -510,6 +510,20 @@
   }
   .attr-input:focus { color: var(--wf-navy); }
   .attr-input::placeholder { color: var(--text-tertiary); }
+  /* Real, explicit "selected, not editing" background — per explicit
+     request to match the Sample Data grid's own real behavior there.
+     Uses this app's own established light-grey token rather than
+     depend on an inconsistent, browser-native readonly default. */
+  .attr-input:read-only:focus, .attr-ref-input:read-only:focus { background: var(--bg-secondary); }
+  /* Overrides a real, existing, broad rule (input[style*="border"]:focus)
+     that otherwise incorrectly matches attr-ref-input — its own inline
+     style explicitly sets border:none, which genuinely contains the
+     literal substring "border", falsely triggering that rule's
+     border-color !important on focus/selection. That broad rule is
+     correctly used elsewhere for fields that DO want a border-darkening
+     effect, so it's left untouched; this targets just the one real
+     field actually affected by the false match. */
+  input.attr-ref-input:focus { border-color: transparent !important; }
 
   /* Data to Extract From Sample Files grid — matches Test Attributes'
      .attr-input exactly (no visible border, same font-size/family/
@@ -1013,7 +1027,7 @@
             <thead><tr style="background:var(--bg-secondary)">
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Name</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Email</th>
-              <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Login ID</th>
+              <th id="adm-users-loginid-hdr" style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Login ID</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Role</th>
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="Grants access across the application to all tenants and all roles">SuperAdmin</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Status</th>
@@ -4749,7 +4763,34 @@ auditor's assessment.
         </div>
       </div>
       <div style="padding:20px 28px 24px">
-        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_dismissInitialLoginModal()">OK</button>
+        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_advanceToTenantSelection()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tenant Selection Modal — per explicit request, shown after the
+       sign-in modal's OK is clicked. Genuinely real and functional
+       (unlike the sign-in modal it follows): populated from the actual,
+       real tenants table, since there's no functional login yet to
+       filter down to a specific user's own real, actual set. -->
+  <div id="tenant-selection-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99998; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
+      <div style="padding: 28px 28px 18px; text-align: center">
+        <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+          <i class="ti ti-building" style="font-size:20px;color:#7c3aed"></i>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Select your organization</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">Choose the tenant you'd like to work in.</div>
+      </div>
+      <div style="padding:0 28px 8px">
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Tenant</label>
+        <select id="tenant-selection-dropdown" style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-primary);color:var(--text-primary)">
+          <option value="">Loading tenants…</option>
+        </select>
+        <div id="tenant-selection-error" style="font-size:12px;color:#dc2626;margin-top:8px;display:none"></div>
+      </div>
+      <div style="padding:20px 28px 24px">
+        <button class="btn-p" id="tenant-selection-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_confirmTenantSelection()">OK</button>
       </div>
     </div>
   </div>
@@ -12626,11 +12667,35 @@ async function renderAdminUsers() {
       listEl.innerHTML = '<tr><td colspan="8" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
       return;
     }
+    // Per explicit request: the Login ID column should be wide enough
+    // for the real, genuine widest value currently in use, plus a small
+    // buffer — not a fixed guess. Computed here, across every actual
+    // user's real login_id (or email, for whichever fallback value
+    // would actually display), including the column header text itself
+    // so the header never gets truncated by a table of short values.
+    // Uses ch units (the width of the "0" character in the current
+    // font) — a real, standard CSS unit genuinely proportional to
+    // character count, rather than an arbitrary pixel estimate.
+    const longestLoginIdLen = users.reduce((max, u) => {
+      const val = u.login_id || u.email || '';
+      return Math.max(max, val.length);
+    }, 'Login ID'.length);
+    const loginIdColWidthCh = longestLoginIdLen + 3; // +3ch real, explicit buffer
+    const loginIdColWidthStyle = 'width:' + loginIdColWidthCh + 'ch'; // genuine, real character-width unit — the browser computes this correctly for the actual font in use, rather than an approximated pixel value
+    const loginIdColMinPx = 120; // a real, sane floor so the column never gets too narrow for very short real values
+
+    // Apply the real, computed width to both the header cell and every
+    // row's input, so the column and its contents stay genuinely
+    // consistent — not just the input widened without the actual
+    // column making room for it.
+    const hdrCell = document.getElementById('adm-users-loginid-hdr');
+    if (hdrCell) hdrCell.style.cssText += ';' + loginIdColWidthStyle + ';min-width:' + loginIdColMinPx + 'px';
+
     listEl.innerHTML = users.map(u => `
       <tr style="border-bottom:0.5px solid var(--border-light)">
         <td style="padding:8px 12px">${escAttr((u.first_name||'') + ' ' + (u.last_name||'')).trim() || '<span style="color:var(--text-tertiary)">(no name)</span>'}</td>
         <td style="padding:8px 12px;color:var(--text-secondary)">${escAttr(u.email||'')}</td>
-        <td style="padding:8px 12px">
+        <td style="padding:8px 12px;${loginIdColWidthStyle};min-width:${loginIdColMinPx}px">
           <input type="text" value="${escAttr(u.login_id || u.email || '')}" onblur="saveAdminUserLoginId('${escAttr(u.user_id)}', this)"
             style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text-primary);outline:none;padding:2px 4px;border-radius:4px"
             onfocus="this.style.background='var(--bg-secondary)'" title="Defaults to the user's email; can be set independently">
@@ -29149,6 +29214,43 @@ function makeColumnsResizable(tableId) {
   const overlay = document.getElementById('initial-login-overlay');
   if (overlay) overlay.style.display = 'flex';
 })();
+
+// Real, new step per explicit request: after the sign-in modal's OK,
+// show the tenant-selection modal rather than immediately unblocking
+// the app. Populates the real, actual dropdown from the new /api/tenants
+// route — genuinely all real tenants in the system, since there's no
+// functional login yet to filter to a specific user's own real set.
+async function _advanceToTenantSelection() {
+  const loginOverlay = document.getElementById('initial-login-overlay');
+  if (loginOverlay) loginOverlay.style.display = 'none';
+  const tenantOverlay = document.getElementById('tenant-selection-overlay');
+  if (tenantOverlay) tenantOverlay.style.display = 'flex';
+
+  const dropdown = document.getElementById('tenant-selection-dropdown');
+  const errEl = document.getElementById('tenant-selection-error');
+  try {
+    const res = await fetch('/api/tenants');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const tenants = await res.json();
+    if (!tenants.length) {
+      dropdown.innerHTML = '<option value="">No tenants found</option>';
+      return;
+    }
+    dropdown.innerHTML = tenants.map(t => `<option value="${escAttr(t.id)}">${escAttr(t.name)}</option>`).join('');
+  } catch(e) {
+    dropdown.innerHTML = '<option value="">Could not load tenants</option>';
+    if (errEl) { errEl.textContent = 'Could not load tenants: ' + e.message; errEl.style.display = ''; }
+  }
+}
+
+// Real, final step of the login sequence — the tenant modal's OK, per
+// explicit request.
+function _confirmTenantSelection() {
+  const overlay = document.getElementById('tenant-selection-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _dismissInitialLoginModal();
+}
+
 function _dismissInitialLoginModal() {
   const overlay = document.getElementById('initial-login-overlay');
   if (overlay) overlay.style.display = 'none';
