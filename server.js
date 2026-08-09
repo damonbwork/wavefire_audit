@@ -2317,6 +2317,48 @@ app.post('/api/auth/set-password', async (req, res) => {
   }
 });
 
+// Lets a superadmin directly set a user's password — genuinely distinct
+// from the existing email-link reset flow above (POST
+// /api/auth/set-password), which requires the user to click a real,
+// emailed link. This route is for the real, different, explicit
+// workflow requested: a superadmin sets an initial or replacement
+// password directly, without an email round-trip. Reuses the same,
+// proven hashPassword function the email-link flow already uses.
+//
+// HONEST NOTE: like every other route in this file today, this has no
+// real session/authorization check — this app has no real login system
+// yet (only the explicitly-planned, not-yet-functional login modal
+// shell being added this same session). This route is not yet actually
+// restricted to superadmins at the server level; it's only intended to
+// be called from the superadmin-only UI action it's paired with. Real
+// server-side authorization needs to be added here once real sessions
+// exist — this is a genuine, known gap, not an oversight.
+app.post('/api/admin/users/:id/set-password', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { password, isSuperAdminSelf } = req.body;
+  if (!password) return res.status(400).json({ error: 'password required' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  try {
+    const newHash = hashPassword(password);
+    // Per explicit requirement: a password set this way requires the
+    // user to change it at their next login — EXCEPT when the
+    // superadmin is setting their own password, which does not carry
+    // that requirement. isSuperAdminSelf is an explicit flag from the
+    // caller (the UI already knows whether this is "a superadmin
+    // setting their own password" vs "a superadmin setting someone
+    // else's"), not inferred here.
+    const mustChange = !isSuperAdminSelf;
+    const { rows } = await pool.query(
+      `UPDATE users SET password_hash=$1, must_change_password=$2, date_updated=NOW()
+       WHERE user_id=$3
+       RETURNING user_id, email, first_name, last_name, must_change_password`,
+      [newHash, mustChange, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, user: rows[0] });
+  } catch(err) { return fail(res, err, 'POST /api/admin/users/:id/set-password:'); }
+});
+
 app.patch('/api/admin/users/:id', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { first_name, last_name, role, is_superadmin, is_active } = req.body;
