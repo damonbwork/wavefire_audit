@@ -4797,21 +4797,6 @@ auditor's assessment.
     </div>
   </div>
 
-  <div id="copying-files-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.5); z-index: 10001; align-items: center; justify-content: center;">
-    <div style="background: var(--bg-primary); border-radius: var(--radius-lg); width: 440px; max-width: 92vw; padding: 28px 24px; box-shadow: rgba(0, 0, 0, 0.22) 0px 20px 48px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <div style="width:36px;height:36px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <i class="ti ti-copy" style="font-size:18px;color:#7c3aed"></i>
-        </div>
-        <div style="font-size:15px;font-weight:600;color:var(--text-primary)" id="copying-files-title">Copying files…</div>
-      </div>
-      <div style="background:var(--bg-tertiary);border-radius:99px;height:6px;overflow:hidden;margin-bottom:10px">
-        <div id="copying-files-progress-bar" style="height: 100%; background: linear-gradient(90deg, rgb(124, 58, 237), rgb(79, 70, 229)); border-radius: 99px; width: 0%; transition: width 0.4s;"></div>
-      </div>
-      <div style="font-size:12px;color:var(--text-secondary)" id="copying-files-status">Preparing to copy sample files to the file system…</div>
-    </div>
-  </div>
-
   <!-- Claude Analysis Progress Modal -->
   <div id="analysis-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.5); z-index: 10001; align-items: center; justify-content: center;">
     <div id="analysis-modal" style="background: var(--bg-primary); border-radius: var(--radius-lg); width: 680px; max-width: 92vw; padding: 28px 24px; box-shadow: rgba(0, 0, 0, 0.22) 0px 20px 48px; transition: width 0.25s;">
@@ -8006,6 +7991,17 @@ async function downloadAllAnnotatedPDFs() {
 // reported.
 function _isPristineCopyFile(f) {
   return !!(f._isPristineCopy || /_copy\.pdf$/i.test(f.name || ''));
+}
+
+// Genuinely shared, reusable detection for "is this file an annotated
+// file" — matches the exact, real, existing definition already
+// established and proven in the display categorization logic (a real
+// _annotatedFrom provenance link, or the real "_annotated" filename
+// convention), promoted here so both that display logic and any other
+// real, new code (e.g. the pre-Analyze cleanup step) genuinely,
+// consistently identify the same set of files.
+function _isAnnotatedFile(f) {
+  return !!(f._annotatedFrom || /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(f.name || ''));
 }
 
 async function _makePristineFileSystemCopyBeforeAnalyze(ref, onProgress) {
@@ -14959,7 +14955,7 @@ async function rcmDeleteSelected() {
   );
 }
 
-function rcmConfirmDelete(title, bodyHtml, onConfirm) {
+function rcmConfirmDelete(title, bodyHtml, onConfirm, onCancel) {
   var id = 'rcm-confirm-overlay';
   document.getElementById(id)?.remove();
   var html =
@@ -14975,7 +14971,7 @@ function rcmConfirmDelete(title, bodyHtml, onConfirm) {
           '</div>' +
         '</div>' +
         '<div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">' +
-          '<button class="btn-s" onclick="document.getElementById(\''+id+'\')?.remove()">Cancel</button>' +
+          '<button class="btn-s" id="rcm-cancel-btn">Cancel</button>' +
           '<button class="btn-p" id="rcm-confirm-btn" style="background:#dc2626;border-color:#dc2626"><i class="ti ti-trash"></i>Delete</button>' +
         '</div>' +
       '</div>' +
@@ -14984,6 +14980,14 @@ function rcmConfirmDelete(title, bodyHtml, onConfirm) {
   document.getElementById('rcm-confirm-btn').onclick = function() {
     document.getElementById(id)?.remove();
     onConfirm();
+  };
+  // Genuine, real, optional Cancel signal — every existing real caller
+  // simply doesn't pass onCancel, so nothing changes for them; a caller
+  // that genuinely needs to know "the user cancelled" (not just "hasn't
+  // decided yet") now has a real, correct way to find out.
+  document.getElementById('rcm-cancel-btn').onclick = function() {
+    document.getElementById(id)?.remove();
+    if (typeof onCancel === 'function') onCancel();
   };
 }
 // ── RCM field definitions ─────────────────────────────────────────────────────
@@ -20934,46 +20938,41 @@ async function analyzeWithClaude() {
   const ref = getWPRef();
   if (!ref) return;
 
-  // Per explicit instruction: at the true beginning of Analyze, before
-  // anything else happens, ensure a genuine, pristine, second copy of
-  // every original sample file exists on the file system — completely
-  // independent of the in-memory annotation/burn-in mechanism further
-  // down this function. Awaited (not fire-and-forget) since this is
-  // meant to be a reliable, confirmed artifact, not a background
-  // convenience.
-  //
-  // Per explicit request: this step previously had no visible feedback
-  // at all — shows a dedicated "Copying files" modal with a real,
-  // live-updating status bar while this runs, then hides it right
-  // before the existing "testing" modal opens further down this same
-  // function, matching the exact requested sequence.
-  const _copyOverlay = document.getElementById('copying-files-overlay');
-  const _copyBar      = document.getElementById('copying-files-progress-bar');
-  const _copyStatus    = document.getElementById('copying-files-status');
-  if (_copyOverlay) {
-    _copyOverlay.style.display = 'flex';
-    if (_copyBar) _copyBar.style.width = '0%';
-    if (_copyStatus) _copyStatus.textContent = 'Preparing to copy sample files to the file system…';
+  // Per explicit instruction: the very first real step of Analyze is
+  // removing any existing "Annotated files" — since Analyze is about to
+  // produce a fresh, current set of annotations, any leftover ones from
+  // a prior run would be stale. Uses the new, real, shared
+  // _isAnnotatedFile detector, matching exactly the same definition the
+  // Attached Sample Files display itself uses for this same category —
+  // genuinely the same real files a user would see under "Annotated
+  // files" there. If any exist, warns with the real, exact count before
+  // deleting anything, per explicit instruction — Cancel genuinely stops
+  // Analyze here, before any other real work begins.
+  const bucketArrForCleanup = inMemoryFiles[ref]?.sample;
+  if (bucketArrForCleanup && bucketArrForCleanup.length) {
+    const annotatedIndices = [];
+    bucketArrForCleanup.forEach((f, i) => { if (_isAnnotatedFile(f)) annotatedIndices.push(i); });
+    if (annotatedIndices.length) {
+      const proceed = await new Promise((resolve) => {
+        rcmConfirmDelete(
+          'Remove existing annotated files?',
+          'Analyze is about to create a fresh set of annotated files. <strong>' + annotatedIndices.length + ' existing annotated file' + (annotatedIndices.length !== 1 ? 's' : '') + '</strong> will be deleted first. This cannot be undone.',
+          () => resolve(true),
+          () => resolve(false)
+        );
+      });
+      if (!proceed) return; // genuine Cancel — stop Analyze entirely, before any other real work begins
+
+      // Genuinely re-read the array and delete in descending index
+      // order — the same, real, proven-correct pattern already used
+      // elsewhere in this app for bulk deletion, avoiding the exact
+      // class of index-shifting bug found and fixed there: deleting
+      // ascending would shift every later index out from under itself
+      // mid-loop.
+      const sortedDesc = [...annotatedIndices].sort((a, b) => b - a);
+      sortedDesc.forEach(i => deleteMemFile(ref, 'sample', i));
+    }
   }
-  await _makePristineFileSystemCopyBeforeAnalyze(ref, function(done, total, currentName) {
-    if (!_copyOverlay) return;
-    if (total === 0) {
-      // Genuinely nothing needed copying (every original already has a
-      // real, existing copy from a prior Analyze run on this same
-      // workpaper) — say so plainly rather than show a confusing "0 of 0".
-      if (_copyBar) _copyBar.style.width = '100%';
-      if (_copyStatus) _copyStatus.textContent = 'All sample files already have a file-system copy — nothing to do.';
-      return;
-    }
-    const pct = Math.round((done / total) * 100);
-    if (_copyBar) _copyBar.style.width = pct + '%';
-    if (_copyStatus) {
-      _copyStatus.textContent = currentName
-        ? `Copying ${currentName}… (${done + 1} of ${total})`
-        : `Copied ${total} of ${total} file${total !== 1 ? 's' : ''}.`;
-    }
-  });
-  if (_copyOverlay) _copyOverlay.style.display = 'none';
 
   // Gather sample files — only uploaded (File objects) can be read; static ones are demo data
   const memFilesForDisplay = (inMemoryFiles[ref]?.sample || []);
@@ -25195,29 +25194,26 @@ function refreshFileList(ref, bucket) {
       };
 
       // ── Real categorization, per explicit definitions ──────────────────
-      // "Copy" = matches this app's own established "_copy" naming
-      // convention (the pristine file-system duplicate mechanism) — uses
-      // the shared, top-level _isPristineCopyFile helper, the same one
-      // used everywhere else this distinction matters, rather than a
-      // second, local copy of the same detection logic.
       // "Annotated" = matches the "_annotated" convention (the burn-in
       // mechanism) OR carries a real _annotatedFrom provenance link.
-      // "Original" = neither of the above.
-      const looksAnnotatedByName = (name) => /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(name);
+      // "Original" = everything else — including any already-existing
+      // "_copy.pdf" file from before the pristine-copy mechanism was
+      // disabled; per explicit instruction removing the "File system
+      // copies" category entirely, any such file now genuinely falls
+      // under Original rather than a category with no active mechanism
+      // populating it, or being silently dropped from the display.
       const categoryOf = (f) => {
-        if (_isPristineCopyFile(f)) return 'copy';
-        if (f._annotatedFrom || looksAnnotatedByName(f.name)) return 'annotated';
+        if (_isAnnotatedFile(f)) return 'annotated';
         return 'original';
       };
 
-      const categorized = { original: [], copy: [], annotated: [] };
+      const categorized = { original: [], annotated: [] };
       memFiles.forEach((f, i) => { categorized[categoryOf(f)].push({ f, i }); });
       // Alphabetical by filename WITHIN each category, per explicit instruction.
       Object.values(categorized).forEach(list => list.sort((a, b) => a.f.name.localeCompare(b.f.name)));
 
       const categoryLabels = {
         original:  'Original files',
-        copy:      'File system copies',
         annotated: 'Annotated files',
       };
       const categoryHeaderHtml = (key, list) => {
@@ -25230,7 +25226,7 @@ function refreshFileList(ref, bucket) {
         </div>`;
       };
 
-      const dynRows = ['original', 'copy', 'annotated'].map(catKey => {
+      const dynRows = ['original', 'annotated'].map(catKey => {
         const list = categorized[catKey];
         if (!list.length) return ''; // no discreet header for a category with nothing in it
         const rowsHtml = list.map(({ f, i }) => {
