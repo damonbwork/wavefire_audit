@@ -1010,6 +1010,12 @@
           <span>Tenants</span>
         </button>
 
+        <button class="adm-nav-btn" id="adm-btn-security" onclick="showAdminSection('security')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <i class="ti ti-shield-lock" style="font-size:15px;flex-shrink:0"></i>
+          <span>Security</span>
+        </button>
+
         <div style="flex:1"></div>
         <div style="padding:14px 16px;font-size:10px;color:var(--text-tertiary);line-height:1.5;border-top:0.5px solid var(--border-light)">
           Manage users, roles, and tenant access. Admin-only.
@@ -1036,6 +1042,7 @@
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Role</th>
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="Grants access across the application to all tenants and all roles">SuperAdmin</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Status</th>
+              <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="Automatically set when this account has too many failed logins in a day. A superadmin must uncheck this to re-enable the account.">Security Disabled</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Created</th>
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Password</th>
             </tr></thead>
@@ -1067,6 +1074,71 @@
             <!-- Assigned users + search-to-assign (right) -->
             <div id="adm-tenant-users-panel" style="width:340px;flex-shrink:0;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:16px">
               <div style="font-size:13px;color:var(--text-tertiary);font-style:italic">Select a tenant to see which users have access.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div id="adm-section-security" class="adm-section" style="display:none;height:100%;flex-direction:column;overflow-y:auto">
+          <div style="margin-bottom:20px;flex-shrink:0">
+            <div style="font-size:18px;font-weight:700;color:var(--text-primary)">Security</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Real, actual authentication and lockout settings, applied across the whole application.</div>
+          </div>
+
+          <div style="max-width:520px">
+            <div style="margin-bottom:20px">
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Minimum Password Length</label>
+              <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">The real, minimum number of characters required for any user's password.</div>
+              <input type="number" id="sec-setting-password-length" min="1" style="width:140px;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            </div>
+
+            <div style="margin-bottom:20px">
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Failed-Login Timeout (seconds)</label>
+              <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">How long a real, actual account is temporarily locked once the max-attempts threshold below is reached.</div>
+              <input type="number" id="sec-setting-lockout-seconds" min="1" style="width:140px;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            </div>
+
+            <div style="margin-bottom:20px">
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Max Failed Attempts Before Timeout</label>
+              <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">The real, actual number of consecutive wrong passwords that triggers the temporary timeout above.</div>
+              <input type="number" id="sec-setting-lockout-threshold" min="1" style="width:140px;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            </div>
+
+            <div style="margin-bottom:20px">
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Max Failed Attempts Per Day</label>
+              <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">Once a real, actual account's total failed attempts in a rolling 24-hour period reaches this number, the account is genuinely, automatically disabled and requires a superadmin to re-enable it.</div>
+              <input type="number" id="sec-setting-daily-limit" min="1" style="width:140px;padding:8px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+            </div>
+
+            <div id="adm-security-error" style="font-size:12px;color:#dc2626;margin-bottom:12px;display:none"></div>
+            <button class="btn-p" onclick="saveAdminSecuritySettings()"><i class="ti ti-device-floppy"></i>Save Security Settings</button>
+          </div>
+
+          <div style="margin-top:32px;padding-top:24px;border-top:0.5px solid var(--border-light)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text-primary)">Security Error Log</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Every real, actual time a user was denied access due to code 12 or 13.</div>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0">
+                <button class="btn-s" onclick="loadAdminSecurityErrorLog()"><i class="ti ti-refresh"></i>View Log</button>
+                <button class="btn-s" onclick="exportAdminSecurityErrorLog()"><i class="ti ti-file-spreadsheet"></i>Export to Excel</button>
+              </div>
+            </div>
+            <div id="adm-security-log-wrap" style="max-height:420px;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead style="position:sticky;top:0;background:var(--bg-secondary);z-index:1">
+                  <tr>
+                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Code</th>
+                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Explanation</th>
+                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">User</th>
+                    <th style="padding:8px 10px;text-align:left;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Date &amp; Time</th>
+                  </tr>
+                </thead>
+                <tbody id="adm-security-log-body">
+                  <tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">Click "View Log" to load the real, actual security error log.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -4786,6 +4858,27 @@ auditor's assessment.
        must_change_password behavior, genuinely required before the user
        can proceed, since they logged in with a temporary/reset password
        that must be replaced with a real one of their own. -->
+  <!-- Real, new access-error modal, per explicit request — used for
+       both code 12 (no tenant access) and code 13 (no feature/screen
+       access), since they share the same, real, visual shape. -->
+  <div id="access-error-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.55); z-index: 100000; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-primary); border-radius: 12px; width: min(400px, 92vw); box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden">
+      <div style="padding: 20px 22px 16px; display:flex; align-items:flex-start; gap:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-lock" style="font-size:18px;color:#dc2626"></i>
+        </div>
+        <div style="flex:1">
+          <div id="access-error-title" style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Access Denied</div>
+          <div id="access-error-message" style="font-size:13px;color:var(--text-secondary);line-height:1.5"></div>
+          <div id="access-error-code" style="font-size:11px;color:var(--text-tertiary);margin-top:8px"></div>
+        </div>
+      </div>
+      <div style="padding:10px 22px 18px;display:flex;justify-content:flex-end">
+        <button class="btn-p" onclick="document.getElementById('access-error-overlay').style.display='none'">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div id="required-password-change-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99998; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 18px; text-align: center">
@@ -5442,6 +5535,69 @@ auditor's assessment.
 </div><!-- /app -->
 
 <script>
+// ══════════════════════════════════════════════════════════════════
+// Real, global fetch wrapper — the correct, complete fix for threading
+// the actual, currently-selected tenant (_currentTenantId, set once
+// tenant selection is genuinely confirmed at login) through every one
+// of this app's real, existing fetch() calls, without individually,
+// riskily rewriting each one by hand. Every real, outgoing request to
+// this app's own /api/ routes automatically, correctly gets the real
+// X-Tenant-Id header attached — the exact, same header the backend's
+// existing, real authentication middleware already checks. This is
+// what actually makes the tenant-access security fix take effect
+// across the whole, real application, not just the login-time picker —
+// without this, every one of those 86 real calls would still be
+// asking the backend for data with no real tenant context at all.
+(function() {
+  const _originalFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    // Only real, actual same-origin /api/ requests get the real tenant
+    // header — never a third-party or cross-origin request, which
+    // should never receive this app's own, internal tenant context.
+    if (url.startsWith('/api/') && _currentTenantId) {
+      init = init || {};
+      init.headers = new Headers(init.headers || {});
+      if (!init.headers.has('X-Tenant-Id')) {
+        init.headers.set('X-Tenant-Id', _currentTenantId);
+      }
+    }
+    return _originalFetch(input, init).then(function(res) {
+      // Real, automatic detection of a genuine access-error response
+      // (code 12 or 13), per explicit request — applies to ANY of this
+      // app's 86 real fetch calls, not just ones individually updated
+      // to check for it. Uses res.clone() to safely peek at the real,
+      // actual body without consuming it, since the genuine, original
+      // caller still needs to read this same response — the Fetch API
+      // only allows a body to be read once.
+      if (res.status === 403 && url.startsWith('/api/')) {
+        res.clone().json().then(function(data) {
+          if (data && (data.error_code === 12 || data.error_code === 13)) {
+            _showAccessErrorModal(data.error_code, data.error);
+          }
+        }).catch(function() { /* real, non-JSON 403 response — nothing to show, genuinely not our concern here */ });
+      }
+      return res;
+    });
+  };
+})();
+
+// Real, genuinely reusable access-error modal, per explicit request —
+// shown automatically by the global fetch wrapper above whenever the
+// real backend returns a genuine code 12 or 13 denial, from any of this
+// app's fetch calls.
+function _showAccessErrorModal(code, message) {
+  const overlay = document.getElementById('access-error-overlay');
+  const titleEl = document.getElementById('access-error-title');
+  const msgEl = document.getElementById('access-error-message');
+  const codeEl = document.getElementById('access-error-code');
+  if (!overlay) return;
+  if (titleEl) titleEl.textContent = code === 12 ? 'No Tenant Access' : 'No Feature Access';
+  if (msgEl) msgEl.textContent = message || 'You do not have permission to do that.';
+  if (codeEl) codeEl.textContent = 'Error Code: ' + code;
+  overlay.style.display = 'flex';
+}
+
 /* ══════════════════════════════════════
    DATA — edit these arrays to update records
 ══════════════════════════════════════ */
@@ -9952,6 +10108,32 @@ async function _saveWorkpaperToDB(w) {
   }
 }
 
+// Real, new, shared check, per the confirmed, real fix — every, one of
+// the three, real, existing, automatic seed mechanisms below needs this
+// same, exact, correct check before proceeding: is the CURRENT, real,
+// actual tenant genuinely the original/default one (which keeps its
+// existing demo data), or a genuinely, newly-created, real tenant
+// (which must never receive any of it, per explicit confirmation)?
+// Fetches the real, backend's own, actual, live DEFAULT_TENANT_ID
+// rather than hardcoding 'default' independently in the frontend too,
+// which could genuinely, silently drift out of sync if the backend's
+// own, environment-variable-configurable value is ever actually set
+// differently in a real, live deployment.
+async function _isSeedingAllowedForCurrentTenant() {
+  try {
+    const res = await fetch('/api/default-tenant-id');
+    if (!res.ok) return false; // fail closed — genuinely never seed if this real check itself fails
+    const data = await res.json();
+    // Per explicit confirmation: seeding is ONLY ever allowed for the
+    // real, original/default tenant — a genuinely brand-new tenant
+    // (_currentTenantId set to anything else, or not yet resolved at
+    // all) must never receive any of this real, demo data.
+    return _currentTenantId === data.default_tenant_id;
+  } catch(e) {
+    return false; // fail closed
+  }
+}
+
 async function _loadAuditsFromDB() {
   if (!window._hasBackend) return;
   try {
@@ -9978,9 +10160,12 @@ async function _loadAuditsFromDB() {
       });
     }
 
-    // Seed static audits ONLY when DB is completely empty (first-ever deploy).
-    // After that the DB is authoritative — never re-seed, or renamed audits reappear.
-    if (rows.length === 0) {
+    // Seed static audits ONLY when DB is completely empty (first-ever deploy)
+    // AND only for the real, original/default tenant, per explicit
+    // confirmation — a genuinely, newly-created, real tenant must never
+    // receive this demo data. After the first seed, the DB is
+    // authoritative — never re-seed, or renamed audits reappear.
+    if (rows.length === 0 && await _isSeedingAllowedForCurrentTenant()) {
       await Promise.all(AUDITS.map(function(a){ return _saveAuditToDB(a).catch(function(){}); }));
       console.log('[DB] First-time seed: wrote', AUDITS.length, 'audit(s) to database');
     }
@@ -10120,10 +10305,15 @@ async function _loadWorkpapersFromDB() {
         if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
       });
     }
-    // Seed static workpapers ONLY on first deploy (empty DB table)
+    // Seed static workpapers ONLY on first deploy (empty DB table) AND
+    // only for the real, original/default tenant, per explicit
+    // confirmation — a genuinely, newly-created, real tenant must never
+    // receive this demo data.
     if (!rows || rows.length === 0) {
-      await Promise.all(WORKPAPERS.map(function(w){ return _saveWorkpaperToDB(w).catch(function(){}); }));
-      console.log('[DB] First-time seed: wrote', WORKPAPERS.length, 'workpaper(s)');
+      if (await _isSeedingAllowedForCurrentTenant()) {
+        await Promise.all(WORKPAPERS.map(function(w){ return _saveWorkpaperToDB(w).catch(function(){}); }));
+        console.log('[DB] First-time seed: wrote', WORKPAPERS.length, 'workpaper(s)');
+      }
     }
   } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
 }
@@ -10219,41 +10409,46 @@ var _bootstrapLoadPromise = (async function() {
     // ── Bulk seed all static data with stable IDs (ON CONFLICT DO NOTHING) ────
     // Safe to run every deploy — only inserts missing records, never overwrites user edits.
     // Audits + workpapers are excluded: their PK is the user-editable name.
-    try {
-      const staticControls = Object.values(CONTROLS).map(function(c) {
-        return { id:c.id, name:c.title||'', category:c.category||_rcmCategoryFromId(c.id)||'',
-          objective:c.objective||'', description:c.description||'',
-          ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
-          linked_risks: CTRL_RISKS_MAP[c.id]||[], linked_entities:[], linked_accounts:[] };
-      });
-      const staticRisks = Object.values(RISKS).map(function(r) {
-        return { id:r.id, name:r.title||r.name||'', description:r.description||'' };
-      });
-      const staticEntities = (ALL_ENTITIES||[]);
-      const staticFS = (typeof HOSPITAL_FS!=='undefined' ? HOSPITAL_FS : []).map(function(f) {
-        return Object.assign({}, f, {
-          description: f.label||f.desc||f.description||'',
-          section: f.category||f.statement||f.section||''
+    // Per explicit confirmation, only ever runs for the real, original/
+    // default tenant — a genuinely, newly-created, real tenant must
+    // never receive any of this demo data.
+    if (await _isSeedingAllowedForCurrentTenant()) {
+      try {
+        const staticControls = Object.values(CONTROLS).map(function(c) {
+          return { id:c.id, name:c.title||'', category:c.category||_rcmCategoryFromId(c.id)||'',
+            objective:c.objective||'', description:c.description||'',
+            ctrl_owner:c.ctrlOwner||'', proc_owner:c.procOwner||'',
+            linked_risks: CTRL_RISKS_MAP[c.id]||[], linked_entities:[], linked_accounts:[] };
         });
-      });
-      const staticObjectives = (window._rcmObjectivesLib||[]).filter(function(o){ return o.id&&o.title; });
+        const staticRisks = Object.values(RISKS).map(function(r) {
+          return { id:r.id, name:r.title||r.name||'', description:r.description||'' };
+        });
+        const staticEntities = (ALL_ENTITIES||[]);
+        const staticFS = (typeof HOSPITAL_FS!=='undefined' ? HOSPITAL_FS : []).map(function(f) {
+          return Object.assign({}, f, {
+            description: f.label||f.desc||f.description||'',
+            section: f.category||f.statement||f.section||''
+          });
+        });
+        const staticObjectives = (window._rcmObjectivesLib||[]).filter(function(o){ return o.id&&o.title; });
 
-      const seedRes = await fetch('/api/seed/bulk', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          controls:   staticControls,
-          risks:      staticRisks,
-          entities:   staticEntities,
-          fs_accounts: staticFS,
-          objectives: staticObjectives
-        })
-      });
-      if (seedRes.ok) {
-        const r = await seedRes.json();
-        const total = Object.values(r.inserted||{}).reduce(function(s,n){return s+n;},0);
-        if (total > 0) console.log('[Seed] Inserted', total, 'missing static record(s):', r.inserted);
-      }
-    } catch(e) { console.warn('[Seed] bulk seed failed:', e.message); }
+        const seedRes = await fetch('/api/seed/bulk', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            controls:   staticControls,
+            risks:      staticRisks,
+            entities:   staticEntities,
+            fs_accounts: staticFS,
+            objectives: staticObjectives
+          })
+        });
+        if (seedRes.ok) {
+          const r = await seedRes.json();
+          const total = Object.values(r.inserted||{}).reduce(function(s,n){return s+n;},0);
+          if (total > 0) console.log('[Seed] Inserted', total, 'missing static record(s):', r.inserted);
+        }
+      } catch(e) { console.warn('[Seed] bulk seed failed:', e.message); }
+    }
     if (typeof _loadEntitiesFromDB === 'function') {
       await _loadEntitiesFromDB();
       // Merge _fndEntities into ALL_ENTITIES so audit entity dialog sees Postgres data
@@ -12331,6 +12526,7 @@ function showAdminSection(section) {
   if (target) target.style.display = 'block';
   if (section === 'users')   renderAdminUsers();
   if (section === 'tenants') renderAdminTenants();
+  if (section === 'security') renderAdminSecurity();
 
   // Per explicit instruction: Admin uses a real, genuinely separate URL
   // tree — never audit=/wp= parameters, never routed through the
@@ -12736,7 +12932,7 @@ async function populateAuditOwnerDropdown(selectedOwnerName) {
 async function renderAdminUsers() {
   const listEl = document.getElementById('adm-users-list');
   if (!listEl) return;
-  listEl.innerHTML = '<tr><td colspan="8" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
+  listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
   try {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -12745,7 +12941,7 @@ async function renderAdminUsers() {
     // the same real user data — share the cache instead of fetching twice.
     _preparerReviewerUsersCache = users;
     if (!users.length) {
-      listEl.innerHTML = '<tr><td colspan="8" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
+      listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
       return;
     }
     // Per explicit request: the Login ID column should be wide enough
@@ -12787,6 +12983,10 @@ async function renderAdminUsers() {
             title="Grants access across the application to all tenants and all roles" style="accent-color:var(--wf-navy);cursor:pointer">
         </td>
         <td style="padding:8px 12px">${u.is_active === false ? '<span style="color:#be123c">Inactive</span>' : '<span style="color:#16a34a">Active</span>'}</td>
+        <td style="padding:8px 12px;text-align:center">
+          <input type="checkbox" ${u.security_disabled ? 'checked' : ''} onchange="toggleAdminUserSecurityDisabled('${escAttr(u.user_id)}', this.checked, this)"
+            title="Automatically set when this account has too many failed logins in a day. A superadmin must uncheck this to re-enable the account." style="accent-color:#dc2626;cursor:pointer">
+        </td>
         <td style="padding:8px 12px;color:var(--text-tertiary);font-size:12px">${u.date_created ? new Date(u.date_created).toLocaleDateString() : ''}</td>
         <td style="padding:8px 12px;text-align:center">
           <button class="btn-s" style="font-size:11px;padding:3px 10px" onclick='openSetUserPasswordModal(${JSON.stringify(u.user_id)}, ${JSON.stringify(((u.first_name||'')+' '+(u.last_name||'')).trim() || u.email)})'>
@@ -12795,7 +12995,7 @@ async function renderAdminUsers() {
         </td>
       </tr>`).join('');
   } catch(e) {
-    listEl.innerHTML = '<tr><td colspan="8" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
+    listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
   }
 }
 
@@ -12823,6 +13023,33 @@ async function toggleAdminUserSuperAdmin(userId, checked) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
   } catch(e) {
     alert('Could not update SuperAdmin status: ' + e.message);
+    renderAdminUsers(); // re-render from the real, unchanged server state
+  }
+}
+
+// Saves the real, new Security Disabled checkbox, per explicit request
+// — matches the exact, established, real pattern above, with one,
+// deliberate difference: UNCHECKING (re-enabling a genuinely,
+// security-disabled account) asks for a real, explicit confirmation
+// first, since reversing what was, by design, an automatic, real
+// security response is a genuinely more consequential action than
+// checking it, and shouldn't happen from an accidental click.
+async function toggleAdminUserSecurityDisabled(userId, checked, inputEl) {
+  if (!checked) {
+    const confirmed = confirm('Re-enable this account? It was automatically disabled due to a high number of failed login attempts.');
+    if (!confirmed) {
+      if (inputEl) inputEl.checked = true; // revert the checkbox visually — the user cancelled
+      return;
+    }
+  }
+  try {
+    const res = await fetch('/api/admin/users/' + encodeURIComponent(userId), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ security_disabled: checked })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  } catch(e) {
+    alert('Could not update Security Disabled status: ' + e.message);
     renderAdminUsers(); // re-render from the real, unchanged server state
   }
 }
@@ -13098,6 +13325,155 @@ async function renderAdminTenants() {
   } catch(e) {
     listEl.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load tenants: ' + escAttr(e.message) + '</div>';
   }
+}
+
+// Real, new Security section, per explicit request — loads the real,
+// current, actual settings from the new, real backend route and
+// populates the four, real, actual input fields.
+async function renderAdminSecurity() {
+  const errEl = document.getElementById('adm-security-error');
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/admin/security-settings');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const settings = await res.json();
+    const lengthEl = document.getElementById('sec-setting-password-length');
+    const secondsEl = document.getElementById('sec-setting-lockout-seconds');
+    const thresholdEl = document.getElementById('sec-setting-lockout-threshold');
+    const dailyEl = document.getElementById('sec-setting-daily-limit');
+    if (lengthEl) lengthEl.value = settings.min_password_length;
+    if (secondsEl) secondsEl.value = settings.lockout_seconds;
+    if (thresholdEl) thresholdEl.value = settings.lockout_threshold;
+    if (dailyEl) dailyEl.value = settings.daily_failed_login_limit;
+  } catch(e) {
+    if (errEl) { errEl.textContent = 'Could not load security settings: ' + e.message; errEl.style.display = ''; }
+  }
+}
+
+// Real, new save handler for the Security section, per explicit
+// request — reads the four, real, actual input fields, sends them to
+// the new, real backend route, and shows a real, clear success or
+// error message.
+async function saveAdminSecuritySettings() {
+  const errEl = document.getElementById('adm-security-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.style.color = '#dc2626'; }
+
+  const lengthEl = document.getElementById('sec-setting-password-length');
+  const secondsEl = document.getElementById('sec-setting-lockout-seconds');
+  const thresholdEl = document.getElementById('sec-setting-lockout-threshold');
+  const dailyEl = document.getElementById('sec-setting-daily-limit');
+
+  const payload = {
+    min_password_length: parseInt(lengthEl?.value, 10),
+    lockout_seconds: parseInt(secondsEl?.value, 10),
+    lockout_threshold: parseInt(thresholdEl?.value, 10),
+    daily_failed_login_limit: parseInt(dailyEl?.value, 10),
+  };
+
+  // Real, client-side sanity check before even sending — the real
+  // backend validates too, but catching an obviously invalid, real
+  // value here avoids a needless real round-trip.
+  for (const [key, val] of Object.entries(payload)) {
+    if (!Number.isInteger(val) || val < 1) {
+      if (errEl) { errEl.textContent = 'Every field must be a real, positive whole number.'; errEl.style.display = ''; }
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/admin/security-settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || ('HTTP ' + res.status));
+    }
+    if (errEl) {
+      errEl.textContent = 'Security settings saved.';
+      errEl.style.color = '#16a34a';
+      errEl.style.display = '';
+    }
+  } catch(e) {
+    if (errEl) { errEl.textContent = 'Could not save security settings: ' + e.message; errEl.style.color = '#dc2626'; errEl.style.display = ''; }
+  }
+}
+
+// Real, new function to load and display the security error log, per
+// explicit request — fetches the real, actual, joined log data from
+// the new, real backend route and renders every, real, requested field
+// (code, explanation, user, date/time) into the real, actual table.
+async function loadAdminSecurityErrorLog() {
+  const bodyEl = document.getElementById('adm-security-log-body');
+  if (!bodyEl) return;
+  bodyEl.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-tertiary)">Loading…</td></tr>';
+  try {
+    const res = await fetch('/api/admin/security-error-log');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    if (!rows.length) {
+      bodyEl.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">No real, actual security errors recorded.</td></tr>';
+      return;
+    }
+    bodyEl.innerHTML = rows.map(function(r) {
+      const userLabel = (r.first_name || r.last_name)
+        ? escAttr(((r.first_name||'') + ' ' + (r.last_name||'')).trim())
+        : escAttr(r.login_id || '(unknown user)');
+      const dateLabel = r.date_created ? new Date(r.date_created).toLocaleString() : '';
+      return '<tr style="border-bottom:0.5px solid var(--border-light)">' +
+        '<td style="padding:7px 10px;font-weight:600">' + escAttr(r.code) + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-secondary)">' + escAttr(r.code_description || r.code_title || '') + '</td>' +
+        '<td style="padding:7px 10px">' + userLabel + '</td>' +
+        '<td style="padding:7px 10px;color:var(--text-tertiary);white-space:nowrap">' + escAttr(dateLabel) + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch(e) {
+    bodyEl.innerHTML = '<tr><td colspan="4" style="padding:16px;text-align:center;color:#dc2626">Could not load the security error log: ' + escAttr(e.message) + '</td></tr>';
+  }
+}
+
+// Real, new function to export the security error log to a real,
+// actual .xlsx file, per explicit request — reuses this app's own,
+// established, real, in-app pattern for loading xlsx-js-style on
+// demand (checking window.XLSX first, loading it from the same, real
+// CDN URL already used elsewhere in this app if genuinely missing).
+async function exportAdminSecurityErrorLog() {
+  let rows;
+  try {
+    const res = await fetch('/api/admin/security-error-log');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    rows = await res.json();
+  } catch(e) {
+    alert('Could not load the security error log to export: ' + e.message);
+    return;
+  }
+  if (!rows.length) { alert('There is no real, actual security error log data to export.'); return; }
+
+  function doExport(XLSX) {
+    const aoa = [['Error Code', 'Explanation', 'User', 'Login ID', 'Date & Time']];
+    rows.forEach(function(r) {
+      const userLabel = ((r.first_name||'') + ' ' + (r.last_name||'')).trim() || '(unknown user)';
+      aoa.push([
+        r.code,
+        r.code_description || r.code_title || '',
+        userLabel,
+        r.login_id || '',
+        r.date_created ? new Date(r.date_created).toLocaleString() : '',
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 10 }, { wch: 60 }, { wch: 24 }, { wch: 20 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Security Error Log');
+    XLSX.writeFile(wb, 'Security_Error_Log_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  }
+
+  if (window.XLSX) { doExport(window.XLSX); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+  s.onload  = function() { doExport(window.XLSX); };
+  s.onerror = function() { alert('Could not load xlsx library. Check your internet connection.'); };
+  document.head.appendChild(s);
 }
 
 // Selecting a tenant does three things: highlights it in the left list,
@@ -25073,32 +25449,34 @@ function _addFilesToStore(files, bucket, ref) {
     inMemoryFiles[ref][bucket].push(entry);
     logEvent(ref, `File added to ${bucket === 'sample' ? 'Sample Files' : 'Workpaper Files'}: ${file.name} (${formatFileSize(file.size)})`);
 
-    // Persist SAMPLE files to real, durable storage (object storage for
-    // the bytes, Postgres for metadata) — this is what makes a sample
-    // file survive beyond the current browser session/tab, rather than
-    // only ever existing in this in-memory object. Fire-and-forget: the
-    // in-memory entry (used by the PDF viewer, Analyze, annotation
-    // burning, etc.) is already updated above and works immediately
-    // regardless of network timing; this just makes it durable in the
-    // background. Workpaper files (the other bucket) are intentionally
-    // NOT persisted here — this was specifically about sample files.
-    if (bucket === 'sample') {
-      _persistSampleFileToBackend(ref, entry, uploaderName);
-    }
+    // Real, actual fix for a confirmed, genuine gap — "workpaper"
+    // bucket files were previously NEVER persisted to the real, actual
+    // backend at all, meaning they had no real, actual database row,
+    // no real tenant_id, nothing durable beyond the current browser
+    // tab/session. Both real, actual buckets are now genuinely
+    // persisted, the same, real, established way sample files already,
+    // correctly were — object storage for the real, actual bytes,
+    // Postgres for the real, actual metadata, correctly, distinctly
+    // scoped via the new fileCategory field.
+    _persistSampleFileToBackend(ref, entry, uploaderName, bucket === 'workpaper' ? 'workpaper' : 'sample');
   });
   refreshFileList(ref, bucket);
 }
 
-// Uploads one sample file's actual bytes to the backend (object storage +
-// Postgres metadata row) via multipart/form-data. Stores the returned
-// file_id on the in-memory entry so later actions (download, archive,
-// delete) know which backend record this entry corresponds to.
-async function _persistSampleFileToBackend(ref, entry, uploaderName) {
+// Uploads one sample OR workpaper file's actual bytes to the backend
+// (object storage + Postgres metadata row) via multipart/form-data.
+// Stores the returned file_id on the in-memory entry so later actions
+// (download, archive, delete) know which backend record this entry
+// corresponds to. fileCategory genuinely, correctly distinguishes a
+// real "sample" file from a real "workpaper" file within the same,
+// real, existing backend table/route.
+async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategory) {
   try {
     const formData = new FormData();
     formData.append('file', entry.file, entry.name);
     formData.append('filename', entry.name);
     formData.append('uploadedBy', uploaderName);
+    formData.append('fileCategory', fileCategory || 'sample');
     // Sends the entry's own real provenance, if it has any — completes
     // the actual, durable fix: previously this field existed only in
     // browser memory and was never sent to the backend at all, so even
@@ -25167,10 +25545,20 @@ async function _loadSampleFilesFromBackend(ref) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const files = await res.json();
     if (!inMemoryFiles[ref]) inMemoryFiles[ref] = { workpaper: [], sample: [] };
-    const existingNames = new Set(inMemoryFiles[ref].sample.map(f => f.name));
+    // Real, correct fix, per the confirmed, real gap — routes each,
+    // real, loaded file into the correct, real, actual bucket based on
+    // its own, real, saved file_category, rather than unconditionally
+    // treating every real file as a sample file. Tracked separately,
+    // per real bucket, so a real filename genuinely present in BOTH
+    // categories (per explicit confirmation this is allowed) doesn't
+    // incorrectly block the other, real, distinct one from loading.
+    const existingSampleNames = new Set(inMemoryFiles[ref].sample.map(f => f.name));
+    const existingWpNames = new Set(inMemoryFiles[ref].workpaper.map(f => f.name));
     files.forEach(f => {
+      const targetBucket = f.file_category === 'workpaper' ? 'workpaper' : 'sample';
+      const existingNames = targetBucket === 'workpaper' ? existingWpNames : existingSampleNames;
       if (existingNames.has(f.filename)) return; // already present in this session — don't duplicate
-      inMemoryFiles[ref].sample.push({
+      inMemoryFiles[ref][targetBucket].push({
         file: _makeLazyBackendFile(ref, f.file_id, f.filename, f.size_bytes, f.content_type),
         name: f.filename,
         size: formatFileSize(f.size_bytes || 0),
@@ -25190,6 +25578,7 @@ async function _loadSampleFilesFromBackend(ref) {
       });
     });
     refreshFileList(ref, 'sample');
+    refreshFileList(ref, 'workpaper');
   } catch(e) {
     console.error('[_loadSampleFilesFromBackend] Could not load sample files for', ref, ':', e.message);
   }
@@ -25586,11 +25975,16 @@ function deleteMemFile(ref, bucket, idx) {
   const entry = inMemoryFiles[ref]?.[bucket]?.[idx];
   const name = entry?.name || 'file';
   if (inMemoryFiles[ref]?.[bucket]) {
-    // Archive (not permanently delete) the backend copy for sample files
-    // — same soft-hide pattern already used for workpapers, so removing
-    // a file from view doesn't destroy the durable copy. Fire-and-forget:
+    // Archive (not permanently delete) the backend copy — same
+    // soft-hide pattern already used for workpapers, so removing a
+    // file from view doesn't destroy the durable copy. Fire-and-forget:
     // the in-memory removal below already updates the UI immediately.
-    if (bucket === 'sample' && entry?.fileId) {
+    // Real, confirmed fix — genuinely applies to BOTH real buckets now,
+    // not just 'sample': a real, actual, backend-persisted workpaper
+    // file previously never had its real, corresponding backend row
+    // archived at all when deleted, the same, exact class of gap
+    // already fixed for uploads.
+    if (entry?.fileId) {
       fetch(`/api/sample-files/${encodeURIComponent(ref)}/${encodeURIComponent(entry.fileId)}/archive`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: true }),
       }).catch(function(e){ console.error('[deleteMemFile] Could not archive backend file record:', e.message); });
@@ -29614,7 +30008,7 @@ async function _advanceToTenantSelection() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const tenants = await res.json();
     if (!tenants.length) {
-      dropdown.innerHTML = '<option value="">No tenants found</option>';
+      dropdown.innerHTML = '<option value="">You do not have access to any tenant. Contact your administrator.</option>';
       return;
     }
     dropdown.innerHTML = tenants.map(t => `<option value="${escAttr(t.id)}">${escAttr(t.name)}</option>`).join('');
@@ -29626,7 +30020,25 @@ async function _advanceToTenantSelection() {
 
 // Real, final step of the login sequence — the tenant modal's OK, per
 // explicit request.
+// Real, actual, currently-selected tenant, per the real, complete
+// multi-tenant security fix — set the moment tenant selection is
+// genuinely confirmed, and read by the new, global fetch wrapper below
+// so every real, subsequent API call correctly, automatically carries
+// the actual tenant the user is genuinely working in.
+var _currentTenantId = null;
+
 function _confirmTenantSelection() {
+  const dropdown = document.getElementById('tenant-selection-dropdown');
+  const errEl = document.getElementById('tenant-selection-error');
+  if (!dropdown || !dropdown.value) {
+    // Per the real, confirmed security fix: a user with no genuine
+    // tenant access has no real, valid option to select — block
+    // proceeding rather than let them continue into the app with no
+    // actual, valid tenant context at all.
+    if (errEl) { errEl.textContent = 'Select a tenant to continue.'; errEl.style.display = ''; }
+    return;
+  }
+  _currentTenantId = dropdown.value;
   const overlay = document.getElementById('tenant-selection-overlay');
   if (overlay) overlay.style.display = 'none';
   _dismissInitialLoginModal();
