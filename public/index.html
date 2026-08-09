@@ -1017,6 +1017,7 @@
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="Grants access across the application to all tenants and all roles">SuperAdmin</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Status</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Created</th>
+              <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Password</th>
             </tr></thead>
             <tbody id="adm-users-list"></tbody>
           </table>
@@ -4718,6 +4719,40 @@ auditor's assessment.
        Genuinely separate element so the two can be shown/hidden
        independently, in the correct sequence: this one first, then
        hidden right before the testing modal opens. -->
+  <!-- Initial Login Modal — per explicit, precise scope: forces an OK
+       click before anything else in the app is usable. The User ID and
+       Password fields are genuinely non-functional placeholders for now
+       — visually present, disabled, no real authentication enforced —
+       and "Forgot ID"/"Forgot Password" are plain, non-clickable text,
+       not real links, per explicit instruction. This is deliberately
+       the FIRST, highest-priority overlay in the app; nothing else
+       should ever render above it. -->
+  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
+      <div style="padding: 28px 28px 20px; text-align: center">
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Sign in to Wavefire</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">Authentication is not yet enforced — this is a preview of the sign-in experience.</div>
+      </div>
+      <div style="padding:0 28px 8px;display:flex;flex-direction:column;gap:10px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">User ID</label>
+          <input type="text" disabled placeholder="Coming soon" style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-secondary);color:var(--text-tertiary);cursor:not-allowed">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:4px">Password</label>
+          <input type="password" disabled placeholder="Coming soon" style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;box-sizing:border-box;background:var(--bg-secondary);color:var(--text-tertiary);cursor:not-allowed">
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px">
+          <span style="font-size:11px;color:var(--text-tertiary);cursor:default;text-decoration:none">Forgot ID?</span>
+          <span style="font-size:11px;color:var(--text-tertiary);cursor:default;text-decoration:none">Forgot Password?</span>
+        </div>
+      </div>
+      <div style="padding:20px 28px 24px">
+        <button class="btn-p" id="initial-login-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_dismissInitialLoginModal()">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div id="copying-files-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.5); z-index: 10001; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: var(--radius-lg); width: 440px; max-width: 92vw; padding: 28px 24px; box-shadow: rgba(0, 0, 0, 0.22) 0px 20px 48px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
@@ -12578,7 +12613,7 @@ async function populateAuditOwnerDropdown(selectedOwnerName) {
 async function renderAdminUsers() {
   const listEl = document.getElementById('adm-users-list');
   if (!listEl) return;
-  listEl.innerHTML = '<tr><td colspan="6" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
+  listEl.innerHTML = '<tr><td colspan="7" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
   try {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -12587,7 +12622,7 @@ async function renderAdminUsers() {
     // the same real user data — share the cache instead of fetching twice.
     _preparerReviewerUsersCache = users;
     if (!users.length) {
-      listEl.innerHTML = '<tr><td colspan="6" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
+      listEl.innerHTML = '<tr><td colspan="7" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
       return;
     }
     listEl.innerHTML = users.map(u => `
@@ -12601,9 +12636,14 @@ async function renderAdminUsers() {
         </td>
         <td style="padding:8px 12px">${u.is_active === false ? '<span style="color:#be123c">Inactive</span>' : '<span style="color:#16a34a">Active</span>'}</td>
         <td style="padding:8px 12px;color:var(--text-tertiary);font-size:12px">${u.date_created ? new Date(u.date_created).toLocaleDateString() : ''}</td>
+        <td style="padding:8px 12px;text-align:center">
+          <button class="btn-s" style="font-size:11px;padding:3px 10px" onclick='openSetUserPasswordModal(${JSON.stringify(u.user_id)}, ${JSON.stringify(((u.first_name||'')+' '+(u.last_name||'')).trim() || u.email)})'>
+            <i class="ti ti-key"></i>Set Password
+          </button>
+        </td>
       </tr>`).join('');
   } catch(e) {
-    listEl.innerHTML = '<tr><td colspan="6" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
+    listEl.innerHTML = '<tr><td colspan="7" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
   }
 }
 
@@ -12628,6 +12668,80 @@ async function toggleAdminUserSuperAdmin(userId, checked) {
     alert('Could not update SuperAdmin status: ' + e.message);
     renderAdminUsers(); // re-render from the real, unchanged server state
   }
+}
+
+// Real "Set Password" modal, per explicit request — triggered by
+// clicking a user in the existing Admin/Users list, showing just a
+// password field. Determines whether must_change_password should be
+// skipped by comparing the TARGET user against the real, current-
+// session concept (_currentDisplayUser) — genuinely "is the acting
+// superadmin setting THEIR OWN password," not just "is the target user
+// a superadmin," matching the precise, explicit exception described
+// (a superadmin setting a different superadmin's password still
+// requires that other person to change it at next login).
+function openSetUserPasswordModal(userId, displayName) {
+  document.getElementById('set-user-password-overlay')?.remove();
+  const isSelf = !!(_currentDisplayUser && _currentDisplayUser.user_id === userId);
+  const html =
+    '<div id="set-user-password-overlay" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">' +
+      '<div style="background:var(--bg-primary);border-radius:12px;width:min(400px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+        '<div style="padding:18px 20px 14px;display:flex;align-items:flex-start;gap:14px">' +
+          '<div style="width:38px;height:38px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;flex-shrink:0">' +
+            '<i class="ti ti-key" style="font-size:18px;color:#7c3aed"></i>' +
+          '</div>' +
+          '<div style="flex:1">' +
+            '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:2px">Set password for ' + escHtml(displayName) + '</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary)">' + (isSelf
+              ? 'This is your own account — you will not be required to change this password at your next login.'
+              : 'This user will be required to change this password the next time they log in.') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:0 20px 6px">' +
+          '<input type="password" id="set-user-password-input" placeholder="New password (min. 8 characters)" autocomplete="new-password" ' +
+            'style="width:100%;padding:9px 12px;border:0.5px solid var(--border-light);border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">' +
+          '<div id="set-user-password-error" style="font-size:12px;color:#dc2626;margin-top:6px;display:none"></div>' +
+        '</div>' +
+        '<div style="padding:14px 20px 16px;display:flex;justify-content:flex-end;gap:8px">' +
+          '<button class="btn-s" id="set-user-password-cancel-btn">Cancel</button>' +
+          '<button class="btn-p" id="set-user-password-save-btn"><i class="ti ti-check"></i>Set Password</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  const overlay = document.getElementById('set-user-password-overlay');
+  const input = document.getElementById('set-user-password-input');
+  const errEl = document.getElementById('set-user-password-error');
+  input.focus();
+
+  function close() { overlay?.remove(); }
+  document.getElementById('set-user-password-cancel-btn').onclick = close;
+
+  document.getElementById('set-user-password-save-btn').onclick = async function() {
+    const pw = input.value;
+    if (!pw || pw.length < 8) {
+      errEl.textContent = 'Password must be at least 8 characters.';
+      errEl.style.display = '';
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/users/' + encodeURIComponent(userId) + '/set-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw, isSuperAdminSelf: isSelf })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || ('HTTP ' + res.status));
+      }
+      close();
+    } catch(e) {
+      errEl.textContent = 'Could not set password: ' + e.message;
+      errEl.style.display = '';
+    }
+  };
+  input.onkeydown = function(e) {
+    if (e.key === 'Enter') document.getElementById('set-user-password-save-btn').click();
+    if (e.key === 'Escape') close();
+  };
 }
 
 // ── Top-right user switcher ──────────────────────────────────────────────
@@ -18132,6 +18246,121 @@ function initAttrGridPaste() {
 const _attrColWidths = { num: 52, attrRef: 72, title: 180 }; // fixed cols only
 
 let _attrCriteriaVisible = false;
+
+const ATTR_COL_SELECTORS = {
+  attrRef: '.attr-ref-input',
+  title:   '.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)',
+  desc:    '.attr-desc',
+  addl:    '.attr-additional',
+  success: '.attr-success',
+  failure: '.attr-failure',
+};
+function _attrVisibleColOrder() {
+  return _attrCriteriaVisible ? ['attrRef','title','desc','addl','success','failure'] : ['attrRef','title','desc','addl'];
+}
+// Selects a cell — the real, default "readonly, not editing" state, per
+// explicit confirmation. Genuinely distinct from _attrEnterEditMode
+// below: never removes readonly here, so the browser natively blocks
+// typing while still allowing focus, cursor placement, and keydown
+// events.
+function _attrFocusCell(rowIdx, colKey, placeCursorAtStart) {
+  const rowEl = document.getElementById('attr-row-' + rowIdx);
+  if (!rowEl) return false;
+  const el = rowEl.querySelector(ATTR_COL_SELECTORS[colKey]);
+  if (!el) return false;
+  if ('readOnly' in el) { el.readOnly = true; el.style.cursor = 'default'; }
+  el.focus();
+  const pos = placeCursorAtStart ? 0 : el.value.length;
+  try { el.setSelectionRange(pos, pos); } catch(e) { /* fine to ignore for input types that don't support this */ }
+  return true;
+}
+// Genuinely enters edit mode on an already-focused, selected cell —
+// removes readonly and places the cursor at the end of existing
+// content, per explicit confirmation.
+function _attrEnterEditMode(el) {
+  el.readOnly = false;
+  el.style.cursor = 'text';
+  el.focus();
+  const pos = el.value.length;
+  try { el.setSelectionRange(pos, pos); } catch(e) { /* fine to ignore */ }
+}
+function _attrHandleCellKeydown(e, rowIdx) {
+  const el = e.target;
+  const rowEl = el.closest('.attr-row');
+  if (!rowEl) return;
+  const cellEl = el.closest('.attr-cell');
+  const colKey = cellEl ? cellEl.dataset.col : null;
+  if (!colKey) return;
+  const order = _attrVisibleColOrder();
+  const colPos = order.indexOf(colKey);
+
+  // While genuinely EDITING (readonly already removed), arrows are
+  // real, native cursor movement only — per explicit confirmation, no
+  // cell-to-cell navigation happens here. Enter exits edit mode back to
+  // Selected on the SAME cell; Escape reverts any in-progress edit and
+  // exits to Selected the same way — matching the same real behavior
+  // already built and proven for the Sample Data grid.
+  if ('readOnly' in el && !el.readOnly) {
+    if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') {
+      // Only single-line inputs (attrRef/title) treat Enter as "exit
+      // edit mode" — the four real textarea fields are genuinely
+      // multi-line content where Enter should keep inserting a newline,
+      // matching how every other multi-line field in this app behaves.
+      e.preventDefault();
+      saveAttrRow(rowIdx, true);
+      _attrFocusCell(rowIdx, colKey, false);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      var rows = wpTestAttributes[currentAttrWPRef] || [];
+      var savedRow = rows[rowIdx];
+      var fieldMap = { attrRef: 'attrRef', title: 'title', desc: 'desc', addl: 'additionalInfo', success: 'successCriteria', failure: 'failureCriteria' };
+      el.value = (savedRow && savedRow[fieldMap[colKey]]) || ''; // revert to the last real, saved value
+      _attrFocusCell(rowIdx, colKey, false);
+      return;
+    }
+    return; // every other key while editing is genuinely native — no interception
+  }
+
+  // ── Genuinely SELECTED (readonly), not editing — everything below
+  // here is real cell-to-cell navigation, plus the entry points into
+  // edit mode. ──
+
+  if (e.key === 'F2') {
+    e.preventDefault();
+    _attrEnterEditMode(el);
+    return;
+  }
+
+  const totalRows = document.querySelectorAll('#test-attr-rows .attr-row').length;
+
+  if (e.key === 'ArrowUp') {
+    if (rowIdx > 0) { e.preventDefault(); _attrFocusCell(rowIdx - 1, colKey, true); }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    if (rowIdx < totalRows - 1) { e.preventDefault(); _attrFocusCell(rowIdx + 1, colKey, true); }
+    return;
+  }
+  if (e.key === 'ArrowLeft') {
+    if (colPos > 0) { e.preventDefault(); _attrFocusCell(rowIdx, order[colPos - 1], false); }
+    return;
+  }
+  if (e.key === 'ArrowRight') {
+    if (colPos >= 0 && colPos < order.length - 1) { e.preventDefault(); _attrFocusCell(rowIdx, order[colPos + 1], true); }
+    return;
+  }
+
+  // Any real, printable, single character while Selected acts like a
+  // double-click — enters edit mode, then lets that SAME keystroke
+  // continue through natively so its character is genuinely typed, per
+  // explicit confirmation — matching the same real behavior already
+  // built and proven for the Sample Data grid.
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    _attrEnterEditMode(el);
+  }
+}
 
 function toggleAttrCriteria() {
   _attrCriteriaVisible = !_attrCriteriaVisible;
@@ -25357,8 +25586,14 @@ function renderSampleDataGrid(ref) {
 
   var selectedIdx = _sdResolveSelectedIndex(ref);
 
-  // Rebuild header: keep the "#" cell (first child), replace the rest
-  while (hdrRow.children.length > 1) hdrRow.removeChild(hdrRow.lastChild);
+  // Rebuild header: keep BOTH real static cells (the checkbox column,
+  // then "#"), replace the rest. Was previously keeping only 1 child,
+  // correct back when "#" was the sole static column — but the checkbox
+  // column added afterward made it the second of two real static cells,
+  // and this loop was never updated to match, silently deleting the
+  // real "#" header on every rebuild and leaving the dynamic columns
+  // one position short relative to the actual data rows below.
+  while (hdrRow.children.length > 2) hdrRow.removeChild(hdrRow.lastChild);
   data.columns.forEach(function(col, colIdx){
     if (col.width == null) col.width = SD_DEFAULT_COL_WIDTH; // legacy columns created before this feature
     var th = document.createElement('th');
@@ -25480,22 +25715,31 @@ function renderSampleDataGrid(ref) {
       ta.dataset.rowIdx = i;
       ta.dataset.colIdx = colIdx;
       ta.rows = 1;
+      ta.readOnly = true; // genuine "selected, not editing" default state — readonly still allows focus and keydown, but the browser natively blocks typing
       var cellVal = (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : '';
       ta.value = cellVal;
-      ta.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:12px;font-family:inherit;line-height:1.4;color:var(--text-primary);padding:6px 8px;box-sizing:border-box;' +
+      ta.style.cssText = 'width:100%;display:block;resize:none;overflow:hidden;border:none;background:transparent;outline:none;font-size:12px;font-family:inherit;line-height:1.4;color:var(--text-primary);padding:6px 8px;box-sizing:border-box;cursor:default;' +
         (row.height != null ? 'height:'+row.height+'px;' : ''); // manual override clips here — see note above
       ta.oninput = function(){
         if(!row.cells) row.cells = {};
         row.cells[col.id] = this.value;
         if (row.height == null) _sdApplyRowHeight(ref, i); // auto rows grow live as the user types
       };
-      ta.onblur  = function(){ saveSampleDataGrid(ref); };
+      ta.onblur  = function(){
+        saveSampleDataGrid(ref);
+        // Leaving the field entirely (not just exiting edit mode via
+        // Enter) returns it to the real, default readonly/selected state.
+        this.readOnly = true;
+        this.style.cursor = 'default';
+      };
+      ta.ondblclick = function(){ _sdEnterEditMode(this); };
       ta.onfocus = function(){
         _sdSelectedRow[ref] = i;
         _sdUpdateRowHighlight(ref);
         _sdRepositionRowToolbar(ref);
         _sdEnsureRowDeselectListener();
       };
+      ta.onkeydown = function(e){ _sdHandleCellKeydown(e, ref); };
       td.appendChild(ta);
       tr.appendChild(td);
     });
@@ -26681,6 +26925,145 @@ function _sdValueOrNotFound(v) {
 // existing cells inside the paste's target range already contain a non-blank
 // value. No mutation — used to decide whether to show a confirmation prompt
 // before touching the grid at all.
+// Real, genuine keyboard cell-to-cell navigation for the Sample Data
+// grid, per explicit request. Arrow keys move between adjacent cells;
+// Tab moves right (wrapping to the next row's first cell at the
+// rightmost column); Shift-Tab moves left (wrapping to the previous
+// row's last cell at the leftmost column). Careful with arrow keys
+// specifically, since these are real, multi-line textareas — Up/Down
+// only navigate cells when the cursor is genuinely at the first/last
+// line of the current content (computed directly, not assumed), and
+// Left/Right only navigate cells when the cursor is genuinely at the
+// true start/end of the text, so normal in-cell editing and cursor
+// movement within wrapped or multi-line content is never hijacked.
+function _sdGetCellAt(ref, rowIdx, colIdx) {
+  var bodyEl = document.getElementById('sd-body-rows');
+  if (!bodyEl) return null;
+  var all = bodyEl.querySelectorAll('.sd-cell-input');
+  for (var k = 0; k < all.length; k++) {
+    if (parseInt(all[k].dataset.rowIdx, 10) === rowIdx && parseInt(all[k].dataset.colIdx, 10) === colIdx) return all[k];
+  }
+  return null;
+}
+// Selects a cell — the real, default "readonly, not editing" state.
+// Genuinely distinct from _sdEnterEditMode below: this never removes
+// readonly, so the browser natively blocks typing while still allowing
+// focus, cursor placement (for consistent caret styling), and keydown
+// events — exactly the "selected" state per explicit confirmation.
+function _sdFocusCell(ref, rowIdx, colIdx, placeCursorAtStart) {
+  var data = _daSampleDataFor(ref);
+  if (!data) return false;
+  if (rowIdx < 0 || rowIdx >= data.rows.length) return false;
+  if (colIdx < 0 || colIdx >= data.columns.length) return false;
+  var el = _sdGetCellAt(ref, rowIdx, colIdx);
+  if (!el) return false;
+  el.readOnly = true;
+  el.style.cursor = 'default';
+  el.focus();
+  var pos = placeCursorAtStart ? 0 : el.value.length;
+  try { el.setSelectionRange(pos, pos); } catch(e) { /* some input types don't support this — fine to ignore */ }
+  return true;
+}
+// Genuinely enters edit mode on an already-focused, selected cell —
+// removes readonly (the real, actual switch that lets the browser start
+// accepting typed input) and places the cursor at the end of the
+// existing content, per explicit confirmation ("cursor at the end of
+// whatever text is in the cell").
+function _sdEnterEditMode(el) {
+  el.readOnly = false;
+  el.style.cursor = 'text';
+  el.focus();
+  var pos = el.value.length;
+  try { el.setSelectionRange(pos, pos); } catch(e) { /* fine to ignore */ }
+}
+function _sdHandleCellKeydown(e, ref) {
+  var el = e.target;
+  var rowIdx = parseInt(el.dataset.rowIdx, 10);
+  var colIdx = parseInt(el.dataset.colIdx, 10);
+  if (isNaN(rowIdx) || isNaN(colIdx)) return;
+  var data = _daSampleDataFor(ref);
+  if (!data) return;
+
+  // While genuinely EDITING (readonly already removed), arrows are
+  // real, native cursor movement only — per explicit confirmation, no
+  // cell-to-cell navigation happens here at all. Enter exits edit mode
+  // back to Selected on the SAME cell; Escape reverts any in-progress
+  // edit and exits to Selected the same way.
+  if (!el.readOnly) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveSampleDataGrid(ref);
+      _sdFocusCell(ref, rowIdx, colIdx, false);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      var row = data.rows[rowIdx];
+      var col = data.columns[colIdx];
+      el.value = (row.cells && row.cells[col.id] !== undefined) ? row.cells[col.id] : ''; // revert to the last real, saved value
+      _sdFocusCell(ref, rowIdx, colIdx, false);
+      return;
+    }
+    return; // every other key while editing is genuinely native — no interception
+  }
+
+  // ── Genuinely SELECTED (readonly), not editing — everything below
+  // here is real cell-to-cell navigation, plus the entry points into
+  // edit mode. ──
+
+  if (e.key === 'F2') {
+    e.preventDefault();
+    _sdEnterEditMode(el);
+    return;
+  }
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (e.shiftKey) {
+      // Shift-Tab: left, wrapping to the previous row's LAST cell when
+      // already at the leftmost column — per explicit spec.
+      if (colIdx > 0) { _sdFocusCell(ref, rowIdx, colIdx - 1); }
+      else if (rowIdx > 0) { _sdFocusCell(ref, rowIdx - 1, data.columns.length - 1); }
+    } else {
+      // Tab: right, wrapping to the next row's FIRST cell when already
+      // at the rightmost column — per explicit spec.
+      if (colIdx < data.columns.length - 1) { _sdFocusCell(ref, rowIdx, colIdx + 1); }
+      else if (rowIdx < data.rows.length - 1) { _sdFocusCell(ref, rowIdx + 1, 0); }
+    }
+    return;
+  }
+
+  if (e.key === 'ArrowLeft') {
+    if (colIdx > 0) { e.preventDefault(); _sdFocusCell(ref, rowIdx, colIdx - 1, false); }
+    return;
+  }
+  if (e.key === 'ArrowRight') {
+    if (colIdx < data.columns.length - 1) { e.preventDefault(); _sdFocusCell(ref, rowIdx, colIdx + 1, true); }
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    if (rowIdx > 0) { e.preventDefault(); _sdFocusCell(ref, rowIdx - 1, colIdx, true); }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    if (rowIdx < data.rows.length - 1) { e.preventDefault(); _sdFocusCell(ref, rowIdx + 1, colIdx, true); }
+    return;
+  }
+
+  // Any real, printable, single character (not a modifier combo, not a
+  // named/control key) while Selected acts like a double-click — enters
+  // edit mode with the cursor at the end, then lets that SAME keystroke
+  // continue through natively so its character is genuinely typed, per
+  // explicit confirmation ("the first key button press acts like a
+  // double click and enables the cell for data entry").
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    _sdEnterEditMode(el);
+    // Deliberately NOT calling e.preventDefault() here — letting this
+    // exact keystroke fall through natively is what actually inserts
+    // the character into the now-editable field in the same keystroke.
+  }
+}
+
 function _sdAnalyzePaste(data, grid, startRowIdx, startColIdx) {
   var widestRow = grid.reduce(function(max, r){ return Math.max(max, r.length); }, 0);
   var neededCols = startColIdx + widestRow;
@@ -26745,6 +27128,126 @@ function _sdApplyPastedGrid(data, grid, startRowIdx, startColIdx) {
 // State for the pending-paste confirmation modal — holds everything needed to
 // either apply or discard the paste once the user responds.
 var _sdPendingPaste = null;
+
+// Per explicit confirmation: two distinct real cases for a paste that
+// starts on a column header's title field — (1) a single pasted row
+// updates ONLY that row's worth of column titles, no data involved; (2)
+// multiple pasted rows means row 1 becomes new/replacement column
+// titles and every remaining row becomes real data, written starting at
+// the grid's actual row 0. Per explicit requirement, this path can ONLY
+// ever expand the grid by adding columns — never rows — enforced
+// explicitly below, genuinely distinct from the generic cell-paste path
+// which can expand both dimensions.
+function _sdAnalyzeHeaderPaste(data, grid, startColIdx) {
+  var isTitleOnly = grid.length === 1;
+  var titleRow = grid[0] || [];
+  var dataRows = isTitleOnly ? [] : grid.slice(1);
+
+  var widestRow = Math.max(titleRow.length, dataRows.reduce(function(max, r){ return Math.max(max, r.length); }, 0));
+  var neededCols = startColIdx + widestRow;
+  var colsToAdd = Math.max(0, neededCols - data.columns.length);
+
+  // Conflicts: an existing column whose title would genuinely change,
+  // and — for the multi-row case only — any existing data cell the
+  // pasted data rows would overwrite (rows never expand here, so only
+  // real, already-existing rows are ever at risk).
+  var conflicts = [];
+  titleRow.forEach(function(newTitle, ci){
+    var colIdx = startColIdx + ci;
+    if (colIdx >= data.columns.length) return; // column doesn't exist yet — expansion, not a conflict
+    var col = data.columns[colIdx];
+    var existingTitle = col.title || '';
+    if (existingTitle.trim() !== '' && existingTitle.trim() !== String(newTitle).trim()) {
+      conflicts.push({ row: -1, col: colIdx, colTitle: existingTitle, value: existingTitle, isTitleConflict: true });
+    }
+  });
+  dataRows.forEach(function(pastedRow, ri){
+    var rowIdx = ri; // data rows always start at the grid's real row 0
+    if (rowIdx >= data.rows.length) return; // per explicit requirement, rows are NEVER added here — nothing to check past the real, existing row count
+    pastedRow.forEach(function(cellVal, ci){
+      var colIdx = startColIdx + ci;
+      if (colIdx >= data.columns.length) return; // column doesn't exist yet — expansion, not a conflict
+      var col = data.columns[colIdx];
+      var existingRow = data.rows[rowIdx];
+      var existingVal = existingRow.cells && existingRow.cells[col.id];
+      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+        conflicts.push({ row: rowIdx, col: colIdx, colTitle: col.title || '(untitled column)', value: existingVal });
+      }
+    });
+  });
+
+  return {
+    isTitleOnly: isTitleOnly,
+    dataRowsBeyondGrid: dataRows.length > data.rows.length ? (dataRows.length - data.rows.length) : 0, // real rows the paste would have needed but can't get, per the never-expand-rows rule
+    colsToAdd: colsToAdd,
+    rowsToAdd: 0, // per explicit requirement — this path never adds rows, regardless of paste size
+    needsExpansion: colsToAdd > 0,
+    conflicts: conflicts,
+    hasConflicts: conflicts.length > 0,
+  };
+}
+
+// Mutates `data` per the two real, confirmed cases — never adds rows,
+// per explicit requirement, even if the pasted data has more rows than
+// the grid currently holds (any such extra rows are simply not written;
+// _sdAnalyzeHeaderPaste's dataRowsBeyondGrid already surfaces this to
+// the user before they confirm).
+function _sdApplyHeaderPaste(data, grid, startColIdx) {
+  var titleRow = grid[0] || [];
+  var dataRows = grid.length > 1 ? grid.slice(1) : [];
+
+  // Expand columns only, per explicit requirement — same real column-add
+  // logic as the generic path, but never touches data.rows.length.
+  var widestRow = Math.max(titleRow.length, dataRows.reduce(function(max, r){ return Math.max(max, r.length); }, 0));
+  var neededCols = startColIdx + widestRow;
+  while (data.columns.length < neededCols) {
+    var newId = 'col_' + Date.now() + '_' + Math.floor(Math.random()*100000) + '_' + data.columns.length;
+    data.columns.push({ id: newId, title: '', width: SD_DEFAULT_COL_WIDTH });
+    data.rows.forEach(function(row){ if(!row.cells) row.cells = {}; row.cells[newId] = ''; });
+  }
+
+  // Write the real, new column titles.
+  titleRow.forEach(function(newTitle, ci){
+    var col = data.columns[startColIdx + ci];
+    if (col) col.title = String(newTitle).trim();
+  });
+
+  // Write real data rows, if any — starting at the grid's actual row 0,
+  // per explicit confirmation, and ONLY into rows that already exist —
+  // never adding new ones, per explicit requirement.
+  dataRows.forEach(function(pastedRow, ri){
+    if (ri >= data.rows.length) return; // per explicit requirement — never add rows here
+    var targetRow = data.rows[ri];
+    if (!targetRow.cells) targetRow.cells = {};
+    pastedRow.forEach(function(cellVal, ci){
+      var col = data.columns[startColIdx + ci];
+      if (!col) return;
+      targetRow.cells[col.id] = String(cellVal).trim();
+    });
+  });
+}
+
+function _sdHandleHeaderPaste(ref, data, grid, startColIdx) {
+  var analysis = _sdAnalyzeHeaderPaste(data, grid, startColIdx);
+
+  if (!analysis.needsExpansion && !analysis.hasConflicts && !analysis.dataRowsBeyondGrid) {
+    // Nothing to warn about — apply immediately, same as the generic path.
+    _sdPushPasteUndo(ref, data);
+    _sdApplyHeaderPaste(data, grid, startColIdx);
+    renderSampleDataGrid(ref);
+    saveSampleDataGrid(ref);
+    return;
+  }
+
+  // Reuses the same, real, existing confirmation modal (_sdShowPasteConfirm)
+  // by constructing an equivalent-shaped analysis object — that modal's
+  // own rendering (rows/cols-to-add counts, a conflicts list) is generic
+  // enough to correctly describe this case too, without needing its own
+  // modal built from scratch. isHeaderPaste flags _sdConfirmPaste to
+  // apply via _sdApplyHeaderPaste instead of the generic function.
+  _sdPendingPaste = { ref: ref, data: data, grid: grid, startRowIdx: 0, startColIdx: startColIdx, analysis: analysis, isHeaderPaste: true };
+  _sdShowPasteConfirm(analysis, 0, startColIdx, grid);
+}
 
 // ── Paste-specific undo stack ─────────────────────────────────────────────────
 // Deliberately independent of the app-wide _globalUndoStack (which drives the
@@ -26831,6 +27334,7 @@ function initSampleDataGridPaste() {
 
     var startRowIdx = data.rows.length;
     var startColIdx = data.columns.length ? data.columns.length : 0;
+    var isHeaderPaste = false;
     if (active.classList.contains('sd-cell-input')) {
       startRowIdx = parseInt(active.dataset.rowIdx, 10);
       startColIdx = parseInt(active.dataset.colIdx, 10);
@@ -26839,9 +27343,21 @@ function initSampleDataGridPaste() {
       var idx = data.columns.findIndex(function(c){ return c.id === colId; });
       startColIdx = idx >= 0 ? idx : data.columns.length;
       startRowIdx = 0;
+      isHeaderPaste = true;
     }
     if (isNaN(startRowIdx) || startRowIdx < 0) startRowIdx = data.rows.length;
     if (isNaN(startColIdx) || startColIdx < 0) startColIdx = data.columns.length;
+
+    // Per explicit confirmation: a paste that starts on a column header
+    // is genuinely distinct from a normal cell paste — two real cases,
+    // handled by dedicated logic rather than the generic
+    // _sdAnalyzePaste/_sdApplyPastedGrid path, since neither of those
+    // has any concept of "the first pasted row is titles, not data,"
+    // and this path must ONLY ever expand columns, never rows.
+    if (isHeaderPaste) {
+      _sdHandleHeaderPaste(ref, data, grid, startColIdx);
+      return;
+    }
 
     var analysis = _sdAnalyzePaste(data, grid, startRowIdx, startColIdx);
 
@@ -27127,8 +27643,17 @@ function _sdConfirmPaste() {
   var p = _sdPendingPaste;
   if (!p) return;
   _sdPushPasteUndo(p.ref, p.data);
-  _sdApplyPastedGrid(p.data, p.grid, p.startRowIdx, p.startColIdx);
-  _sdSelectedRow[p.ref] = Math.min(p.startRowIdx + p.grid.length - 1, p.data.rows.length - 1);
+  if (p.isHeaderPaste) {
+    _sdApplyHeaderPaste(p.data, p.grid, p.startColIdx);
+    // Only update the "selected row" if real data rows were actually
+    // involved — a title-only paste touched no data rows at all.
+    if (p.grid.length > 1) {
+      _sdSelectedRow[p.ref] = Math.min(p.grid.length - 2, p.data.rows.length - 1);
+    }
+  } else {
+    _sdApplyPastedGrid(p.data, p.grid, p.startRowIdx, p.startColIdx);
+    _sdSelectedRow[p.ref] = Math.min(p.startRowIdx + p.grid.length - 1, p.data.rows.length - 1);
+  }
   document.querySelectorAll('.sd-paste-highlight').forEach(function(el){ el.classList.remove('sd-paste-highlight'); });
   var overlay = document.getElementById('sd-paste-confirm-overlay');
   if (overlay) overlay.style.display = 'none';
@@ -27713,31 +28238,31 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
     </div>
     <div class="attr-cell" data-col="attrRef" style="flex-shrink:0;width:var(--attr-col-attrRef,80px);padding:6px 10px;min-width:50px">
       <input class="attr-ref-input" type="text" maxlength="6" value="${escAttr(attrRef)}" placeholder="e.g. 1a"
-        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)"
+        tabindex="${base}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;font-size:12px;font-weight:600;text-align:center;border:none;outline:none;background:transparent">
     </div>
     <div class="attr-cell" data-col="title"   style="flex-shrink:0;width:var(--attr-col-title,180px);padding:6px 12px;min-width:80px">
       <input class="attr-input" type="text" maxlength="80" value="${escAttr(title)}" placeholder="Attribute title…"
-        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)">
+        tabindex="${base+1}" oninput="saveAttrRow(${idx})" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})">
     </div>
     <div class="attr-cell" data-col="desc"    style="flex:2;min-width:100px;padding:6px 12px">
       <textarea class="attr-input attr-desc" maxlength="2500" placeholder="Describe the attribute or test objective…"
-        tabindex="${base+2}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)"
+        tabindex="${base+2}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px">${escAttr(desc)}</textarea>
     </div>
     <div class="attr-cell" data-col="addl"    style="flex:1.5;min-width:80px;padding:6px 12px">
       <textarea class="attr-input attr-additional" maxlength="2500" placeholder="Additional information…"
-        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)"
+        tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px">${escAttr(additionalInfo)}</textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
       <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…"
-        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)"
+        tabindex="${base+4}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
     </div>
     <div class="attr-cell attr-criteria-col" data-col="failure" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…"
-        tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)"
+        tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px"></textarea>
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
@@ -28584,6 +29109,19 @@ function makeColumnsResizable(tableId) {
 /* ══════════════════════════════════════
    INIT
 ══════════════════════════════════════ */
+
+// Per explicit request: the real, new initial login modal shows
+// immediately, forcing an OK click before anything else in the app is
+// usable — shown here, first, before any other init logic runs.
+(function() {
+  const overlay = document.getElementById('initial-login-overlay');
+  if (overlay) overlay.style.display = 'flex';
+})();
+function _dismissInitialLoginModal() {
+  const overlay = document.getElementById('initial-login-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
 renderAudits();
 renderWorkpapers();
 onNavAuditChange();
@@ -28653,9 +29191,9 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
   // will be designed before this app actually goes to production. If
   // you're reading this while preparing a production deploy, this
   // block needs a real decision made about it, not a silent carry-over.
-  console.warn('[DEV DEFAULT] Landing on a hardcoded workpaper (WP-2026-NEWW-010) for development convenience — see the comment above launchToDefaultWP() before shipping to production.');
+  console.warn('[DEV DEFAULT] Landing on a hardcoded workpaper (WP-2026-SECO-020) for development convenience — see the comment above launchToDefaultWP() before shipping to production.');
   const targetAudit = AUDITS.find(a => a.name === 'SAP Change Management');
-  const targetWP    = WORKPAPERS.findIndex(w => w.ref === 'WP-2026-NEWW-010' && w.auditName === 'SAP Change Management');
+  const targetWP    = WORKPAPERS.findIndex(w => w.ref === 'WP-2026-SECO-020' && w.auditName === 'SAP Change Management');
   // ══════════════════════════════════════════════════════════════════
 
   if (targetAudit && targetWP !== -1) {
