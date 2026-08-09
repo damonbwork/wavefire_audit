@@ -4935,8 +4935,9 @@ auditor's assessment.
         </select>
         <div id="tenant-selection-error" style="font-size:12px;color:#dc2626;margin-top:8px;display:none"></div>
       </div>
-      <div style="padding:20px 28px 24px">
+      <div style="padding:20px 28px 24px;display:flex;flex-direction:column;gap:8px">
         <button class="btn-p" id="tenant-selection-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_confirmTenantSelection()">OK</button>
+        <button class="btn-s" style="width:100%;justify-content:center;padding:10px" onclick="_doRealLogout()"><i class="ti ti-arrow-left"></i>Back to Login</button>
       </div>
     </div>
   </div>
@@ -6112,7 +6113,7 @@ function renderAudits(list) {
   document.getElementById('audit-tbody').innerHTML = rows.map(a => {
     const year = (a.period.match(/\b(20\d{2})\b/) || [])[1] || '—';
     return `
-    <tr onclick="openAudit(${AUDITS.indexOf(a)})">
+    <tr onclick="openAuditVerified(${AUDITS.indexOf(a)})">
       <td style="font-weight:500">${a.name}</td>
       <td class="tm" style="font-weight:500">${year}</td>
       <td class="tm">${a.period}</td>
@@ -6381,7 +6382,7 @@ function renderWorkpapers(list) {
   document.getElementById('wp-tbody').innerHTML = sorted.map((w) => {
     const i = WORKPAPERS.indexOf(w);
     return `
-    <tr onclick="openWP(${i})" data-ref="${w.ref}">
+    <tr onclick="openWPVerified(${i})" data-ref="${w.ref}">
       <td style="font-weight:500;color:var(--blue-600);white-space:nowrap">${w.ref}</td>
       <td style="font-weight:500">${w.name}</td>
       <td>${typePill(w.type)}</td>
@@ -6536,6 +6537,28 @@ async function restoreSampleFile(ref, fileId) {
 /* ══════════════════════════════════════
    NAVIGATION
 ══════════════════════════════════════ */
+// Real, corresponding, thorough, async wrapper for opening an audit,
+// matching the exact, same, real design as openWPVerified above.
+async function openAuditVerified(i) {
+  const a = AUDITS[i];
+  if (!a) return;
+  try {
+    const res = await fetch('/api/audits/' + encodeURIComponent(a.name) + '/access-check');
+    if (!res.ok) { console.error('[openAuditVerified] Access check failed:', res.status); showPage('audits'); return; }
+    const data = await res.json();
+    if (!data.hasAccess) {
+      console.warn('[openAuditVerified] Denied real, actual access to audit', a.name, '— returning to the audits list.');
+      showPage('audits');
+      return;
+    }
+  } catch(e) {
+    console.error('[openAuditVerified] Access check failed:', e.message);
+    showPage('audits');
+    return;
+  }
+  openAudit(i);
+}
+
 function openAudit(i) {
   saveCurrentPage(); // persist any edits from the current page before switching
   currentAudit = AUDITS[i];
@@ -6587,6 +6610,33 @@ function openAudit(i) {
     renderAuditFSTags(currentAudit.name);
   }, 50);
   showPage('workpapers');
+}
+
+// Real, new, thorough, async access-verification wrapper for opening a
+// workpaper, per explicit, confirmed request — makes a genuine, live,
+// backend call to verify the CURRENT, real, actual, logged-in user
+// genuinely has access to this, specific, real workpaper before ever,
+// actually, rendering it. Every, real, navigation entry point (nav-bar
+// links, the URL hash handler, forward/back arrows) should call THIS,
+// not openWP directly.
+async function openWPVerified(i) {
+  const w = WORKPAPERS[i];
+  if (!w) return;
+  try {
+    const res = await fetch('/api/workpapers/' + encodeURIComponent(w.ref) + '/access-check');
+    if (!res.ok) { console.error('[openWPVerified] Access check failed:', res.status); showPage('audits'); return; }
+    const data = await res.json();
+    if (!data.hasAccess) {
+      console.warn('[openWPVerified] Denied real, actual access to workpaper', w.ref, '— returning to the audits list.');
+      showPage('audits');
+      return;
+    }
+  } catch(e) {
+    console.error('[openWPVerified] Access check failed:', e.message);
+    showPage('audits');
+    return;
+  }
+  openWP(i);
 }
 
 function openWP(i) {
@@ -7017,7 +7067,7 @@ window.addEventListener('popstate', (e) => {
 });
 
 // Handle deep-link hashes on initial load (e.g. #wp=WP-2026-IPE-001)
-function handleInitialHash() {
+async function handleInitialHash() {
   const hash = window.location.hash.replace(/^#/, '');
   if (!hash) return false; // no hash at all — caller should fall through to its own default
   const params = new URLSearchParams(hash.replace(/^([a-z]+)/, '').replace(/^&/, ''));
@@ -7028,6 +7078,23 @@ function handleInitialHash() {
   if (wpRef) {
     const idx = WORKPAPERS.findIndex(w => w.ref === wpRef);
     if (idx !== -1) {
+      // Real, thorough, live, backend access-check, per explicit,
+      // confirmed request — a genuine, real, deep-link hash referencing
+      // a specific workpaper must genuinely be verified against the
+      // real, current, actual, logged-in user's real access, not just
+      // trusted because it happens to match something in the real,
+      // in-memory list.
+      try {
+        const res = await fetch('/api/workpapers/' + encodeURIComponent(wpRef) + '/access-check');
+        const data = res.ok ? await res.json() : { hasAccess: false };
+        if (!data.hasAccess) {
+          console.warn('[handleInitialHash] Denied real, actual access to workpaper', wpRef, 'via deep link.');
+          return false; // fall through to the real, default landing page
+        }
+      } catch(e) {
+        console.error('[handleInitialHash] Access check failed:', e.message);
+        return false;
+      }
       _suppressHistory = true;
       const w = WORKPAPERS[idx];
       currentAudit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
@@ -7040,6 +7107,19 @@ function handleInitialHash() {
   if (auditName) {
     const audit = AUDITS.find(a => a.name === auditName);
     if (audit) {
+      // Real, thorough, live, backend access-check, matching the exact,
+      // same, real design as the workpaper case above.
+      try {
+        const res = await fetch('/api/audits/' + encodeURIComponent(auditName) + '/access-check');
+        const data = res.ok ? await res.json() : { hasAccess: false };
+        if (!data.hasAccess) {
+          console.warn('[handleInitialHash] Denied real, actual access to audit', auditName, 'via deep link.');
+          return false;
+        }
+      } catch(e) {
+        console.error('[handleInitialHash] Access check failed:', e.message);
+        return false;
+      }
       _suppressHistory = true;
       currentAudit = audit;
       if (page === 'workpapers') openAudit(AUDITS.indexOf(audit));
@@ -7068,7 +7148,7 @@ function updateWPNavArrows() {
   });
 }
 
-function navigateWP(direction) {
+async function navigateWP(direction) {
   const auditWPs = WORKPAPERS.filter(w => w.auditName === currentAudit?.name);
   const curIdx   = auditWPs.findIndex(w => w === WORKPAPERS[currentWPIndex]);
   const nextIdx  = curIdx + direction;
@@ -7083,7 +7163,7 @@ function navigateWP(direction) {
   const selWpRef = document.getElementById('sel-wp-ref');
   if (selWpRef) selWpRef.value = targetWP.ref;
 
-  openWP(globalIdx);
+  await openWPVerified(globalIdx);
 }
 
 function showPage(name) {
@@ -29608,7 +29688,7 @@ function setWPNavEnabled(enabled) {
   }
 }
 
-function onNavAuditChange() {
+async function onNavAuditChange() {
   const auditName = document.getElementById('sel-audit').value;
   if (!auditName) return; // blank option selected — do nothing
 
@@ -29621,14 +29701,14 @@ function onNavAuditChange() {
   // Navigate to that audit's workpaper list
   const idx = AUDITS.findIndex(a => a.name === auditName);
   if (idx !== -1) {
-    openAudit(idx); // openAudit calls saveCurrentPage + showPage('workpapers')
+    await openAuditVerified(idx); // openAudit calls saveCurrentPage + showPage('workpapers')
   } else {
     // Audit not found in AUDITS array — just navigate to workpapers page
     showPage('workpapers');
   }
 }
 
-function onNavWpRefChange() {
+async function onNavWpRefChange() {
   const ref        = document.getElementById('sel-wp-ref').value;
   const auditName  = document.getElementById('sel-audit').value;
   if (!ref) return; // nothing selected
@@ -29640,7 +29720,7 @@ function onNavWpRefChange() {
   const audit = AUDITS.find(a => a.name === auditName);
   if (audit) currentAudit = audit;
 
-  openWP(wpIndex);
+  await openWPVerified(wpIndex);
 }
 
 /* ══════════════════════════════════════
@@ -30106,29 +30186,14 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
   // function checked its own hardcoded default BEFORE the hash, meaning
   // even an exact, correct deep link (e.g. #wpdetail&audit=...&wp=...)
   // was being silently overridden. ──
-  if (handleInitialHash()) return; // a real hash was present and successfully handled — done
+  if (await handleInitialHash()) return; // a real hash was present and successfully handled — done
 
-  // ══════════════════════════════════════════════════════════════════
-  // ⚠️  TEMPORARY DEVELOPMENT-ONLY DEFAULT — REMOVE BEFORE PRODUCTION ⚠️
-  // ══════════════════════════════════════════════════════════════════
-  // Set explicitly per user request, purely to save time while actively
-  // developing/testing — NOT a considered choice of production landing
-  // page. The user has explicitly said this will likely change again
-  // during development, and that a real, sensible landing experience
-  // will be designed before this app actually goes to production. If
-  // you're reading this while preparing a production deploy, this
-  // block needs a real decision made about it, not a silent carry-over.
-  console.warn('[DEV DEFAULT] Landing on a hardcoded workpaper (WP-2026-SECO-020) for development convenience — see the comment above launchToDefaultWP() before shipping to production.');
-  const targetAudit = AUDITS.find(a => a.name === 'SAP Change Management');
-  const targetWP    = WORKPAPERS.findIndex(w => w.ref === 'WP-2026-SECO-020' && w.auditName === 'SAP Change Management');
-  // ══════════════════════════════════════════════════════════════════
-
-  if (targetAudit && targetWP !== -1) {
-    currentAudit = targetAudit;
-    const selAudit = document.getElementById('sel-audit');
-    if (selAudit) selAudit.value = targetAudit.name;
-    openWP(targetWP);
-  }
+  // Per explicit request: if the user was not currently, already in the
+  // application (no real, deep-link URL hash present, handled above),
+  // the correct, real, default landing page is the list of audits —
+  // never a specific, hardcoded workpaper a real user might have zero,
+  // genuine access to.
+  showPage('audits');
 })();
 
 // Set Audits nav item active on initial load
