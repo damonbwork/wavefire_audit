@@ -2167,6 +2167,20 @@ app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
 // work); these routes are exactly the ones that should be admin-only once
 // that's built, since by definition only an admin should ever reach them.
 
+// Lists every real tenant in the system — per explicit request, for the
+// new tenant-selection modal shown after the (currently non-functional)
+// sign-in modal. Shows ALL tenants rather than filtering to a specific
+// user's real, actual set via user_tenants, since there's no functional
+// login yet to know who's actually signing in — confirmed, explicit
+// scope for the current, real state of this feature.
+app.get('/api/tenants', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query('SELECT id, name, description, domain FROM tenants ORDER BY name');
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/tenants:'); }
+});
+
 app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
