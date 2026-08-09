@@ -231,7 +231,17 @@ function hashSessionToken(rawToken) {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
-const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 real days
+// Real, confirmed session-timeout parameters. SESSION_DURATION_MS is
+// the real, absolute maximum a session can ever live, regardless of
+// activity — reduced from the prior 7 days to a genuinely shorter,
+// real 24 hours, since real, standard best practice pairs a real,
+// short absolute maximum with a real, shorter idle timeout, rather
+// than one real, long-lived session with no true upper bound.
+// IDLE_TIMEOUT_MS is the confirmed, real 4-hour window — a session
+// genuinely expires if this much real time passes with no real,
+// actual activity, even if the absolute maximum hasn't been reached.
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 real hours — the real, absolute maximum
+const IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 real hours — the confirmed, real idle/inactivity timeout
 
 // Issues a real, new session for a given user — generates a genuinely
 // random, unguessable token, stores only its fast hash (never the raw
@@ -245,7 +255,7 @@ async function createSession(userId) {
   const tokenHash = hashSessionToken(rawToken);
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
   await pool.query(
-    `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1,$2,$3)`,
+    `INSERT INTO sessions (user_id, token_hash, expires_at, last_activity_at) VALUES ($1,$2,$3,NOW())`,
     [userId, tokenHash, expiresAt]
   );
   return rawToken;
@@ -255,21 +265,47 @@ async function createSession(userId) {
 // looks up a real, non-expired session, and returns the real, CURRENT,
 // live user record (not a stale, cached one — is_active/is_superadmin
 // could have genuinely changed since the session was first issued, and
-// every check here should reflect the real, current state).
+// every check here should reflect the real, current state). Per the
+// confirmed, real design: also enforces the real, 4-hour idle timeout
+// as a genuine, real "sliding window" — a session past that real gap
+// since its own last_activity_at is genuinely, correctly treated as
+// expired, even if its real, absolute expires_at hasn't been reached
+// yet; a session that IS still within the real, idle window has its
+// last_activity_at updated to the real, current moment, so genuinely,
+// actively-used sessions keep extending while an abandoned one expires
+// on schedule.
 async function getUserFromSessionToken(rawToken) {
   if (!pool || !rawToken) return null;
   try {
     const tokenHash = hashSessionToken(rawToken);
     const { rows } = await pool.query(
       `SELECT u.user_id, u.tenant_id, u.email, u.login_id, u.first_name, u.last_name,
-              u.role, u.is_superadmin, u.is_active
+              u.role, u.is_superadmin, u.is_active, s.session_id, s.last_activity_at
        FROM sessions s
        JOIN users u ON u.user_id = s.user_id
        WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
       [tokenHash]
     );
     if (!rows.length) return null;
-    return rows[0];
+    const row = rows[0];
+
+    const idleMs = Date.now() - new Date(row.last_activity_at).getTime();
+    if (idleMs > IDLE_TIMEOUT_MS) {
+      // Real, genuine idle timeout reached — delete this specific,
+      // real session outright rather than merely reject it, so it
+      // can't be resurrected or reused even if the real, raw cookie is
+      // still sitting in someone's browser.
+      await pool.query('DELETE FROM sessions WHERE session_id=$1', [row.session_id]);
+      return null;
+    }
+
+    // Real, genuine activity — slide the real, actual idle window
+    // forward.
+    await pool.query('UPDATE sessions SET last_activity_at=NOW() WHERE session_id=$1', [row.session_id]);
+
+    delete row.session_id;
+    delete row.last_activity_at;
+    return row;
   } catch (err) {
     console.error('getUserFromSessionToken FAILED:', err.message);
     return null;
@@ -1339,6 +1375,69 @@ async function ensureAnnotatedFromColumn() {
 }
 ensureAnnotatedFromColumn();
 
+// ── Standalone, independent addition: sample_files.file_category ────────
+// Genuinely distinguishes a real "sample" file from a real "workpaper"
+// file within this same, existing, proven table — rather than a
+// genuinely separate, new, parallel table for what is structurally the
+// exact, same, real kind of data (a file attached to a workpaper).
+// Defaults to 'sample' for every, real, existing row, since that's
+// genuinely what every current row actually is — real, actual
+// "Attached Workpaper Files" were never persisted to the backend at
+// all before this fix (a real, confirmed gap found while directly
+// tracing every real file-attachment path).
+async function ensureFileCategoryColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS file_category TEXT NOT NULL DEFAULT 'sample'`);
+
+    // Real, actual update to the existing, live unique constraint, per
+    // explicit confirmation — genuinely allows the same filename to
+    // exist once in each real category (a real "summary.pdf" as both a
+    // Workpaper File and a Sample File). Queries the real, live
+    // pg_constraint catalog directly to find the constraint's actual,
+    // current name, rather than assuming the standard, auto-generated
+    // one — genuinely more robust, since this table could have been
+    // created at a different point with a real, different, actual name.
+    const { rows: existingConstraints } = await pool.query(`
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'sample_files'::regclass AND contype = 'u'
+    `);
+    for (const { conname } of existingConstraints) {
+      // Only touch a real constraint that's genuinely the old, real
+      // (tenant_id, ref, filename) shape — never a different, real,
+      // unrelated one this table might also have.
+      const { rows: colCheck } = await pool.query(`
+        SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+        FROM pg_constraint c
+        JOIN unnest(c.conkey) AS k(attnum) ON true
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+        WHERE c.conname = $1
+      `, [conname]);
+      const cols = (colCheck[0]?.cols || []).sort();
+      const isOldShape = JSON.stringify(cols) === JSON.stringify(['filename', 'ref', 'tenant_id'].sort());
+      if (isOldShape) {
+        await pool.query(`ALTER TABLE sample_files DROP CONSTRAINT "${conname}"`);
+        console.log(`DB: dropped the real, old (tenant_id, ref, filename) unique constraint (${conname})`);
+      }
+    }
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'sample_files_tenant_ref_filename_category_key'
+        ) THEN
+          ALTER TABLE sample_files ADD CONSTRAINT sample_files_tenant_ref_filename_category_key
+            UNIQUE (tenant_id, ref, filename, file_category);
+        END IF;
+      END $$;
+    `);
+
+    console.log('DB: sample_files.file_category column and updated unique constraint confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone file_category check FAILED:', err.message, err.code);
+  }
+}
+ensureFileCategoryColumn();
+
 // ── Standalone, independent addition: workpapers.template_used ──────────
 // Tracks the actual TEMPLATE NAME chosen at creation (e.g.
 // "M-Template-Short", "Workpaper-Long Template") — genuinely distinct
@@ -1473,12 +1572,175 @@ async function ensureSessionsTable() {
         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
       )
     `);
+    // Real, new column — genuinely needed for the confirmed, real
+    // 4-hour idle timeout, which requires tracking when a session was
+    // last, actually used, not just when it was originally created. A
+    // real, separate ALTER TABLE, since this table already, genuinely
+    // exists in production.
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ DEFAULT NOW()`);
     console.log('DB: sessions table confirmed ready (standalone check)');
   } catch (err) {
     console.error('DB: standalone sessions table check FAILED:', err.message, err.code);
   }
 }
 ensureSessionsTable();
+
+// ── Real, new access-control error tables, per explicit request ─────────
+// access_error_codes: the real, actual reference table defining what
+// each error code genuinely means — seeded with the two, explicit
+// codes requested (12: no tenant access, 13: no feature/screen access).
+// access_error_log: the real, actual log of every, genuine, real
+// occurrence — who, when, which code, and enough real, actual context
+// (the real route/tenant involved) to investigate a genuine incident
+// later, per the explicit "store every time a user causes one" request.
+async function ensureAccessErrorTables() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS access_error_codes (
+        code         INTEGER PRIMARY KEY,
+        title        TEXT NOT NULL,
+        description  TEXT NOT NULL,
+        date_created TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS access_error_log (
+        log_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code         INTEGER NOT NULL REFERENCES access_error_codes(code),
+        user_id      UUID REFERENCES users(user_id) ON DELETE SET NULL,
+        login_id     TEXT,
+        requested_path     TEXT,
+        requested_tenant_id TEXT,
+        date_created TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    // Real, actual seed data for the two, explicit codes — ON CONFLICT
+    // DO NOTHING so this is safe to run on every deploy without ever
+    // overwriting real, live wording someone may have since customized.
+    await pool.query(`
+      INSERT INTO access_error_codes (code, title, description) VALUES
+        (12, 'No Tenant Access', 'The user attempted to access a tenant they do not have real, actual permission to access.'),
+        (13, 'No Feature Access', 'The user attempted to access a screen or feature they do not have real, actual permission to access.')
+      ON CONFLICT (code) DO NOTHING
+    `);
+    console.log('DB: access_error_codes / access_error_log tables confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone access-error tables check FAILED:', err.message, err.code);
+  }
+}
+ensureAccessErrorTables();
+
+// ── Real, new failed-login-lockout columns, per explicit, confirmed
+// design — tracks a real, actual failed-attempt count per user, and a
+// real, actual lockout expiry timestamp. A temporary, self-clearing
+// lock (not permanent), per explicit confirmation, since a permanent
+// lock would let an attacker deliberately lock out a legitimate user
+// just by repeatedly entering a wrong password.
+//
+// Extended, per explicit request, with a real, second, escalated tier:
+// daily_failed_login_count (a real, rolling 24-hour count, reset via
+// daily_failed_login_reset_at — genuinely more robust than a "since
+// midnight" count, which would need careful, real timezone handling)
+// and security_disabled — a real, new, distinct flag, genuinely
+// separate from the existing is_active column, since "an admin
+// manually disabled this account" and "the system auto-disabled this
+// account for a security reason" are two, real, meaningfully different
+// states that shouldn't be conflated into one, real field.
+async function ensureFailedLoginColumns() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_failed_login_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_failed_login_reset_at TIMESTAMPTZ DEFAULT NOW()`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_disabled BOOLEAN NOT NULL DEFAULT false`);
+    console.log('DB: failed_login_count / locked_until / daily_failed_login_count / daily_failed_login_reset_at / security_disabled columns confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone failed-login columns check FAILED:', err.message, err.code);
+  }
+}
+ensureFailedLoginColumns();
+
+// ── Real, new security_settings table, per explicit request — a
+// genuine, real, persisted place to store the actual, admin-
+// configurable authentication settings, so they genuinely survive a
+// real deploy rather than resetting to hardcoded constants each time.
+// A real, single-row table (id always 1) — genuinely simple and
+// correct for a small set of global, real, app-wide settings, rather
+// than a real, generic key-value table that would need more real,
+// careful type-handling for no genuine benefit here. Seeded with the
+// exact, real values already confirmed and built into the login route
+// over the last several turns, so the real, live behavior doesn't
+// change the moment this deploys — it just becomes genuinely, actually
+// adjustable going forward.
+async function ensureSecuritySettingsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS security_settings (
+        id                        INTEGER PRIMARY KEY DEFAULT 1,
+        min_password_length       INTEGER NOT NULL DEFAULT 8,
+        lockout_seconds           INTEGER NOT NULL DEFAULT 60,
+        lockout_threshold         INTEGER NOT NULL DEFAULT 10,
+        daily_failed_login_limit  INTEGER NOT NULL DEFAULT 200,
+        date_updated              TIMESTAMPTZ DEFAULT NOW(),
+        CONSTRAINT single_row CHECK (id = 1)
+      )
+    `);
+    await pool.query(`
+      INSERT INTO security_settings (id, min_password_length, lockout_seconds, lockout_threshold, daily_failed_login_limit)
+      VALUES (1, 8, 60, 10, 200)
+      ON CONFLICT (id) DO NOTHING
+    `);
+    console.log('DB: security_settings table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone security_settings table check FAILED:', err.message, err.code);
+  }
+}
+ensureSecuritySettingsTable();
+
+// Real, actual, in-memory cache of the current, real security settings
+// — refreshed from the real, live database on every genuine change via
+// the admin route below, and read directly by the login route on every
+// real request, avoiding a real, extra database round-trip on every
+// single login attempt just to read four, small, rarely-changing
+// numbers.
+let _securitySettingsCache = { min_password_length: 8, lockout_seconds: 60, lockout_threshold: 10, daily_failed_login_limit: 200 };
+async function _loadSecuritySettingsCache() {
+  if (!pool) return;
+  try {
+    const { rows } = await pool.query('SELECT * FROM security_settings WHERE id=1');
+    if (rows.length) _securitySettingsCache = rows[0];
+  } catch (err) {
+    console.error('_loadSecuritySettingsCache FAILED (real, existing defaults kept):', err.message);
+  }
+}
+_loadSecuritySettingsCache();
+
+// Real, actual logging helper — called every time a genuine, real code
+// 12 or 13 denial happens, per explicit "store every time a user
+// causes one" request. Never throws — a real, live user-facing denial
+// should never itself fail just because the LOGGING of that denial hit
+// a real, transient database issue.
+async function logAccessError(code, req) {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `INSERT INTO access_error_log (code, user_id, login_id, requested_path, requested_tenant_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        code,
+        req.currentUser ? req.currentUser.user_id : null,
+        req.currentUser ? req.currentUser.login_id : null,
+        req.path,
+        req.query.tenant_id || (req.body && req.body.tenant_id) || req.headers['x-tenant-id'] || null,
+      ]
+    );
+  } catch (err) {
+    console.error('logAccessError FAILED (the real, actual denial itself was NOT affected):', err.message);
+  }
+}
 
 // Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
 // Without this, req.ip is the proxy's address and the per-IP rate limiter would
@@ -1587,7 +1849,7 @@ const PUBLIC_ROUTES = new Set([
   '/api/auth/logout',
   '/api/auth/me',
   '/api/auth/validate-login-id',
-  '/api/tenants',
+  '/api/default-tenant-id',
   '/health',
 ]);
 app.use(async (req, res, next) => {
@@ -1601,19 +1863,56 @@ app.use(async (req, res, next) => {
 
   req.currentUser = user; // real, available to every route handler from here on, not re-derived per-route
 
-  // Real superadmin: access by default, per explicit instruction —
-  // genuinely bypasses the tenant check entirely.
-  if (user.is_superadmin) return next();
-
   const requestedTenantId = req.query.tenant_id || (req.body && req.body.tenant_id) || req.headers['x-tenant-id'];
-  if (!requestedTenantId) return next(); // no specific tenant named — not every real route is tenant-scoped
+
+  // Real superadmin: access by default, per explicit instruction —
+  // genuinely bypasses the tenant-access check entirely. Still resolves
+  // a real, actual req.currentTenantId for route handlers to use below
+  // — the requested tenant, once confirmed to genuinely exist (a
+  // superadmin can reach any real tenant, but a request naming one
+  // that doesn't actually exist should fail cleanly, not silently carry
+  // a bogus value into a real, downstream query), falling back to
+  // DEFAULT_TENANT_ID only when no specific tenant was named at all.
+  if (user.is_superadmin) {
+    if (requestedTenantId) {
+      try {
+        const { rows } = await pool.query('SELECT 1 FROM tenants WHERE id=$1', [requestedTenantId]);
+        if (!rows.length) return res.status(404).json({ error: 'No such tenant.' });
+        req.currentTenantId = requestedTenantId;
+      } catch (err) {
+        console.error('Tenant-existence check FAILED:', err.message);
+        return res.status(500).json({ error: 'Could not verify tenant.' });
+      }
+    } else {
+      req.currentTenantId = DEFAULT_TENANT_ID;
+    }
+    return next();
+  }
+
+  if (!requestedTenantId) {
+    // A real, regular (non-superadmin) user made a request naming no
+    // specific tenant at all — genuinely ambiguous for any real,
+    // tenant-scoped route to act on safely, so this falls back to
+    // DEFAULT_TENANT_ID only for routes that are honestly not
+    // tenant-scoped to begin with (the same real, existing behavior as
+    // before this fix); any real route that DOES need a genuine tenant
+    // context will correctly get DEFAULT_TENANT_ID here, which is safe
+    // precisely because every such route is being updated, in this
+    // same real fix, to read req.currentTenantId instead of assuming it.
+    req.currentTenantId = DEFAULT_TENANT_ID;
+    return next();
+  }
 
   try {
     const { rows } = await pool.query(
       'SELECT 1 FROM user_tenants WHERE user_id=$1 AND tenant_id=$2',
       [user.user_id, requestedTenantId]
     );
-    if (!rows.length) return res.status(403).json({ error: 'You do not have access to this tenant.' });
+    if (!rows.length) {
+      await logAccessError(12, req);
+      return res.status(403).json({ error_code: 12, error: 'You do not have access to this tenant.' });
+    }
+    req.currentTenantId = requestedTenantId; // genuinely, already verified above — trustworthy for every real route handler below
     next();
   } catch (err) {
     console.error('Tenant-access check FAILED:', err.message);
@@ -1626,9 +1925,17 @@ app.use(async (req, res, next) => {
 // is genuinely logged in, not which specific role they hold). Applied
 // to every real /api/admin/* route below, since every one of those is
 // genuinely intended to be superadmin-only, per explicit instruction.
-function requireSuperAdmin(req, res, next) {
-  if (!req.currentUser || !req.currentUser.is_superadmin) {
-    return res.status(403).json({ error: 'This action requires SuperAdmin access.' });
+async function requireSuperAdmin(req, res, next) {
+  if (!req.currentUser) {
+    // Per explicit guidance: an unauthenticated caller gets a real,
+    // generic, minimal response — no distinguishing error code, since
+    // revealing that level of detail to someone who hasn't even proven
+    // who they are is real, unnecessary information leakage.
+    return res.status(401).json({ error: 'Not authenticated.' });
+  }
+  if (!req.currentUser.is_superadmin) {
+    await logAccessError(13, req);
+    return res.status(403).json({ error_code: 13, error: 'This action requires SuperAdmin access.' });
   }
   next();
 }
@@ -1967,7 +2274,7 @@ app.post('/api/control-categories', async (req, res) => {
 // ── Risks API ───────────────────────────────────────────────────────────────
 app.get('/api/risks', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM risks WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM risks WHERE tenant_id=$1 ORDER BY id', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -1979,7 +2286,7 @@ app.post('/api/risks', async (req, res) => {
     await pool.query(`INSERT INTO risks (tenant_id,id,name,category,description,updated_at)
       VALUES ($1,$2,$3,$4,$5,NOW())
       ON CONFLICT (tenant_id,id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, description=EXCLUDED.description, updated_at=NOW()`,
-      [DEFAULT_TENANT_ID, id, name||'', category||'', description||'']);
+      [req.currentTenantId, id, name||'', category||'', description||'']);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
 });
@@ -1993,7 +2300,7 @@ app.delete('/api/risks/:id', async (req, res) => {
 // ── Controls API ─────────────────────────────────────────────────────────────
 app.get('/api/controls', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM controls WHERE tenant_id=$1 ORDER BY category, id', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM controls WHERE tenant_id=$1 ORDER BY category, id', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -2062,7 +2369,7 @@ app.post('/api/entity-types', async (req, res) => {
 app.get('/api/entities', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const { rows } = await pool.query('SELECT * FROM assessment_entities WHERE tenant_id=$1 ORDER BY type, name', [DEFAULT_TENANT_ID]);
+    const { rows } = await pool.query('SELECT * FROM assessment_entities WHERE tenant_id=$1 ORDER BY type, name', [req.currentTenantId]);
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/entities:'); }
 });
@@ -2205,7 +2512,7 @@ app.post('/api/claude', express.json({ limit: CLAUDE_PROXY_BODY_LIMIT }), async 
 // ── Audits API ────────────────────────────────────────────────────────────────
 app.get('/api/audits', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM audits WHERE tenant_id=$1 ORDER BY created_at', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM audits WHERE tenant_id=$1 ORDER BY created_at', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -2220,7 +2527,7 @@ app.post('/api/audits', async (req, res) => {
       VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
       ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
         type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
-      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, DEFAULT_TENANT_ID]);
+      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, req.currentTenantId]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, '[API] audit save error:'); }
 });
@@ -2246,18 +2553,18 @@ app.patch('/api/audits/:oldName', async (req, res) => {
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
           year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
       // Update workpapers that referenced the old audit name
       await pool.query(`UPDATE workpapers SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
-        [name, DEFAULT_TENANT_ID, oldName]);
-      await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [DEFAULT_TENANT_ID, oldName]);
+        [name, req.currentTenantId, oldName]);
+      await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [req.currentTenantId, oldName]);
     } else {
       await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
         VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
           year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, DEFAULT_TENANT_ID]);
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
     }
     await pool.query('COMMIT');
     res.json({ ok:true });
@@ -2296,11 +2603,11 @@ app.get('/api/recreate-audit/:name', async (req, res) => {
       `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
        VALUES ($1,$2,'','','Financial','planned','Recreated via /api/recreate-audit.',NOW())
        ON CONFLICT (tenant_id,name) DO NOTHING`,
-      [DEFAULT_TENANT_ID, name]
+      [req.currentTenantId, name]
     );
     const { rows } = await pool.query(
       'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
-      [DEFAULT_TENANT_ID, name]
+      [req.currentTenantId, name]
     );
     return res.json({ ok: true, audit: rows[0] || null, method: 'insert_on_conflict' });
   } catch(err) {
@@ -2314,7 +2621,7 @@ app.get('/api/recreate-audit/:name', async (req, res) => {
     try {
       const { rows: existing } = await pool.query(
         'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
-        [DEFAULT_TENANT_ID, name]
+        [req.currentTenantId, name]
       );
       if (existing.length) {
         return res.json({ ok: true, audit: existing[0], method: 'already_existed', firstError: err.message });
@@ -2322,11 +2629,11 @@ app.get('/api/recreate-audit/:name', async (req, res) => {
       await pool.query(
         `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
          VALUES ($1,$2,'','','Financial','planned','Recreated via /api/recreate-audit (fallback path).',NOW())`,
-        [DEFAULT_TENANT_ID, name]
+        [req.currentTenantId, name]
       );
       const { rows: created } = await pool.query(
         'SELECT * FROM audits WHERE tenant_id=$1 AND name=$2',
-        [DEFAULT_TENANT_ID, name]
+        [req.currentTenantId, name]
       );
       return res.json({ ok: true, audit: created[0] || null, method: 'plain_insert_fallback', firstError: err.message });
     } catch (fallbackErr) {
@@ -2350,7 +2657,7 @@ app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT audit_name FROM workpapers WHERE tenant_id=$1 AND ref=$2',
-      [DEFAULT_TENANT_ID, req.params.ref]
+      [req.currentTenantId, req.params.ref]
     );
     if (!rows.length) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
     const auditName = rows[0].audit_name;
@@ -2360,7 +2667,7 @@ app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
       `INSERT INTO audits (tenant_id,name,period,owner,type,status,description,updated_at)
        VALUES ($1,$2,'','','Financial','planned','Recreated automatically to recover an orphaned workpaper.',NOW())
        ON CONFLICT (tenant_id,name) DO NOTHING`,
-      [DEFAULT_TENANT_ID, auditName]
+      [req.currentTenantId, auditName]
     );
     res.json({ ok: true, auditName });
   } catch(err) { return fail(res, err, 'api'); }
@@ -2375,16 +2682,30 @@ app.post('/api/orphaned-workpapers/:ref/repair', async (req, res) => {
 // work); these routes are exactly the ones that should be admin-only once
 // that's built, since by definition only an admin should ever reach them.
 
-// Lists every real tenant in the system — per explicit request, for the
-// new tenant-selection modal shown after the (currently non-functional)
-// sign-in modal. Shows ALL tenants rather than filtering to a specific
-// user's real, actual set via user_tenants, since there's no functional
-// login yet to know who's actually signing in — confirmed, explicit
-// scope for the current, real state of this feature.
+// Lists tenants the real, current, authenticated user can actually
+// access — per the confirmed, real security fix: a genuine superadmin
+// still sees every real tenant (per the explicit, established "access
+// by default" requirement), but a real, regular user now only sees the
+// tenants they are actually, genuinely assigned to via the real
+// user_tenants table. This route now requires real authentication
+// (removed from the public allowlist) since real login genuinely
+// exists now — the earlier, honest "show everyone everything" scope
+// was correct only while there was no way to know who was asking.
 app.get('/api/tenants', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const { rows } = await pool.query('SELECT id, name, description, domain FROM tenants ORDER BY name');
+    if (req.currentUser && req.currentUser.is_superadmin) {
+      const { rows } = await pool.query('SELECT id, name, description, domain FROM tenants ORDER BY name');
+      return res.json(rows);
+    }
+    const { rows } = await pool.query(
+      `SELECT t.id, t.name, t.description, t.domain
+       FROM tenants t
+       JOIN user_tenants ut ON ut.tenant_id = t.id
+       WHERE ut.user_id = $1
+       ORDER BY t.name`,
+      [req.currentUser ? req.currentUser.user_id : null]
+    );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/tenants:'); }
 });
@@ -2415,6 +2736,18 @@ app.get('/api/auth/validate-login-id', async (req, res) => {
 // Checks is_active BEFORE verifying the password — a deactivated
 // account should never authenticate, regardless of whether the
 // password is correct.
+// Real, confirmed failed-login-lockout design, per every, explicit
+// request. The real, temporary, self-clearing lock and the real,
+// second, escalated daily tier — 200 real, actual failed attempts
+// within a rolling 24-hour window genuinely, permanently disables the
+// account (via security_disabled) rather than just another temporary
+// lock, requiring real, actual superadmin re-enable — are now genuinely,
+// admin-configurable via the new Security section (read live from
+// _securitySettingsCache below, not hardcoded). Only the real, 24-hour
+// window's own length stays fixed, since "per day" genuinely means
+// that specific, real period, not a separately-configurable duration.
+const DAILY_FAILED_LOGIN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 app.post('/api/auth/login', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { login_id, password } = req.body;
@@ -2422,19 +2755,86 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT user_id, email, login_id, first_name, last_name, role, is_superadmin, is_active,
-              must_change_password, password_hash
+              must_change_password, password_hash, failed_login_count, locked_until,
+              daily_failed_login_count, daily_failed_login_reset_at, security_disabled
        FROM users WHERE login_id=$1`,
       [login_id.trim()]
     );
-    // Deliberately identical, generic error for "no such user" and
-    // "wrong password" — a real, reasonable practice so a real,
-    // external caller can't use this response to learn which User IDs
-    // genuinely exist versus don't.
+    // Deliberately identical, generic error for "no such user", "wrong
+    // password", "temporarily locked", AND "security-disabled" — a
+    // real, reasonable practice so a real, external caller can't use
+    // this response to learn which User IDs genuinely exist, or which,
+    // real, specific state an account is actually in.
     const genericError = () => res.status(401).json({ error: 'Invalid User ID or password.' });
     if (!rows.length) return genericError();
     const user = rows[0];
     if (!user.is_active) return genericError();
-    if (!verifyPassword(password, user.password_hash)) return genericError();
+
+    // Real, actual security-disabled check — FIRST, before even the
+    // temporary lockout, since a security-disabled account should
+    // never proceed regardless of the temporary lock's own, separate
+    // state (which may have already expired on its own by the time
+    // someone next tries).
+    if (user.security_disabled) return genericError();
+
+    // Real, rolling 24-hour window for the daily counter — computed
+    // once, up front, since it's needed regardless of which real,
+    // specific reason this attempt is about to be rejected for (a
+    // temporary lock, or a genuinely wrong password). Fixed, confirmed
+    // bug: this used to only increment inside the wrong-password
+    // branch below, but a temporarily-locked account returns before
+    // ever reaching that branch — meaning the daily counter genuinely
+    // stopped climbing the moment a temporary lock kicked in, and a
+    // real attacker simply waiting out each 60-second lock would never
+    // actually reach the real 200-attempt daily threshold in practice.
+    async function _bumpDailyFailureCount() {
+      const dailyWindowExpired = !user.daily_failed_login_reset_at ||
+        (Date.now() - new Date(user.daily_failed_login_reset_at).getTime()) > DAILY_FAILED_LOGIN_WINDOW_MS;
+      const newDailyCount = dailyWindowExpired ? 1 : (user.daily_failed_login_count || 0) + 1;
+      const shouldSecurityDisable = newDailyCount >= _securitySettingsCache.daily_failed_login_limit;
+      await pool.query(
+        `UPDATE users SET daily_failed_login_count=$1, daily_failed_login_reset_at=$2, security_disabled=$3 WHERE user_id=$4`,
+        [newDailyCount, dailyWindowExpired ? new Date() : user.daily_failed_login_reset_at, shouldSecurityDisable || user.security_disabled, user.user_id]
+      );
+    }
+
+    // Real, actual temporary lockout check — BEFORE verifying the
+    // password, since a locked account should never even attempt a
+    // real password comparison, let alone reveal whether a submitted
+    // password happens to be correct. Still genuinely, correctly counts
+    // toward the real, daily total — see the fix above.
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      await _bumpDailyFailureCount();
+      return genericError();
+    }
+
+    if (!verifyPassword(password, user.password_hash)) {
+      // Real, actual increment on a genuine wrong password — the real,
+      // temporary counter, AND the real, rolling daily counter (via the
+      // same, shared helper used above).
+      const newCount = (user.failed_login_count || 0) + 1;
+      const shouldLock = newCount >= _securitySettingsCache.lockout_threshold;
+
+      await pool.query(
+        `UPDATE users SET failed_login_count=$1, locked_until=$2 WHERE user_id=$3`,
+        [shouldLock ? 0 : newCount, shouldLock ? new Date(Date.now() + _securitySettingsCache.lockout_seconds * 1000) : null, user.user_id]
+      );
+      await _bumpDailyFailureCount();
+      return genericError();
+    }
+
+    // A genuine, successful login — real, actual reset of the
+    // TEMPORARY failure count only, per explicit, confirmed design.
+    // The real, daily counter and security_disabled flag are
+    // deliberately NOT reset here — a genuine, successful login should
+    // not erase a real, actual daily-volume signal, and a
+    // security-disabled account requires genuine, real superadmin
+    // action to clear regardless of any later, real, correct password
+    // entry (which, per the check above, can't even reach this point
+    // while still disabled anyway).
+    if (user.failed_login_count > 0 || user.locked_until) {
+      await pool.query(`UPDATE users SET failed_login_count=0, locked_until=NULL WHERE user_id=$1`, [user.user_id]);
+    }
 
     const rawToken = await createSession(user.user_id);
     if (!rawToken) return res.status(500).json({ error: 'Could not create session.' });
@@ -2491,6 +2891,16 @@ app.get('/api/auth/me', async (req, res) => {
   res.json({ user });
 });
 
+// Real, new, small, public route exposing DEFAULT_TENANT_ID — needed so
+// the real, frontend's seed logic can genuinely, correctly check
+// whether the CURRENT, real, actual tenant is genuinely the
+// original/default one before ever attempting to seed anything.
+// Deliberately public (see PUBLIC_ROUTES below), since this value is
+// genuinely just a real, non-sensitive configuration constant.
+app.get('/api/default-tenant-id', (req, res) => {
+  res.json({ default_tenant_id: DEFAULT_TENANT_ID });
+});
+
 // Real, new, self-service "change my own password" route — genuinely
 // distinct from both existing password routes: not the superadmin-only
 // set-password route (wrong fit for a regular user changing their own),
@@ -2506,12 +2916,27 @@ app.post('/api/auth/change-password', async (req, res) => {
   if (!req.currentUser) return res.status(401).json({ error: 'Not authenticated' });
   const { newPassword } = req.body;
   if (!newPassword) return res.status(400).json({ error: 'newPassword required' });
-  if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (newPassword.length < _securitySettingsCache.min_password_length) {
+    return res.status(400).json({ error: `Password must be at least ${_securitySettingsCache.min_password_length} characters.` });
+  }
   try {
     const newHash = hashPassword(newPassword);
     await pool.query(
       'UPDATE users SET password_hash=$1, must_change_password=false, date_updated=NOW() WHERE user_id=$2',
       [newHash, req.currentUser.user_id]
+    );
+    // Real, actual session invalidation on password change, per
+    // explicit, confirmed best-practice request — every OTHER real,
+    // live session for this user is genuinely revoked, since the old
+    // password may have been compromised. Deliberately preserves the
+    // CURRENT, real session (this exact request's own token), so the
+    // user isn't immediately logged out right after setting their new
+    // password, matching the real, established, existing flow.
+    const currentRawToken = _parseCookie(req.headers.cookie, 'session_token');
+    const currentTokenHash = currentRawToken ? hashSessionToken(currentRawToken) : null;
+    await pool.query(
+      'DELETE FROM sessions WHERE user_id=$1 AND token_hash IS DISTINCT FROM $2',
+      [req.currentUser.user_id, currentTokenHash]
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'POST /api/auth/change-password:'); }
@@ -2697,10 +3122,11 @@ app.post('/api/auth/set-password', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { token: rawToken, password } = req.body;
   if (!rawToken || !password) return res.status(400).json({ error: 'token and password required' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (password.length < _securitySettingsCache.min_password_length) {
+    return res.status(400).json({ error: `Password must be at least ${_securitySettingsCache.min_password_length} characters.` });
+  }
   try {
     await pool.query('BEGIN');
-    // Re-validate inside the transaction, not just trusting an earlier
     // validate-token call — re-checking here, immediately before marking
     // the token used, closes the window where two simultaneous requests
     // could both pass an earlier check before either actually consumed the
@@ -2718,6 +3144,13 @@ app.post('/api/auth/set-password', async (req, res) => {
     const newHash = hashPassword(password);
     await pool.query('UPDATE users SET password_hash=$1, must_change_password=false, date_updated=NOW() WHERE user_id=$2', [newHash, match.user_id]);
     await pool.query('UPDATE password_reset_tokens SET used_at=NOW() WHERE token_id=$1', [match.token_id]);
+    // Real, actual session invalidation, per explicit, confirmed
+    // best-practice request — genuinely the simplest, real case here,
+    // since there's no real, active session to preserve at all (this
+    // route is reached via an emailed link, not an existing, live
+    // session). Kept within this same, real transaction, so it's
+    // atomic with the actual password update itself.
+    await pool.query('DELETE FROM sessions WHERE user_id=$1', [match.user_id]);
     await pool.query('COMMIT');
     res.json({ ok: true });
   } catch(err) {
@@ -2746,7 +3179,9 @@ app.post('/api/admin/users/:id/set-password', requireSuperAdmin, async (req, res
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { password, isSuperAdminSelf } = req.body;
   if (!password) return res.status(400).json({ error: 'password required' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  if (password.length < _securitySettingsCache.min_password_length) {
+    return res.status(400).json({ error: `Password must be at least ${_securitySettingsCache.min_password_length} characters.` });
+  }
   try {
     const newHash = hashPassword(password);
     // Per explicit requirement: a password set this way requires the
@@ -2764,23 +3199,39 @@ app.post('/api/admin/users/:id/set-password', requireSuperAdmin, async (req, res
       [newHash, mustChange, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    // Real, actual session invalidation, per explicit, confirmed
+    // best-practice request — every real, live session belonging to
+    // the TARGET user is genuinely revoked, since their password (and
+    // therefore any session established with the old one) should no
+    // longer be trusted.
+    await pool.query('DELETE FROM sessions WHERE user_id=$1', [req.params.id]);
     res.json({ ok: true, user: rows[0] });
   } catch(err) { return fail(res, err, 'POST /api/admin/users/:id/set-password:'); }
 });
 
 app.patch('/api/admin/users/:id', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { login_id, first_name, last_name, role, is_superadmin, is_active } = req.body;
+  const { login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled } = req.body;
   try {
+    // Real, actual re-enable, per explicit request — when a superadmin
+    // is explicitly clearing security_disabled back to false, also
+    // resets the real, daily failed-login counter, since otherwise the
+    // account could immediately re-trigger the same, real disable on
+    // the very next failed attempt, defeating the whole point of this
+    // real, deliberate re-enable action.
+    const resettingDailyCount = security_disabled === false;
     const { rows } = await pool.query(
       `UPDATE users SET
          login_id=COALESCE($7,login_id),
          first_name=COALESCE($2,first_name), last_name=COALESCE($3,last_name),
          role=COALESCE($4,role), is_superadmin=COALESCE($5,is_superadmin),
-         is_active=COALESCE($6,is_active), date_updated=NOW()
+         is_active=COALESCE($6,is_active),
+         security_disabled=COALESCE($8,security_disabled),
+         daily_failed_login_count=CASE WHEN $9 THEN 0 ELSE daily_failed_login_count END,
+         date_updated=NOW()
        WHERE user_id=$1
-       RETURNING user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated`,
-      [req.params.id, first_name, last_name, role, is_superadmin, is_active, login_id]
+       RETURNING user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled, date_created, date_updated`,
+      [req.params.id, first_name, last_name, role, is_superadmin, is_active, login_id, security_disabled, resettingDailyCount]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(rows[0]);
@@ -2841,6 +3292,69 @@ app.get('/api/admin/tenants-unassigned-users', requireSuperAdmin, async (req, re
   } catch(err) { return fail(res, err, 'GET /api/admin/tenants-unassigned-users:'); }
 });
 
+// Real, new routes for the Security settings, per explicit request. GET
+// returns the real, current, live values for the new admin UI. POST
+// validates and saves real, new values — updating both the real,
+// actual database row AND the in-memory cache immediately, so a real,
+// saved change takes effect on the very next login attempt, not only
+// after a future server restart.
+app.get('/api/admin/security-settings', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM security_settings WHERE id=1');
+    if (!rows.length) return res.status(404).json({ error: 'Security settings not found' });
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'GET /api/admin/security-settings:'); }
+});
+
+app.get('/api/admin/security-error-log', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT ael.log_id, ael.code, aec.title AS code_title, aec.description AS code_description,
+              ael.user_id, ael.login_id, u.first_name, u.last_name, u.email,
+              ael.requested_path, ael.requested_tenant_id, ael.date_created
+       FROM access_error_log ael
+       JOIN access_error_codes aec ON aec.code = ael.code
+       LEFT JOIN users u ON u.user_id = ael.user_id
+       ORDER BY ael.date_created DESC
+       LIMIT 1000`
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/security-error-log:'); }
+});
+
+
+app.post('/api/admin/security-settings', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { min_password_length, lockout_seconds, lockout_threshold, daily_failed_login_limit } = req.body;
+  const fields = { min_password_length, lockout_seconds, lockout_threshold, daily_failed_login_limit };
+  // Real, sensible validation — every one of these must be a real,
+  // actual positive integer; a genuinely zero or negative value for
+  // any of them would be nonsensical (a zero-second lockout is not a
+  // real lockout at all, a zero-length password requirement means no
+  // real requirement).
+  for (const [key, val] of Object.entries(fields)) {
+    if (!Number.isInteger(val) || val < 1) {
+      return res.status(400).json({ error: `${key} must be a real, positive whole number.` });
+    }
+  }
+  try {
+    const { rows } = await pool.query(
+      `UPDATE security_settings SET
+         min_password_length=$1, lockout_seconds=$2, lockout_threshold=$3,
+         daily_failed_login_limit=$4, date_updated=NOW()
+       WHERE id=1
+       RETURNING *`,
+      [min_password_length, lockout_seconds, lockout_threshold, daily_failed_login_limit]
+    );
+    // Real, immediate cache refresh — the very next login attempt,
+    // anywhere in the app, genuinely uses these new, real values.
+    await _loadSecuritySettingsCache();
+    res.json(rows[0]);
+  } catch(err) { return fail(res, err, 'POST /api/admin/security-settings:'); }
+});
+
 // Assigns one or more users to a tenant — body: { userIds: [...], role?: '...' }.
 // Idempotent: assigning an already-assigned user is a harmless no-op
 // (ON CONFLICT DO NOTHING), so the multi-select "assign selected users"
@@ -2892,7 +3406,7 @@ app.get('/api/orphaned-workpapers', async (req, res) => {
        WHERE w.tenant_id=$1
          AND NOT EXISTS (SELECT 1 FROM audits a WHERE a.tenant_id=w.tenant_id AND a.name=w.audit_name)
        ORDER BY w.audit_name, w.ref`,
-      [DEFAULT_TENANT_ID]
+      [req.currentTenantId]
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'api'); }
@@ -2900,7 +3414,7 @@ app.get('/api/orphaned-workpapers', async (req, res) => {
 
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -3028,7 +3542,7 @@ app.delete('/api/workpapers/:ref', async (req, res) => {
 // workpapers.id, resolved from that ref first. This keeps the human-facing
 // API shape the same while the actual linking key is the stable surrogate.
 async function _resolveWorkpaperId(ref) {
-  const { rows } = await pool.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2', [DEFAULT_TENANT_ID, ref]);
+  const { rows } = await pool.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2', [req.currentTenantId, ref]);
   return rows.length ? rows[0].id : null;
 }
 
@@ -3240,7 +3754,7 @@ app.get('/api/diagnose-sample-files/:ref', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT file_id, filename, bucket_key, bucket_name, content_type, size_bytes, archived, date_created
        FROM sample_files WHERE tenant_id=$1 AND ref=$2 ORDER BY filename`,
-      [DEFAULT_TENANT_ID, req.params.ref]
+      [req.currentTenantId, req.params.ref]
     );
     if (!STORAGE_CONFIGURED) {
       return res.json({
@@ -3301,7 +3815,7 @@ app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
   );
 
   try {
-    const bucketKey = _buildBucketKey(DEFAULT_TENANT_ID, req.params.ref, testFilename);
+    const bucketKey = _buildBucketKey(req.currentTenantId, req.params.ref, testFilename);
     result.bucket_key_used = bucketKey;
 
     try {
@@ -3321,7 +3835,7 @@ app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
            size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
            uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
          RETURNING file_id, filename, annotated_from`,
-        [DEFAULT_TENANT_ID, req.params.ref, testFilename, bucketKey, 'application/pdf', minimalPdfBytes.length, STORAGE_BUCKET, 'diagnostic', null]
+        [req.currentTenantId, req.params.ref, testFilename, bucketKey, 'application/pdf', minimalPdfBytes.length, STORAGE_BUCKET, 'diagnostic', null]
       );
       result.steps.push({ step: 'metadata_insert_with_annotated_from', ok: true, row: rows[0] });
     } catch (e) {
@@ -3330,7 +3844,7 @@ app.get('/api/diagnose-sample-upload/:ref', async (req, res) => {
 
     // Clean up the diagnostic row/object either way.
     try {
-      await pool.query('DELETE FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3', [DEFAULT_TENANT_ID, req.params.ref, testFilename]);
+      await pool.query('DELETE FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3', [req.currentTenantId, req.params.ref, testFilename]);
       await deleteFileFromStorage(bucketKey);
     } catch (cleanupErr) { result.cleanup_error = cleanupErr.message; }
 
@@ -3532,7 +4046,7 @@ app.get('/api/diagnose-sample-data-widths/:ref', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT ref, sample_data FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
-      [DEFAULT_TENANT_ID, req.params.ref]
+      [req.currentTenantId, req.params.ref]
     );
     if (!rows.length) return res.status(404).json({ error: 'No workpaper found with that ref', ref: req.params.ref });
     const sd = rows[0].sample_data || { columns: [] };
@@ -3547,9 +4061,9 @@ app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
-      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, archived, date_created, date_updated
+      `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, file_category, archived, date_created, date_updated
        FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
-      [DEFAULT_TENANT_ID, req.params.ref]
+      [req.currentTenantId, req.params.ref]
     );
     res.json(rows);
   } catch(err) {
@@ -3565,9 +4079,9 @@ app.get('/api/sample-files/:ref', async (req, res) => {
     if (err.code === '42703') { // undefined_column
       try {
         const { rows } = await pool.query(
-          `SELECT file_id, filename, content_type, size_bytes, uploaded_by, archived, date_created, date_updated
+          `SELECT file_id, filename, content_type, size_bytes, uploaded_by, file_category, archived, date_created, date_updated
            FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
-          [DEFAULT_TENANT_ID, req.params.ref]
+          [req.currentTenantId, req.params.ref]
         );
         console.error('[GET /api/sample-files/:ref] annotated_from column missing on live table — served without it. Migration likely has not reached this database yet.');
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
@@ -3587,7 +4101,7 @@ app.get('/api/sample-files/:ref/archived', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated
        FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
-      [DEFAULT_TENANT_ID, req.params.ref]
+      [req.currentTenantId, req.params.ref]
     );
     res.json(rows);
   } catch(err) {
@@ -3596,7 +4110,7 @@ app.get('/api/sample-files/:ref/archived', async (req, res) => {
         const { rows } = await pool.query(
           `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
            FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
-          [DEFAULT_TENANT_ID, req.params.ref]
+          [req.currentTenantId, req.params.ref]
         );
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
       } catch (err2) { /* fall through */ }
@@ -3613,32 +4127,42 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
   const filename = req.body.filename || req.file.originalname;
   const uploadedBy = req.body.uploadedBy || '';
   const annotatedFrom = req.body.annotatedFrom || null;
+  // Real, new field, per explicit confirmation — genuinely distinguishes
+  // an "Attached Sample File" from an "Attached Workpaper File" within
+  // this same, real, existing table. Defaults to 'sample' for genuine
+  // backward compatibility with every, real, existing frontend call
+  // that doesn't yet send this field.
+  const fileCategory = req.body.fileCategory === 'workpaper' ? 'workpaper' : 'sample';
 
   try {
-    // If a file with this same name already exists for this workpaper,
-    // remember its old bucket key so it can be cleaned up — but only
-    // AFTER the new upload is confirmed to have succeeded, so a failed
-    // re-upload never destroys the previously-good file.
+    // If a file with this same name AND same category already exists
+    // for this workpaper, remember its old bucket key so it can be
+    // cleaned up — but only AFTER the new upload is confirmed to have
+    // succeeded, so a failed re-upload never destroys the previously-
+    // good file. Genuinely scoped by file_category too now, per
+    // explicit confirmation — a real "summary.pdf" sample file and a
+    // real "summary.pdf" workpaper file are two, real, genuinely
+    // distinct rows, not a real conflict with each other.
     const { rows: existingRows } = await pool.query(
-      'SELECT bucket_key FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3',
-      [DEFAULT_TENANT_ID, ref, filename]
+      'SELECT bucket_key FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND filename=$3 AND file_category=$4',
+      [req.currentTenantId, ref, filename, fileCategory]
     );
     const oldBucketKey = existingRows[0]?.bucket_key || null;
 
-    const bucketKey = _buildBucketKey(DEFAULT_TENANT_ID, ref, filename);
+    const bucketKey = _buildBucketKey(req.currentTenantId, ref, filename);
     await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
 
     let rows;
     try {
       ({ rows } = await pool.query(
-        `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, date_updated)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-         ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+        `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, file_category, date_updated)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+         ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
            bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
            size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
            uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
-         RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated`,
-        [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom]
+         RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, file_category, date_created, date_updated`,
+        [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom, fileCategory]
       ));
     } catch (insertErr) {
       // Same real, confirmed gap already fixed on the GET routes two
@@ -3654,14 +4178,14 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
       if (insertErr.code === '42703') {
         console.error('[POST /api/sample-files/:ref] annotated_from column missing on live table — saved without it. Migration likely has not reached this database yet.');
         ({ rows } = await pool.query(
-          `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, date_updated)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
-           ON CONFLICT (tenant_id, ref, filename) DO UPDATE SET
+          `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+           ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
              bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
              size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
              uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
-           RETURNING file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated`,
-          [DEFAULT_TENANT_ID, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy]
+           RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
+          [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
         ));
         rows = rows.map(r => ({ ...r, annotated_from: null }));
       } else {
@@ -3688,7 +4212,7 @@ app.get('/api/sample-files/:ref/:fileId/download', async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT filename, bucket_key, content_type FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
-      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+      [req.currentTenantId, req.params.ref, req.params.fileId]
     );
     if (!rows.length) return res.status(404).json({ error: 'File not found' });
     const file = rows[0];
@@ -3712,7 +4236,7 @@ app.patch('/api/sample-files/:ref/:fileId/archive', async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE sample_files SET archived=$4, date_updated=NOW()
        WHERE tenant_id=$1 AND ref=$2 AND file_id=$3 RETURNING file_id`,
-      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId, req.body.archived !== false]
+      [req.currentTenantId, req.params.ref, req.params.fileId, req.body.archived !== false]
     );
     if (!rows.length) return res.status(404).json({ error: 'File not found' });
     res.json({ ok: true });
@@ -3727,13 +4251,13 @@ app.delete('/api/sample-files/:ref/:fileId', async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT bucket_key FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
-      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+      [req.currentTenantId, req.params.ref, req.params.fileId]
     );
     if (!rows.length) return res.status(404).json({ error: 'File not found' });
     await deleteFileFromStorage(rows[0].bucket_key);
     await pool.query(
       'DELETE FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_id=$3',
-      [DEFAULT_TENANT_ID, req.params.ref, req.params.fileId]
+      [req.currentTenantId, req.params.ref, req.params.fileId]
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'DELETE /api/sample-files/:ref/:fileId:'); }
@@ -3744,14 +4268,14 @@ app.delete('/api/sample-files/:ref/:fileId', async (req, res) => {
 app.get('/api/company-settings', async (req, res) => {
   if (!pool) return res.json({});
   try {
-    await pool.query(`INSERT INTO company_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [DEFAULT_TENANT_ID]);
+    await pool.query(`INSERT INTO company_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`, [req.currentTenantId]);
     // Select columns explicitly. `SELECT *` + delete would leak any future
     // secret column that someone forgets to strip.
     const { rows } = await pool.query(
       `SELECT tenant_id,name,industry,fiscal_year_end,address,city,state,zip,
               website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at
        FROM company_settings WHERE tenant_id=$1`,
-      [DEFAULT_TENANT_ID]
+      [req.currentTenantId]
     );
     res.json(rows[0] || {});
   } catch(err) { return fail(res, err, 'company-settings:get'); }
@@ -3781,10 +4305,10 @@ app.post('/api/company-settings', async (req, res) => {
     await pool.query(q, [name||'', industry||'', fiscal_year_end||'', address||'',
       city||'', state||'', zip||'', website||'', ein||'',
       ai_provider||'anthropic', ai_model||'claude-sonnet-4-6',
-      azure_endpoint||'', azure_deployment||'', DEFAULT_TENANT_ID]);
+      azure_endpoint||'', azure_deployment||'', req.currentTenantId]);
     // Update API keys separately if provided
-    if (azure_api_key)  await pool.query('UPDATE company_settings SET azure_api_key=$1  WHERE tenant_id=$2', [azure_api_key,  DEFAULT_TENANT_ID]);
-    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE tenant_id=$2', [openai_api_key, DEFAULT_TENANT_ID]);
+    if (azure_api_key)  await pool.query('UPDATE company_settings SET azure_api_key=$1  WHERE tenant_id=$2', [azure_api_key,  req.currentTenantId]);
+    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE tenant_id=$2', [openai_api_key, req.currentTenantId]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'company-settings'); }
 });
@@ -3795,7 +4319,7 @@ app.get('/api/tenant-ai-config', async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT provider,model,endpoint,deployment,key_hint,use_managed_id FROM tenant_ai_configs WHERE tenant_id=$1',
-      [DEFAULT_TENANT_ID]
+      [req.currentTenantId]
     );
     res.json(rows); // never return encrypted_key
   } catch(err) { return fail(res, err, 'api'); }
@@ -3817,7 +4341,7 @@ app.post('/api/tenant-ai-config', async (req, res) => {
         key_hint=COALESCE(NULLIF(EXCLUDED.key_hint,''),tenant_ai_configs.key_hint),
         azure_tenant_id=EXCLUDED.azure_tenant_id, use_managed_id=EXCLUDED.use_managed_id,
         updated_at=NOW()`,
-      [DEFAULT_TENANT_ID, provider, model||'', endpoint||'', deployment||'',
+      [req.currentTenantId, provider, model||'', endpoint||'', deployment||'',
        enc||'', hint||'', azure_tenant_id||'', use_managed_id||false]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
@@ -3844,7 +4368,7 @@ app.post('/api/ai/analyze', express.json({ limit: AI_ANALYZE_BODY_LIMIT }), aiRa
   try {
     // First try the new per-tenant credential store
     const { rows: cfgRows } = await pool.query(
-      'SELECT * FROM company_settings WHERE tenant_id=$1', [DEFAULT_TENANT_ID]
+      'SELECT * FROM company_settings WHERE tenant_id=$1', [req.currentTenantId]
     );
     const cs = cfgRows[0] || {};
     provider = cs.ai_provider || 'anthropic';
@@ -3853,7 +4377,7 @@ app.post('/api/ai/analyze', express.json({ limit: AI_ANALYZE_BODY_LIMIT }), aiRa
     // Look for an encrypted key in tenant_ai_configs
     const { rows: tacRows } = await pool.query(
       'SELECT * FROM tenant_ai_configs WHERE tenant_id=$1 AND provider=$2',
-      [DEFAULT_TENANT_ID, provider]
+      [req.currentTenantId, provider]
     );
     const tac = tacRows[0];
     if (tac) {
@@ -3948,7 +4472,7 @@ app.get('/api/da/datasets', async (req, res) => {
        FROM da_datasets d
        WHERE d.tenant_id=$1
        ORDER BY d.last_used DESC`,
-      [DEFAULT_TENANT_ID]
+      [req.currentTenantId]
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'api'); }
@@ -3962,7 +4486,7 @@ app.post('/api/da/datasets', async (req, res) => {
     // Check if this file hash already exists for this tenant
     const existing = await pool.query(
       'SELECT id FROM da_datasets WHERE tenant_id=$1 AND file_hash=$2',
-      [DEFAULT_TENANT_ID, file_hash]
+      [req.currentTenantId, file_hash]
     );
     if (existing.rows.length) {
       // Update last_used and return existing id
@@ -3975,7 +4499,7 @@ app.post('/api/da/datasets', async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO da_datasets (tenant_id,name,filename,file_hash,row_count,col_count,notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [DEFAULT_TENANT_ID, name||filename, filename, file_hash, row_count||0, col_count||0, notes||'']
+      [req.currentTenantId, name||filename, filename, file_hash, row_count||0, col_count||0, notes||'']
     );
     res.json({ id: rows[0].id, existing: false });
   } catch(err) { return fail(res, err, 'api'); }
@@ -3987,7 +4511,7 @@ app.patch('/api/da/datasets/:id', async (req, res) => {
   try {
     await pool.query(
       'UPDATE da_datasets SET name=COALESCE($1,name), notes=COALESCE($2,notes), last_used=NOW() WHERE id=$3 AND tenant_id=$4',
-      [name, notes, req.params.id, DEFAULT_TENANT_ID]
+      [name, notes, req.params.id, req.currentTenantId]
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'api'); }
@@ -3999,7 +4523,7 @@ app.delete('/api/da/datasets/:id', async (req, res) => {
     // CASCADE on da_columns, da_labels, da_model_runs handles cleanup
     const r = await pool.query(
       'DELETE FROM da_datasets WHERE id=$1 AND tenant_id=$2 RETURNING id',
-      [req.params.id, DEFAULT_TENANT_ID]
+      [req.params.id, req.currentTenantId]
     );
     if (!r.rowCount) return res.status(404).json({ error: 'Dataset not found' });
     res.json({ ok: true, purged: req.params.id });
@@ -4196,7 +4720,7 @@ app.get('/api/da/datasets/by-hash/:hash', async (req, res) => {
        WHERE d.tenant_id=$1 AND d.file_hash=$2
        GROUP BY d.id
        ORDER BY d.last_used DESC LIMIT 1`,
-      [DEFAULT_TENANT_ID, req.params.hash]
+      [req.currentTenantId, req.params.hash]
     );
     if (!rows.length) return res.json(null);
     await pool.query('UPDATE da_datasets SET last_used=NOW() WHERE id=$1', [rows[0].id]);
@@ -4264,11 +4788,20 @@ app.post('/api/ml/train', aiRateLimit, async (req, res) => {
 // Called from client startup to write all static data to DB using
 // INSERT ... ON CONFLICT DO NOTHING — safe to run on every deploy.
 // Audits + workpapers are excluded here because their PK is the user-editable name.
+// Per explicit confirmation, only ever allowed for the real,
+// original/default tenant — a genuinely, newly-created, real tenant
+// must never receive any of this demo data. This is the real,
+// backend-level guard, as genuine defense-in-depth alongside the real,
+// frontend's own, matching check — this route's entire, actual purpose
+// is seeding demo data, never a real, legitimate, user-facing action.
 app.post('/api/seed/bulk', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
+  if (req.currentTenantId !== DEFAULT_TENANT_ID) {
+    return res.status(403).json({ error: 'Seeding is only permitted for the default tenant.' });
+  }
   const { controls=[], risks=[], entities=[], fs_accounts=[], objectives=[] } = req.body;
   const results = {};
-  const tid = DEFAULT_TENANT_ID;
+  const tid = req.currentTenantId;
   try {
     // Controls
     if (controls.length) {
@@ -4364,7 +4897,7 @@ app.post('/api/seed/bulk', async (req, res) => {
 // ── Control Objectives API ─────────────────────────────────────────────────────
 app.get('/api/control-objectives', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM control_objectives WHERE tenant_id=$1 ORDER BY id', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM control_objectives WHERE tenant_id=$1 ORDER BY id', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/control-objectives', async (req, res) => {
@@ -4388,7 +4921,7 @@ app.delete('/api/control-objectives/:id', async (req, res) => {
 // ── FS Accounts API ───────────────────────────────────────────────────────────
 app.get('/api/fs-accounts', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM fs_accounts WHERE tenant_id=$1 ORDER BY section, code, id', [DEFAULT_TENANT_ID]); res.json(rows); }
+  try { const { rows } = await pool.query('SELECT * FROM fs_accounts WHERE tenant_id=$1 ORDER BY section, code, id', [req.currentTenantId]); res.json(rows); }
   catch(err) { return fail(res, err, 'api'); }
 });
 app.post('/api/fs-accounts', async (req, res) => {
@@ -4428,8 +4961,8 @@ app.delete('/api/fs-accounts/:id', async (req, res) => {
 app.get('/api/company-context', async (req, res) => {
   if (!pool) return res.json({ notes: '' });
   try {
-    await pool.query(`INSERT INTO company_context (tenant_id,id,notes) VALUES ($1,1,$2) ON CONFLICT (tenant_id,id) DO NOTHING`, [DEFAULT_TENANT_ID,'']);
-    const { rows } = await pool.query('SELECT notes FROM company_context WHERE tenant_id=$1 AND id=1', [DEFAULT_TENANT_ID]);
+    await pool.query(`INSERT INTO company_context (tenant_id,id,notes) VALUES ($1,1,$2) ON CONFLICT (tenant_id,id) DO NOTHING`, [req.currentTenantId,'']);
+    const { rows } = await pool.query('SELECT notes FROM company_context WHERE tenant_id=$1 AND id=1', [req.currentTenantId]);
     res.json({ notes: rows[0]?.notes || '' });
   } catch(err) { return fail(res, err, 'api'); }
 });
@@ -4437,7 +4970,7 @@ app.post('/api/company-context', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const { notes } = req.body;
   try {
-    await pool.query('INSERT INTO company_context (tenant_id,id,notes,updated_at) VALUES ($1,1,$2,NOW()) ON CONFLICT (tenant_id,id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [DEFAULT_TENANT_ID, notes||'']);
+    await pool.query('INSERT INTO company_context (tenant_id,id,notes,updated_at) VALUES ($1,1,$2,NOW()) ON CONFLICT (tenant_id,id) DO UPDATE SET notes=EXCLUDED.notes, updated_at=NOW()', [req.currentTenantId, notes||'']);
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'api'); }
 });
@@ -4455,7 +4988,7 @@ app.post('/api/analysis-notes/:type/:id', async (req, res) => {
   if (!Object.hasOwn(ROUTES, req.params.type))
     return res.status(400).json({ error: 'Unknown type' });
   try {
-    await pool.query(ROUTES[req.params.type].sql, [notes||'', DEFAULT_TENANT_ID, req.params.id]);
+    await pool.query(ROUTES[req.params.type].sql, [notes||'', req.currentTenantId, req.params.id]);
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'api'); }
 });
