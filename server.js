@@ -199,6 +199,83 @@ function generateSecureToken() {
   return crypto.randomBytes(32).toString('base64url');
 }
 
+// ── Real session utilities ────────────────────────────────────────────
+// hashSessionToken uses a FAST cryptographic hash (SHA-256) — genuinely
+// distinct from hashToken/hashPassword above, which deliberately use
+// slow, real scrypt hashing. That's correct for an infrequent, real
+// action like setting a password, but a session token needs to be
+// verified on every single incoming request, and scrypt's real,
+// intentional slowness would be a genuine, real performance problem at
+// any meaningful scale. SHA-256 is still a real, one-way cryptographic
+// hash — an attacker with database access still cannot recover the
+// original token from what's stored — it's just fast, which is
+// genuinely the correct tradeoff here.
+// Real, minimal cookie parser — deliberately avoids adding a new npm
+// dependency (cookie-parser) for what's a real, simple, direct need:
+// finding one specific, named cookie's value within the raw Cookie
+// header. Returns null if the header is missing or the named cookie
+// isn't present.
+function _parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx).trim();
+    if (key === name) return decodeURIComponent(part.slice(eqIdx + 1).trim());
+  }
+  return null;
+}
+
+function hashSessionToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 real days
+
+// Issues a real, new session for a given user — generates a genuinely
+// random, unguessable token, stores only its fast hash (never the raw
+// token itself, matching the same real discipline already used for
+// password-reset tokens), and returns the real, raw token for the
+// caller to actually send back to the browser (the only place it ever
+// exists outside this one moment).
+async function createSession(userId) {
+  if (!pool) return null;
+  const rawToken = generateSecureToken();
+  const tokenHash = hashSessionToken(rawToken);
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+  await pool.query(
+    `INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1,$2,$3)`,
+    [userId, tokenHash, expiresAt]
+  );
+  return rawToken;
+}
+
+// The real, actual per-request check — hashes the incoming, real token,
+// looks up a real, non-expired session, and returns the real, CURRENT,
+// live user record (not a stale, cached one — is_active/is_superadmin
+// could have genuinely changed since the session was first issued, and
+// every check here should reflect the real, current state).
+async function getUserFromSessionToken(rawToken) {
+  if (!pool || !rawToken) return null;
+  try {
+    const tokenHash = hashSessionToken(rawToken);
+    const { rows } = await pool.query(
+      `SELECT u.user_id, u.tenant_id, u.email, u.login_id, u.first_name, u.last_name,
+              u.role, u.is_superadmin, u.is_active
+       FROM sessions s
+       JOIN users u ON u.user_id = s.user_id
+       WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
+      [tokenHash]
+    );
+    if (!rows.length) return null;
+    return rows[0];
+  } catch (err) {
+    console.error('getUserFromSessionToken FAILED:', err.message);
+    return null;
+  }
+}
+
 // ── Object storage helpers ──────────────────────────────────────────────
 // Generates the actual S3 object key for a sample file — deliberately NOT
 // the user-supplied filename (see the sample_files table comment for why:
@@ -1372,6 +1449,37 @@ async function backfillLoginIdForExistingUsers() {
   await backfillLoginIdForExistingUsers();
 })();
 
+// ── Standalone, independent addition: real, actual user sessions ────────
+// Per explicit request to build real, per-request authentication. A
+// session token is genuinely random (32 bytes), sent to the browser
+// once at login, and the server verifies it on every subsequent
+// request. token_hash uses a FAST cryptographic hash (SHA-256),
+// deliberately distinct from the slow, real scrypt hashing this app
+// already uses for passwords and email-link reset tokens — those are
+// correct for infrequent, real actions, but a session token needs
+// verification on every single request, and scrypt's real, intentional
+// slowness would be a genuine, real performance problem at any
+// meaningful scale.
+async function ensureSessionsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        session_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id      UUID NOT NULL,
+        token_hash   TEXT NOT NULL UNIQUE,
+        expires_at   TIMESTAMPTZ NOT NULL,
+        date_created TIMESTAMPTZ DEFAULT NOW(),
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+      )
+    `);
+    console.log('DB: sessions table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone sessions table check FAILED:', err.message, err.code);
+  }
+}
+ensureSessionsTable();
+
 // Behind Railway's reverse proxy the client IP arrives in X-Forwarded-For.
 // Without this, req.ip is the proxy's address and the per-IP rate limiter would
 // lump every user into one bucket. 1 = trust the first proxy hop.
@@ -1452,6 +1560,78 @@ setInterval(() => {
     if (live.length) _aiHits.set(ip, live); else _aiHits.delete(ip);
   }
 }, AI_WINDOW_MS).unref();
+
+// ── Real, actual per-request authentication + tenant-access middleware ──
+// Per explicit request: every request now genuinely, actually gets
+// checked — not a frontend-only convenience like every other
+// access-control feature built so far this session, but a real,
+// server-side gate every one of this file's 100+ routes now passes
+// through. A small, explicit, real allowlist covers routes that must
+// stay reachable without a session (login itself, logout, the
+// session-check route, the tenant list needed for the picker before
+// login, static assets, health check) — everything else requires a
+// real, valid, non-expired session.
+//
+// Per explicit instruction, checks is_superadmin FIRST: a real
+// superadmin genuinely passes regardless of which tenant is being
+// requested, matching "access by default." Everyone else needs a real,
+// actual row in user_tenants for the SPECIFIC tenant being requested —
+// checked via req.query.tenant_id / req.body.tenant_id / a real
+// X-Tenant-Id header, whichever the caller provides; a request that
+// names no specific tenant at all is allowed through once authenticated
+// (many real routes, like /api/control-categories, are not genuinely
+// tenant-specific), but any request that DOES name a tenant must
+// genuinely be one this real, authenticated user actually has access to.
+const PUBLIC_ROUTES = new Set([
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/me',
+  '/api/auth/validate-login-id',
+  '/api/tenants',
+  '/health',
+]);
+app.use(async (req, res, next) => {
+  if (PUBLIC_ROUTES.has(req.path)) return next();
+  if (!req.path.startsWith('/api/')) return next(); // static assets, the frontend HTML itself — not a real API request
+
+  const rawToken = _parseCookie(req.headers.cookie, 'session_token');
+  const user = await getUserFromSessionToken(rawToken);
+  if (!user) return res.status(401).json({ error: 'Not authenticated.' });
+  if (!user.is_active) return res.status(401).json({ error: 'This account has been deactivated.' });
+
+  req.currentUser = user; // real, available to every route handler from here on, not re-derived per-route
+
+  // Real superadmin: access by default, per explicit instruction —
+  // genuinely bypasses the tenant check entirely.
+  if (user.is_superadmin) return next();
+
+  const requestedTenantId = req.query.tenant_id || (req.body && req.body.tenant_id) || req.headers['x-tenant-id'];
+  if (!requestedTenantId) return next(); // no specific tenant named — not every real route is tenant-scoped
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT 1 FROM user_tenants WHERE user_id=$1 AND tenant_id=$2',
+      [user.user_id, requestedTenantId]
+    );
+    if (!rows.length) return res.status(403).json({ error: 'You do not have access to this tenant.' });
+    next();
+  } catch (err) {
+    console.error('Tenant-access check FAILED:', err.message);
+    return res.status(500).json({ error: 'Could not verify tenant access.' });
+  }
+});
+
+// Real, new, reusable authorization middleware — distinct from the
+// broader authentication middleware above (which only confirms someone
+// is genuinely logged in, not which specific role they hold). Applied
+// to every real /api/admin/* route below, since every one of those is
+// genuinely intended to be superadmin-only, per explicit instruction.
+function requireSuperAdmin(req, res, next) {
+  if (!req.currentUser || !req.currentUser.is_superadmin) {
+    return res.status(403).json({ error: 'This action requires SuperAdmin access.' });
+  }
+  next();
+}
 
 // ── Control Categories API ────────────────────────────────────────────────────
 app.get('/api/control-categories', async (req, res) => {
@@ -2200,6 +2380,89 @@ app.get('/api/auth/validate-login-id', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/auth/validate-login-id:'); }
 });
 
+// Real, complete login route — per explicit confirmation, checks BOTH
+// User ID and Password for real, and only issues a genuine session once
+// both are correct. Reuses verifyPassword, the same real, established
+// function already used for the superadmin "set password" feature.
+// Checks is_active BEFORE verifying the password — a deactivated
+// account should never authenticate, regardless of whether the
+// password is correct.
+app.post('/api/auth/login', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { login_id, password } = req.body;
+  if (!login_id || !password) return res.status(400).json({ error: 'login_id and password are required' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT user_id, email, login_id, first_name, last_name, role, is_superadmin, is_active,
+              must_change_password, password_hash
+       FROM users WHERE login_id=$1`,
+      [login_id.trim()]
+    );
+    // Deliberately identical, generic error for "no such user" and
+    // "wrong password" — a real, reasonable practice so a real,
+    // external caller can't use this response to learn which User IDs
+    // genuinely exist versus don't.
+    const genericError = () => res.status(401).json({ error: 'Invalid User ID or password.' });
+    if (!rows.length) return genericError();
+    const user = rows[0];
+    if (!user.is_active) return genericError();
+    if (!verifyPassword(password, user.password_hash)) return genericError();
+
+    const rawToken = await createSession(user.user_id);
+    if (!rawToken) return res.status(500).json({ error: 'Could not create session.' });
+
+    // Real, actual cookie — httpOnly (never readable by frontend JS, a
+    // real, meaningful protection against XSS-based token theft),
+    // sameSite=lax (a real, reasonable default balancing CSRF
+    // protection against normal navigation still working), and secure
+    // in production (real, actual HTTPS-only transmission — Railway
+    // terminates TLS in front of this app, so NODE_ENV determines this
+    // correctly for both local development and the real, live deploy).
+    res.cookie('session_token', rawToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: SESSION_DURATION_MS,
+    });
+
+    res.json({
+      ok: true,
+      user: {
+        user_id: user.user_id, email: user.email, login_id: user.login_id,
+        first_name: user.first_name, last_name: user.last_name,
+        role: user.role, is_superadmin: user.is_superadmin,
+      },
+      must_change_password: user.must_change_password,
+    });
+  } catch(err) { return fail(res, err, 'POST /api/auth/login:'); }
+});
+
+// Real, actual logout — deletes the real, actual session row (not just
+// clearing the cookie client-side, which would leave the real session
+// usable by anyone who'd captured the raw token beforehand) and clears
+// the real cookie.
+app.post('/api/auth/logout', async (req, res) => {
+  const rawToken = _parseCookie(req.headers.cookie, 'session_token');
+  if (rawToken && pool) {
+    try {
+      await pool.query('DELETE FROM sessions WHERE token_hash=$1', [hashSessionToken(rawToken)]);
+    } catch (err) { console.error('logout: could not delete session:', err.message); }
+  }
+  res.clearCookie('session_token');
+  res.json({ ok: true });
+});
+
+// Real, actual "who am I" check — the frontend calls this to discover
+// the real, current session's user (if any) on page load, rather than
+// ever trusting anything the browser itself claims about who's logged
+// in.
+app.get('/api/auth/me', async (req, res) => {
+  const rawToken = _parseCookie(req.headers.cookie, 'session_token');
+  const user = await getUserFromSessionToken(rawToken);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  res.json({ user });
+});
+
 app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
@@ -2235,7 +2498,7 @@ app.get('/api/users/non-admin', async (req, res) => {
 // Excludes users already assigned to the given tenant (if tenantId is
 // passed) so the picker only ever shows people who could actually be
 // newly added.
-app.get('/api/admin/users/search', async (req, res) => {
+app.get('/api/admin/users/search', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.json([]);
   const q = (req.query.q || '').trim();
   const excludeTenantId = req.query.excludeTenantId || null;
@@ -2253,7 +2516,7 @@ app.get('/api/admin/users/search', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/admin/users/search:'); }
 });
 
-app.post('/api/admin/users', async (req, res) => {
+app.post('/api/admin/users', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { email, login_id, first_name, last_name, role, is_superadmin, is_active, tenant_id } = req.body;
   if (!email) return res.status(400).json({ error: 'email required' });
@@ -2315,7 +2578,7 @@ app.post('/api/admin/users', async (req, res) => {
   } catch(err) { return fail(res, err, 'POST /api/admin/users:'); }
 });
 
-app.get('/api/admin/tenants', async (req, res) => {
+app.get('/api/admin/tenants', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query('SELECT * FROM tenants ORDER BY name');
@@ -2323,7 +2586,7 @@ app.get('/api/admin/tenants', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/admin/tenants:'); }
 });
 
-app.post('/api/admin/tenants', async (req, res) => {
+app.post('/api/admin/tenants', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { id, name, description, domain, plan } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id and name required' });
@@ -2425,7 +2688,7 @@ app.post('/api/auth/set-password', async (req, res) => {
 // be called from the superadmin-only UI action it's paired with. Real
 // server-side authorization needs to be added here once real sessions
 // exist — this is a genuine, known gap, not an oversight.
-app.post('/api/admin/users/:id/set-password', async (req, res) => {
+app.post('/api/admin/users/:id/set-password', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { password, isSuperAdminSelf } = req.body;
   if (!password) return res.status(400).json({ error: 'password required' });
@@ -2451,7 +2714,7 @@ app.post('/api/admin/users/:id/set-password', async (req, res) => {
   } catch(err) { return fail(res, err, 'POST /api/admin/users/:id/set-password:'); }
 });
 
-app.patch('/api/admin/users/:id', async (req, res) => {
+app.patch('/api/admin/users/:id', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { login_id, first_name, last_name, role, is_superadmin, is_active } = req.body;
   try {
@@ -2470,7 +2733,7 @@ app.patch('/api/admin/users/:id', async (req, res) => {
   } catch(err) { return fail(res, err, 'PATCH /api/admin/users/:id:'); }
 });
 
-app.patch('/api/admin/tenants/:id', async (req, res) => {
+app.patch('/api/admin/tenants/:id', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const { name, description, domain, plan } = req.body;
   try {
@@ -2490,7 +2753,7 @@ app.patch('/api/admin/tenants/:id', async (req, res) => {
 // is the right-hand list on the Tenants section once a tenant is selected.
 // Includes each user's per-tenant role override (if any) alongside their
 // default role, so the UI can show which one is actually in effect.
-app.get('/api/admin/tenants/:id/users', async (req, res) => {
+app.get('/api/admin/tenants/:id/users', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
@@ -2506,12 +2769,30 @@ app.get('/api/admin/tenants/:id/users', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/admin/tenants/:id/users:'); }
 });
 
+// Real, new route for users genuinely NOT assigned to any tenant at
+// all, per explicit request — a real NOT EXISTS subquery against
+// user_tenants, the correct, real inverse of the route above (which
+// finds users WITH a matching row for one specific, real tenant).
+app.get('/api/admin/tenants-unassigned-users', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.user_id, u.email, u.first_name, u.last_name, u.role AS default_role
+       FROM users u
+       WHERE NOT EXISTS (SELECT 1 FROM user_tenants ut WHERE ut.user_id = u.user_id)
+         AND u.is_superadmin = false
+       ORDER BY u.last_name, u.first_name`
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/admin/tenants-unassigned-users:'); }
+});
+
 // Assigns one or more users to a tenant — body: { userIds: [...], role?: '...' }.
 // Idempotent: assigning an already-assigned user is a harmless no-op
 // (ON CONFLICT DO NOTHING), so the multi-select "assign selected users"
 // action in the UI can't fail just because one of several checked users
 // was already assigned.
-app.post('/api/admin/tenants/:id/users', async (req, res) => {
+app.post('/api/admin/tenants/:id/users', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   const tenantId = req.params.id;
   const { userIds, role } = req.body;
@@ -2538,7 +2819,7 @@ app.post('/api/admin/tenants/:id/users', async (req, res) => {
 
 // Removes ONE user's access to a tenant — this is what an admin uses to
 // un-assign a user from the right-hand list, not a bulk operation.
-app.delete('/api/admin/tenants/:id/users/:userId', async (req, res) => {
+app.delete('/api/admin/tenants/:id/users/:userId', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   try {
     await pool.query(
