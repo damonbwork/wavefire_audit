@@ -3621,7 +3621,7 @@ app.post('/api/workpapers', async (req, res) => {
   if (!ref) return res.status(400).json({ error: 'ref required' });
   try {
     await pool.query(`INSERT INTO workpapers
-        (ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
+        (tenant_id,ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
          date_started,review_date,date_submitted,secondary_review_date,
          population,sample_method,sample_size,narrative,description,test_desc,
          linked_controls,linked_risks,linked_entities,fs_accounts,
@@ -3632,11 +3632,11 @@ app.post('/api/workpapers', async (req, res) => {
          toc_period_from_mmyyyy,toc_period_to_mmyyyy,
          population_source,population_size,population_completeness_desc,
          toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,template_used,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
-              $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
-              $43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,NOW())
-      ON CONFLICT (ref) DO UPDATE SET
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+              $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,
+              $32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,
+              $44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,NOW())
+      ON CONFLICT (tenant_id,ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
         preparer=EXCLUDED.preparer, reviewer=EXCLUDED.reviewer,
@@ -3680,7 +3680,7 @@ app.post('/api/workpapers', async (req, res) => {
         mt_entity_name=EXCLUDED.mt_entity_name, mt_itgc_ref=EXCLUDED.mt_itgc_ref,
         wp_style=EXCLUDED.wp_style, template_used=EXCLUDED.template_used,
         updated_at=NOW()`,
-      [ref, audit_name||'', name||'', type||'', status||'draft', results||'',
+      [req.currentTenantId, ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
        date_started||null, review_date||null, date_submitted||null, secondary_review_date||null,
        population||'', sample_method||'', sample_size||null,
