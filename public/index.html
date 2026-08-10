@@ -29872,15 +29872,29 @@ function makeColumnsResizable(tableId) {
    INIT
 ══════════════════════════════════════ */
 
-// Per explicit, confirmed instructions: a genuinely bare visit (no
-// direct URL hash) shows the real, new landing page first — the login
-// modal only opens once the real, actual Sign In button is clicked. A
-// real, direct URL WITH a hash correctly, genuinely skips the landing
-// page and goes straight to real session/tenant validation instead —
-// see _bootstrapDirectUrlAccess() below.
+// Per explicit, confirmed instructions: a genuinely bare visit shows
+// the real, new landing page first — the login modal only opens once
+// the real, actual Sign In button is clicked. A real, MEANINGFUL,
+// direct-link URL (one that genuinely carries an audit= or wp=
+// parameter — the same, real, established signal handleInitialHash()
+// itself uses to recognize a genuine deep link) correctly, genuinely
+// skips the landing page and goes straight to real session/tenant
+// validation instead — see _bootstrapDirectUrlAccess() below.
+//
+// Real, confirmed fix: a bare "#audits" or "#workpapers" with NO
+// audit=/wp= parameter is genuinely, correctly treated the same as no
+// hash at all — showPage() (this app's own, established function)
+// always, unconditionally writes a hash like this to the URL as a
+// normal, real side effect (used for real, legitimate back/forward
+// button support), so the very first time a real user genuinely landed
+// on the audits page, the browser's own, real URL silently became
+// "#audits" — and without this fix, that self-inflicted hash would be
+// wrongly treated as a genuine deep-link request on their very next
+// visit, permanently skipping the real landing page from then on.
 (function() {
-  const hasRealDirectUrlHash = !!window.location.hash.replace(/^#/, '');
-  if (hasRealDirectUrlHash) {
+  const rawHash = window.location.hash.replace(/^#/, '');
+  const hasRealMeaningfulHash = /[?&]?(audit|wp)=/.test(rawHash);
+  if (hasRealMeaningfulHash) {
     _bootstrapDirectUrlAccess();
     return;
   }
