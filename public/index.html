@@ -18904,19 +18904,37 @@ function initAttrGridPaste() {
   // entirely — neither is meaningful anymore once paste can never span
   // more than one, real cell.
   card.addEventListener('paste', (e) => {
-    // Only handle if focus is inside the test attributes section
-    const active = document.activeElement;
-    if (!card.contains(active)) return;
-    if (!getCellAt(active)) return; // not a genuine, real grid cell at all
+    // Real, confirmed fix for a reported regression — uses the app's
+    // own, explicitly-tracked selection (_anchor) as the reliable,
+    // primary source of truth for the paste target, rather than
+    // depending solely on document.activeElement. The click-to-select
+    // model deliberately blocks native focus on a first, single click
+    // (select-only, no typing yet) — meaning a merely-selected cell
+    // genuinely has no real DOM focus at all, so document.activeElement
+    // alone was never a reliable signal here; pasting into a selected-
+    // but-not-yet-editing cell was silently doing nothing at all.
+    let target = null;
+    if (_anchor && _anchor.gridId === 'test-attr-rows') {
+      target = getCellInputEl(_anchor.rowEl, _anchor.colKey, _anchor.gridId);
+    }
+    if (!target) {
+      // Real, genuine fallback — covers the case where the cell is
+      // actively being typed into but, for whatever real reason,
+      // _anchor wasn't already tracking it (e.g. focus reached the
+      // field by a real, actual Tab keypress rather than a click).
+      const active = document.activeElement;
+      if (card.contains(active) && getCellAt(active)) target = active;
+    }
+    if (!target) return; // genuinely, no real, actual target cell — nothing to paste into
 
     const text = e.clipboardData?.getData('text/plain');
     if (text == null) return;
 
     e.preventDefault();
-    active.value = text;
-    if (typeof autoResizeTA === 'function') autoResizeTA(active);
-    active.dispatchEvent(new Event('input', { bubbles: true }));
-    active.dispatchEvent(new Event('change', { bubbles: true }));
+    target.value = text;
+    if (typeof autoResizeTA === 'function') autoResizeTA(target);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
   });
 }
 
