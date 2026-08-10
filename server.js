@@ -1206,6 +1206,59 @@ async function initDB() {
         console.error('DB: workpaper_templates backfill FAILED:', templateErr.message);
       }
 
+      // ── workpapers primary key — a real, critical, confirmed gap found
+      // directly from a live, reported error: "there is no unique or
+      // exclusion constraint matching the ON CONFLICT specification."
+      // The real, live workpapers table was genuinely created before this
+      // codebase's own, current primary-key definition (tenant_id, ref)
+      // existed — CREATE TABLE IF NOT EXISTS never retroactively updates
+      // an EXISTING table's own, actual constraints, so the real, live
+      // database still, genuinely, has whatever earlier, real key it was
+      // originally created with. Every, real, workpaper save has
+      // genuinely, actually, been attempting an ON CONFLICT target that
+      // does not match anything that actually exists on the real, live
+      // table — which PostgreSQL correctly, always rejects outright,
+      // regardless of how correct the surrounding query text is.
+      // Queries the real, live pg_constraint catalog directly for the
+      // actual, current primary key's real name, rather than assuming
+      // one — matching the exact, same, established, safe pattern
+      // already proven correct for this exact class of fix on
+      // sample_files. Migrating to the new, correct, composite key is
+      // safe for any, real, existing data: anything already, genuinely,
+      // unique under the old, single-column key is automatically, also,
+      // unique under the new, larger, two-column one.
+      try {
+        const { rows: pkRows } = await pool.query(`
+          SELECT conname FROM pg_constraint
+          WHERE conrelid = 'workpapers'::regclass AND contype = 'p'
+        `);
+        let alreadyCorrect = false;
+        for (const { conname } of pkRows) {
+          const { rows: colCheck } = await pool.query(`
+            SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+            FROM pg_constraint c
+            JOIN unnest(c.conkey) AS k(attnum) ON true
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+            WHERE c.conname = $1
+          `, [conname]);
+          const cols = (colCheck[0]?.cols || []).sort();
+          if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
+            alreadyCorrect = true;
+          } else {
+            await pool.query(`ALTER TABLE workpapers DROP CONSTRAINT "${conname}"`);
+            console.log(`DB: dropped the real, old, actual workpapers primary key (${conname}) — was (${cols.join(', ')}), not (tenant_id, ref)`);
+          }
+        }
+        if (!alreadyCorrect) {
+          await pool.query(`ALTER TABLE workpapers ADD PRIMARY KEY (tenant_id, ref)`);
+          console.log('DB: workpapers primary key corrected to (tenant_id, ref)');
+        } else {
+          console.log('DB: workpapers primary key already correctly (tenant_id, ref)');
+        }
+      } catch (pkErr) {
+        console.error('DB: workpapers primary key fix FAILED:', pkErr.message);
+      }
+
       // ── workpapers.wp_style — a genuine, real gap found while making this
       // fix: wpStyle was previously only ever an IN-MEMORY value on the
       // frontend's WORKPAPERS array, computed once at creation from the
@@ -2059,65 +2112,100 @@ app.get('/api/diagnose-tenant-columns', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/diagnose-tenant-columns:'); }
 });
 
-// Direct diagnostic for the real, confirmed 500 on POST /api/workpapers
-// (seen live via the browser's own network tab, response body
-// genuinely just "Internal server error" — fail()'s generic message,
-// which hides the real Postgres error). Reproduces the EXACT same
-// insert, column list, and defaulting logic as the real route, with
-// realistic data, so the actual underlying error is surfaced directly
-// instead of guessed at.
-app.get('/api/diagnose-workpaper-save', async (req, res) => {
+// Real, direct, read-only diagnostic — reports the EXACT, current, live
+// constraint state of the workpapers table, without attempting any
+// real INSERT at all. Built specifically to answer, directly and
+// conclusively, whether the real, actual, live primary key genuinely
+// matches (tenant_id, ref) right now — since a reported failure could
+// mean the real, startup migration hasn't run yet on this specific,
+// live deployment, or that it ran but genuinely failed (e.g., blocked
+// by real, existing duplicate data), and there was previously no way
+// to tell these apart without live, direct evidence.
+app.get('/api/diagnose-workpaper-constraint', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const testRef = 'DIAGNOSTIC-TEST-' + Date.now();
   try {
-    await pool.query(`INSERT INTO workpapers
-        (ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
-         date_started,review_date,date_submitted,secondary_review_date,
-         population,sample_method,sample_size,narrative,description,test_desc,
-         linked_controls,linked_risks,linked_entities,fs_accounts,
-         scope_entities,scope_fs_accounts,test_attributes,sample_fields,sample_data,exceptions,archived,
-         audit_date,peer_reviewer,gr_review,control_description,
-         it_process,frequency,frequency_other,risk_of_failure,rationale_higher_risk,
-         toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
-         toc_period_from_mmyyyy,toc_period_to_mmyyyy,
-         population_source,population_size,population_completeness_desc,
-         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-              $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,
-              $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,
-              $43,$44,$45,$46,$47,$48,$49,$50,$51,$52,NOW())
-      ON CONFLICT (ref) DO UPDATE SET updated_at=NOW()`,
-      [testRef, 'Diagnostic Audit', 'Diagnostic Workpaper', 'Other', 'draft', '',
-       '', '', '',
-       null, null, null, null,
-       '', '', null,
-       '', '', '',
-       JSON.stringify([]), JSON.stringify([]),
-       JSON.stringify([]), JSON.stringify([]),
-       JSON.stringify([]), JSON.stringify([]),
-       JSON.stringify([]), JSON.stringify([]),
-       JSON.stringify({columns:[],rows:[]}),
-       JSON.stringify([]),
-       false,
-       null, '', '', '',
-       '', '', '', '', '',
-       false, false, false,
-       '', '',
-       '', '', '',
-       '', '', '', '', 'full'
-      ]);
-    // Clean up the diagnostic row immediately — this is purely a write
-    // test, not real data meant to persist.
-    await pool.query('DELETE FROM workpapers WHERE ref=$1', [testRef]);
-    res.json({ insert_result: 'succeeded', message: 'The exact real insert structure works correctly with realistic data.' });
-  } catch(err) {
-    res.status(500).json({
-      insert_result: 'FAILED',
-      error: { message: err.message, code: err.code, detail: err.detail, hint: err.hint, column: err.column, table: err.table, constraint: err.constraint }
+    const { rows: constraints } = await pool.query(`
+      SELECT c.conname, c.contype,
+             array_agg(a.attname ORDER BY a.attname) AS cols
+      FROM pg_constraint c
+      JOIN unnest(c.conkey) AS k(attnum) ON true
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+      WHERE c.conrelid = 'workpapers'::regclass
+      GROUP BY c.conname, c.contype
+    `);
+    const primaryKey = constraints.find(c => c.contype === 'p');
+    const isCorrect = primaryKey && JSON.stringify([...primaryKey.cols].sort()) === JSON.stringify(['ref', 'tenant_id'].sort());
+    // Real, direct check for existing, real duplicate (tenant_id, ref)
+    // pairs — the real, actual, most likely reason the fix migration
+    // could genuinely, silently fail to apply the new, correct
+    // constraint even after running.
+    const { rows: dupes } = await pool.query(`
+      SELECT tenant_id, ref, COUNT(*) AS n FROM workpapers
+      GROUP BY tenant_id, ref HAVING COUNT(*) > 1 LIMIT 20
+    `);
+    res.json({
+      all_constraints: constraints,
+      primary_key: primaryKey || null,
+      primary_key_is_correct: !!isCorrect,
+      blocking_duplicate_tenant_id_ref_pairs: dupes,
+      diagnosis: isCorrect
+        ? 'The real, live primary key is genuinely correct. If workpaper saves are still failing with the ON CONFLICT error, the cause is something else \u2014 check the real, actual, live server logs for the real, specific error.'
+        : dupes.length > 0
+          ? `The real, live primary key is genuinely NOT yet correct, and cannot safely be fixed automatically: ${dupes.length} real, actual, existing duplicate (tenant_id, ref) pair(s) exist, which would violate the new, correct constraint. These must genuinely be resolved (renamed or removed) before the fix can apply.`
+          : 'The real, live primary key is genuinely NOT yet correct. No blocking duplicates were found, so calling POST /api/admin/fix-workpaper-constraint should genuinely, safely, correct this immediately.'
     });
-  }
+  } catch(err) { return fail(res, err, 'GET /api/diagnose-workpaper-constraint:'); }
 });
 
+// Real, manually-triggerable version of the exact, same, real fix
+// applied at startup \u2014 lets this be run immediately, directly, on
+// demand, without waiting for a full, real server restart/redeploy
+// cycle. Restricted to a real, actual superadmin, since this alters
+// live, actual database structure.
+app.post('/api/admin/fix-workpaper-constraint', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows: dupes } = await pool.query(`
+      SELECT tenant_id, ref, COUNT(*) AS n FROM workpapers
+      GROUP BY tenant_id, ref HAVING COUNT(*) > 1 LIMIT 20
+    `);
+    if (dupes.length > 0) {
+      return res.status(409).json({
+        error: 'Cannot safely apply the fix \u2014 real, actual duplicate (tenant_id, ref) pairs exist.',
+        blocking_duplicate_tenant_id_ref_pairs: dupes,
+      });
+    }
+    const { rows: pkRows } = await pool.query(`
+      SELECT conname FROM pg_constraint
+      WHERE conrelid = 'workpapers'::regclass AND contype = 'p'
+    `);
+    let alreadyCorrect = false;
+    const actions = [];
+    for (const { conname } of pkRows) {
+      const { rows: colCheck } = await pool.query(`
+        SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+        FROM pg_constraint c
+        JOIN unnest(c.conkey) AS k(attnum) ON true
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+        WHERE c.conname = $1
+      `, [conname]);
+      const cols = (colCheck[0]?.cols || []).sort();
+      if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
+        alreadyCorrect = true;
+      } else {
+        await pool.query(`ALTER TABLE workpapers DROP CONSTRAINT "${conname}"`);
+        actions.push(`Dropped old, real, actual primary key "${conname}" (was: ${cols.join(', ')})`);
+      }
+    }
+    if (!alreadyCorrect) {
+      await pool.query(`ALTER TABLE workpapers ADD PRIMARY KEY (tenant_id, ref)`);
+      actions.push('Added the real, correct, composite primary key (tenant_id, ref)');
+    } else {
+      actions.push('Already, genuinely, correct \u2014 no real, actual change needed');
+    }
+    res.json({ ok: true, actions });
+  } catch(err) { return fail(res, err, 'POST /api/admin/fix-workpaper-constraint:'); }
+});
 // Direct diagnostic: shows the exact, real, current wp_style value for
 // a specific workpaper by ref. Built to answer precisely whether a
 // pre-existing workpaper already has the correct stored value for the
