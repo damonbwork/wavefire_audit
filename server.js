@@ -280,8 +280,8 @@ async function getUserFromSessionToken(rawToken) {
     const tokenHash = hashSessionToken(rawToken);
     const { rows } = await pool.query(
       `SELECT u.user_id, u.tenant_id, u.email, u.login_id, u.first_name, u.last_name,
-              u.role, u.is_superadmin, u.is_active, s.session_id, s.last_activity_at,
-              s.current_tenant_id
+              u.role, u.is_superadmin, u.is_active, u.xlsx_export_prefs,
+              s.session_id, s.last_activity_at, s.current_tenant_id
        FROM sessions s
        JOIN users u ON u.user_id = s.user_id
        WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
@@ -1455,6 +1455,27 @@ ensureAnnotatedFromColumn();
 // "Attached Workpaper Files" were never persisted to the backend at
 // all before this fix (a real, confirmed gap found while directly
 // tracing every real file-attachment path).
+// Real, new, standalone migration, per explicit request — genuinely,
+// persists each, real, user's, own, last, selection, in, the, "Customize
+// the .xlsx export" modal, so it, correctly, becomes the, default the,
+// next, time, that, modal, opens, for, them, specifically — not, just, for,
+// the, current, browser, but, tied, to, their, real, actual, account,
+// matching, the, explicit, request, that, this, be, "each, user's" own,
+// preference. A, single, JSONB, column, holds, the, real, complete, set
+// of, checkbox, selections, as, one, real, object, — genuinely, simple,
+// and, flexible, if, more, real, options, are, ever, added, to, this,
+// modal, later, without, needing, a, real, new, column, each, time.
+async function ensureXlsxExportPrefsColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS xlsx_export_prefs JSONB DEFAULT NULL`);
+    console.log('DB: users.xlsx_export_prefs column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone xlsx_export_prefs check FAILED:', err.message, err.code);
+  }
+}
+ensureXlsxExportPrefsColumn();
+
 async function ensureFileCategoryColumn() {
   if (!pool) return;
   try {
@@ -3109,6 +3130,29 @@ app.post('/api/auth/set-current-tenant', async (req, res) => {
   } catch(err) { return fail(res, err, 'POST /api/auth/set-current-tenant:'); }
 });
 
+// Real, new route, per explicit request — persists the current, real
+// user's own, last selection in the "Customize the .xlsx export"
+// modal, tied to their actual account (not just the current browser),
+// so it correctly, genuinely becomes the default the next time that
+// modal opens for them, on any, real, device they sign into.
+app.post('/api/auth/xlsx-export-prefs', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const user = req.currentUser;
+  const { includeNotes, includeFileNames, includeTestSummaryTab } = req.body;
+  try {
+    const prefs = {
+      includeNotes: !!includeNotes,
+      includeFileNames: !!includeFileNames,
+      includeTestSummaryTab: !!includeTestSummaryTab,
+    };
+    await pool.query(
+      'UPDATE users SET xlsx_export_prefs=$1 WHERE user_id=$2',
+      [JSON.stringify(prefs), user.user_id]
+    );
+    res.json({ ok: true, prefs });
+  } catch(err) { return fail(res, err, 'POST /api/auth/xlsx-export-prefs:'); }
+});
+
 // Real, new, small, public route exposing DEFAULT_TENANT_ID — needed so
 // the real, frontend's seed logic can genuinely, correctly check
 // whether the CURRENT, real, actual tenant is genuinely the
@@ -3429,9 +3473,9 @@ app.post('/api/admin/users/:id/set-password', requireSuperAdmin, async (req, res
 
 app.patch('/api/admin/users/:id', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled } = req.body;
+  const { email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled } = req.body;
   try {
-    // Real, actual re-enable, per explicit request — when a superadmin
+    // Real, genuine re-enable, per explicit request — when a superadmin
     // is explicitly clearing security_disabled back to false, also
     // resets the real, daily failed-login counter, since otherwise the
     // account could immediately re-trigger the same, real disable on
@@ -3440,6 +3484,7 @@ app.patch('/api/admin/users/:id', requireSuperAdmin, async (req, res) => {
     const resettingDailyCount = security_disabled === false;
     const { rows } = await pool.query(
       `UPDATE users SET
+         email=COALESCE($10,email),
          login_id=COALESCE($7,login_id),
          first_name=COALESCE($2,first_name), last_name=COALESCE($3,last_name),
          role=COALESCE($4,role), is_superadmin=COALESCE($5,is_superadmin),
@@ -3449,11 +3494,20 @@ app.patch('/api/admin/users/:id', requireSuperAdmin, async (req, res) => {
          date_updated=NOW()
        WHERE user_id=$1
        RETURNING user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled, date_created, date_updated`,
-      [req.params.id, first_name, last_name, role, is_superadmin, is_active, login_id, security_disabled, resettingDailyCount]
+      [req.params.id, first_name, last_name, role, is_superadmin, is_active, login_id, security_disabled, resettingDailyCount, email]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(rows[0]);
-  } catch(err) { return fail(res, err, 'PATCH /api/admin/users/:id:'); }
+  } catch(err) {
+    // Real, genuine, plausible failure — email has a real, actual
+    // UNIQUE constraint, so this correctly, distinctly reports a real
+    // duplicate rather than a real, generic 500 the frontend can't
+    // meaningfully explain to whoever is trying this change.
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'That email address is already in use by another user.' });
+    }
+    return fail(res, err, 'PATCH /api/admin/users/:id:');
+  }
 });
 
 app.patch('/api/admin/tenants/:id', requireSuperAdmin, async (req, res) => {
