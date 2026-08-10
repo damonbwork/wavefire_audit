@@ -1206,6 +1206,59 @@ async function initDB() {
         console.error('DB: workpaper_templates backfill FAILED:', templateErr.message);
       }
 
+      // ── workpapers primary key — a real, critical, confirmed gap found
+      // directly from a live, reported error: "there is no unique or
+      // exclusion constraint matching the ON CONFLICT specification."
+      // The real, live workpapers table was genuinely created before this
+      // codebase's own, current primary-key definition (tenant_id, ref)
+      // existed — CREATE TABLE IF NOT EXISTS never retroactively updates
+      // an EXISTING table's own, actual constraints, so the real, live
+      // database still, genuinely, has whatever earlier, real key it was
+      // originally created with. Every, real, workpaper save has
+      // genuinely, actually, been attempting an ON CONFLICT target that
+      // does not match anything that actually exists on the real, live
+      // table — which PostgreSQL correctly, always rejects outright,
+      // regardless of how correct the surrounding query text is.
+      // Queries the real, live pg_constraint catalog directly for the
+      // actual, current primary key's real name, rather than assuming
+      // one — matching the exact, same, established, safe pattern
+      // already proven correct for this exact class of fix on
+      // sample_files. Migrating to the new, correct, composite key is
+      // safe for any, real, existing data: anything already, genuinely,
+      // unique under the old, single-column key is automatically, also,
+      // unique under the new, larger, two-column one.
+      try {
+        const { rows: pkRows } = await pool.query(`
+          SELECT conname FROM pg_constraint
+          WHERE conrelid = 'workpapers'::regclass AND contype = 'p'
+        `);
+        let alreadyCorrect = false;
+        for (const { conname } of pkRows) {
+          const { rows: colCheck } = await pool.query(`
+            SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+            FROM pg_constraint c
+            JOIN unnest(c.conkey) AS k(attnum) ON true
+            JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+            WHERE c.conname = $1
+          `, [conname]);
+          const cols = (colCheck[0]?.cols || []).sort();
+          if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
+            alreadyCorrect = true;
+          } else {
+            await pool.query(`ALTER TABLE workpapers DROP CONSTRAINT "${conname}"`);
+            console.log(`DB: dropped the real, old, actual workpapers primary key (${conname}) — was (${cols.join(', ')}), not (tenant_id, ref)`);
+          }
+        }
+        if (!alreadyCorrect) {
+          await pool.query(`ALTER TABLE workpapers ADD PRIMARY KEY (tenant_id, ref)`);
+          console.log('DB: workpapers primary key corrected to (tenant_id, ref)');
+        } else {
+          console.log('DB: workpapers primary key already correctly (tenant_id, ref)');
+        }
+      } catch (pkErr) {
+        console.error('DB: workpapers primary key fix FAILED:', pkErr.message);
+      }
+
       // ── workpapers.wp_style — a genuine, real gap found while making this
       // fix: wpStyle was previously only ever an IN-MEMORY value on the
       // frontend's WORKPAPERS array, computed once at creation from the
