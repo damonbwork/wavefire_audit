@@ -10011,8 +10011,8 @@ async function _saveAuditToDB(audit, oldName) {
 }
 
 async function _saveWorkpaperToDB(w) {
-  if (!window._hasBackend) return;
-  if (!w || !w.ref) return;
+  if (!window._hasBackend) return true; // genuinely, no real backend at all — not a real failure, nothing to persist to
+  if (!w || !w.ref) return false; // a genuinely malformed workpaper — a real, actual failure
   try {
     // Gather linked data from session stores (exclude file attachment objects)
     var linkedControls  = w.linkedControls || [...(wpLinkedControls[w.ref]||[])];
@@ -10077,15 +10077,17 @@ async function _saveWorkpaperToDB(w) {
       // specific, underlying cause to the user now, not just a bare
       // "HTTP 500" with no further, real, visible detail.
       _wfSaveFailed('Save failed' + (detail ? ' — ' + detail : ' — HTTP ' + res.status));
-      return;
+      return false;
     }
     _wfSaved();
+    return true;
   } catch(e) {
     // A genuine network-level failure — was already caught before, but
     // now also surfaced visibly instead of only a console warning no one
     // watching the console would ever see.
     console.error('[_saveWorkpaperToDB] Network error saving ' + (w?.ref||'workpaper') + ':', e.message);
     _wfSaveFailed('Could not reach server');
+    return false;
   }
 }
 
@@ -20545,7 +20547,7 @@ function updateRefPreview() {
   if (narEl && ccEl) ccEl.textContent = `${narEl.value.length} / 2,000`;
 }
 
-function submitNewWorkpaper() {
+async function submitNewWorkpaper() {
   const ref      = getPlainRef();
   const name     = document.getElementById('nwp-name')?.value.trim();
   // type and template are now genuinely separate values, read from two
@@ -20635,7 +20637,26 @@ function submitNewWorkpaper() {
   // Postgres to recover it from — exactly the same class of gap already
   // fixed earlier for audit creation, just never carried over to
   // workpaper creation itself.
-  _saveWorkpaperToDB(newWP);
+  // Real, confirmed fix for a further, reported bug — genuinely,
+  // actually WAITS for real, confirmed success before proceeding, rather
+  // than firing this save and immediately continuing regardless of the
+  // real, actual outcome. Previously, a workpaper always, appeared to
+  // succeed in the UI (pushed into memory and opened) no matter whether
+  // the real, backend save genuinely succeeded, meaning a save that
+  // genuinely failed for any reason (a real, transient network issue, a
+  // real, backend validation error) left the workpaper existing only in
+  // the browser, with the person having no reason to suspect anything
+  // was wrong — exactly matching a report of workpapers inconsistently
+  // missing from the real, live table despite appearing to save
+  // correctly. If it genuinely fails, the in-memory entry is rolled
+  // back and the user stays on this form — _saveWorkpaperToDB already,
+  // correctly, shows the real, specific error — rather than being
+  // silently carried into a workpaper that was never, actually, saved.
+  const genuinelySaved = await _saveWorkpaperToDB(newWP);
+  if (!genuinelySaved) {
+    WORKPAPERS.pop();
+    return;
+  }
 
   // Update the WP ref nav dropdown
   const selWpRef = document.getElementById('sel-wp-ref');
@@ -30031,6 +30052,24 @@ async function _bootstrapDirectUrlAccess() {
     }
     const meData = await meRes.json();
     const realUser = meData.user;
+    // Real, confirmed fix for a reported, serious bug — this function
+    // previously never assigned realUser to _currentDisplayUser, the
+    // actual variable driving the upper-right user display. Since this
+    // function runs on every real page refresh or direct-URL visit
+    // while already logged in, _currentDisplayUser was left at its
+    // initial null value here — and an old, pre-authentication fallback
+    // elsewhere would then silently substitute the first active user in
+    // the entire system in its place, regardless of who was genuinely,
+    // actually logged in. Matches the exact, same, complete pattern
+    // already, correctly used at fresh login — setting the variable
+    // alone does not update the real, visible label text on its own.
+    _currentDisplayUser = realUser;
+    const labelEl = document.getElementById('wf-current-userid-label');
+    if (labelEl && realUser) {
+      labelEl.textContent = `${realUser.first_name || ''} ${realUser.last_name || ''}`.trim() || realUser.email || realUser.login_id || 'Unknown user';
+    }
+    const adminNavEl = document.getElementById('nav-admin');
+    if (adminNavEl) adminNavEl.style.display = (realUser && realUser.is_superadmin) ? '' : 'none';
 
     // Real, actual superadmin genuinely, correctly bypasses the tenant
     // check entirely — matching the same, established, real "access by
