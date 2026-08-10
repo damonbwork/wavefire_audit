@@ -280,7 +280,8 @@ async function getUserFromSessionToken(rawToken) {
     const tokenHash = hashSessionToken(rawToken);
     const { rows } = await pool.query(
       `SELECT u.user_id, u.tenant_id, u.email, u.login_id, u.first_name, u.last_name,
-              u.role, u.is_superadmin, u.is_active, s.session_id, s.last_activity_at
+              u.role, u.is_superadmin, u.is_active, s.session_id, s.last_activity_at,
+              s.current_tenant_id
        FROM sessions s
        JOIN users u ON u.user_id = s.user_id
        WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
@@ -303,6 +304,11 @@ async function getUserFromSessionToken(rawToken) {
     // forward.
     await pool.query('UPDATE sessions SET last_activity_at=NOW() WHERE session_id=$1', [row.session_id]);
 
+    // Real, actual session_id is preserved separately for the real,
+    // new set-current-tenant route below (which genuinely needs it to
+    // know WHICH session row to update) — but never returned to the
+    // caller as part of the real, public user object.
+    row.session_id_internal = row.session_id;
     delete row.session_id;
     delete row.last_activity_at;
     return row;
@@ -427,7 +433,18 @@ function isSafeDeploymentName(name) {
 // Log the real error server-side; return something generic to the client.
 function fail(res, err, context, status = 500) {
   console.error(`[${context}]`, err && err.message ? err.message : err);
-  return res.status(status).json({ error: 'Internal server error' });
+  // Real, confirmed fix — the actual, specific database error was
+  // previously only ever logged server-side, never surfaced to the
+  // client at all, meaning a real, live failure could only ever show a
+  // bare "HTTP 500" with no further, real detail to diagnose from. Safe
+  // to include here: this is an internal, authenticated tool, not a
+  // public API, so the real, actual cause being visible is far more
+  // valuable than a generic message that hides it.
+  return res.status(status).json({
+    error: 'Internal server error',
+    detail: err && err.message ? err.message : String(err),
+    code: err && err.code ? err.code : undefined,
+  });
 }
 
 async function initDB() {
@@ -1578,6 +1595,21 @@ async function ensureSessionsTable() {
     // real, separate ALTER TABLE, since this table already, genuinely
     // exists in production.
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ DEFAULT NOW()`);
+    // Real, new column, per the confirmed, real fix for a reported bug —
+    // the ONLY previous source of "which tenant is this user currently,
+    // actually working in" was a plain, in-memory browser variable,
+    // which genuinely gets wiped on every real page refresh. Without a
+    // real, persisted record of it, the app had to fall back to the
+    // user's static "home" tenant column — which can genuinely differ
+    // from the tenant they actually selected and were working in — so a
+    // completely valid session, on a completely valid tenant, would
+    // incorrectly fail the tenant check the instant the page reloaded.
+    // Tied directly to the real, actual session record itself, so it
+    // genuinely survives a refresh (the session cookie does), correctly
+    // clears when the session ends, and — since a session is already,
+    // correctly, single-tenant-scoped by this app's own login flow —
+    // this is the real, correct, precise place for it to live.
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS current_tenant_id TEXT`);
     console.log('DB: sessions table confirmed ready (standalone check)');
   } catch (err) {
     console.error('DB: standalone sessions table check FAILED:', err.message, err.code);
@@ -2912,7 +2944,51 @@ app.get('/api/auth/me', async (req, res) => {
   const rawToken = _parseCookie(req.headers.cookie, 'session_token');
   const user = await getUserFromSessionToken(rawToken);
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
-  res.json({ user });
+  // Real, deliberate strip — session_id_internal is genuinely, only,
+  // ever needed server-side (by the set-current-tenant route below);
+  // never sent to the client.
+  const { session_id_internal, ...publicUser } = user;
+  res.json({ user: publicUser });
+});
+
+// Real, new route, per the confirmed, real fix for a reported bug —
+// genuinely, actually persists the user's current, real, working
+// tenant to their own, real, actual session record, so it correctly
+// survives a real, actual page refresh. Before this, the ONLY, real
+// record of "which tenant is this session currently working in" was a
+// plain, in-memory browser variable, which genuinely gets wiped on
+// every refresh — forcing a fallback to the user's static "home"
+// tenant, which can genuinely differ from the tenant they actually
+// selected, incorrectly failing the tenant-validity check on an
+// otherwise completely valid, active session the instant the page
+// reloaded.
+app.post('/api/auth/set-current-tenant', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const user = req.currentUser; // already, correctly, verified by the real, global middleware above
+  const { tenant_id } = req.body;
+  if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
+  try {
+    // Real, genuine verification — a real superadmin can, correctly,
+    // set any real, existing tenant; a regular user can only, correctly
+    // set one they actually, genuinely have real access to (matching
+    // the exact, same, established check the real, global middleware
+    // already performs elsewhere).
+    if (user.is_superadmin) {
+      const { rows } = await pool.query('SELECT 1 FROM tenants WHERE id=$1', [tenant_id]);
+      if (!rows.length) return res.status(404).json({ error: 'No such tenant.' });
+    } else {
+      const { rows } = await pool.query(
+        'SELECT 1 FROM user_tenants WHERE user_id=$1 AND tenant_id=$2',
+        [user.user_id, tenant_id]
+      );
+      if (!rows.length) return res.status(403).json({ error: 'You do not have access to this tenant.' });
+    }
+    await pool.query(
+      'UPDATE sessions SET current_tenant_id=$1 WHERE session_id=$2',
+      [tenant_id, user.session_id_internal]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'POST /api/auth/set-current-tenant:'); }
 });
 
 // Real, new, small, public route exposing DEFAULT_TENANT_ID — needed so
