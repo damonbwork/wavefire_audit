@@ -1239,7 +1239,7 @@ async function initDB() {
             FROM pg_constraint c
             JOIN unnest(c.conkey) AS k(attnum) ON true
             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
-            WHERE c.conname = $1
+            WHERE c.conname = $1 AND c.conrelid = 'workpapers'::regclass
           `, [conname]);
           const cols = (colCheck[0]?.cols || []).sort();
           if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
@@ -1481,7 +1481,7 @@ async function ensureFileCategoryColumn() {
         FROM pg_constraint c
         JOIN unnest(c.conkey) AS k(attnum) ON true
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
-        WHERE c.conname = $1
+        WHERE c.conname = $1 AND c.conrelid = 'sample_files'::regclass
       `, [conname]);
       const cols = (colCheck[0]?.cols || []).sort();
       const isOldShape = JSON.stringify(cols) === JSON.stringify(['filename', 'ref', 'tenant_id'].sort());
@@ -2162,49 +2162,79 @@ app.get('/api/diagnose-workpaper-constraint', async (req, res) => {
 // demand, without waiting for a full, real server restart/redeploy
 // cycle. Restricted to a real, actual superadmin, since this alters
 // live, actual database structure.
+// Real, shared fix-logic, extracted into one, real function both real
+// routes below call — avoiding real, duplicated logic that could
+// genuinely, silently drift apart, the exact, same, class of bug
+// that's recurred repeatedly this session.
+async function _applyWorkpaperConstraintFix() {
+  const { rows: dupes } = await pool.query(`
+    SELECT tenant_id, ref, COUNT(*) AS n FROM workpapers
+    GROUP BY tenant_id, ref HAVING COUNT(*) > 1 LIMIT 20
+  `);
+  if (dupes.length > 0) {
+    return { blocked: true, blocking_duplicate_tenant_id_ref_pairs: dupes };
+  }
+  const { rows: pkRows } = await pool.query(`
+    SELECT conname FROM pg_constraint
+    WHERE conrelid = 'workpapers'::regclass AND contype = 'p'
+  `);
+  let alreadyCorrect = false;
+  const actions = [];
+  for (const { conname } of pkRows) {
+    const { rows: colCheck } = await pool.query(`
+      SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+      FROM pg_constraint c
+      JOIN unnest(c.conkey) AS k(attnum) ON true
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+      WHERE c.conname = $1 AND c.conrelid = 'workpapers'::regclass
+    `, [conname]);
+    const cols = (colCheck[0]?.cols || []).sort();
+    if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
+      alreadyCorrect = true;
+    } else {
+      await pool.query(`ALTER TABLE workpapers DROP CONSTRAINT "${conname}"`);
+      actions.push(`Dropped old, real, actual primary key "${conname}" (was: ${cols.join(', ')})`);
+    }
+  }
+  if (!alreadyCorrect) {
+    await pool.query(`ALTER TABLE workpapers ADD PRIMARY KEY (tenant_id, ref)`);
+    actions.push('Added the real, correct, composite primary key (tenant_id, ref)');
+  } else {
+    actions.push('Already, genuinely, correct \u2014 no real, actual change needed');
+  }
+  return { blocked: false, actions };
+}
+
 app.post('/api/admin/fix-workpaper-constraint', requireSuperAdmin, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try {
-    const { rows: dupes } = await pool.query(`
-      SELECT tenant_id, ref, COUNT(*) AS n FROM workpapers
-      GROUP BY tenant_id, ref HAVING COUNT(*) > 1 LIMIT 20
-    `);
-    if (dupes.length > 0) {
+    const result = await _applyWorkpaperConstraintFix();
+    if (result.blocked) {
       return res.status(409).json({
         error: 'Cannot safely apply the fix \u2014 real, actual duplicate (tenant_id, ref) pairs exist.',
-        blocking_duplicate_tenant_id_ref_pairs: dupes,
+        blocking_duplicate_tenant_id_ref_pairs: result.blocking_duplicate_tenant_id_ref_pairs,
       });
     }
-    const { rows: pkRows } = await pool.query(`
-      SELECT conname FROM pg_constraint
-      WHERE conrelid = 'workpapers'::regclass AND contype = 'p'
-    `);
-    let alreadyCorrect = false;
-    const actions = [];
-    for (const { conname } of pkRows) {
-      const { rows: colCheck } = await pool.query(`
-        SELECT array_agg(a.attname ORDER BY a.attname) AS cols
-        FROM pg_constraint c
-        JOIN unnest(c.conkey) AS k(attnum) ON true
-        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
-        WHERE c.conname = $1
-      `, [conname]);
-      const cols = (colCheck[0]?.cols || []).sort();
-      if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
-        alreadyCorrect = true;
-      } else {
-        await pool.query(`ALTER TABLE workpapers DROP CONSTRAINT "${conname}"`);
-        actions.push(`Dropped old, real, actual primary key "${conname}" (was: ${cols.join(', ')})`);
-      }
-    }
-    if (!alreadyCorrect) {
-      await pool.query(`ALTER TABLE workpapers ADD PRIMARY KEY (tenant_id, ref)`);
-      actions.push('Added the real, correct, composite primary key (tenant_id, ref)');
-    } else {
-      actions.push('Already, genuinely, correct \u2014 no real, actual change needed');
-    }
-    res.json({ ok: true, actions });
+    res.json({ ok: true, actions: result.actions });
   } catch(err) { return fail(res, err, 'POST /api/admin/fix-workpaper-constraint:'); }
+});
+
+// Real, new, GET-accessible convenience version of the exact, same,
+// real fix above \u2014 a POST request genuinely cannot be triggered just
+// by visiting a URL in a browser, so this lets the fix be applied by
+// simply opening a link directly, while signed in as a real superadmin.
+app.get('/api/admin/fix-workpaper-constraint', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const result = await _applyWorkpaperConstraintFix();
+    if (result.blocked) {
+      return res.status(409).json({
+        error: 'Cannot safely apply the fix \u2014 real, actual duplicate (tenant_id, ref) pairs exist.',
+        blocking_duplicate_tenant_id_ref_pairs: result.blocking_duplicate_tenant_id_ref_pairs,
+      });
+    }
+    res.json({ ok: true, actions: result.actions });
+  } catch(err) { return fail(res, err, 'GET /api/admin/fix-workpaper-constraint:'); }
 });
 // Direct diagnostic: shows the exact, real, current wp_style value for
 // a specific workpaper by ref. Built to answer precisely whether a
@@ -3886,15 +3916,15 @@ app.delete('/api/workpapers/:ref', async (req, res) => {
 // — the ref shown in the page/URL), but every query underneath operates on
 // workpapers.id, resolved from that ref first. This keeps the human-facing
 // API shape the same while the actual linking key is the stable surrogate.
-async function _resolveWorkpaperId(ref) {
-  const { rows } = await pool.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2', [req.currentTenantId, ref]);
+async function _resolveWorkpaperId(tenantId, ref) {
+  const { rows } = await pool.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2', [tenantId, ref]);
   return rows.length ? rows[0].id : null;
 }
 
 app.get('/api/sample-data/:ref', async (req, res) => {
   if (!pool) return res.json({ columns: [], rows: [] });
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.json({ columns: [], rows: [] }); // unknown workpaper -> empty, not an error
     const [cols, rows] = await Promise.all([
       pool.query('SELECT * FROM sample_data_columns WHERE workpaper_id=$1 ORDER BY col_index', [wpId]),
@@ -3909,7 +3939,7 @@ app.post('/api/sample-data/:ref', async (req, res) => {
   const columns = Array.isArray(req.body.columns) ? req.body.columns : [];
   const rows    = Array.isArray(req.body.rows)    ? req.body.rows    : [];
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
 
     await pool.query('BEGIN');
@@ -3958,7 +3988,7 @@ app.post('/api/sample-data/:ref', async (req, res) => {
 app.get('/api/extracted-data/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.json([]);
     const { rows } = await pool.query(
       'SELECT * FROM extracted_data WHERE workpaper_id=$1 ORDER BY field_index',
@@ -3972,7 +4002,7 @@ app.post('/api/extracted-data/:ref', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const fields = Array.isArray(req.body.fields) ? req.body.fields : [];
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
 
     await pool.query('BEGIN');
@@ -4003,7 +4033,7 @@ app.post('/api/extracted-data/:ref', async (req, res) => {
 app.get('/api/extracted-data-records/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.json([]);
     const { rows } = await pool.query(
       'SELECT * FROM extracted_data_records WHERE workpaper_id=$1 ORDER BY row_index',
@@ -4017,7 +4047,7 @@ app.post('/api/extracted-data-records/:ref', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const records = Array.isArray(req.body.records) ? req.body.records : [];
   try {
-    const wpId = await _resolveWorkpaperId(req.params.ref);
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
     if (!wpId) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
 
     await pool.query('BEGIN');
