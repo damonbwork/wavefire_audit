@@ -4834,7 +4834,7 @@ auditor's assessment.
       <div id="analysis-btn-rows" style="border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px;display:flex;flex-direction:column;gap:8px">
         <!-- Row 1: reference / read material -->
         <div style="display:flex;align-items:center;gap:6px">
-          <button class="btn-s" id="dl-guidance-btn" style="display:inline-flex" onclick="downloadTestGuidance()">
+          <button class="btn-s" id="dl-guidance-btn" style="display:none" onclick="downloadTestGuidance()">
             <i class="ti ti-file-description"></i>Test Guidance
           </button>
           <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
@@ -4852,14 +4852,11 @@ auditor's assessment.
           <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
             <i class="ti ti-file-word"></i>Exception Memo
           </button>
-          <button class="btn-s" id="export-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
+          <button class="btn-s" id="export-xlsx-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
             <i class="ti ti-download"></i>Workpaper (.xlsx)
           </button>
-          <button class="btn-s" id="attach-xlsx-btn" style="display:inline-flex;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
+          <button class="btn-s" id="attach-xlsx-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Workpaper Files
-          </button>
-          <button class="btn-s" id="dl-annotated-pdfs-btn" style="display:none;background:#0f766e;color:#fff;border-color:#0f766e" title="Download every attached sample file with the analysis tick marks and notes burned permanently into the PDF" onclick="downloadAllAnnotatedPDFs()">
-            <i class="ti ti-file-download"></i>Annotated Sample PDFs
           </button>
           <div style="flex:1"></div>
           <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
@@ -12994,9 +12991,13 @@ async function renderAdminUsers() {
     listEl.innerHTML = users.map(u => `
       <tr style="border-bottom:0.5px solid var(--border-light)">
         <td style="padding:8px 12px">${escAttr((u.first_name||'') + ' ' + (u.last_name||'')).trim() || '<span style="color:var(--text-tertiary)">(no name)</span>'}</td>
-        <td style="padding:8px 12px;color:var(--text-secondary)">${escAttr(u.email||'')}</td>
+        <td style="padding:8px 12px">
+          <input type="text" value="${escAttr(u.email||'')}" data-original-value="${escAttr(u.email||'')}" onblur="saveAdminUserEmail('${escAttr(u.user_id)}', this)"
+            style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text-secondary);outline:none;padding:2px 4px;border-radius:4px"
+            onfocus="this.style.background='var(--bg-secondary)'">
+        </td>
         <td style="padding:8px 12px;${loginIdColWidthStyle};min-width:${loginIdColMinPx}px">
-          <input type="text" value="${escAttr(u.login_id || u.email || '')}" onblur="saveAdminUserLoginId('${escAttr(u.user_id)}', this)"
+          <input type="text" value="${escAttr(u.login_id || u.email || '')}" data-original-value="${escAttr(u.login_id || u.email || '')}" onblur="saveAdminUserLoginId('${escAttr(u.user_id)}', this)"
             style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text-primary);outline:none;padding:2px 4px;border-radius:4px"
             onfocus="this.style.background='var(--bg-secondary)'" title="Defaults to the user's email; can be set independently">
         </td>
@@ -13081,6 +13082,44 @@ async function toggleAdminUserSecurityDisabled(userId, checked, inputEl) {
 // field be stored and shown independently from email — matches the
 // exact same real, established save-and-revert-on-failure pattern as
 // toggleAdminUserSuperAdmin above.
+// Real, shared, confirmation-and-save, helper, per, explicit, request —
+// used, by, both, saveAdminUserEmail, and, saveAdminUserLoginId, below,
+// so, this, logic, is, genuinely, defined, once, rather, than, risking,
+// two, real, separate, copies, silently, drifting, apart, over, time.
+// Only, prompts, for, confirmation, when, the, real, value, genuinely,
+// changed, from, what's, actually, stored, (tracked, via, the, input's,
+// own, data-original-value, attribute, set, at, render, time) — reverts,
+// the, input, back, to, its, real, original, value, if, the, user,
+// cancels, so, the, displayed, text, never, silently, disagrees, with,
+// what's, actually, saved.
+async function _confirmAndSaveAdminUserField(userId, inputEl, fieldKey, fieldLabel, patchBody) {
+  const original = inputEl.dataset.originalValue || '';
+  const newValue = inputEl.value.trim();
+  if (newValue === original) return; // genuinely, nothing, changed — nothing, to, confirm, or, save
+  if (!confirm(`Change this user's ${fieldLabel} from "${original}" to "${newValue}"?`)) {
+    inputEl.value = original;
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/users/' + encodeURIComponent(userId), {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody)
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+    inputEl.dataset.originalValue = newValue; // real, correct, updated, baseline, for, the, next, real, edit
+  } catch(e) {
+    alert(`Could not update ${fieldLabel}: ` + e.message);
+    inputEl.value = original;
+  }
+}
+
+async function saveAdminUserEmail(userId, inputEl) {
+  await _confirmAndSaveAdminUserField(userId, inputEl, 'email', 'email address', { email: inputEl.value.trim() });
+}
+
 async function saveAdminUserLoginId(userId, inputEl) {
   let newValue = inputEl.value.trim();
   if (!newValue) {
@@ -13091,16 +13130,7 @@ async function saveAdminUserLoginId(userId, inputEl) {
     newValue = row?.email || '';
     inputEl.value = newValue;
   }
-  try {
-    const res = await fetch('/api/admin/users/' + encodeURIComponent(userId), {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ login_id: newValue })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-  } catch(e) {
-    alert('Could not update Login ID: ' + e.message);
-    renderAdminUsers(); // re-render from the real, unchanged server state
-  }
+  await _confirmAndSaveAdminUserField(userId, inputEl, 'login_id', 'User ID', { login_id: newValue });
 }
 
 // Real "Set Password" modal, per explicit request — triggered by
@@ -22336,11 +22366,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
 
-  // Show the bulk annotated-PDFs download button once there are real
-  // results to burn into the attached files.
-  const _annPdfsBtn = document.getElementById('dl-annotated-pdfs-btn');
-  if (_annPdfsBtn) _annPdfsBtn.style.display = (analysisResults && analysisResults.length) ? 'inline-flex' : 'none';
-
   // ── Safety net: ensure core buttons always visible after analysis ─────────
   function _ensureButtonsVisible() {
     const ids = ['export-xlsx-btn','attach-xlsx-btn','dl-guidance-btn'];
@@ -23043,6 +23068,14 @@ function _doExportWorkpaperXLSX() {
 function promptIncludeFileNamesInExport(wp) {
   const id = 'include-filenames-overlay';
   document.getElementById(id)?.remove();
+  // Real, actual, saved preferences for the, current, real, user, per
+  // explicit request — falls back to the, real, existing, established
+  // defaults (notes + filenames checked, test summary unchecked) if
+  // they've genuinely never set a preference before.
+  const savedPrefs = (_currentDisplayUser && _currentDisplayUser.xlsx_export_prefs) || {};
+  const defNotes       = savedPrefs.includeNotes !== undefined ? savedPrefs.includeNotes : true;
+  const defFileNames    = savedPrefs.includeFileNames !== undefined ? savedPrefs.includeFileNames : true;
+  const defTestSummary  = savedPrefs.includeTestSummaryTab !== undefined ? savedPrefs.includeTestSummaryTab : false;
   const html =
     '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">' +
       '<div style="background:var(--bg-primary);border-radius:12px;width:min(620px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">' +
@@ -23056,17 +23089,17 @@ function promptIncludeFileNamesInExport(wp) {
           '</div>' +
         '</div>' +
         '<div style="padding:6px 20px 16px 20px;display:grid;grid-template-columns:24px 1fr;row-gap:14px;column-gap:12px;align-items:start;text-align:left">' +
-          '<input type="checkbox" id="include-notes-checkbox" checked style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<input type="checkbox" id="include-notes-checkbox" '+(defNotes?'checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
           '<label for="include-notes-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
             '<div style="font-weight:600;margin-bottom:2px">Include "Notes / Exception Explanation"</div>' +
             '<div style="font-size:12px;color:var(--text-secondary)">Add a column with the real notes and exception explanations for each sample.</div>' +
           '</label>' +
-          '<input type="checkbox" id="include-filenames-checkbox" checked style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<input type="checkbox" id="include-filenames-checkbox" '+(defFileNames?'checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
           '<label for="include-filenames-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
             '<div style="font-weight:600;margin-bottom:2px">Include "Sample File Name(s)"</div>' +
             '<div style="font-size:12px;color:var(--text-secondary)">Add a column with the real sample file name(s) for each row.</div>' +
           '</label>' +
-          '<input type="checkbox" id="include-testsummary-checkbox" style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
+          '<input type="checkbox" id="include-testsummary-checkbox" '+(defTestSummary?'checked':'')+' style="width:16px;height:16px;margin-top:1px;accent-color:var(--wf-navy);cursor:pointer">' +
           '<label for="include-testsummary-checkbox" style="font-size:13px;color:var(--text-primary);cursor:pointer;line-height:1.4">' +
             '<div style="font-weight:600;margin-bottom:2px">Include a Test Summary Tab</div>' +
             '<div style="font-size:12px;color:var(--text-secondary)">Add a second, real tab listing every attribute result and note for each sample, in detail — the same real content as the "Detailed Notes" tab in the standard workpaper export.</div>' +
@@ -23080,11 +23113,27 @@ function promptIncludeFileNamesInExport(wp) {
   document.body.insertAdjacentHTML('beforeend', html);
   const overlay = document.getElementById(id);
   document.getElementById('include-filenames-continue-btn').onclick = () => {
+    const chosenNotes       = document.getElementById('include-notes-checkbox').checked;
+    const chosenFileNames    = document.getElementById('include-filenames-checkbox').checked;
+    const chosenTestSummary  = document.getElementById('include-testsummary-checkbox').checked;
     if (wp) {
-      wp.includeNotesInXlsx = document.getElementById('include-notes-checkbox').checked;
-      wp.includeFileNamesInXlsx = document.getElementById('include-filenames-checkbox').checked;
-      wp.includeTestSummaryTabInXlsx = document.getElementById('include-testsummary-checkbox').checked;
+      wp.includeNotesInXlsx = chosenNotes;
+      wp.includeFileNamesInXlsx = chosenFileNames;
+      wp.includeTestSummaryTabInXlsx = chosenTestSummary;
     }
+    // Real, actual save, per explicit request — persists this, real,
+    // selection to the current, real, user's own, actual account, so
+    // it, correctly, becomes the default the, next, time this, modal,
+    // opens for them. Fire-and-forget: doesn't block the, real, export
+    // itself on a network round-trip, and updates the, real, in-memory
+    // cache directly so it's, correctly, immediately reflected without
+    // waiting on a real, later /api/auth/me refresh.
+    const newPrefs = { includeNotes: chosenNotes, includeFileNames: chosenFileNames, includeTestSummaryTab: chosenTestSummary };
+    if (_currentDisplayUser) _currentDisplayUser.xlsx_export_prefs = newPrefs;
+    fetch('/api/auth/xlsx-export-prefs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newPrefs),
+    }).catch(e => console.error('[promptIncludeFileNamesInExport] Could not save preference:', e.message));
     overlay?.remove();
   };
 }
