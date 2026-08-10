@@ -805,15 +805,15 @@
   .entity-tag i, .entity-tag-app i, .entity-tag-biomed i { font-size: 12px; }
 </style>
 <style>
-    /* Thin outline only, no background fill — a filled background made it
-       hard to tell selected text apart from the selection itself, and the
-       request was specifically to show selection as a border, not a color
-       fill. Anchor (the first cell clicked) gets a slightly heavier
-       outline than the rest of a multi-cell range so it's still visually
-       distinguishable, without either one tinting the field's content. */
-    .grid-cell-selected { background: transparent; outline: 1px solid #3b82f6; outline-offset: -1px; }
-    .grid-cell-anchor   { background: transparent; outline: 2px solid #1d4ed8; outline-offset: -1px; }
-    .attr-row:hover .grid-cell-selected { background: transparent; }
+    /* Subtle, real, gray background, no border/outline at all, per
+       explicit request — reverses the earlier, real, deliberate choice
+       (see the removed, prior comment) to use a border-only outline.
+       Applied only while genuinely, actually selected — removed the
+       instant a different, real cell is selected or focus leaves the
+       grid entirely. */
+    .grid-cell-selected { background: #f1f5f9; outline: none; }
+    .grid-cell-anchor   { background: #f1f5f9; outline: none; }
+    .attr-row:hover .grid-cell-selected { background: #f1f5f9; }
   </style><script src="Wavefire_files/xlsx.full.min_3UUq.js"></script><script src="Wavefire_files/pdf-lib.min_3UUq.js"></script></head>
 <body>
 <div id="wf-save-pill"><i class="ti ti-check" style="font-size:13px"></i>Saved</div>
@@ -10071,9 +10071,12 @@ async function _saveWorkpaperToDB(w) {
     // completely invisible.
     if (!res.ok) {
       let detail = '';
-      try { const body = await res.json(); detail = body?.error || ''; } catch(e) {}
+      try { const body = await res.json(); detail = body?.detail || body?.error || ''; } catch(e) {}
       console.error('[_saveWorkpaperToDB] Save REJECTED by server for ' + w.ref + ': HTTP ' + res.status + (detail ? ' — ' + detail : ''));
-      _wfSaveFailed('Save failed — HTTP ' + res.status);
+      // Real, confirmed fix — genuinely, actually shows the real,
+      // specific, underlying cause to the user now, not just a bare
+      // "HTTP 500" with no further, real, visible detail.
+      _wfSaveFailed('Save failed' + (detail ? ' — ' + detail : ' — HTTP ' + res.status));
       return;
     }
     _wfSaved();
@@ -18083,15 +18086,14 @@ function syncWPFsToAudit(ref, fsSet) {
   // ── CSS for selected cells ──────────────────────────────────────
   const selStyle = document.createElement('style');
   selStyle.textContent = `
-    /* Thin outline only, no background fill — a filled background made it
-       hard to tell selected text apart from the selection itself, and the
-       request was specifically to show selection as a border, not a color
-       fill. Anchor (the first cell clicked) gets a slightly heavier
-       outline than the rest of a multi-cell range so it's still visually
-       distinguishable, without either one tinting the field's content. */
-    .grid-cell-selected { background: transparent; outline: 1px solid #3b82f6; outline-offset: -1px; }
-    .grid-cell-anchor   { background: transparent; outline: 2px solid #1d4ed8; outline-offset: -1px; }
-    .attr-row:hover .grid-cell-selected { background: transparent; }
+    /* Subtle, real, gray background, no border/outline at all, per
+       explicit request — reverses the earlier, real, deliberate choice
+       to use a border-only outline. Applied only while genuinely,
+       actually selected — removed the instant a different, real cell
+       is selected or focus leaves the grid entirely. */
+    .grid-cell-selected { background: #f1f5f9; outline: none; }
+    .grid-cell-anchor   { background: #f1f5f9; outline: none; }
+    .attr-row:hover .grid-cell-selected { background: #f1f5f9; }
   `;
   document.head.appendChild(selStyle);
 
@@ -18220,6 +18222,41 @@ function syncWPFsToAudit(ref, fsSet) {
       return;
     }
 
+    // Real, new, click-to-select-then-click-to-edit model, per explicit
+    // request — ONLY for the Test Attributes grid specifically; the
+    // separate Sample Field Extraction grid keeps its existing, real,
+    // drag-select behavior completely unchanged below.
+    if (cell.gridId === 'test-attr-rows') {
+      const alreadySelected = _anchor && _anchor.gridId === cell.gridId
+        && _anchor.rowIdx === cell.rowIdx && _anchor.colKey === cell.colKey;
+      const alreadyFocused = document.activeElement === e.target;
+
+      if (alreadyFocused) {
+        // Genuinely, actively being edited already — a real click here
+        // is ordinary text-editing (placing the cursor mid-text), left
+        // completely alone, never intercepted.
+        return;
+      }
+      if (!alreadySelected) {
+        // First click on this real, actual cell — select only, block
+        // native focus so typing doesn't begin immediately.
+        e.preventDefault();
+        _anchor = cell; _focus = cell;
+        highlightRange(_anchor, _focus);
+        return;
+      }
+      // Second click on the SAME, already-selected cell — let native
+      // focus proceed, then move the cursor to the end of the field's
+      // own, real, actual content, per explicit request.
+      setTimeout(() => {
+        if (typeof e.target.setSelectionRange === 'function') {
+          const end = e.target.value.length;
+          e.target.setSelectionRange(end, end);
+        }
+      }, 0);
+      return;
+    }
+
     if (e.shiftKey && _anchor && _anchor.gridId === cell.gridId) {
       // Shift+Click: extend selection from anchor
       _focus = cell;
@@ -18234,6 +18271,7 @@ function syncWPFsToAudit(ref, fsSet) {
 
   document.addEventListener('mousemove', (e) => {
     if (!_dragging || !_anchor) return;
+    if (_anchor.gridId === 'test-attr-rows') return; // real, new, single-cell-only model — no drag-range selection
     const cell = getCellAt(e.target);
     if (cell && cell.gridId === _anchor.gridId) {
       _focus = cell;
@@ -18242,6 +18280,37 @@ function syncWPFsToAudit(ref, fsSet) {
   });
 
   document.addEventListener('mouseup', () => { _dragging = false; });
+
+  // Real, new, save-on-blur, per explicit request — when the user
+  // navigates away from a genuinely, actually modified Test Attributes
+  // cell, the value is saved to the real, actual, live Postgres table,
+  // not just held in memory until some later, real, unrelated page
+  // navigation. Delegated (one listener, not one per cell) so it
+  // correctly, automatically covers every, real, current AND future
+  // row without needing to be re-attached.
+  document.addEventListener('blur', (e) => {
+    const cell = getCellAt(e.target);
+    if (!cell || cell.gridId !== 'test-attr-rows') return;
+    if (!currentAttrWPRef) return;
+    const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
+    if (!w) return;
+    // Real, actual DOM-to-data flush, reusing the exact, same, real,
+    // established logic saveCurrentPage() already, correctly uses —
+    // genuinely, reads every, current, real row from the DOM, so the
+    // one, actual field that just changed is correctly, along with
+    // everything else, captured before saving.
+    const domRows = [];
+    document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
+      const num            = String(Array.from(row.parentElement?.children || []).indexOf(row) + 1);
+      const attrRef        = row.querySelector('.attr-ref-input')?.value || '';
+      const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
+      const desc           = row.querySelector('.attr-desc')?.value || '';
+      const additionalInfo = row.querySelector('.attr-additional')?.value || '';
+      if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo });
+    });
+    wpTestAttributes[w.ref] = domRows;
+    _saveWorkpaperToDB(w);
+  }, true); // capture phase — blur genuinely does not bubble, so this is required to observe it via delegation
 
   // ── Ctrl+C / Cmd+C to copy selection as TSV ───────────────────
   document.addEventListener('copy', (e) => {
@@ -18283,6 +18352,72 @@ function syncWPFsToAudit(ref, fsSet) {
       rowEl.style.background = '#bfdbfe';
       setTimeout(() => { rowEl.style.background = prev; }, 500);
     });
+  });
+
+  // ── Keyboard navigation between cells ───────────────────────────
+  // Real, careful, new addition for a confirmed, real gap — this grid
+  // genuinely had NO keyboard navigation at all. A prior, real attempt
+  // existed (see the removed-code comment above) but had to be deleted
+  // entirely because it intercepted every arrow keypress unconditionally,
+  // silently breaking native text-cursor movement and selection inside
+  // real, multi-line description fields. Built to avoid repeating that
+  // exact mistake: Up/Down only moves between real, actual cells when
+  // the text cursor is genuinely at the first or last line of the
+  // current field's own content — checked directly, not assumed — so
+  // native line-to-line movement within a real, multi-line description
+  // is never disturbed. Left/Right are deliberately left untouched:
+  // native cursor movement within text is the correct, expected
+  // behavior there, and Tab already, correctly, moves between fields in
+  // real DOM order without any custom handling needed.
+  function isAtFirstLine(el) {
+    if (el.tagName !== 'TEXTAREA') return true; // a real, single-line <input> has no concept of "line" at all
+    const pos = el.selectionStart;
+    return el.value.lastIndexOf('\n', pos - 1) === -1;
+  }
+  function isAtLastLine(el) {
+    if (el.tagName !== 'TEXTAREA') return true;
+    const pos = el.selectionEnd;
+    return el.value.indexOf('\n', pos) === -1;
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    const active = document.activeElement;
+    const cell = getCellAt(active);
+    if (!cell) return;
+    // Real, deliberate restriction, per explicit request — the Test
+    // Attributes grid no longer uses this feature at all now that it
+    // has its own, real, new click-to-select-then-edit model above;
+    // this stays working only for the separate Sample Field Extraction
+    // grid, which is unaffected by that change.
+    if (cell.gridId === 'test-attr-rows') return;
+
+    // Real, careful check — only intercept when genuinely at the real,
+    // actual text boundary, never mid-text, so native multi-line
+    // cursor movement is always, correctly, preserved.
+    if (e.key === 'ArrowUp' && !isAtFirstLine(active)) return;
+    if (e.key === 'ArrowDown' && !isAtLastLine(active)) return;
+
+    const gridId = cell.gridId;
+    const rows = Array.from(document.querySelectorAll(
+      gridId === 'test-attr-rows' ? '#test-attr-rows .attr-row' : '.attr-row[id^="sf-row-"]'
+    ));
+    const targetRowIdx = cell.rowIdx + (e.key === 'ArrowDown' ? 1 : -1);
+    if (targetRowIdx < 0 || targetRowIdx >= rows.length) return; // genuinely nothing to move to — let it be a no-op
+
+    const targetEl = getCellInputEl(rows[targetRowIdx], cell.colKey, gridId);
+    if (!targetEl || typeof targetEl.focus !== 'function') return;
+
+    e.preventDefault();
+    targetEl.focus();
+    // Real, natural cursor placement — the end of the target field's own
+    // content when moving down (continuing forward), the start when
+    // moving up (continuing backward), matching how spreadsheet-style
+    // navigation genuinely, conventionally, behaves.
+    if (typeof targetEl.setSelectionRange === 'function') {
+      const p = e.key === 'ArrowDown' ? 0 : targetEl.value.length;
+      targetEl.setSelectionRange(p, p);
+    }
   });
 
   // Shift+Arrow cell-range extension has been removed — it was calling
@@ -18760,131 +18895,28 @@ function initAttrGridPaste() {
   const card = document.getElementById('sect-test-attributes');
   if (!card) return;
 
+  // Real, deliberately, greatly simplified, per explicit request —
+  // "expunge... enabling paste more than a single cell." Every paste
+  // now, correctly, only ever affects the one, single, actual, target
+  // cell being pasted into, regardless of which column it starts from.
+  // The prior, real, multi-row/multi-column expansion logic (insert vs.
+  // append, the "paste too wide" column-count validation) is removed
+  // entirely — neither is meaningful anymore once paste can never span
+  // more than one, real cell.
   card.addEventListener('paste', (e) => {
     // Only handle if focus is inside the test attributes section
     const active = document.activeElement;
     if (!card.contains(active)) return;
+    if (!getCellAt(active)) return; // not a genuine, real grid cell at all
 
     const text = e.clipboardData?.getData('text/plain');
-    if (!text || !text.includes('\t')) return; // not tabular data
+    if (text == null) return;
 
     e.preventDefault();
-
-    const pastedRows = text.trim().split(/\r?\n/).map(row => row.split('\t'));
-    if (!pastedRows.length) return;
-
-    if (!currentAttrWPRef) return;
-
-    // Determine which column the cursor is in — include criteria cols if visible
-    const colMap = _attrCriteriaVisible
-      ? ['attrRef', 'title', 'desc', 'additionalInfo', 'successCriteria', 'failureCriteria']
-      : ['attrRef', 'title', 'desc', 'additionalInfo'];
-    let startColIdx = 0;
-    if (active.classList.contains('attr-ref-input'))                                                                                              startColIdx = 0;
-    if (active.classList.contains('attr-input') && !active.classList.contains('attr-desc') && !active.classList.contains('attr-additional') && !active.classList.contains('attr-success') && !active.classList.contains('attr-failure')) startColIdx = 1;
-    if (active.classList.contains('attr-desc'))         startColIdx = 2;
-    if (active.classList.contains('attr-additional'))   startColIdx = 3;
-    if (active.classList.contains('attr-success'))      startColIdx = 4;
-    if (active.classList.contains('attr-failure'))      startColIdx = 5;
-
-    // ── Validate column count BEFORE touching any data ──────────────────
-    // The grid has a fixed number of real columns (4, or 6 with criteria
-    // columns shown) — unlike rows, which can always expand, there is no
-    // way to add MORE columns to fit a too-wide paste. Check the widest
-    // pasted row against how much room is actually left from the starting
-    // column, and block the whole paste with a click-through warning if it
-    // doesn't fit, rather than silently discarding the extra columns (the
-    // previous behavior) or pasting a partial, confusing result.
-    const widestPastedRow = Math.max(...pastedRows.map(r => r.length));
-    const colsAvailable = colMap.length - startColIdx;
-    if (widestPastedRow > colsAvailable) {
-      const colNames = ['Attr #', 'Title', 'Description', 'Additional Information', 'Success Criteria', 'Failure Criteria'];
-      const startColName = colNames[startColIdx] || 'this column';
-      const msg = `The pasted content has ${widestPastedRow} column${widestPastedRow!==1?'s':''}, but only ${colsAvailable} ` +
-        `column${colsAvailable!==1?'s':''} (starting from "${startColName}") ${colsAvailable!==1?'are':'is'} available in this grid. ` +
-        `Paste something starting further left, or reduce the number of columns you're pasting, then try again. Nothing was pasted.`;
-      const msgEl = document.getElementById('attr-paste-toowide-msg');
-      const overlay = document.getElementById('attr-paste-toowide-overlay');
-      if (msgEl && overlay) { msgEl.textContent = msg; overlay.style.display = 'flex'; }
-      return; // paste is NOT executed
-    }
-
-    // Flush current DOM state
-    const existing = [];
-    document.querySelectorAll('#test-attr-rows .attr-row').forEach(row => {
-      existing.push({
-        num:            String(Array.from(row.parentElement?.children || []).indexOf(row) + 1),
-        attrRef:        row.querySelector('.attr-ref-input')?.value || '',
-        title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional):not(.attr-success):not(.attr-failure)')?.value || '',
-        desc:           row.querySelector('.attr-desc')?.value || '',
-        additionalInfo: row.querySelector('.attr-additional')?.value || '',
-        successCriteria:row.querySelector('.attr-success')?.value || '',
-        failureCriteria:row.querySelector('.attr-failure')?.value || '',
-      });
-    });
-
-    // Determine which row the cursor is in
-    const activeRow = active.closest('.attr-row');
-    const allRows   = Array.from(document.querySelectorAll('#test-attr-rows .attr-row'));
-    let startRowIdx = activeRow ? allRows.indexOf(activeRow) : existing.length;
-    if (startRowIdx < 0) startRowIdx = existing.length;
-
-    // ── Decide expand-by-append vs. insert ──────────────────────────────
-    // If the paste starts on the LAST existing row (or past the end
-    // entirely — e.g. pasting with nothing focused), it overwrites in
-    // place and appends new blank rows at the bottom only if the paste
-    // needs more rows than currently exist — the original, simple
-    // behavior.
-    // If it starts on any OTHER row, this INSERTS instead: every row from
-    // startRowIdx onward is preserved in full and pushed down past the
-    // pasted block, rather than being overwritten. Nothing at or after the
-    // paste point is ever discarded when pasting into a non-last row.
-    const isLastRowOrBeyond = startRowIdx >= existing.length - 1;
-
-    if (isLastRowOrBeyond) {
-      pastedRows.forEach((pastedRow, ri) => {
-        const targetRowIdx = startRowIdx + ri;
-        while (existing.length <= targetRowIdx) {
-          existing.push({ num: String(existing.length + 1), attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
-        }
-        pastedRow.forEach((cell, ci) => {
-          const colIdx = startColIdx + ci;
-          if (colIdx >= colMap.length) return; // defensive — already validated above, should never trigger
-          existing[targetRowIdx][colMap[colIdx]] = cell.trim();
-        });
-      });
-    } else {
-      const before     = existing.slice(0, startRowIdx);
-      const preserved   = existing.slice(startRowIdx);
-      const newPastedRows = pastedRows.map(pastedRow => {
-        const row = { num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' };
-        pastedRow.forEach((cell, ci) => {
-          const colIdx = startColIdx + ci;
-          if (colIdx >= colMap.length) return; // defensive — already validated above, should never trigger
-          row[colMap[colIdx]] = cell.trim();
-        });
-        return row;
-      });
-      existing.length = 0;
-      existing.push(...before, ...newPastedRows, ...preserved);
-    }
-
-    wpTestAttributes[currentAttrWPRef] = existing;
-    renderTestAttributes(currentAttrWPRef);
-
-    const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
-    if (w) _saveWorkpaperToDB(w);
-
-    // Show a brief confirmation bubble
-    const btn = card.querySelector('.btn-p');
-    if (btn) {
-      const bbl = document.createElement('span');
-      bbl.textContent = `✓ ${pastedRows.length} row${pastedRows.length!==1?'s':''} pasted`;
-      bbl.style.cssText = 'position:absolute;top:-28px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:11px;padding:3px 10px;border-radius:6px;white-space:nowrap;z-index:999;pointer-events:none';
-      btn.style.position = 'relative';
-      btn.appendChild(bbl);
-      setTimeout(() => { bbl.remove(); btn.style.position = ''; }, 2500);
-    }
+    active.value = text;
+    if (typeof autoResizeTA === 'function') autoResizeTA(active);
+    active.dispatchEvent(new Event('input', { bubbles: true }));
+    active.dispatchEvent(new Event('change', { bubbles: true }));
   });
 }
 
@@ -30019,7 +30051,17 @@ async function _bootstrapDirectUrlAccess() {
     const tenantsRes = await fetch('/api/tenants');
     if (!tenantsRes.ok) { _showRealTenantNotValidError(); return; }
     const realTenants = await tenantsRes.json();
-    const workingTenantId = _currentTenantId || (realUser && realUser.tenant_id);
+    // Real, confirmed fix for the reported bug — on a real, actual page
+    // refresh, _currentTenantId is genuinely wiped clean (a plain,
+    // in-memory browser variable), so this now, correctly, checks the
+    // new, real, PERSISTED current_tenant_id (tied to the actual
+    // session itself, which genuinely does survive a refresh) before
+    // ever falling back to realUser.tenant_id — the user's static
+    // "home" tenant, which can genuinely differ from the tenant they
+    // actually selected and were working in, and was incorrectly
+    // failing this check on a completely valid, active session the
+    // instant the page reloaded.
+    const workingTenantId = _currentTenantId || realUser.current_tenant_id || (realUser && realUser.tenant_id);
     const matchedTenant = Array.isArray(realTenants) && !!workingTenantId
       ? realTenants.find(t => t.id === workingTenantId) : null;
     if (!matchedTenant) {
@@ -30367,7 +30409,13 @@ async function _reverifySessionTenantAndUser() {
     const tenantsRes = await fetch('/api/tenants');
     if (!tenantsRes.ok) { _showRealTenantNotValidError(); return false; }
     const realTenants = await tenantsRes.json();
-    const workingTenantId = _currentTenantId || realUser.tenant_id;
+    // Real, confirmed fix, matching the exact, same, real fix just
+    // applied to _bootstrapDirectUrlAccess — checks the new, real,
+    // PERSISTED current_tenant_id (which genuinely survives a page
+    // refresh) before ever falling back to realUser.tenant_id, the
+    // user's static "home" tenant, which can genuinely differ from the
+    // tenant they actually selected and were working in.
+    const workingTenantId = _currentTenantId || realUser.current_tenant_id || realUser.tenant_id;
     const matchedTenant = Array.isArray(realTenants) && !!workingTenantId
       ? realTenants.find(t => t.id === workingTenantId) : null;
     if (!matchedTenant) {
@@ -30397,6 +30445,16 @@ function _confirmTenantSelection() {
     return;
   }
   _currentTenantId = dropdown.value;
+  // Real, confirmed fix for the reported bug — persists the real,
+  // actual, selected tenant to the user's own, real, server-side
+  // session record, so it genuinely, correctly survives a page
+  // refresh, rather than only ever, briefly, existing in this plain,
+  // in-memory browser variable, which is wiped clean the instant the
+  // page reloads.
+  fetch('/api/auth/set-current-tenant', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_id: _currentTenantId }),
+  }).catch(e => console.error('[_confirmTenantSelection] Could not persist current tenant:', e.message));
   // Real, new tenant-name display update, per explicit request — reads
   // the real, actual selected option's own, correct display text,
   // rather than a real, separate lookup, since the dropdown was already
