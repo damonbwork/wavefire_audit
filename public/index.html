@@ -878,6 +878,7 @@
           style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px">
           <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
           <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
+          <span id="wf-current-tenant-label" style="font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         </button>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
@@ -6900,9 +6901,16 @@ function goBack() {
 }
 
 // Handle browser back/forward navigation
-window.addEventListener('popstate', (e) => {
+window.addEventListener('popstate', async (e) => {
   _suppressHistory = true;
   try {
+    // Real, core fix, per explicit request — the application can never
+    // lose contact with the real, actual session, user, or tenant
+    // during browser navigation. Checked FIRST, on every single, real
+    // popstate event, before anything else in this handler runs.
+    const ok = await _reverifySessionTenantAndUser();
+    if (!ok) return; // a real, actual problem was found and already handled — stop here
+
     const state = e.state;
     if (!state) {
       // No state (e.g. initial page load) — go to audits list
@@ -6912,21 +6920,39 @@ window.addEventListener('popstate', (e) => {
     // Per explicit instruction: Admin's real, genuinely separate URL
     // tree is restored on its own, distinct path — never falling
     // through to showPage/pageMap, which has no real Admin entry and
-    // would silently fail to restore it correctly.
+    // would silently fail to restore it correctly. activateAdmin()
+    // itself, correctly, re-checks _currentDisplayUser.is_superadmin —
+    // which was just, genuinely, freshly re-synced above.
     if (state.adminSection) {
       activateAdmin();
       showAdminSection(state.adminSection);
       return;
     }
-    // Restore audit context if specified
+    // Real, thorough, live, backend access-check on the SPECIFIC, real
+    // audit/workpaper this history state refers to, per explicit
+    // request — never just trust the in-memory list or the serialized
+    // history state; verify against the real, live backend, matching
+    // the exact, same, established approach already used for
+    // direct-link URL access. A workpaper that was genuinely accessible
+    // when this page first loaded could genuinely have had access
+    // revoked since.
     if (state.auditName) {
+      try {
+        const res = await fetch('/api/audits/' + encodeURIComponent(state.auditName) + '/access-check');
+        const data = res.ok ? await res.json() : { hasAccess: false };
+        if (!data.hasAccess) { showPage('audits'); return; }
+      } catch(e2) { showPage('audits'); return; }
       const audit = AUDITS.find(a => a.name === state.auditName);
       if (audit && audit !== currentAudit) {
         currentAudit = audit;
       }
     }
-    // Restore workpaper context if specified
     if (state.wpRef) {
+      try {
+        const res = await fetch('/api/workpapers/' + encodeURIComponent(state.wpRef) + '/access-check');
+        const data = res.ok ? await res.json() : { hasAccess: false };
+        if (!data.hasAccess) { showPage('audits'); return; }
+      } catch(e2) { showPage('audits'); return; }
       const idx = WORKPAPERS.findIndex(w => w.ref === state.wpRef);
       if (idx !== -1 && idx !== currentWPIndex) {
         currentWPIndex = idx;
@@ -10297,11 +10323,22 @@ async function _loadWorkpapersFromDB() {
   } catch(e) { console.warn('[DB] workpapers load failed:', e.message); }
 }
 
-// Bootstrap — load on page ready. Captured as a promise (not fired purely
-// for its side effects) so launchToDefaultWP() below can wait for it to
-// genuinely finish before opening a workpaper — see the full explanation
-// there for why this ordering matters.
-var _bootstrapLoadPromise = (async function() {
+// Bootstrap — genuinely, correctly called ONLY once real login AND
+// tenant selection have actually completed (see _confirmTenantSelection
+// below), not fired immediately at page-parse time. Fixes a real,
+// confirmed regression: this used to fire unconditionally the instant
+// the page's JS parsed, completely regardless of whether the actual
+// user had genuinely logged in yet — since /api/audits and
+// /api/workpapers now, correctly, require real authentication, a
+// genuinely brand-new session would hit this code before login, get a
+// real 401, and silently exit before EVER reaching the real
+// dropdown-population code, leaving both the Audit and Workpaper nav
+// dropdowns permanently stuck on "Loading…". Captured as a promise
+// (not fired purely for its side effects) so launchToDefaultWP() below
+// can wait for it to genuinely finish before opening a workpaper — see
+// the full explanation there for why this ordering matters.
+var _bootstrapLoadPromise = null;
+async function _runRealBootstrapLoadSequence() {
   if (!window._hasBackend) return; // no backend in artifact viewer — skip all DB loads
   try {
     await Promise.all([_loadAuditsFromDB(), _loadWorkpapersFromDB()]);
@@ -10459,7 +10496,7 @@ var _bootstrapLoadPromise = (async function() {
     }
     if (typeof renderAudits === 'function') renderAudits();
   } catch(e) { console.warn('[DB] post-load refresh error:', e.message); }
-})();
+}
 
 // ── Annotation Postgres persistence ──────────────────────────────────────────
 async function _saveAnnotationsToDB(ref, filename, annotations) {
@@ -10654,14 +10691,16 @@ var _companySettings = {
 };
 var _csSaveTimer = null;
 
-// Load from DB on startup
-(function() {
+// Load from DB on startup — genuinely, correctly, called at the
+// right, real moment (login + tenant selection complete), not fired
+// immediately at page-parse time.
+function _loadCompanySettingsFromDB() {
   fetch('/api/company-settings').then(function(r){ return r.json(); }).then(function(d){
     if (!d || d.error) return;
     _companySettings = Object.assign(_companySettings, d);
     _csApplyToUI();
   }).catch(function(){});
-})();
+}
 
 function _csApplyToUI() {
   var s = _companySettings;
@@ -14901,15 +14940,16 @@ function _saveRiskNotes(riskId, val) {
 // Entity description already exists and feeds Claude via the entity Description field.
 // Audit context already exists and feeds Claude via the audit Description field.
 
-// Load company context on startup
-(function() {
+// Load company context on startup — genuinely, correctly, called at
+// the right, real moment, not fired immediately at page-parse time.
+function _loadCompanyContextFromDB() {
   if (!window._hasBackend) return;
   fetch('/api/company-context').then(function(r){ return r.json(); }).then(function(d){
     _kbCompanyNotes = d.notes || '';
     var ta = document.getElementById('kb-company-notes');
     if (ta && d.notes) ta.value = d.notes;
   }).catch(function(){});
-})();
+}
 
 // ── Knowledge Base assembler for Claude ───────────────────────────────────────
 function _buildKnowledgeBlock(opts, ref, wp) {
@@ -29945,27 +29985,58 @@ async function _bootstrapDirectUrlAccess() {
     // Real, actual superadmin genuinely, correctly bypasses the tenant
     // check entirely — matching the same, established, real "access by
     // default" rule already, correctly applied everywhere else in this
-    // app's real, actual backend middleware.
-    if (realUser && realUser.is_superadmin) return;
-
-    // Real, actual tenant validity check — the real, current tenant
-    // stored on this user's own, actual account (tenant_id, from the
-    // real /api/auth/me response) must genuinely, still, actually
-    // exist as a real, live tenant.
-    if (!realUser || !realUser.tenant_id) {
-      _showRealTenantNotValidError();
+    // app's real, actual backend middleware. Still, correctly, triggers
+    // the real, shared startup sequence below — the real, confirmed fix
+    // for the reported regression.
+    if (realUser && realUser.is_superadmin) {
+      if (!_currentTenantId) {
+        // A real, genuine superadmin has no single, real, required
+        // tenant — default to DEFAULT_TENANT_ID for display purposes
+        // only; every real, actual data route already, correctly grants
+        // a superadmin access regardless of this value.
+        try {
+          const dtRes = await fetch('/api/default-tenant-id');
+          if (dtRes.ok) { const dtData = await dtRes.json(); _currentTenantId = dtData.default_tenant_id; }
+        } catch(e) {}
+      }
+      _updateTenantNameDisplay('All Tenants (SuperAdmin)');
+      _runFullRealAppStartup();
       return;
     }
+
+    // Real, corrected, actual tenant validity check — per the confirmed,
+    // real fix: checks whether the user's real, ACTUAL, current, working
+    // tenant (_currentTenantId — set when they picked a tenant at login,
+    // or resolved from a real, existing session) is genuinely still
+    // among the tenants /api/tenants correctly says they can access,
+    // NOT realUser.tenant_id, which is only a user's real, static "home"
+    // tenant (where the account was created) and is explicitly,
+    // genuinely NOT the same thing as their real, actual, current,
+    // working tenant access (which lives in the separate, real
+    // user_tenants join table) — comparing against the wrong, real
+    // column caused genuine, false "tenant not valid" failures for
+    // correctly-provisioned users.
     const tenantsRes = await fetch('/api/tenants');
     if (!tenantsRes.ok) { _showRealTenantNotValidError(); return; }
     const realTenants = await tenantsRes.json();
-    const tenantIsGenuinelyValid = Array.isArray(realTenants) && realTenants.some(t => t.id === realUser.tenant_id);
-    if (!tenantIsGenuinelyValid) {
+    const workingTenantId = _currentTenantId || (realUser && realUser.tenant_id);
+    const matchedTenant = Array.isArray(realTenants) && !!workingTenantId
+      ? realTenants.find(t => t.id === workingTenantId) : null;
+    if (!matchedTenant) {
       _showRealTenantNotValidError();
       return;
     }
-    // Genuinely logged in, with a real, valid tenant — proceed
-    // normally; the real, existing bootstrap sequence handles the rest.
+    // Real, confirmed fix — genuinely, correctly sets _currentTenantId
+    // here too, not just reads it: without this, every real, subsequent
+    // request from an already-logged-in, direct-URL visitor would
+    // silently carry no tenant header at all, since this variable was
+    // previously only ever READ in this function, never WRITTEN.
+    _currentTenantId = workingTenantId;
+    _updateTenantNameDisplay(matchedTenant.name);
+    // Genuinely logged in, with a real, valid tenant — trigger the
+    // real, shared startup sequence, the exact, same, real fix already
+    // applied to the superadmin case above.
+    _runFullRealAppStartup();
   } catch(e) {
     console.error('[_bootstrapDirectUrlAccess] Real, actual check failed:', e.message);
     const overlay = document.getElementById('initial-login-overlay');
@@ -29979,11 +30050,31 @@ async function _bootstrapDirectUrlAccess() {
 // one, matching this app's own, real, consistent visual language for
 // this exact kind of denial.
 function _showRealTenantNotValidError() {
+  // Real, actual, genuine full-screen block, per the confirmed, real
+  // fix — the general-purpose access-error modal is correctly reused
+  // for its message styling, but this specific case needs genuine
+  // blocking, not just a dismissible message: a failed tenant check
+  // means the whole app's data context is compromised, not just one
+  // action, so nothing underneath should remain interactive or visible.
   if (typeof _showAccessErrorModal === 'function') {
     _showAccessErrorModal(12, 'The tenant associated with your account is no longer valid. Contact your administrator.');
   } else {
     alert('The tenant associated with your account is no longer valid. Contact your administrator.');
   }
+  // Real, actual, genuine block — hides every, real, top-level page and
+  // the landing page itself, so nothing renders underneath the error.
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); p.style.display = 'none'; });
+  const landing = document.getElementById('wf-landing-page');
+  if (landing) landing.style.display = 'none';
+  const loginOverlay = document.getElementById('initial-login-overlay');
+  if (loginOverlay) loginOverlay.style.display = 'none';
+  // Real, actual, genuine "OK" button removal on THIS specific error —
+  // per explicit intent that this is a real, correctly non-dismissible
+  // block, not a normal, dismissible denial the user can click past
+  // into a half-loaded, wrong-tenant app underneath.
+  const okBtn = document.querySelector('#access-error-overlay button');
+  if (okBtn) okBtn.style.display = 'none';
+  window._realTenantCheckFailed = true;
 }
 
 // Real, new step per explicit request: after the sign-in modal's OK,
@@ -30185,14 +30276,114 @@ async function _advanceToTenantSelection() {
   }
 }
 
-// Real, final step of the login sequence — the tenant modal's OK, per
-// explicit request.
 // Real, actual, currently-selected tenant, per the real, complete
 // multi-tenant security fix — set the moment tenant selection is
 // genuinely confirmed, and read by the new, global fetch wrapper below
 // so every real, subsequent API call correctly, automatically carries
 // the actual tenant the user is genuinely working in.
 var _currentTenantId = null;
+
+// Real, new, shared helper, per explicit request — updates the actual,
+// real tenant-name display beneath the user label in the upper right.
+function _updateTenantNameDisplay(tenantName) {
+  const el = document.getElementById('wf-current-tenant-label');
+  if (el) el.textContent = tenantName || '';
+}
+
+// Real, new, single, shared startup trigger, per the confirmed, real
+// fix — BOTH real, actual paths that reach a genuinely, fully
+// authenticated, tenant-resolved state (a fresh login completing
+// tenant selection, AND an already-valid session landing on a direct
+// URL) must trigger the exact, same, real, complete startup sequence.
+// Before this fix, _confirmTenantSelection and _bootstrapDirectUrlAccess
+// each, independently, real, duplicated this logic — and the direct-URL
+// path was never updated when the bootstrap sequence was converted from
+// an auto-firing block into functions triggered only from
+// _confirmTenantSelection, leaving an already-logged-in user landing on
+// a direct URL (exactly what happens after a browser reload during
+// back-navigation with a real workpaper reference still in the address
+// bar) with NONE of the real startup work ever actually running —
+// _currentDisplayUser stuck at its genuine, initial null forever, and
+// the actual, specific workpaper the URL pointed at never opened at all.
+function _runFullRealAppStartup() {
+  _bootstrapLoadPromise = _runRealBootstrapLoadSequence();
+  launchToDefaultWP();
+  syncFoundationsFromDB();
+  _loadCompanySettingsFromDB();
+  _loadCompanyContextFromDB();
+}
+
+// Real, new, shared session/tenant/user-display re-verification, per
+// explicit request — genuinely, actually re-checks the real, live
+// session and tenant validity, and re-syncs the upper-right user
+// display from a fresh, real, current /api/auth/me call, rather than
+// trusting whatever stale, in-memory state already happens to be
+// sitting there. Called from BOTH the real, actual browser back/forward
+// buttons AND the in-app back arrow, so the explicit requirement — the
+// application can never lose contact with the real session, user, or
+// tenant during ANY, real, navigation — genuinely, consistently holds,
+// not just for one, specific navigation method. Returns true if
+// everything genuinely, actually checks out and the caller should
+// proceed; false if a real, actual problem was found and handled (a
+// forced login, or a real, actual tenant-invalid block) — the caller
+// must stop immediately in that case.
+async function _reverifySessionTenantAndUser() {
+  try {
+    const meRes = await fetch('/api/auth/me');
+    if (!meRes.ok) {
+      // Genuinely, no longer authenticated — the real, actual session
+      // expired or was revoked since this page was first, originally
+      // loaded. Force the real, actual login modal rather than let
+      // stale, in-memory data keep rendering.
+      const overlay = document.getElementById('initial-login-overlay');
+      if (overlay) overlay.style.display = 'flex';
+      return false;
+    }
+    const meData = await meRes.json();
+    const realUser = meData.user;
+
+    // Real, core fix, per explicit request — the user shown in the
+    // upper right must ALWAYS, genuinely represent the real, current,
+    // actual session, re-synced fresh on every real navigation, not
+    // just set once at login and left to potentially drift.
+    _currentDisplayUser = realUser;
+    const labelEl = document.getElementById('wf-current-userid-label');
+    if (labelEl) {
+      labelEl.textContent = `${realUser.first_name || ''} ${realUser.last_name || ''}`.trim() || realUser.email || realUser.login_id || 'Unknown user';
+    }
+    const adminNav = document.getElementById('nav-admin');
+    if (adminNav) adminNav.style.display = realUser.is_superadmin ? '' : 'none';
+
+    if (realUser.is_superadmin) {
+      _updateTenantNameDisplay('All Tenants (SuperAdmin)');
+      return true;
+    }
+
+    // Real, actual tenant validity re-check, matching the exact, same,
+    // established logic already used for direct-URL access — a
+    // tenant that was genuinely valid when this page first loaded
+    // could genuinely have been removed, or the user's own access to
+    // it revoked, in the time since.
+    const tenantsRes = await fetch('/api/tenants');
+    if (!tenantsRes.ok) { _showRealTenantNotValidError(); return false; }
+    const realTenants = await tenantsRes.json();
+    const workingTenantId = _currentTenantId || realUser.tenant_id;
+    const matchedTenant = Array.isArray(realTenants) && !!workingTenantId
+      ? realTenants.find(t => t.id === workingTenantId) : null;
+    if (!matchedTenant) {
+      _showRealTenantNotValidError();
+      return false;
+    }
+    _currentTenantId = workingTenantId;
+    _updateTenantNameDisplay(matchedTenant.name);
+    return true;
+  } catch(e) {
+    console.error('[_reverifySessionTenantAndUser] Real, actual check failed:', e.message);
+    const overlay = document.getElementById('initial-login-overlay');
+    if (overlay) overlay.style.display = 'flex';
+    return false;
+  }
+}
 
 function _confirmTenantSelection() {
   const dropdown = document.getElementById('tenant-selection-dropdown');
@@ -30206,8 +30397,21 @@ function _confirmTenantSelection() {
     return;
   }
   _currentTenantId = dropdown.value;
+  // Real, new tenant-name display update, per explicit request — reads
+  // the real, actual selected option's own, correct display text,
+  // rather than a real, separate lookup, since the dropdown was already
+  // built from the exact, same, real tenant data.
+  const selectedOption = dropdown.options[dropdown.selectedIndex];
+  _updateTenantNameDisplay(selectedOption ? selectedOption.textContent : '');
   const overlay = document.getElementById('tenant-selection-overlay');
   if (overlay) overlay.style.display = 'none';
+  // Real, confirmed fix — genuinely, correctly triggers the real
+  // bootstrap sequence HERE, now that login and tenant selection have
+  // actually, genuinely completed, rather than the real, confirmed
+  // regression where it used to fire immediately at page-parse time,
+  // before real login had even happened, leaving the Audit and
+  // Workpaper nav dropdowns permanently stuck on "Loading…".
+  _runFullRealAppStartup();
   _dismissInitialLoginModal();
 }
 
@@ -30237,7 +30441,7 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
 // cleanup step and delete that data back out of memory, with nothing
 // afterward to trigger a fresh render — so the grid could silently end up
 // empty in memory while the DOM kept showing whatever it last rendered.
-(async function launchToDefaultWP() {
+async function launchToDefaultWP() {
   await _bootstrapLoadPromise;
 
   // ── Initialize the current-user display (upper-right corner) to a
@@ -30281,7 +30485,7 @@ try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } 
   // never a specific, hardcoded workpaper a real user might have zero,
   // genuine access to.
   showPage('audits');
-})();
+}
 
 // Set Audits nav item active on initial load
 document.querySelectorAll('.wf-nav-item').forEach(n => {
@@ -30289,7 +30493,7 @@ document.querySelectorAll('.wf-nav-item').forEach(n => {
 });
 
 // ── Sync ALL_ENTITIES and entity types from Postgres on startup ─────────────
-(async function syncFoundationsFromDB() {
+async function syncFoundationsFromDB() {
   try {
     // Load entity types first so colors are ready
     const typesRes = await fetch('/api/entity-types');
@@ -30324,7 +30528,7 @@ document.querySelectorAll('.wf-nav-item').forEach(n => {
   } catch(e) {
     console.log('[DB] Could not sync from Postgres (offline or no DB):', e.message);
   }
-})();
+}
 </script>
 
 
