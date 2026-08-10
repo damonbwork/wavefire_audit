@@ -2108,7 +2108,8 @@ app.get('/api/diagnose-login/:loginId', async (req, res) => {
     const { rows } = await pool.query(
       `SELECT user_id, login_id, email, is_active, is_superadmin, must_change_password,
               (password_hash IS NOT NULL AND password_hash != '') AS has_real_password_set,
-              date_updated
+              date_updated, failed_login_count, locked_until, daily_failed_login_count,
+              daily_failed_login_reset_at, security_disabled
        FROM users WHERE login_id=$1`,
       [req.params.loginId]
     );
@@ -2116,10 +2117,13 @@ app.get('/api/diagnose-login/:loginId', async (req, res) => {
       return res.json({ found: false, note: 'No user exists with this exact login_id. Check for a typo, or whether this user\'s real login_id is actually something different from their name/email.' });
     }
     const u = rows[0];
+    const isCurrentlyLockedOut = u.locked_until && new Date(u.locked_until) > new Date();
     const likelyCause =
       !u.is_active ? 'This account is marked INACTIVE — inactive accounts are always rejected at login, regardless of password.' :
+      u.security_disabled ? 'This account is SECURITY-DISABLED (too many failed login attempts in a rolling 24-hour period). A superadmin must, actually, explicitly re-enable it via Admin > Users before this user can log in again — no correct password will work until then.' :
+      isCurrentlyLockedOut ? `This account is TEMPORARILY LOCKED (too many failed login attempts in a row). The lock expires at ${u.locked_until} — no correct password will work until then, even the actually-correct one.` :
       !u.has_real_password_set ? 'This account genuinely has NO real password set at all yet (password_hash is empty) — a superadmin needs to set one via the Admin > Users page before this user can log in.' :
-      'A real password IS set and the account is active — if login is still failing, the most likely real cause is the password the user is actually typing simply does not match what was set (a genuine typo either when it was set, or when it\'s being entered now).';
+      'A real password IS set, the account is active, and it is genuinely not locked or disabled — if login is still failing, the most likely real cause is the password the user is actually typing simply does not match what was set (a genuine typo either when it was set, or when it\'s being entered now).';
     res.json({
       found: true,
       login_id: u.login_id,
@@ -2128,6 +2132,12 @@ app.get('/api/diagnose-login/:loginId', async (req, res) => {
       must_change_password: u.must_change_password,
       has_real_password_set: u.has_real_password_set,
       password_last_updated: u.date_updated,
+      failed_login_count: u.failed_login_count,
+      currently_locked_out: !!isCurrentlyLockedOut,
+      locked_until: u.locked_until,
+      daily_failed_login_count: u.daily_failed_login_count,
+      daily_failed_login_reset_at: u.daily_failed_login_reset_at,
+      security_disabled: u.security_disabled,
       likely_cause: likelyCause,
     });
   } catch(err) { return fail(res, err, 'GET /api/diagnose-login/:loginId:'); }
