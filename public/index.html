@@ -875,11 +875,19 @@
       <div class="wf-notif"><i class="ti ti-bell"></i></div>
       <div style="position:relative">
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
-          style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px">
+          style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px 0 6px;border-radius:6px 6px 0 0">
           <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
           <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
-          <span id="wf-current-tenant-label" style="font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
         </button>
+        <!-- Real, actual, independently-clickable tenant label, per
+             explicit request — split out of the button above, since it
+             was previously nested inside it, meaning clicking it
+             incorrectly opened the user switcher instead. Only
+             genuinely interactive for a real superadmin — set by
+             _applySuperAdminTenantSwitcherUI(), called everywhere
+             _currentDisplayUser is genuinely, correctly established. -->
+        <span id="wf-current-tenant-label" onclick="toggleTenantSwitcher(event)"
+          style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
         <div id="wf-user-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
@@ -893,6 +901,13 @@
               style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
           </div>
           <div id="wf-user-switcher-list" style="padding:6px"></div>
+        </div>
+
+        <!-- Real, new tenant-switcher dropdown, per explicit request —
+             superadmin-only, matching the exact, established, visual
+             style of the user-switcher panel above. -->
+        <div id="wf-tenant-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:240px;max-height:320px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+          <div id="wf-tenant-switcher-list" style="padding:6px"></div>
         </div>
       </div>
     </div>
@@ -4667,7 +4682,7 @@ auditor's assessment.
        (no direct URL hash). The only, real, live link is the Sign In
        button, which opens the real, existing, established login modal
        below — nothing else on this page is interactive. -->
-  <div id="wf-landing-page" style="display: none; position: fixed; inset: 0px; background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%); z-index: 99997; align-items: center; justify-content: center; flex-direction: column;">
+  <div id="wf-landing-page" style="display: none; position: fixed; inset: 0px; background: linear-gradient(160deg, #38628C 0%, #2A4969 100%); z-index: 99997; align-items: center; justify-content: center; flex-direction: column;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px">
       <img src="data:image/jpeg;base64,/9j/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYFBgYGBwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYHCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgr/wAARCAB7AfgDASIAAhEBAxEB/8QAHgABAAICAgMBAAAAAAAAAAAAAAgJBwoFBgEDBAL/xABXEAABAgUCBAICCwsICAMJAAABAgMABAUGEQcICRIhMRNBGSIUFSMyUVNYdpbT1AoWFxg4OUJXYaa0UlZigZSys9EaKDNjZ3FzlSZEdzQ1N3KCg5GS0v/EABsBAQACAwEBAAAAAAAAAAAAAAAFBgMEBwIB/8QAQBEAAQIEAgUICQIFBAMAAAAAAQACAwQFESExBkFRYXESE1OBkaGx0RQVFiIyksHh8DM1YoKywvE0QlJyQ6LS/9oADAMBAAIRAxEAPwCM8IQjuC4+kIQgi8oQtxYQhJUpRwABkkxPvizcNxzQbSCwdx1iUQMsNWzSaHqBKMN4SxUGpRpluc5R70OlHhrPQeIEHqpwmML8J7a/Nbod59s0iep6naBbEwmvXG4UZR4EutKm2VeR8V7w2yO/KpZHvTF6+tuklqa86R3Fo3e8sHKXclJekZo8oKm+dOEupz2WhXKtJ8lJB8oqlbrBkKjBa04C5cNx1d1+xWWj0oTshFc4Z4NO8flu1aykI5vUqwbg0q1ErumN1seFU7erEzTaggdg8w6ptePhGUnB8xHCRamuDgCMiq2QWmxSEIR9XxIQhBEhCEESEchcds1a1Jtqm12X8CbXLoeclV+/ZSscyAsfoqKSlXL3AUM4OQOPj4CCLhfSCDYpCEI+r4kIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkeW23HnEtNNqUtSgEpSMkk9gBHiJ/8DfYGvW7VAbqNT6Jz2nZ06BQJeZb9Sp1VOFJXg++bYyFk9i4UDryrEak9OQpCVdGiZDvOoda2ZOViTsw2CzM9w1lTq4ReyFeznbUzN3lS/Bva8vCqNzJcT68ogJPseSP/AEkKUVD4xxwZIAiVcIRyGamYs3MOjRDi43/OC6jLwIcrAbCZkFQtxqbHk7J4il7LpzIbZrLNPqYQkYAW5KNBw/8A1OIWr/mqIqRLPjcXhJXZxFbxlpB1LiKNI02nqWk5BWmTacWP6lOKSf2pMRluHT29LUtqgXhcNuzErS7ok3pqgzziPc5xpqYcl3SgjzS60tJB6jocYUknrNMcRTYHLOJa3w8lzOogGfjcnIOPj5rhoQhEgtFIQhBEiSml+g1J206BS29PcFRGXJ+tKUzo9ZVRZCvbWaABNVmmld5JgFK0oIw+sthXuahz5Q4Y3Dkti+bcmt7W8JKKVpRazDk/LSlQSUiuFnJUtQ7mWSRjA6vL9QZHNmP2+jd1c287X2o6pVNhcjRpdIkbToeQEU2nNk+E2AOgWrqtZHQqUQPVCQIt0yZyaMvCPut+M/2jedewYZnCRbL+iS4jxfid8I/uO7ZtOOWeJa1WatcdYm7gr1RenJ6emVzE7NzLhW4+6tRUtalHqpRUSST3Jj5oQiUAACjs0hCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCPKUqWoIQkkk4AA7wRZQ2cbWL33j6/UXRCygpkTjnj1ip+HzIp0igjxphX/IEJSCRzLWhORzZjYf0g0msbQrTKi6Raa0ZEhRKBIIlZCXT1PKOpWs/pLUoqWpR6qUpRPUxG7hDbE2Nnu3lm5rzpPh33ejLU7cBeR7pIM4yxIj4OQK5ljzcWodQhOJaxzHSKq+nzXNwz7jMt51n6DdxXQ6FTfQpbnHj33Z7hqHn9kjr+q+plp6M6aV3Ve+Z8S1It6lvT8+70z4baCopSPNSsBKU9yogDvHYIqv4+2+hidWxsj02rAWlpxqev19heRzjDktIk/sPK8sfD4IzkKERtMkX1GcbBblrOwa/tvW/UZxkhKOinPVvOr82KuTVC/bs181kruo9WlnJis3dcL86uWYBWS9MPFQaQO5AKglIHkAIuh194Y1H1N4Z1tbZZCnMG87EtlqZtudyAfbZLfPMtc3k3MOFxBGcAqQo55BEDuB3s9mNwG6BrWa6KUpdr6cuNz6luI9SZqhOZVoZ78hBfOO3hIB6LEXdxZtJKmZebhQYBsYePXqHZ3FV+gU8R5aJFjC4iYdWs9vgtXCekZ2mTr1NqUo7LzEu6pp9h5BSttaThSVA9QQQQQe2I9UTR45W1pnQTd45qVbkh4NC1IYXVmghGEN1BKgmcQPhypTbx/bMEeUQui4ycyyclWRm5OF/MdRwVVmpd8rMOguzafztSJscJvha1bd7c7OtGslNflNNKTN+q2rLa7hmEHqw2ehDCSMOODv1Qk83Mpvr3C24Zdy73r6F735LzVO01oc2BVp9GULqrycH2FLq+EjHiOD3iTgespMWUcS7ePZvDr2tSli6QSUjTLmq8iaVYlHk2UpbprCEhK5vkHQIZSRyg55nFIyCOfEHV6rF54SMnjFdgT/x+/gN6mKXTYfNGcmsIbcQNv28SocccTfRS6/WGNimhswxKWvaimkXWKakNsvTbQAakEBGAGpcAFSR08QAYBZ61zx7J2dnKjOO1CoTTj8w+6px995ZUtxajlSlE9SSSSSe8euJmQkoUhKtgs1ZnadZUTOzcSdmDFfryGwagkIQjcWqkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkIQgiQhCCJCEIIkS/4LG0qX3MbuJW67ppnsi2dPm26zU0uIy2/N8+JNhXl1cSp0g9FJl1pPeIr3LYl2WjTqVWa9RnWZGuSXsqjz4HMxONBRSotrHqqKFgoWnOULSUqAIxFg/Ar3z7ctApOs7fNV8W9V7qrqZuRuydfSJOZIaQ23JuqIHgcpC1JWolCi6oEpISFRVYix20yI6XF3WthqGRPULqSpUOC6oMEc2F749w61btCPCVJUkKSQQRkEeccdeF3W3YFp1O+bwqzUhSaPIOztSnX1YQww0grWs/sCQTHJQC42C6aSALlYL4k++a39jWgEzd0u6xMXdWw5JWbS3SD4kzy+tMLT3LTIIUr4SUIyOcEUR2LZWrO6jXCUtC3kTVfu+8q0ol2YcKlzEw6ordfdX5JHruLWeiUhRPQR3bfpvCuvezuIqurdaL0vSWyZO16S4vIkaehR8NJHbxFZLiz5rWcdAkCz3gncPYbddL07kdVKJyXteEik02VmWsOUemKwpKMHql17CVr80pCEdDzg9AgMhaM0oxHi8V/jqHAa/wDCpEZ8TSCpCGzCG3w1nidX+VJ3ZrtXsnZvt/ouiFmcrypNvx6zU/D5V1GfWB40woeWSAlIOeVCEJyeXMZShFbvGI4sA00l6jtO20XL/wCI3kKl7wuaRe/91IIwqUYWP/MEdFrH+yHqj3Qkt06VlZurznJbi5xuTs2k/m5WqYmJamSnKdg0YAbdgCxJx4t8OkWttcpW2PTOQlavMWbWVzVZuptzmSzM+GppciwQcLAyC6rqOdtCR1SqMA8NfhzXxvu1M8WeEzSrCokwg3NX0IwXD0V7DlyRhT6hjJ6htJ5lZJQlfCcPvYLqPvw1aFs0UvU216WtDt13MWsplGiejTeei314ISnywVHok5vt0X0Y042+6Z0rSPSe22aVQ6PLhqVlmhlSj3U4tXdbi1ZUpZ6qJJi3VCoQaBJCSlTd+s7L6+J1DVnxrEjJRa3NmbmBZmzbbVwGs/g4upTmiGzLb29PiTk7Zsix6KVhiXRhLLKB0SkE5cdWo4GSVOOL6kqV11/N5u6y995Wv1Z1svNS2W5lfgUSllzmRTZBBPgy6fLIBKlEY5lrWrAziJY8criAfhp1GO1DSytc9rWlPFVxzUu56tSqqMpLeR75tjqn4C6VnB5EGK+o2tG6W6WgmajfG/bmB5nM/wCVrV+oiYi+jQvgZs1nyGQSEIkbp7wmOIBqrY9J1J0+0IaqdErkg3OUufZvCkJS+y4kKSrlVNhSTg9UqAUk5BAIIixRpiXlwDFeGg7SB4qChQI8ckQmlx3AnwUcoR2jWbRbU/b3qNUNJdYrTeolw0st+zae8827yBaEuIIW0pSFpKVJIUlRHXvHV4yNc17Q5puDkVjc1zHFrhYhIQiTHDw4dt1b6ZS/6jT5t2SlrXtlxVJmBgIm6y4CZWWUT05CELKyOqQUfyhGOYmIMrBMWKbNH+FkgQIszFEOGLkqM8I91Qp89SZ9+l1OTcl5mWeU1MS7yClbTiSQpKgeoIIII/ZHpjNmsSQhGedEuGRvk3FacyWrWj2hTtVt6pLdTI1F2v06UD/hrLaylExMNrKQtKhzcuCQcE4jFGjwJdvKiuDRtJA8VkhQY0d3JhtLjuF/BYGhHfNwu2fWrarezOnOvFotUStPyCJ1EgisSk4oMLUpKVKMq64lBJQrCVEKwAcYIJ6HHtj2RWB7CCDrGIXl7Hw3FrxYjUUhEh+HXw/bz38ak1W2qdVl0ag0OkuP1WvljnSzMLQtMqyB+kpbg5iOnubbhyDy5wtqhppeejeolZ0s1Do65Ct0GoOSdRlV/oOIOMg/pJIwpKh0UkgjoRGJszAfHdBa73mgEjj+eG1ZHS8ZkFsUj3TcA8FwMI+mj0qbrtXlaHTyyH5yZQwwZmZbYb51qCU8zjikobTkjKlEJA6kgAmJODgs8TBQCk7a8g9iLyo32yEaalZYjnXht8rkDxSFLTEe/NMLrbAT4KLUI5nULT689Kb4qum2odvv0quUSeclKnT5jBUw8g4UMpJSoeYUklKgQQSCDHDRmDg4Ag3BWIgtNjmkIQj6viQjumgm3jWbc9qAjS7Qqxn6/XFyjkz7DamGWUoZbA53FuvLQ22kZSMqUMqUlIyVAHLt78I3iD6b2fU7/vnQZim0ajSLs5U5+YvOjcjDDaSpazicJOAD0AJPYAkxrxJyUgxOREiNDthIB7FnhyszFZy2MJG0AkKN0I5zTXTi89Xr9pOmGndG9sa5XZ5EnSpH2Q2147yzhKed1SUJyfNSgP2xIn0LHEx+TV++VG+2QjTcpLuAixGtJ2kDxSFKzMcXhMLhuBPgotQiUvoWOJj8mr98qN9sh6FjiY/Jq/fKjfbIw+s6b07Pmb5rL6uqHQu+U+Si1CJS+hY4mPyav3yo32yPnrHBu4kNBpM1XKtty8KVkpZb8y7999HVyNoSVKVhM2ScAE4AJgKnTSf1mfMPNPV8+P8Awu+U+SjFCEZB257V9ed2l2ztjbfbE++Cq06nGfnJX20lZTw5cOIbK+aZdbSfWcQMAk9c4wDG3EiQ4TC95AA1nALVYx8RwawXJ1BY+hEpfQscTH5NX75Ub7ZD0LHEx+TV++VG+2Rqes6b07Pmb5ra9XVDoXfKfJRahEpfQscTH5NX75Ub7ZD0LHEx+TV++VG+2Q9Z03p2fM3zT1dUOhd8p8lFqEZ31y4Z+9vbbpxOat606Ke0tvSDrLc3UPvkpszyKdcS2geGxMrWcqUB0ScZycCMERswY8CYbyoTg4bQQfBa8WDGgO5MRpad4t4pCJDaW8KffxrTp9StVNNNBvbKg1uVEzS5/wC+ilM+M0SQFcjs0laeoPRSQYwxqjphfOi+oNW0s1LoftbXqHNmWqkh7Jae8F0AEp52lKQroR1SoiPMOalozyyG8FwzAIJHEL1El5iEwPewgHIkEArgIQiS9scHziL3lbVPu+29u/smnVWRZnJCY++2kI8Vl1AWhfKqbCk5SoHBAIz1Aj7GmZeWAMV4bfaQPFfIUvHjkiEwutsBPgo0QiUvoWOJj8mr98qN9sh6FjiY/Jq/fKjfbI1/WdN6dnzN81n9XVDoXfKfJRahElLi4QPEeteTVPVLbDUXUIGSmnVmnzi/6kMTC1H+oRgO+NPr80xuB209SLKq1AqjIBdp1apzsq+gHsShxIUB074jPBmpWY/SeHcCD4LDFlpiB+owt4gjxXDwhHYdKtK781u1DpWlOmFC9s6/W5nwKZIeymmfGc5Srl53VJQnoknKlAdIzOc1jS5xsAsTWuc4AC5K69CJS+hY4mPyav3yo32yHoWOJj8mr98qN9sjS9Z03p2fM3zW36uqHQu+U+Si1CJS+hY4mPyav3yo32yHoWOJj8mr98qN9sh6zpvTs+Zvmnq6odC75T5KLUIkxcvB64jFn25ULtuLbt7Hp9LknZufmPvupC/CZbQVrVypmypWEpJwAScdAYRlhzknFF2RGngQViiSs1CNnw3DiCF2LhjaqaMagVCa2G7taW1PWLfc6F21UHnA29b9dUkIbel3cZZLwCWz3SVhsKBSpeeA4gvDC1n2MXA5XVtu3FYU3MctLuuVlyAyVH1WJtAz4LvkD7xfdJzlCYzNOusOpfYcUhaFBSFoOCkjsQfIxerwtN41sb/trMxp3rFLyVXui3pNNKvOm1JlLqKrLKSUtTakKyFh1KSlf+8Qs4AUmIaqRZmkxfS4QvDPxt36nDYTkeq6lqbCl6nD9Fimzx8Lvodu0dagvw1uMxe+2lcjo1uOm5647BTysSNSyXZ+go7AJz1flx8WfWQPeHADZkFxzt7lqVPataWmGid7ydWkNTnVT83VKXNBxtymSqkHw8jsVvlAIPUex3EKA6iMScSngl3FpMJ/W/aDS5ys2wnmfqtnpKnp2lJ7lcv3VMMD+T1cQBn1xkprsW/MLaRLuvLKG8+GhSjhGe+B5ZjHLSNJqU0yflzkbkb9VxqIOOw969zE5U6fLvko+sWB3bjrFsN3cpYcHPZxJ7st1UvU7ypaZm0rHabq9dadRzNzT3PiVlVeRC3ElageikMuJ84vh7dory+5z5KzJfbJes7I1KTXcEze5FSlUPJ8duURKMexytGeYIK1zPKojBPOB70x3Xiy8UqlbQrZe0W0aqbE3qXVpT1nU4cRb0usdH3AcgvqBy22e3Rahy8qXK9WhN1WtmWhj4cBu2k/mxTtJMtTaQI7z8WJ37APzaut8XrisS+3Skzm2zb1XkOX7PS/JW6zKuBQt5lY96kj/wA0tJ6fFpIUfWKYrO2U7MdWt9utKLBsvxGpNpaZm6bmmkKW1TZdSjlxZJ90dWeYIbzlas9QkKUnj9r+2TWvfVrw3p/ZJmJ2o1KYVOXFcNQUtxuSZUvLs3MOHqokqOATzLWoAdTF+O0zajpTs40ekdINKaZyss4dqlUeQPZNTmiAFzDyh3UcYA7JSAkdBErMzErozJejwMYzsz9T9B+GNl4ExpBN8/GwhNyH0H1K5Pblt10s2saTUzRvSGgpkqVTkZcdXgvzj5A8SYeWAOd1ZGSewACQAlKUiPXF/wB/jezzQw2PYFXDeoF5y7kvRS0v3SmSvvXZ447EZ5G/hcPMMhtQiSGvGtthbc9I67rRqZU/YtHoMkqYmCnHO8r3rbLYJHM4tZShI81KHbvGu5uo3J37u01yrmuOob+JuqzGJSSQ4VNyEonozLN5/RQnpnpzKKlHqoxD0Cmvqk4ZiPi1pub/AO47PqfupWt1BtOlRAg4OIsLaht+g+yx644484p11ZUpRJUpRyST3JMeIQjpS5+kWv8A3PjvB9ubbrGzW86pmYpQcq9nF1fvpZaszUsnP8hxQeSOpIddPZMVQR3Db/rXd23PWi29brFe5alblUbm2myohL6B0cZUR+g42Vtq/orMR1VkW1GRdB15jiMvLgVvU2cdIzjYurI8Dn5q0n7oB2dG+tM6Zu7sul81UtNKafdAZR6z1Ncc9yeOO/gvLIP9F8knCIqGjZes26dLt2GgEnc0iw1VrTvu3MuSz4yHZaYaKXGXAOyhzKQodwoEdxGvjvL2z3FtF3HXLoZX/Fcapc4V0idcTj2bIOevLvdOmSggKx0C0rT+jEHotPufCdJxfiZlw1jqPipnSOTa2K2ah/C/PjqPWPBYylpaZnZluTk5dbrzqwhpppBUpaicBIA6kk9MRsOcOPanLbPNp1uaWzcohFdmWvbO6nUgZXUX0pLiSR3DaQhkHzDQPnFVvBD2lDcPuxZ1KuameNbWnKWqrNeIjKHqgVH2Gz/UtKnv/sYPvouR1n3C6V6AqtlGp1xIkDdtzy1Bo2cHnm3+bk5uvqoHL6y+ycjPeNLSqcfGjNkoWNsTbbqHUMesLa0blGwoTpuJhfAcNZ7cFT7x0NpX4Bt034Y7XpfhW7qQlyf9zRhDFUQQJtvp25ypD/XuXVgdExCONhjiWbUGd4O0q4tN6dIpduCnt+21qLx6wn2EqKWwfLxUFxn4B4ufKNel5l6WeXLzDKm3G1FLja0kKSoHBBB7GJrRuoem08McfeZgeGo9mHUoqvyXok6XNHuvxHHWPr1rv+1bb1dW6jX+2dCrRCkP12oJbmpsI5hJyqQVvzCv2IbStWPMgDuRGw5OTWlG0fb4uZWlFIs+wba9VCcEtSss1gJGcc7igkAea1q8yYhHwA9nQ080oqO7S86VyVe8UqkrbDzeFMUttfruDPUeM6j/APRlBBwuOtfdB28L2qoNH2Z2ZVMP1IN1i8iyv3sulWZWVVj+UtJeUk9QG2T2VEJVXurdZZJQz7jM/wC49WQ38VL01jaRSXTbx7zsv7R15ndwVbm5XXm7dzeuly653q4fZtw1Nb6ZfnKkyrAwlmXST+i20lCB8ITnuY63YtkXTqVedL0+sejPVGsVqfakqZIsDKnnnFBKEj4Op7noB1PSOKi1vgJbDfaalr3tan0XE1OtuylhSsy31aYOUPz2D2K/WaQenqeIeoWkxaahOQaTIF9shZo36h+alW5GVi1OdDL54k7tZ/NamrsR2h2rsq260jR6h+DMVPl9mXNVW0YM/UFpHiL+HkTgNoB7IQnPXJMQ+PLsO+/2zEbzNMqNzVi3ZZMvekvLt+tN09PRubwO62c8qj1PhEEkBqMx8WDiRO7GbMoVt6biSnb6r861My8lNp525amtOgvOOJHX3XlLKex9ZxQOW4z9oDrZpnu60DpGrFottTtCuemKTN0+bSlzwlEFt+UeT2Kkq50KHY4yMggnnkGLUZKKypuFw4nr2jgdXDcr1GhSE3DdT2mxaB1bOzXx3rWqi6zgjb8juM0YO3zUes+LediySESrz7mXKnSgQhp3r1UtolLSz5gtKJJUrFcfE/2P1HZHuOm7do0m8qzbhLlQs6cXlQDBV68qpR7rZUoJOTkoLaj7/EYm25a+X3ti1poGuGnM54dToU6HfBUohuaZPquy7mO6HEFSD5gKyMEAxep+VgV2mAwzmLtO/Z9D9lTZKZjUeoEPGWDhu/MR91Zrx6dh3342ujelplRuaqURhEtfEtLt9ZmRHqtTmB3U1kIWevuZSTgNGKk42WNEdYNMN22gtK1QtNLNRt266SoTEjNJSvlCgW35V5PUFSVc7a09jg9wQYov4mWySq7Itx87aFPlnl2jXOeoWbPOZVzSpV60upXm4yo8h8ynkWcc4ERejNSeQZGPg5mV9gzHV4cFI6QyDQROQcWuztt1Hr8eKjvHlCFuLCEJKlKOAAMkmPETw4Hmw38P+sJ3JakUbxLQsadQqmsvoy3UqunC204PvkMgpdV8Ki0OoKhFlnZuFIyzo0TId51DrUBKSsScmGwWZnu3qdXCA2Hp2fbfkXZfVIDV+Xq01OV0Oo90p8vjLEl/RKQrncHxiiDkISYi/wAe3fkKzU0bJNMKzmVknGpu/ZqXc6OvjC2JHI7hHqurHX1vDHQoUIm/xG96VE2RbcKjqGl5h25qnzSFn053B8edUk+6qT5ttJ90X5HCUZBWI18riuGuXbX566rmqr89UqlNuTU/OzLhU5MPOKK1uKJ7qUokk/CYqFBlItSnXVGZxxw4+Tchv4K0VqahyEo2QgbMeHmdf3WY+Gx137aTfPaS/vxsB6uan2zorphX9W7zEz7U25SnqhUfYjQcd8FpBUrkSSOZWB0GRGv5w1/y99JvntJf34va3lad3bq5tR1D0wsKmpnK1X7RnpGlyin0NB59xlSUJ51kJTkkdVEAfDHjSprH1KC15sCBfhysV70bc9tPiluYOHGyjd6f3YV8Xe/0dR9dD0/uwr4u9/o6j66K9/QkcSb9REp9L6X9oh6EjiTfqIlPpfS/tEbHqjRfpx87Vg9aaRdCfkKsI9P7sK+Lvf6Oo+ujiL/48exa5LErdu01u9PZE/SJmWY8S3kBPOtpSU5PjdBkiIHehI4k36iJT6X0v7RGA9ftvmq+2LUiY0l1pttFKr0rLtPvybc8zMBLbqeZB52VqQcg5wD084zQKFo/HiWgxOURjYOB8FhjVmuQWXiw+SMsWkLpcWDfc5/5Wd5/+nbv8fJxXzFgv3Oef9bW8x/w6e/j5OJiu/tEbh9QoujfucLirOt3O8TSDZRp7Iam6zpqpptRrKKXL+1EkH3PHUy66MpKk4Tysr6574+GI8en92FfF3v9HUfXR2LjMbVtcd3O223tPdA7RbrNWkL4YqM1LOVKXlQiXTJzbRXzPrQk+u6gYBz1zjAMVq+hI4k36iJT6X0v7RFPpNPokxJh81FDX3OHKA7irVU56sQJosl4d22GPJJ71YR6f3YV8Xe/0dR9dD0/uwr4u9/o6j66K9/QkcSb9REp9L6X9oh6EjiTfqIlPpfS/tESXqjRfpx87VH+tNIuhPyFSM4l/Fu2n7sNoVf0S0qRdArVSnpB2W9s6MhlnlZmm3V5UHVY9VJx07xWHH2XFQKpalwT1r1yXDM7TZx2VnGgsKCHW1lC05SSDhQIyDgx8cWanyEvToHNwb2JvjjnbyVenp2PPRuci2uBbBbDHC4/N9aU/NZv/EXFMPFD/OB6rfOt3+4iLnuFx+b60p+azf8AiLimHih/nA9VvnW7/cRFV0e/e5n+b+pWSu/s8v8Ay/0rAsbLm2T8m3T35j0n+DajWjjZc2yfk26e/Mek/wAG1GXTL9GDxP0WLRX9aLwCjbeXHT2PWLd9VsiuN3n7No1SfkZzwbfQpHisuKbXynxhkcyTgxxvp/dhXxd7/R1H10QB134VXECuvXC8rot/bZVJmQqV11GakZlFSkgHWXJlxaFgF8EApIPUZ6x1T0RnEZ+S9Vv+5yP18fIdG0cLATGF7f8ANq+vq1eDyBC/9CrRrE45fD4vWss0Wdv6tUBT7gQiZrtvuoZCicDmW14gQP6SsAeZEZx3HbZNBd6mka7L1MoUjV6fPyfjUWuynIp+SUtOW5qVfGcHBSroSlY6KCkkg0y2HwVeIpetaZps9okzQJZxYS7U65X5NDLIz75SWnVuqH/yoUYu126aTL0H0Fs7RdyuKqS7WtyTpjk+pPL46mWkoKwkk8qSQcJycDAycRC1eVp1Oex8jGu6+og233GSl6ZMT8817JyFZttYIvusc1rla76Q3DoFrNc+i10uJcnrZrUxT3n204S+G1kJdSD2StPKsZ64UIytwqfzhmlfzjP+A7HFcR7Um3dW982pl92nNtzFOmLmcYlJlkgofTLoRL+IkjulRaKgfMEGOW4VH5wzSv5xH/Adi+RnviUhzn/EYZJ48nFUuC1jKo1rMg8W4cpX0a16vWloHpTXdZL8E17T29Iqm6h7CZDjvhggHlSSOY9R0yIiZ6f3YV8Xe/0dR9dEg99ml17a17Qb/wBKdN6Smertdt9yVpkmuZbZDrpUkhPO4pKU9j1JAinT0JHEm/URKfS+l/aIotFkaPNQHOm4nJcDh7wGFhtVzq05VJeM1sqzlC2Puk433Kwj0/uwr4u9/o6j66Hp/dhXxd7/AEdR9dFe/oSOJN+oiU+l9L+0Q9CRxJv1ESn0vpf2iJj1Rov04+dqivWmkXQn5Cpyax8dTY9fOkV1WTQ27z9m1i256Rk/Gt9CUeK7LrbRzHxjgcyhkwiprXbQjU/bXqbP6Pax2+il3BTEMrnZJudamAgOtJdR67KlIOULSehOM4PWETUlRqfLw7wSSHY3vfsUROVWdmIlooALcMrLqEZZ2Tbr7v2ZbhqLrXbHiPy0u57Gr9MQvAqFPcI8Zk+XNgBaCegWhB64xGJoRLRYUOPDMN4uCLFRkOI+DED2GxGIWz1pzqFaGrNh0jUyway3UKLXae1O02ca7ONOJChkd0kZwUnqCCDggxCPiU8GCy9xSahrTtnk5K3r7XzP1Cj9GpCur7k/BLzCv5YwhZ9+AVFwYN4Cm/H70rlXsr1NrPLTaw+5NWNMzC+kvOHKnpPJ7JdwXEDoPECx1Loi2iOXTDJzR6pEQ3W2HU5u/wCu/JdGgOlK5IAxBfbtB3fTctbCyr93HbItbnala9RrFk3nQH1S09LPM8i09ipl5pYKHW1dDyqCkqHKoZ6GPfo3o9rzvm3Aos61PZdfum5J5c3VqtUHVKS0kqy9NzLvXlQnmyT3JISkFSkpN4m/Dhx6H76rSKLqk00a7pKXKKHeEiwC+x3IaeT08dnP6CjkZJQpJJJ+zYHsL002I6SptC2/DqVyVJKHbpuZbPK5PPAdEIz1QwjJCEZ8yo5UomLE7SmV9EMVjLRjha3ffWN2d+1QTdHJn0oQnPvCGN/pbbv/AMLltkuyzSzY/o7L6Z6fS4mZ+Y5XrjuF5oJfqs0BgrV35W05IQ2CQhJ81FSlZihEJuNDv/8AxWtGvwK6a1rwr7vaTW2h5hzDlJppJQ7M9OqXF+s22ehB51g5bGafBhTVVnQ293vOJ8TwCtEWJL02ULrWa0ZfTrULONhxAPxkdXPxe9Ma34lkWVOrTNvy7mW6tVE5Qt3I6KbayptB7ElxQJCk4gvCEdZkpSFIyzYMPId+09a5nNzUWcmHRYmZ7tyQhCNpa6QhCCK037nv3ghxms7MLzqnrI8Ws2X4q+4PWblU/wDI4fSkfC+fKMm8efZurWLQqU3LWXSS7cNgoKKsllvK5qkLVlfbqfBcPiDyCFvH4IqN0U1cu/QXVm3tZLCm/Bq1uVRqdkySeVwpPrNrx3QtPMhQ80qI842PdDtX7J3H6L2/rFZi0zFHuekomW2nMKLfMOVxhwduZCwttQ/lIUIolchRKRVWT8EYOOPHWOsd91c6PEh1OmvkopxAw4aj1H6LEnC42mJ2hbRaDZtZpwYuWuJ9ubrKk4WmbeSnDB/6TYbaI7cyFke+ir/jXbvHdw+7d6w7TrCl25puXKXTlMueq7P8wM2+CPPxEJaBHkwCPfRabxLd2LOzzaXcOo9OnktXDUUe1Npoz6xn30qCXAPPwkBx4+R8LHmI16nnnpl5cxMPKcccUVOOLUSpSickknuYy6NS0SbmolQjZkkDic+wYDrWLSCYZKy8ORhZAC/AZduZWwhwyN2je8LaVQL/AKrPpduOlJ9qLsRzet7OZSkF4j/etlt34AXCke9MQG3tcK64Lu4pNEsmwaW7K2hqpNOV2bnpZrCKYhpQVVADjAUCoLQDgc000iMbcELdz+Lvusa0vuep+FbOowapkz4i8IYqIUfYb3XtlSlMn/rgn3sXgql5dUwmbUwguoQpCHCkcyUqIJAPcAlKcjz5R8ER046Po7VIhgj3Xg26/wD5PdxW/Ktg12msEX4mEX6vMd/BdMvy8dMdqOgU/d9SYapVqWNbuWpWXAAbl2GwhphsHuo4Q2gealJHnGufr3rRd+4jWW49bL7mOeqXHVHJt9AUSlhJOG2UZ/QbbCG0/wBFAixv7oR3g5VRtmFmVTt4VZvQtL/rlJVWP631JP8AuDFX9Fo1WuOsSlvUCmvTk9PzLcvJScs2VuPurUEoQlI6qUpRAAHcmJ3ReQ9HlTNRPif/AE/fPsUNpHO89MiXZ8LPH7Zdqznw49ltb3u7j6dp4tp9q2aZyz94VFoEeBJJUPckq8nXT7mnzGVLwQgxsGW9b9EtOgSNrWzS2JGnU2UblZCSlkBLcuy2kIQ2kDslKQAB8AjA3DT2TUjZDtxkbKnZdhy7K1yVC8p9ohXPNlPRhKvNtlJ5E+RPOvA5yIixv646F86C7h6no1tqtC0q7T7dHsSt1avMTL3iVBKj4rTPgvtAIb6IJOSVpXjoATB1GLNaRVEwpYXYzLZvPXq3damJGHLUKRESYNnOz28OrXvXeN0HBCc3X64V3XLUXdtVRPViZyxJtWs2WpGWSOVqXbzMe8QgAZ7qOVHqomMv8Pbh8VfYJJV62aTuAnrpt6uOImBRp2hpl0yk4kBJfbWl5eOZACVJx63Ig5HL1r9/0izeT+qbTL/tdR+3Q/0izeT+qbTL/tdR+3RsxaXpNGlvR3kFmAt7urLUteHUdH4Uxz7AQ/b72vPWrJuITs2t7e3txqml00lhivSmZ60qo6P/AGWfQk8oUe4bcBLa+/RXNglKY167qte4bIuaoWbdtIfp9UpU67KVGRmUcrku+2ooW2oeRCgR/VF7XC14kMvv10/qspe9NpdIvq3pjNVpVLDiGH5RZ9ymWUurWvlBy2sFSuVQByA4kRF3j37DfCcRvd0wo3qrLUnf8rLt9j0bYn8D4fVZcP8A0jjqsx7oE3Gpk66nzOFzhuPk7Vv4rzW5WFUJQT0vjYY7x5jw4LE/A+35fi/axHbhqPWvDs++Z1Cac8+vDdNq5whteT71DwCWlfAoNHoAoxZZxF9mFC3u7cKlpx4TDNyU7mn7PqTvT2PPIScNqV5NujLa/IcwVglCY15UqUhQWhRBByCD1Bi9jg+78E7wNv6LQvqrh2/LKZalK4XV+6VCWxhidH8oqCeRw/GJKjgOJEZdI5GJKx21GXwII5XHUevI/dYqDOQ5mC6Qj4gg24ax1ZhU16JbXtWNcdxVP2yUC335S5JmsLkKizNske1nhKImHHh3SloJWVDv6uBkkA7Cei2kml20jQSl6ZWqtmm25aVIUZiemlJQCEJLj808roApSudxau2SewEeiztrWith6/3PuZtm0W5e7bup0vJ1eeGOUoaJypCceopzDXiEe/LLZxnmKoK8erfl96tuo2VaY1nFSq7Lc1fUzLudZeTOFMyWR2U70cWOh8MIHUOmI+anY+ks3Cl4Q5LRieOs8BkPut6WlIOj8rEjxDdxwHDUOvM/ZQd4lu9mrb3tx89eklMPN2nReen2bIOZTySoV6z6k+Tjyhzq8wORBJ5AYj1CEX+XgQpaC2FDFmtFgqTGjRJiK6I83JxWcOGr1376TfPWT/vxsAawap2vohpdXtXr2Ez7UW5THZ+o+w2Q474TaeZXIkkcxx5ZEa//AA1Py+NJvnrJ/wB6Lu+IzLvzWxLViWlmVuOLsefCG20kqUfCPQAd4pWlENsWqwGOyIA7XK3aOvdDp0Z7cwSe5YM9P7sK+Lvf6Oo+uh6f3YV8Xe/0dR9dFK/3o3X/ADYqP9ic/wAofejdf82Kj/YnP8olfZakbXdv2Ub7SVPYOz7q6j0/uwr4u9/o6j66KyuJ3uY023bbtaprTpOKgKNOUqRl2fbSVDL3O0yELykKVgZHTrGDPvRuv+bFR/sTn+UF2pdLaStdtVBKUjJJk1gAf/iN2QoshTo/OwSb2tiVqTtXnZ+DzcUC174BcfFgn3Oef9ba8h/w5e/j5OK+4sD+50PyubxH/Dh/+Pko9139ojcPqvFH/c4XFWdbu95Oj2yewqdqPrQmrGnVOrppst7USIfc8dTTjoykrThPK0rrnviI9en92FfF3v8AR1H10dX+6MPySLN/9Rmf4Cdim+KzRKDIVCQEaLe9zkdnUrBV61OSU6YUO1rDMK7j0/uwr4u9/o6j66Hp/dhXxd7/AEdR9dFI8Il/ZSlfxdv2UZ7S1L+Hs+65/VW5KdeOqFyXdR/E9iVWvzk5K+KnlX4br61p5h5HChkRwEIRZGtDWgDUoAkuNythjhcfm+tKfms3/iLimHih/nA9VvnW7/cRFz3C4/N9aU/NZv8AxFxTDxQ/zgeq3zrd/uIikaPfvcz/ADf1K3139nl/5f6VgWNlzbJ+Tbp78x6T/BtRrRxsubZPybdPfmPSf4NqMumX6MHifosWiv60XgFga7ONZsDsm6qnZtwag1pufpFQekp1tFszSkpeaWULAUE4ICknqO8ceOOnw7M//EeufRWb/wD4imLcv+UfqB896r/GOx0mNiHopTHww4l2I2jyWB+ktQa8gBvYfNbQtrXRb172zT7ytKrsVCl1WSam6dPSy+ZuYYcSFocSfMFJBH/OKtuLXxXNyNl3zdGz6xdP12K2wTLVC43Jzxp2pybicpcllJSlLDbiFe+HMsZI5kKChHL8A7fcZ6Ud2R6mVjLsul2dsKZmHOq2+q5iQGfNPrPIHweKOgSkRmfjV7Djud0O/DXp5RvFvexJRx5LTCMuVOmDK3pfA6qWjq62OvXxEgZciAlJWXpVc5ibbdv+0nLHI7Nx2HgpuZmY9So/PSrrO1gd427xtHFUixIPhUfnDNK/nEf4d2I+RIThTdeIbpZ84Vfw7sX+f/0MX/q7wKpMl/rIf/ZviFfNrfrFaG37SeuazX8Js0a3pIzVQ9gsBx7w+YJ9VJIycqHTIiJvp/dhXxd7/R1H10Zg4ostMTnD+1TlpSXW64u2lBDbaCpSj4rfYDvGvv8Aejdf82Kj/YnP8oo1Ao0lUpZ0SNe4NsDbUFcq3VZuQmGshWsRfEX1lXUen92FfF3v9HUfXQ9P7sK+Lvf6Oo+uilf70br/AJsVH+xOf5Q+9G6/5sVH+xOf5RPey1I2u7fsoX2kqewdn3WZ+JRuJ093V7wrm1w0tE+KJVpaQRK+2UsGXssybLK+ZAUrHrIVjr2xCMLuWrc7LanXbcn0pSCVKVJrAAHck4hFggQocCC2EzJoAHUoONEfGjOiPzcSe1fBCEIzLEvpo1Yqtu1iUuCg1F6TnpGZbmJKblnChxh1CgpC0qHVKgoAgjsRGwNw0t7NK3vbcJG9J6YYbuyi8lPvKQawnkmgn1ZhKfJt5I50+QPOgE8hMa+EZ84ce9Kt7Itx9O1Dcdfdtmp8sheFOaJPjSSlD3VKfN1o+6J8zhSMgLMQdepYqUn7g99uI37R1+NlMUWomQmvePuOwP0PV4LYYhHx29cFEuygyV021VGZ6nVKUbmpCdllhTcwy4kLQ4kjulSSCD8Bj7CQkFSjgDuTHLCCDYrpAIIuF0TcvuGsDaxopXdcNSJwIp9GlStuWSsBydmFdGpZvPda1kJHkMlRwASNdvcTr3f25vWWu626lT/jVSuThdU2lRLcq0OjUu2D2bbQEoSO+Bk5JJMmOMjv/Vu01r/BZpzWi7YFlTTjUitlzLdVnxlDs506KQOrbR6+rzKH+1IEMo6Xo5SfQZbnog99/cNn1PZqXPq9U/TI/NQz7je87fL7pCEIsigEhCEESEIQRIs8+58N4PtdWKzszvSqYany5WLMLy+zyU5mpVOf5SAHkpHQeG8e6orDjmtOtQ7y0mvqk6lae116mVuiTzc3TJ5jHMy6g5BwQQoeRSQQQSCCCRGjUpFlQk3QTryOw6vzYtynzjpGbbGGrPeNf5tUveORu4/D/uoXpHa9T8W29Nw5TkeGvKH6moj2W5+3lUlDAz2LKyOiohRHsnJybqM47UJ+acfffcU4+86sqW4tRyVKJ6kkkkkx64yycrDkpVkBmTR/k9ZxWOamHzcw6M/Mn/A6l+5aZmZKZbnJOYW080sLadaWUqQoHIUCOoIPXMX07WuI1ZF88OdW7vUipoM5Z9Hclrxl0LCVu1NhKUhCfIKmCtlSB2BmEjyMUJxz1M1Pv6jadVbSWl3PMs27XKjKz1VpSF+5zD8ul1LK1efQOr6diQknJQnGlVqVDqkNjXGxab33ax1jvW3TKlEpr3FouHDv1Hq8F79ZNV7v101Ur+sF+zvsir3FVHZ2dWCeVKlqyEJB7IQnCEjySkDyiaHBH0s200TUOb3Tbj9bbGobtvPGWs+hXDdMnKvqmyn3SdU064lQShKuVskYK1KUMFsGIFQjam5T0iUMux3IBFsNmz6LWlpnmJoR3N5RBvjt2q8PiV8U7R/RLbhPS23PWe2rkvW4+enUddtV6XnjSkqT7rOOeCtXIUJOG+bu4pJwQlWKPnnnZh1UxMOqW4tRUta1ZKiepJJ7mPzCMFLpcClQSyGbkm5J17OxZqjUo1Sih7xYDIJCEIk1HrJG0vczfG0XXqha5WI4VvUyY5KhIFwpRUJNeA9LL/YpPY4PKoJUBlIi9tnelsJ110mDFy7idPFUS66Hyz9Er92SUu/4D7WFsPsuOhTawFFKknBBzGu5CIWqUSBU4jYhcWuGsfmrUpanVeNTmOYAHNOo/mtZM3faK2doFr9XdPdN9TKLd9tof9kW9XaHWGJ1t6TcJLaHFsqUkPI6oWk4OU8wHKpJPs2cbpL02d7gaHrhZqluiRd8GsU0OcqajILID0ury6gApJzyrShWDyxi+ESfMB8vzUX3rixvrUfzxZH52H7tjcblsM7iuIBo7ovsy/G/oFXYq1PrNMbXZsqV8pqU68gllgjOUlJCi6O6EtOeacRr/wCouoN3ar33V9Sr9rLlQrNcqDs7Upx09XXXFFSjjsB1wEjoAABgAR+6pqVf1bsOk6X1e7Z2Yt6hTczNUekOvEsyj0xyeMpCfLm8NJI7ZyRgqVng4jaRR4VKa+xuXHPdqHnvW/VKrEqTm3FgBlv1nySEIRMqKWZOHpcVv2lvd0wua667J0ymyV3yrs7UKhNIZYl2wrqtbiyEoSPhJAi+j8cjaH8qnTf6c0/66NbOEQVVoUKqxmxHPLbC2AUzTazEpsJzGsBubrZM/HI2h/Kp03+nNP8ArofjkbQ/lU6b/Tmn/XRrZwiK9jpfpT2BSXtVH6MdpWyZ+ORtD+VTpv8ATmn/AF0de1c3e7TahpTc8hIboNO3337enW2WWb1kFLcWWFgJSA7kkkgADvGupCPTdD5drgedOG4L47SmO5pHNjtKROfgG6n6a6VbprsrmqGoVDtuSmNP3mGJyv1ZmTacdM9JqDaVuqSCrlSo8oOcJJ8ogxCLNOyrZ2VfAJsHC11XZSYMpMtjAX5JVsnHz150N1V2uWlQ9L9Z7TuSdl7+affk6BcUtOOttCRm0lxSGVqITzKSOYjGVAecVNwhGKmyDabKiA11wCTfiss/Oun5kxnC2XckIQjfWkkIQgivc4bu6fbFZmxjTO1rw3G2HSanJW2hudp1Su+SYfl186/VW2t0KQevYgGKkOI/c1t3lvm1Mui0LgkarTJ25nHJKo02bQ+xMI5EeshxBKVj9oJEYShENIUaHITkSYa8kvvhsubqVnarEnJVkAtADbY8BZI2Gtuu7fanR9vtiUmrbm9PZWalbNpbMzLTN6SKHGXEyjSVIUlToKVAggg9QRGvLCPVWpEOrMY1zi3k3y3rzTKm+mPc5rb3Xcdw9QkKvr/fNVpU8zNSs1eNTdlpmXdC23W1TbhStKhkKSQQQR0IMdOhCJVjeQwN2KOc7lOJ2rlLIvS6NOLxpd/2TWXqfV6LPtTtMnmDhbD7agpCh8OCB0PQ9jF+W1DiY7Ztf9BqDqTeus1nWpXpmW8KvUCtXJLSjsrOI9V3lQ84lRaUfXQrrlKhnqCBr8wiKqtHgVVjQ82LdY2bFI02qRqa5xaLg6j4qUfFf0F0O0p3FPX3tu1NtSv2jeSnZ5uRtqvS037UTnMC/LqQytXhtlSgtvIAwpSB/s46lwy7otmy9+Gmt03jcUjSaZJV1S5yo1ObQwwwnwHRzLcWQlIyQMkjvGCYRttlXeg+jveT7pbfXlZazplvpnPtbbEG2ratkz8cjaH8qnTf6c0/66H45G0P5VOm/wBOaf8AXRrZwis+x0v0p7ArD7VR+jHaVsmfjkbQ/lU6b/Tmn/XQ/HI2h/Kp03+nNP8Aro1s4Q9jpfpT2BPaqP0Y7SthrcVu32p1jb7fdJpO5vT2ampqzaozLS0tekitx5xUo6lKEpS6SpRJAAHUkwjXlhEnIUGFIsLWvJvuUdO1mJOuDiwCyQhCJ9QqQhCCK13gI78fbykubJdTqzmbkG3Zuw5qYc6vS4yt+Rye5R6zqB19QuDoEJEZC43vEA/ADpYdsul1b5LxvKRUKvMy7nr0qlKylRyPeuvYUhPmEBxXQ8hinzTO8ro081Dod82VW36bVqTVWJqnT0srC2XULBSoZ6HqOxyCOhBBjs+7O+7v1J3M33eF9V5+pVKYumdQ7NzBHMUNvKbbQAAAlKUISlKQAAEgAYEVt9Al31kTJ+HPk/xD6a+O5T7K3HbSjLj4sr/w+ergseQhCLIoBIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBEhCEESEIQRIQhBF/9k=" alt="Wavefire" style="height:56px;width:auto;display:block">
       <button class="btn-p" id="wf-landing-signin-btn" onclick="_showRealLoginModalFromLanding()" style="padding:12px 32px;font-size:14px">Sign In</button>
@@ -4770,6 +4785,29 @@ auditor's assessment.
       </div>
       <div style="padding:20px 28px 24px">
         <button class="btn-p" id="required-password-change-btn" style="width:100%;justify-content:center;padding:10px" onclick="_submitRequiredPasswordChange()">Set Password &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real, new consent screen, per explicit request — shown at the
+       onset of every, real, actual login, sitting above every other,
+       real overlay in the app (the highest z-index used anywhere else
+       this session is 100000), with no real dismiss option other than
+       the explicit consent button, since this is genuinely a
+       mandatory gate, not a dismissible notice. -->
+  <div id="consent-screen-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.92); z-index: 100001; align-items: center; justify-content: center;">
+    <div style="background: var(--bg-primary); border-radius: 14px; width: min(460px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
+      <div style="padding: 28px 28px 18px; text-align: center">
+        <div style="width:44px;height:44px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+          <i class="ti ti-shield-exclamation" style="font-size:20px;color:#b45309"></i>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:10px">Sensitive Information Notice</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;text-align:left">
+          Sensitive Information (passwords, system IDs, etc) should not be placed into Wavefire, including regulated data (PHI, credit card data, etc). Users that enter Wavefire agree to not enter sensitive information or regulated data into Wavefire.
+        </div>
+      </div>
+      <div style="padding:20px 28px 24px">
+        <button class="btn-p" id="consent-screen-ok-btn" style="width:100%;justify-content:center;padding:10px" onclick="_acknowledgeConsentScreen()">I consent to not enter sensitive information into Wavefire</button>
       </div>
     </div>
   </div>
@@ -13298,6 +13336,94 @@ function filterUserSwitcherList(query) {
 // and no server route should ever trust anything set by this function.
 var _currentDisplayUser = null;
 
+// Real, new, shared function, per explicit request — genuinely,
+// correctly, applies the tenant label's own, real, visual clickability
+// based on whether the current, real user is genuinely a superadmin.
+// Called at every, real place _currentDisplayUser gets established
+// this session, rather than duplicating this logic at each one
+// separately, avoiding the exact, same, class of "missed one of
+// several call sites" bug that's recurred repeatedly this session.
+function _applySuperAdminTenantSwitcherUI() {
+  const labelEl = document.getElementById('wf-current-tenant-label');
+  if (!labelEl) return;
+  const isSuperAdmin = !!(_currentDisplayUser && _currentDisplayUser.is_superadmin);
+  labelEl.style.cursor = isSuperAdmin ? 'pointer' : 'default';
+  labelEl.title = isSuperAdmin ? 'Click to switch tenant' : '';
+}
+
+// Real, new, tenant-switcher, per explicit request — superadmin-only,
+// regardless of whether the current, real user genuinely has access to
+// another tenant via the ordinary, real user_tenants mechanism; every,
+// other, real user must log out and log back in to switch tenants, per
+// the explicit, confirmed scope.
+async function toggleTenantSwitcher(event) {
+  if (event) event.stopPropagation();
+  if (!_currentDisplayUser || !_currentDisplayUser.is_superadmin) return; // genuinely, correctly, not available at all for a real, non-superadmin
+  const panel = document.getElementById('wf-tenant-switcher-panel');
+  if (!panel) return;
+  const isOpening = panel.style.display === 'none';
+  panel.style.display = isOpening ? 'block' : 'none';
+  if (isOpening) await _loadTenantSwitcherList();
+}
+
+async function _loadTenantSwitcherList() {
+  const listEl = document.getElementById('wf-tenant-switcher-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-tertiary)">Loading tenants…</div>';
+  try {
+    const res = await fetch('/api/tenants');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const tenants = await res.json();
+    // Real, explicit, alphabetical sort, per the explicit request.
+    tenants.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    if (!tenants.length) {
+      listEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-tertiary)">No tenants found.</div>';
+      return;
+    }
+    listEl.innerHTML = tenants.map(t => `
+      <div onclick="selectSwitcherTenant('${escAttr(t.id)}', '${escAttr(t.name)}')"
+        style="padding:8px 10px;font-size:13px;color:var(--text-primary);cursor:pointer;border-radius:6px;${t.id === _currentTenantId ? 'background:var(--bg-secondary);font-weight:600' : ''}"
+        onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='${t.id === _currentTenantId ? 'var(--bg-secondary)' : 'transparent'}'">
+        ${escAttr(t.name)}${t.id === _currentTenantId ? ' <span style="color:var(--text-tertiary);font-weight:400">(current)</span>' : ''}
+      </div>`).join('');
+  } catch(e) {
+    listEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-tertiary)">Could not load tenants: ' + escAttr(e.message) + '</div>';
+  }
+}
+
+// Real, actual switch, per explicit request — reuses the exact, same,
+// established /api/auth/set-current-tenant route already built for
+// persisting a real, actual tenant selection to the current session,
+// then correctly, genuinely, reloads the page so the entire app's own,
+// real data (audits, workpapers, everything) is loaded fresh for the
+// newly, actually, selected tenant, rather than trying to patch every,
+// individual, real, already-loaded piece of state in place.
+async function selectSwitcherTenant(tenantId, tenantName) {
+  if (tenantId === _currentTenantId) {
+    document.getElementById('wf-tenant-switcher-panel').style.display = 'none';
+    return; // genuinely, already, on this, real tenant — nothing to do
+  }
+  try {
+    const res = await fetch('/api/auth/set-current-tenant', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+    // Real, actual, full, genuine reload — the correct, robust way to
+    // guarantee every, single, real piece of this app's own, in-memory
+    // state (audits, workpapers, controls, everything) is genuinely,
+    // freshly loaded for the newly, actually, selected tenant, rather
+    // than risking a real, stale, partially-updated mix of two,
+    // different, real tenants' data sitting in memory together.
+    window.location.reload();
+  } catch(e) {
+    alert('Could not switch tenant: ' + e.message);
+  }
+}
+
 // Single shared source for "the current user's display name, with a
 // sensible fallback." Every place in this app that stamps an action with
 // who performed it (file uploads, annotation saves, exception retesting,
@@ -13314,6 +13440,7 @@ function selectSwitcherUser(userId, label) {
   const labelEl = document.getElementById('wf-current-userid-label');
   if (labelEl) labelEl.textContent = label;
   _currentDisplayUser = (_userSwitcherAllUsers || []).find(function(u){ return u.user_id === userId; }) || null;
+  _applySuperAdminTenantSwitcherUI();
   const panel = document.getElementById('wf-user-switcher-panel');
   if (panel) panel.style.display = 'none';
 
@@ -30119,6 +30246,7 @@ async function _bootstrapDirectUrlAccess() {
     }
     const adminNavEl = document.getElementById('nav-admin');
     if (adminNavEl) adminNavEl.style.display = (realUser && realUser.is_superadmin) ? '' : 'none';
+    _applySuperAdminTenantSwitcherUI();
 
     // Real, actual superadmin genuinely, correctly bypasses the tenant
     // check entirely — matching the same, established, real "access by
@@ -30260,6 +30388,34 @@ async function _doRealLogout() {
   window.location.reload();
 }
 
+// Real, new consent-screen functions, per explicit request — shown at
+// the onset of every, real, actual login. _resumeAfterConsent holds
+// the real, correct, deferred continuation of the login flow (either
+// the forced password-change prompt or normal tenant selection),
+// called only once the user, actually, genuinely clicks the consent
+// button below.
+var _resumeAfterConsent = null;
+function _showRealConsentScreen(resumeFn) {
+  _resumeAfterConsent = resumeFn;
+  const overlay = document.getElementById('consent-screen-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+function _acknowledgeConsentScreen() {
+  const overlay = document.getElementById('consent-screen-overlay');
+  if (overlay) overlay.style.display = 'none';
+  // Real, actual, fire-and-forget record of this, real, acknowledgment
+  // — doesn't block the real, actual login flow on a network
+  // round-trip; a real, genuine failure here is logged but never
+  // blocks the person from proceeding into the app.
+  fetch('/api/auth/acknowledge-consent', { method: 'POST' })
+    .catch(e => console.error('[_acknowledgeConsentScreen] Could not record acknowledgment:', e.message));
+  if (typeof _resumeAfterConsent === 'function') {
+    const fn = _resumeAfterConsent;
+    _resumeAfterConsent = null;
+    fn();
+  }
+}
+
 async function _doRealLogin() {
   const useridInput = document.getElementById('initial-login-userid-input');
   const passwordInput = document.getElementById('initial-login-password-input');
@@ -30318,19 +30474,26 @@ async function _doRealLogin() {
     }
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = (data.user && data.user.is_superadmin) ? '' : 'none';
-    if (data.must_change_password) {
-      // Fix for the real, confirmed bug: this branch never hid the
-      // login overlay before showing the password-change modal, unlike
-      // the other real branch below. Since the login overlay's z-index
-      // is genuinely higher, the new modal was becoming technically
-      // visible but completely hidden behind it — the exact, real cause
-      // of the reported "no response" after a successful sign-in.
-      const loginOverlayEl = document.getElementById('initial-login-overlay');
-      if (loginOverlayEl) loginOverlayEl.style.display = 'none';
-      _promptRequiredPasswordChange();
-      return;
-    }
-    await _advanceToTenantSelection();
+    _applySuperAdminTenantSwitcherUI();
+    // Real, new consent screen, per explicit request — shown at the
+    // onset of every, real, actual login, before either downstream
+    // branch proceeds, so it genuinely shows every single time,
+    // regardless of whether a forced password change follows.
+    _showRealConsentScreen(function() {
+      if (data.must_change_password) {
+        // Fix for the real, confirmed bug: this branch never hid the
+        // login overlay before showing the password-change modal, unlike
+        // the other real branch below. Since the login overlay's z-index
+        // is genuinely higher, the new modal was becoming technically
+        // visible but completely hidden behind it — the exact, real cause
+        // of the reported "no response" after a successful sign-in.
+        const loginOverlayEl = document.getElementById('initial-login-overlay');
+        if (loginOverlayEl) loginOverlayEl.style.display = 'none';
+        _promptRequiredPasswordChange();
+        return;
+      }
+      _advanceToTenantSelection();
+    });
   } catch(e) {
     showError('Could not sign in: ' + e.message);
   } finally {
@@ -30501,6 +30664,7 @@ async function _reverifySessionTenantAndUser() {
     }
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = realUser.is_superadmin ? '' : 'none';
+    _applySuperAdminTenantSwitcherUI();
 
     if (realUser.is_superadmin) {
       _updateTenantNameDisplay('All Tenants (SuperAdmin)');
