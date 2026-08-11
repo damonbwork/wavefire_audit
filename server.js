@@ -4068,6 +4068,114 @@ app.post('/api/sample-data/:ref', async (req, res) => {
   }
 });
 
+// Real, new, comprehensive workpaper-duplication route, per explicit
+// request — copies selected, real data (sample data, test attributes)
+// and real files (workpaper files, sample files) from a source
+// workpaper into a newly-created one, based on which real checkboxes
+// were checked in the Duplicate Workpaper modal.
+app.post('/api/workpapers/:newRef/duplicate-from/:sourceRef', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { duplicateSampleData, duplicateAttributes, duplicateWorkpaperFiles, duplicateSampleFiles } = req.body;
+  try {
+    const newWpId = await _resolveWorkpaperId(req.currentTenantId, req.params.newRef);
+    const sourceWpId = await _resolveWorkpaperId(req.currentTenantId, req.params.sourceRef);
+    if (!newWpId) return res.status(404).json({ error: 'New workpaper not found: ' + req.params.newRef });
+    if (!sourceWpId) return res.status(404).json({ error: 'Source workpaper not found: ' + req.params.sourceRef });
+
+    const results = {};
+
+    // ── Test Attributes — a single, real JSONB column on workpapers itself,
+    // so this is genuinely just copying one, real value across. ──
+    if (duplicateAttributes) {
+      const { rows } = await pool.query('SELECT test_attributes FROM workpapers WHERE id=$1', [sourceWpId]);
+      const attrs = rows[0]?.test_attributes || [];
+      await pool.query('UPDATE workpapers SET test_attributes=$1 WHERE id=$2', [JSON.stringify(attrs), newWpId]);
+      results.attributesCopied = Array.isArray(attrs) ? attrs.length : 0;
+      results.attributes = attrs; // real, actual, copied data itself, not just a count — see route-level comment above
+    }
+
+    // ── Sample Data — real, dedicated columns + rows tables. Row cells are
+    // genuinely keyed by column id (see the save route above), so every
+    // real, newly-generated column id must be remapped into each copied
+    // row's own cells object, or the copied data would silently reference
+    // real, nonexistent, old column ids and never actually display. ──
+    if (duplicateSampleData) {
+      const { rows: srcCols } = await pool.query(
+        'SELECT id, col_index, title, width, system_added FROM sample_data_columns WHERE workpaper_id=$1 ORDER BY col_index',
+        [sourceWpId]
+      );
+      const idMap = {}; // real, old column id -> real, newly-generated column id
+      for (const c of srcCols) {
+        const newColId = crypto.randomUUID();
+        idMap[c.id] = newColId;
+        await pool.query(
+          `INSERT INTO sample_data_columns (id, workpaper_id, col_index, title, width, system_added)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [newColId, newWpId, c.col_index, c.title, c.width, c.system_added]
+        );
+      }
+      const { rows: srcRows } = await pool.query(
+        'SELECT row_index, cells, row_height FROM sample_data_rows WHERE workpaper_id=$1 ORDER BY row_index',
+        [sourceWpId]
+      );
+      for (const r of srcRows) {
+        const remappedCells = {};
+        for (const [oldColId, val] of Object.entries(r.cells || {})) {
+          const newColId = idMap[oldColId];
+          if (newColId) remappedCells[newColId] = val; // genuinely, correctly, drops a real, orphaned cell with no matching column, rather than keeping a stale, old id
+        }
+        await pool.query(
+          `INSERT INTO sample_data_rows (workpaper_id, row_index, cells, row_height)
+           VALUES ($1,$2,$3,$4)`,
+          [newWpId, r.row_index, JSON.stringify(remappedCells), r.row_height]
+        );
+      }
+      results.sampleDataColumnsCopied = srcCols.length;
+      results.sampleDataRowsCopied = srcRows.length;
+    }
+
+    // ── Workpaper Files / Sample Files — real, actual files in object
+    // storage, per explicit request: each copy gets "_duplicate" appended
+    // to its real filename, and date_created set to the real, current
+    // moment in the new workpaper, streamed directly from the source
+    // object to a real, new one rather than buffering whole files into
+    // server memory. ──
+    const categoriesToCopy = [];
+    if (duplicateWorkpaperFiles) categoriesToCopy.push('workpaper');
+    if (duplicateSampleFiles) categoriesToCopy.push('sample');
+    let filesCopied = 0;
+    if (categoriesToCopy.length) {
+      const { rows: srcFiles } = await pool.query(
+        'SELECT filename, bucket_key, content_type, uploaded_by, file_category FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND file_category = ANY($3) AND archived=false',
+        [req.currentTenantId, req.params.sourceRef, categoriesToCopy]
+      );
+      for (const f of srcFiles) {
+        try {
+          const srcObj = await getFileFromStorage(f.bucket_key);
+          const dupFilename = f.filename.replace(/(\.[^.]*)?$/, (ext) => '_duplicate' + (ext || ''));
+          const newBucketKey = _buildBucketKey(req.currentTenantId, req.params.newRef, dupFilename);
+          await uploadFileToStorage(newBucketKey, srcObj.Body, f.content_type);
+          await pool.query(
+            `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_created, date_updated)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
+             ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
+               bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+               size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+               uploaded_by=EXCLUDED.uploaded_by, archived=false, date_created=NOW(), date_updated=NOW()`,
+            [req.currentTenantId, req.params.newRef, dupFilename, newBucketKey, f.content_type, srcObj.ContentLength || 0, STORAGE_BUCKET, req.currentUser?.login_id || '', f.file_category]
+          );
+          filesCopied++;
+        } catch (fileErr) {
+          console.error(`[duplicate-from] Could not copy file "${f.filename}":`, fileErr.message);
+        }
+      }
+    }
+    results.filesCopied = filesCopied;
+
+    res.json({ ok: true, ...results });
+  } catch(err) { return fail(res, err, 'POST /api/workpapers/:newRef/duplicate-from/:sourceRef:'); }
+});
+
 // ── Extracted Data field list (Title / Description / Guidance) ───────────────
 // Same replace-entire-set pattern as sample-data above, for the same reason.
 // This is what the Extract Sample Data button populates — it no longer
