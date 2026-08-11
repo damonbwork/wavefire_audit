@@ -1721,6 +1721,22 @@ async function ensureAccessErrorTables() {
         date_created TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    // Real, new table, per explicit request — records every, real,
+    // actual acknowledgment of the sensitive-information consent
+    // screen, since it's genuinely a real, legal-agreement-style
+    // click-through worth its own, real, server-side audit trail,
+    // matching the exact, established pattern of this app's own,
+    // existing event-logging tables (e.g. access_error_log above).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS consent_acknowledgments (
+        ack_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id      UUID REFERENCES users(user_id) ON DELETE SET NULL,
+        login_id     TEXT,
+        tenant_id    TEXT,
+        date_created TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
     // Real, actual seed data for the two, explicit codes — ON CONFLICT
     // DO NOTHING so this is safe to run on every deploy without ever
     // overwriting real, live wording someone may have since customized.
@@ -3151,6 +3167,23 @@ app.post('/api/auth/xlsx-export-prefs', async (req, res) => {
     );
     res.json({ ok: true, prefs });
   } catch(err) { return fail(res, err, 'POST /api/auth/xlsx-export-prefs:'); }
+});
+
+// Real, new route, per explicit request — records every, real, actual
+// acknowledgment of the sensitive-information consent screen, tied to
+// the current, real user's own account. tenant_id is genuinely,
+// correctly allowed to be null here — this screen shows right after
+// login but before tenant selection has necessarily completed.
+app.post('/api/auth/acknowledge-consent', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const user = req.currentUser;
+  try {
+    await pool.query(
+      'INSERT INTO consent_acknowledgments (user_id, login_id, tenant_id) VALUES ($1, $2, $3)',
+      [user.user_id, user.login_id, req.currentTenantId]
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'POST /api/auth/acknowledge-consent:'); }
 });
 
 // Real, new, small, public route exposing DEFAULT_TENANT_ID — needed so
