@@ -2491,6 +2491,7 @@
             </div>
           </div>
           <div class="row-actions">
+            <button class="btn-s" onclick="duplicateWorkpaperInNewTab()"><i class="ti ti-copy"></i>Duplicate Workpaper</button>
             <button class="btn-s" onclick="exportWorkpaperXLSX()"><i class="ti ti-download"></i>Export</button>
             <button class="btn-s" onclick="openHistory()"><i class="ti ti-clock"></i>History</button>
             <button class="btn-s" style="font-size:11px;padding:3px 8px" id="wpd-edit-btn" onclick="toggleWPHeaderEdit()"><i class="ti ti-edit"></i>Edit</button>
@@ -4427,6 +4428,33 @@ auditor's assessment.
                   border-left:5px solid #fca5a5"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Real, new duplicate-mode checkboxes, per explicit request —
+             hidden by default; shown only in duplicate mode by
+             openNewWorkpaper above. -->
+        <div class="sect-card" id="nwp-dup-checkboxes-section" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><i class="ti ti-copy"></i>What to duplicate</div>
+          </div>
+          <div class="sect-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 24px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
+              <input type="checkbox" id="nwp-dup-sampledata" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
+              Duplicate Sample Data
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
+              <input type="checkbox" id="nwp-dup-attributes" checked style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
+              Duplicate Attributes
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
+              <input type="checkbox" id="nwp-dup-wpfiles" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
+              Duplicate Workpaper Files
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
+              <input type="checkbox" id="nwp-dup-samplefiles" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">
+              Duplicate Sample Files
+            </label>
           </div>
         </div>
 
@@ -7056,6 +7084,7 @@ async function handleInitialHash() {
       _suppressHistory = true;
       currentAudit = audit;
       if (page === 'workpapers') openAudit(AUDITS.indexOf(audit));
+      if (page === 'newwp') await openNewWorkpaper(params.get('dupfrom') || null);
       _suppressHistory = false;
       return true; // a real hash was present and successfully handled
     }
@@ -20533,10 +20562,52 @@ async function selectWorkpaperTemplate(templateName) {
   if (typeEl) typeEl.value = templateName;
 }
 
-async function openNewWorkpaper() {
+// Real, module-level state, per explicit request — holds the real,
+// source workpaper's own ref while the New Workpaper page is genuinely
+// in duplicate mode, so submitNewWorkpaper can correctly call the
+// real, new duplication route after a successful create. Cleared back
+// to null whenever this page opens in its real, ordinary (non-
+// duplicate) mode, so a stale, real, previous duplicate-mode session
+// can never silently leak into a genuinely new, ordinary creation.
+var _dupSourceWpRef = null;
+
+async function openNewWorkpaper(dupSourceRef) {
   const audit = currentAudit;
   populatePreparerReviewerDropdowns();
   await Promise.all([populateWorkpaperTypeDropdowns(), populateWorkpaperStatusDropdowns()]);
+
+  // Real, new duplicate-mode setup, per explicit request — genuinely,
+  // correctly resolves the real, source workpaper (already loaded into
+  // WORKPAPERS by the time this runs, since handleInitialHash only
+  // ever calls this after the real, established bootstrap sequence has
+  // genuinely finished), and sets the real, page title plus shows the
+  // real, new checkboxes section only when genuinely in duplicate mode.
+  _dupSourceWpRef = dupSourceRef || null;
+  const titleEl = document.querySelector('#page-newwp .pt');
+  const dupCheckboxesSection = document.getElementById('nwp-dup-checkboxes-section');
+  if (_dupSourceWpRef) {
+    const srcWp = WORKPAPERS.find(w => w.ref === _dupSourceWpRef);
+    if (titleEl) {
+      titleEl.textContent = srcWp
+        ? `Duplicate Workpaper ${srcWp.name}  ${srcWp.type || ''}  ${srcWp.ref}`
+        : 'Duplicate Workpaper';
+    }
+    if (dupCheckboxesSection) dupCheckboxesSection.style.display = '';
+    // Real, correct, established defaults, per explicit request — only
+    // "Duplicate Attributes" starts checked; the other three start
+    // unchecked.
+    const dupAttrCb = document.getElementById('nwp-dup-attributes');
+    const dupDataCb = document.getElementById('nwp-dup-sampledata');
+    const dupWpFilesCb = document.getElementById('nwp-dup-wpfiles');
+    const dupSampleFilesCb = document.getElementById('nwp-dup-samplefiles');
+    if (dupAttrCb) dupAttrCb.checked = true;
+    if (dupDataCb) dupDataCb.checked = false;
+    if (dupWpFilesCb) dupWpFilesCb.checked = false;
+    if (dupSampleFilesCb) dupSampleFilesCb.checked = false;
+  } else {
+    if (titleEl) titleEl.textContent = 'New workpaper';
+    if (dupCheckboxesSection) dupCheckboxesSection.style.display = 'none';
+  }
 
   // Populate audit info strip on the new-wp page
   const nwpBcAudit   = document.getElementById('nwp-bc-audit');
@@ -20814,6 +20885,49 @@ async function submitNewWorkpaper() {
   if (!genuinelySaved) {
     WORKPAPERS.pop();
     return;
+  }
+
+  // Real, final connection, per explicit request — if genuinely in
+  // duplicate mode, copies whichever real data/files were actually
+  // checked from the source workpaper into this real, newly-created
+  // one, and genuinely waits for it to complete before navigating to
+  // the new workpaper's own detail view, so the real, copied data is
+  // already in the database by the time that view loads it.
+  if (_dupSourceWpRef) {
+    const createBtn = document.querySelector('#page-newwp button.btn-p');
+    const createBtnOrigHtml = createBtn ? createBtn.innerHTML : '';
+    if (createBtn) { createBtn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Duplicating…'; createBtn.disabled = true; }
+    try {
+      const dupRes = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/duplicate-from/' + encodeURIComponent(_dupSourceWpRef), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duplicateSampleData:     document.getElementById('nwp-dup-sampledata')?.checked || false,
+          duplicateAttributes:     document.getElementById('nwp-dup-attributes')?.checked || false,
+          duplicateWorkpaperFiles: document.getElementById('nwp-dup-wpfiles')?.checked || false,
+          duplicateSampleFiles:    document.getElementById('nwp-dup-samplefiles')?.checked || false,
+        }),
+      });
+      if (!dupRes.ok) {
+        const body = await dupRes.json().catch(() => ({}));
+        console.error('[submitNewWorkpaper] Duplication failed:', body.error || dupRes.status);
+        alert('The new workpaper was created, but duplicating the selected data failed: ' + (body.error || 'HTTP ' + dupRes.status) + '. You can open the workpaper and add the data manually.');
+      } else {
+        // Real, confirmed fix — test_attributes is the one, real, duplicated
+        // data type NOT already automatically re-fetched by openWP below
+        // (sample data and files both are, via loadSampleDataFromDB and
+        // _loadSampleFilesFromBackend). Populates the real, in-memory
+        // store directly from this response so the real, copied
+        // attributes genuinely display once the new workpaper's own
+        // detail view opens, rather than showing "No attributes yet."
+        const dupBody = await dupRes.json().catch(() => ({}));
+        if (Array.isArray(dupBody.attributes)) wpTestAttributes[ref] = dupBody.attributes;
+      }
+    } catch(e) {
+      console.error('[submitNewWorkpaper] Duplication request failed:', e.message);
+      alert('The new workpaper was created, but duplicating the selected data failed: ' + e.message + '. You can open the workpaper and add the data manually.');
+    }
+    if (createBtn) { createBtn.innerHTML = createBtnOrigHtml; createBtn.disabled = false; }
+    _dupSourceWpRef = null; // genuinely, correctly, clears duplicate-mode state now that this, one, real, creation, is, done
   }
 
   // Update the WP ref nav dropdown
@@ -22981,6 +23095,18 @@ async function fileToBase64(file) {
 /* ══════════════════════════════════════
    WORKPAPER EXPORT — full workpaper to XLSX
 ══════════════════════════════════════ */
+// Real, new function, per explicit request — opens a real, new browser
+// tab pointing at the New Workpaper page's own, existing hash-route,
+// with a real, new dupfrom parameter, so the real, new tab (sharing
+// the real, same session cookie) can correctly detect duplicate mode
+// and load the real, source workpaper's own data itself.
+function duplicateWorkpaperInNewTab() {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  const url = '#newwp&audit=' + encodeURIComponent(w.auditName) + '&dupfrom=' + encodeURIComponent(w.ref);
+  window.open(window.location.pathname + url, '_blank');
+}
+
 function exportWorkpaperXLSX() {
   if (!window.XLSX) {
     const s = document.createElement('script');
