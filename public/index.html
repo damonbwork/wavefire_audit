@@ -7803,7 +7803,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
       const lineH = useFont.heightAtSize(size) * 1.15;
       const widest = Math.max(...lines.map(l => useFont.widthOfTextAtSize(l, size)));
       const bgH = lines.length * lineH;
-      page.drawRectangle({ x: x - padX, y: y - bgH + lineH - padY, width: widest + padX * 2, height: bgH + padY * 2, color: rgb(1,1,1), opacity: 0.88 });
+      page.drawRectangle({ x: x - padX, y: y - bgH + lineH - padY, width: widest + padX * 2, height: bgH + padY * 2, color: rgb(1,1,1), opacity: 1 });
       lines.forEach((line, li) => page.drawText(line, { x, y: y - li * lineH, font: useFont, size, color }));
     }
 
@@ -7854,7 +7854,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
         // Draw label text to the right of the tick
         const ann2 = pdfAnnotations.find(a => a.el === el);
         if (ann2?.text) {
-          drawTextWithBg(page, pdfText(ann2.text), { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 7, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
+          drawTextWithBg(page, pdfText(ann2.text), { x: pdfX + 36, y: pdfY - 14, font: fontReg, size: 8, color: rgb(0.3,0.3,0.3), maxWidth: 120 });
         }
         return;
       }
@@ -7953,7 +7953,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
     const a        = document.createElement('a');
     const baseName = (entry.name||'document').replace(/\.pdf$/i,'');
     a.href         = url;
-    a.download     = baseName + '_annotated.pdf';
+    a.download     = baseName + '_annotated_inline.pdf';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 
@@ -8153,7 +8153,7 @@ async function downloadAllAnnotatedPDFs() {
       const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes);
       if (!outBytes) continue; // no relevant results for this specific file — skip rather than include an unmarked copy
       const baseName = (entry.name || 'document').replace(/\.pdf$/i, '');
-      zip.file(baseName + '_annotated.pdf', outBytes);
+      zip.file(baseName + '_annotated_inline.pdf', outBytes);
       annotatedCount++;
     }
 
@@ -8230,7 +8230,7 @@ function _isPristineCopyFile(f) {
 // real, new code (e.g. the pre-Analyze cleanup step) genuinely,
 // consistently identify the same set of files.
 function _isAnnotatedFile(f) {
-  return !!(f._annotatedFrom || /_annotated(_\d{8}_\d{4})?\.pdf$/i.test(f.name || ''));
+  return !!(f._annotatedFrom || /_annotated_inline(_\d{8}_\d{4})?\.pdf$/i.test(f.name || ''));
 }
 
 async function _makePristineFileSystemCopyBeforeAnalyze(ref, onProgress) {
@@ -8335,11 +8335,12 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   if (!bucketArr || !bucketArr.length) return;
 
   // Only genuine originals — never re-annotate an already-"_copy",
-  // already-"_annotated", or already-"_acrobat_annotated" entry. Uses
-  // the same shared, filename-aware _isPristineCopyFile detector already
-  // proven correct for surviving a page reload, plus an equivalent,
-  // explicit check for this mechanism's own real naming convention.
-  const looksAcrobatAnnotatedByName = (name) => /_acrobat_annotated\.pdf$/i.test(name || '');
+  // already-"_annotated_inline", or already-"_annotated_comments"
+  // entry. Uses the same shared, filename-aware _isPristineCopyFile
+  // detector already proven correct for surviving a page reload, plus
+  // an equivalent, explicit check for this mechanism's own real
+  // naming convention.
+  const looksAcrobatAnnotatedByName = (name) => /_annotated_comments\.pdf$/i.test(name || '');
   const originalEntries = bucketArr.filter(f =>
     f.file && !f._annotatedFrom && !_isPristineCopyFile(f) && !looksAcrobatAnnotatedByName(f.name)
   );
@@ -8385,7 +8386,7 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const acrobatName = baseName + '_acrobat_annotated.pdf';
+      const acrobatName = baseName + '_annotated_comments.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === acrobatName && f._annotatedFrom === origEntry.name);
 
       // Same real, established pattern as the burn-in mechanism: delete
@@ -8608,7 +8609,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const annName  = baseName + '_annotated.pdf';
+      const annName  = baseName + '_annotated_inline.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
 
       // Never overwrite annotations the user has since manually edited
@@ -8876,14 +8877,14 @@ async function saveAnnotatedPDF() {
     }
 
     // Determine annotated filename — MUST match the exact convention
-    // _autoBurnAnnotatedFilesAfterAnalyze uses ("<basename>_annotated.pdf",
+    // _autoBurnAnnotatedFilesAfterAnalyze uses ("<basename>_annotated_inline.pdf",
     // no timestamp), so that saving from the viewer updates the SAME
     // annotated entry Analyze already created, rather than spawning a
     // second, differently-named "annotated" copy of the same original.
-    const origName = entry.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '');
-    const annName  = entry.name.match(/_annotated\.pdf$/i)
+    const origName = entry.name.replace(/_annotated_inline\.pdf$/i, '').replace(/\.pdf$/i, '');
+    const annName  = entry.name.match(/_annotated_inline\.pdf$/i)
       ? entry.name
-      : `${origName}_annotated.pdf`;
+      : `${origName}_annotated_inline.pdf`;
 
     const now     = new Date();
     const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
@@ -23946,7 +23947,7 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       // Fuzzy match — strip _annotated suffix and compare basenames
       const base = fileName.replace(/\.pdf$/i, '').toLowerCase();
       sfEntry = sampleFiles.find(f => {
-        const fb = f.name.replace(/_annotated\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
+        const fb = f.name.replace(/_annotated_inline\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
         return fb === base;
       });
       if (sfEntry) console.log('[Annotate] Fuzzy matched:', sfEntry.name);
