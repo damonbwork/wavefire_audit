@@ -10706,7 +10706,9 @@ function saveCurrentPage() {
         const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
         const desc           = row.querySelector('.attr-desc')?.value || '';
         const additionalInfo = row.querySelector('.attr-additional')?.value || '';
-        if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo });
+        const successCriteria = row.querySelector('.attr-success')?.value || '';
+        const failureCriteria = row.querySelector('.attr-failure')?.value || '';
+        if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo, successCriteria, failureCriteria });
       });
       wpTestAttributes[w.ref] = domRows;
     }
@@ -18495,7 +18497,9 @@ function syncWPFsToAudit(ref, fsSet) {
       const title          = row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '';
       const desc           = row.querySelector('.attr-desc')?.value || '';
       const additionalInfo = row.querySelector('.attr-additional')?.value || '';
-      if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo });
+      const successCriteria = row.querySelector('.attr-success')?.value || '';
+      const failureCriteria = row.querySelector('.attr-failure')?.value || '';
+      if (num || attrRef || title || desc) domRows.push({ num, attrRef, title, desc, additionalInfo, successCriteria, failureCriteria });
     });
     wpTestAttributes[w.ref] = domRows;
     _saveWorkpaperToDB(w);
@@ -29314,6 +29318,8 @@ function deleteSelectedAttrRows() {
           title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
           desc:           row.querySelector('.attr-desc')?.value || '',
           additionalInfo: row.querySelector('.attr-additional')?.value || '',
+          successCriteria: row.querySelector('.attr-success')?.value || '',
+          failureCriteria: row.querySelector('.attr-failure')?.value || '',
         });
       });
       wpTestAttributes[ref] = domRows;
@@ -29504,6 +29510,8 @@ function removeAttrRow(idx) {
       title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
       desc:           row.querySelector('.attr-desc')?.value || '',
       additionalInfo: row.querySelector('.attr-additional')?.value || '',
+      successCriteria: row.querySelector('.attr-success')?.value || '',
+      failureCriteria: row.querySelector('.attr-failure')?.value || '',
     });
   });
 
@@ -29598,10 +29606,12 @@ function addTestAttributeRow() {
       title:          row.querySelector('.attr-input:not(.attr-desc):not(.attr-additional)')?.value || '',
       desc:           row.querySelector('.attr-desc')?.value || '',
       additionalInfo: row.querySelector('.attr-additional')?.value || '',
+      successCriteria: row.querySelector('.attr-success')?.value || '',
+      failureCriteria: row.querySelector('.attr-failure')?.value || '',
     });
   });
   // Push a guaranteed blank new row
-  domRows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '' });
+  domRows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
   wpTestAttributes[currentAttrWPRef] = domRows;
   renderTestAttributes(currentAttrWPRef);
   const w = WORKPAPERS.find(w => w.ref === currentAttrWPRef);
