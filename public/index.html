@@ -14297,15 +14297,18 @@ async function _loadEntitiesFromDB() {
   } catch(e) { return false; }
 }
 async function _saveEntityToDB(entity) {
-  if (!window._hasBackend) return;
+  if (!window._hasBackend) return true;
   try {
     const res = await fetch('/api/entities', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entity)
     });
-    if (res.ok) _wfSaved();
-    return res.ok;
-  } catch(e) { return false; }
+    if (res.ok) { _wfSaved(); return true; }
+    // Real, confirmed fix — genuinely surfaces the real, actual failure
+    // reason, rather than just a bare false with no further detail.
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, error: body.error || ('HTTP ' + res.status) };
+  } catch(e) { return { ok: false, error: e.message }; }
 }
 async function _deleteEntityFromDB(id) {
   try {
@@ -14667,17 +14670,30 @@ function fndDialogUpdateType(idx, value) {
 async function saveEntityFromDialog(idx) {
   const entity = _fndEntities[idx];
   if (!entity) return;
+  const btnAtStart = document.getElementById('entity-save-btn');
+  if (btnAtStart) { btnAtStart.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…'; btnAtStart.disabled = true; }
+  const result = await _saveEntityToDB(entity);
+  const ok = result === true || (result && result.ok);
+  // Real, confirmed fix — re-queries the real, CURRENT save button here,
+  // rather than trusting the reference captured before the await above.
+  // Changing the Entity Type dropdown genuinely destroys and rebuilds
+  // this entire dialog (including a brand-new save button) — if that
+  // happens while a real, previous save is still in flight, the old
+  // reference goes stale and updating it would have no visible effect
+  // on the real, current screen, even though the save itself may have
+  // genuinely succeeded.
   const btn = document.getElementById('entity-save-btn');
-  if (btn) { btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Saving…'; btn.disabled = true; }
-  const ok = await _saveEntityToDB(entity);
   if (btn) {
     btn.innerHTML = ok ? '<i class="ti ti-check"></i> Saved!' : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Error';
     btn.style.background = ok ? '#16a34a' : '#dc2626';
+    btn.title = ok ? '' : (typeof result === 'object' && result?.error ? result.error : 'Save failed — see the browser console for detail.');
     if (ok) {
       // Sync to ALL_ENTITIES so audit tab sees the change immediately
       const aeIdx = ALL_ENTITIES.findIndex(e => e.id === entity.id);
       if (aeIdx >= 0) Object.assign(ALL_ENTITIES[aeIdx], entity);
       else ALL_ENTITIES.push({ ...entity });
+    } else {
+      console.error('[saveEntityFromDialog] Save failed:', typeof result === 'object' ? result?.error : 'unknown error');
     }
     setTimeout(() => { closeEntityDialog(); renderFoundationsEntities(); }, 900);
   }
@@ -21302,9 +21318,18 @@ function renderAuditEntityTags() {
     container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">No entities selected — click "Add / edit entities" to add</span>`;
   } else {
     container.innerHTML = selected.map(e => {
-      const { cls, icon } = entityStyle(e.category);
-      return `<span class="${cls}" style="display:inline-flex;align-items:center;gap:5px">
-        <i class="ti ${icon}"></i>${e.name}
+      const { cls, icon, style } = entityStyle(e.category);
+      // Real, "block format" styling, per explicit request — genuinely
+      // matches the exact, same, established visual style already used
+      // by Linked Risks & Controls and Linked FS Accounts right below
+      // this section: rectangular corners, small saturated-color block,
+      // rather than the real, rounder pill shape previously used here.
+      // Falls back to the real, plain entity-tag/-app/-biomed color
+      // scheme (cls) only when no Foundations-registry color (style)
+      // is genuinely available for this entity's own type.
+      const blockStyle = (style || '') + ';font-size:11px;border-radius:4px;padding:2px 8px;display:inline-flex;align-items:center;gap:5px';
+      return `<span class="${style ? '' : cls}" style="${blockStyle}">
+        <i class="ti ${icon}" style="font-size:10px"></i>${e.name}
         <span onclick="removeAuditEntity('${e.id}')" style="margin-left:3px;cursor:pointer;opacity:0.6;font-size:11px;line-height:1" title="Remove">×</span>
       </span>`;
     }).join('');
