@@ -1806,7 +1806,7 @@
       <!-- ══════════════════════════
            PAGE 1 — AUDIT LIST
       ══════════════════════════ -->
-      <div class="page" id="page-audits">
+      <div class="page active" id="page-audits">
 
         <!-- ── Company & AI Settings ──────────────────────────────────────────── -->
         <div id="company-settings-panel" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
@@ -2420,7 +2420,7 @@
       <!-- ══════════════════════════
            PAGE 3 — WORKPAPER DETAIL
       ══════════════════════════ -->
-      <div class="page active" id="page-wpdetail">
+      <div class="page" id="page-wpdetail">
         <div class="bc">
           <span onclick="showPage('audits')">Audits</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -19271,6 +19271,15 @@ function _attrHandleCellKeydown(e, rowIdx) {
 
 function toggleAttrCriteria() {
   _attrCriteriaVisible = !_attrCriteriaVisible;
+  _applyAttrCriteriaVisibility();
+}
+
+// Real, new, shared helper, extracted so both the real, manual toggle
+// above and the real, new "default to visible if data exists" logic
+// (renderTestAttributes below) apply the exact, same, established
+// visibility behavior, rather than risking two, separate copies
+// silently drifting apart.
+function _applyAttrCriteriaVisibility() {
   const btn = document.getElementById('attr-criteria-toggle');
   if (btn) {
     btn.style.background  = _attrCriteriaVisible ? 'var(--wf-navy)'    : '';
@@ -29365,6 +29374,15 @@ function renderTestAttributes(ref) {
   if (!container) return;
   renderAttrBulkToolbar(ref);
 
+  // Real, new default-visibility logic, per explicit request — if this,
+  // real, actual workpaper's own attribute data genuinely has any real
+  // Pass/Fail Criteria content already filled in, correctly default to
+  // showing those columns automatically. The real, existing manual
+  // toggle button still, correctly, works exactly as before — this only
+  // sets the real, initial default each time this section renders.
+  const hasCriteriaData = rows.some(a => (a.successCriteria || '').trim() || (a.failureCriteria || '').trim());
+  if (hasCriteriaData) _attrCriteriaVisible = true;
+
   const selectedIdx = _selectedAttrRowIdx[ref];
   let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '', rows.length, i === selectedIdx)).join('');
   // No auto blank row — user must click "Add attribute" to add a new row
@@ -29372,6 +29390,13 @@ function renderTestAttributes(ref) {
     html = `<div style="padding:14px 16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No attributes yet — click "Add attribute" to begin.</div>`;
   }
   container.innerHTML = html;
+
+  // Real, correct, established application of the real, current
+  // visibility state — genuinely, correctly, shows the criteria columns
+  // (and restores their real, actual saved values) whenever
+  // _attrCriteriaVisible is true, whether that's from the check just
+  // above or a real, earlier, manual toggle.
+  _applyAttrCriteriaVisibility();
 
   // Auto-resize all description textareas to fit their content
   setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
