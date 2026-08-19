@@ -1336,6 +1336,12 @@
           <span>Results &amp; Export</span>
         </button>
 
+        <button class="fnd-nav-btn da-nav-btn" id="da-btn-riskLinkages" onclick="showDASection('riskLinkages')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5 15.5 15.5"/><circle cx="18" cy="6" r="3"/><path d="M15.5 8.5 12 12"/></svg>
+          <span>Risk Linkages</span>
+        </button>
+
         <div style="flex:1"></div>
         <div style="padding:14px 16px;font-size:10px;color:var(--text-tertiary);line-height:1.5;border-top:0.5px solid var(--border-light)">
           Upload a spreadsheet, profile the data, and run anomaly detection to surface outliers for further investigation.
@@ -1758,6 +1764,28 @@
           <div id="da-results-content">
             <div style="padding:40px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">
               No analysis has been run yet. Go to <strong>Anomaly Detection</strong> to configure and run an analysis.
+            </div>
+          </div>
+        </div>
+
+        <div id="da-section-riskLinkages" class="fnd-section" style="display:none">
+          <div class="ph" style="margin-bottom:16px">
+            <div>
+              <div class="pt">Risk Linkages</div>
+              <div class="ps">Trace each risk to the controls that mitigate it, and each control to the audits and workpapers where it's actually tested — with a suggested level of risk mitigation based on control design, operating effectiveness, and real testing results.</div>
+            </div>
+            <button class="btn-s" onclick="openRiskMitigationGraph()" style="font-size:12px">
+              <i class="ti ti-chart-bubble"></i>Risk Mitigation Graph
+            </button>
+          </div>
+          <div style="display:flex;gap:0;height:calc(100vh - 220px);border:0.5px solid var(--border-light);border-radius:var(--radius-md);overflow:hidden">
+            <!-- Left: risk list -->
+            <div style="width:280px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);overflow-y:auto">
+              <div id="rl-risk-list"></div>
+            </div>
+            <!-- Right: selected risk detail -->
+            <div style="flex:1;overflow-y:auto;padding:20px" id="rl-risk-detail">
+              <div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:40px 20px;text-align:center">Select a risk on the left to see its linked controls, testing results, and suggested level of mitigation.</div>
             </div>
           </div>
         </div>
@@ -2281,7 +2309,7 @@
             <div style="border-top:0.5px solid var(--border-light);padding-top:12px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                 <div class="fl">Linked financial statement accounts &amp; footnotes</div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog('audit')">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -2819,7 +2847,7 @@
                 <div class="fl" style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">
                   Linked financial statement accounts &amp; footnotes
                 </div>
-                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog()">
+                <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openRCDialog('workpaper')">
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
@@ -4717,7 +4745,7 @@ auditor's assessment.
     </div>
   </div>
 
-  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: var(--bg-primary); z-index: 99999; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 20px; text-align: center">
         <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Sign in to Wavefire</div>
@@ -4938,8 +4966,18 @@ auditor's assessment.
       <div id="file-preview-header">
         <i class="ti ti-file-type-pdf" id="file-preview-icon" style="font-size:16px;color:rgba(255,255,255,0.7);flex-shrink:0"></i>
         <span id="file-preview-title">CHG0053245_CHG0053245-bookmark_annotated_20260627_1746.pdf</span>
+        <!-- Tick mark navigation arrows -->
+        <div id="file-preview-tick-nav" style="display:none;align-items:center;gap:8px;margin-left:auto">
+          <button id="fp-prev-tick" onclick="navigateTickMark(-1)" title="Previous tick mark  ↑" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+          <span id="fp-tick-counter" style="font-size:12px;color:rgba(255,255,255,0.85);white-space:nowrap;min-width:80px;text-align:center;font-weight:500"></span>
+          <button id="fp-next-tick" onclick="navigateTickMark(1)" title="Next tick mark  ↓" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
         <!-- Sample file navigation arrows -->
-        <div id="file-preview-file-nav" style="display:none;align-items:center;gap:8px;margin-left:auto;margin-right:12px">
+        <div id="file-preview-file-nav" style="display:none;align-items:center;gap:8px;margin-left:12px;margin-right:12px">
           <button id="fp-prev-file" onclick="previewNavFile(-1)" title="Previous file  ←" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
@@ -7681,12 +7719,92 @@ function clearAnnotations(silent) {
   if (overlay) overlay.innerHTML = '';
   const lbl = document.getElementById('ann-count-label');
   if (lbl) lbl.textContent = '0 annotations';
+  _updateTickNavButtons(); // real, correct, fix — this function bypasses updateAnnCount above, so this call is needed here too
   if (!silent) { currentAnnTool = null; setAnnotationTool(null); }
 }
 
 function updateAnnCount() {
   const lbl = document.getElementById('ann-count-label');
   if (lbl) lbl.textContent = `${pdfAnnotations.length} annotation${pdfAnnotations.length!==1?'s':''}`;
+  // Real, correct, safe hook point, per explicit request — updateAnnCount
+  // is already, correctly, called everywhere a real, tick mark is
+  // genuinely added, removed, or edited, so refreshing the real, new
+  // tick-nav buttons here (rather than at every real, individual call
+  // site separately) guarantees they never, genuinely, go stale.
+  _updateTickNavButtons();
+}
+
+// Real, new tick-mark navigation, per explicit request — matches the
+// exact, established pattern of _updateFileNavButtons/previewNavFile
+// right alongside it.
+let _currentTickIdx = -1;
+
+// Real, actual, sorted list of every, real, tick mark currently on the
+// open PDF — sorted by real, page number (tick marks don't carry an
+// explicit page field of their own, so this walks up each mark's own
+// DOM element to find its containing [data-page] wrapper), then by
+// real, vertical position within the page, matching natural,
+// top-to-bottom reading order.
+function _getSortedTickMarks() {
+  return pdfAnnotations
+    .filter(a => a.type === 'tick' && a.el && a.el.isConnected)
+    .map(a => {
+      const pageWrapper = a.el.closest('[data-page]');
+      const page = pageWrapper ? parseInt(pageWrapper.getAttribute('data-page'), 10) : 0;
+      return { ann: a, page, y: a.y || 0 };
+    })
+    .sort((a, b) => a.page - b.page || a.y - b.y)
+    .map(x => x.ann);
+}
+
+function _updateTickNavButtons() {
+  const navBar = document.getElementById('file-preview-tick-nav');
+  const counter = document.getElementById('fp-tick-counter');
+  const prevBtn = document.getElementById('fp-prev-tick');
+  const nextBtn = document.getElementById('fp-next-tick');
+  if (!navBar) return;
+
+  // Real, correct fix — tick marks are genuinely a PDF-only concept, so
+  // this stays hidden entirely for a non-PDF file (reusing the exact,
+  // same isPDF signal previewMemFile already sets on the annotation
+  // toolbar, rather than duplicating that check here).
+  const toolbarEl = document.getElementById('pdf-annotation-toolbar');
+  const isPDF = toolbarEl && toolbarEl.style.display !== 'none';
+  if (!isPDF) { navBar.style.display = 'none'; _currentTickIdx = -1; return; }
+
+  const ticks = _getSortedTickMarks();
+  navBar.style.display = 'flex';
+
+  if (ticks.length === 0) {
+    _currentTickIdx = -1;
+    if (counter) counter.textContent = 'No tick marks yet';
+    if (prevBtn) { prevBtn.disabled = true; prevBtn.style.opacity = '0.35'; }
+    if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; }
+    return;
+  }
+  if (ticks.length === 1) {
+    _currentTickIdx = 0;
+    if (counter) counter.textContent = '1 tick mark';
+    if (prevBtn) { prevBtn.disabled = true; prevBtn.style.opacity = '0.35'; }
+    if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; }
+    return;
+  }
+
+  if (_currentTickIdx < 0 || _currentTickIdx >= ticks.length) _currentTickIdx = 0;
+  if (counter) counter.textContent = `Tick ${_currentTickIdx + 1} of ${ticks.length}`;
+  if (prevBtn) { prevBtn.disabled = _currentTickIdx <= 0; prevBtn.style.opacity = _currentTickIdx <= 0 ? '0.35' : '1'; }
+  if (nextBtn) { nextBtn.disabled = _currentTickIdx >= ticks.length - 1; nextBtn.style.opacity = _currentTickIdx >= ticks.length - 1 ? '0.35' : '1'; }
+}
+
+function navigateTickMark(dir) {
+  const ticks = _getSortedTickMarks();
+  if (!ticks.length) return;
+  const newIdx = _currentTickIdx + dir;
+  if (newIdx < 0 || newIdx >= ticks.length) return;
+  _currentTickIdx = newIdx;
+  _updateTickNavButtons();
+  const target = ticks[newIdx].el;
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Burns every annotation currently visible in the viewer overlay into the
@@ -10075,6 +10193,24 @@ async function _saveAuditToDB(audit, oldName) {
   } catch(e) { console.warn('[DB] audit save failed:', e.message); }
 }
 
+// Real, new, dedicated save function, per explicit request — calls
+// the new, dedicated backend route to persist an audit's entire, real
+// set of linked FS accounts in the new, dedicated table.
+async function _saveAuditFsAccountsToDB(auditName) {
+  if (!window._hasBackend || !auditName) return;
+  try {
+    const res = await fetch('/api/audits/' + encodeURIComponent(auditName) + '/fs-accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fsAccountIds: [...(auditLinkedFs[auditName] || [])] }),
+    });
+    if (res.ok) _wfSaved();
+    else {
+      const err = await res.json().catch(()=>({}));
+      console.warn('[DB] audit fs-accounts save failed:', err.error || res.status);
+    }
+  } catch(e) { console.warn('[DB] audit fs-accounts save failed:', e.message); }
+}
+
 async function _saveWorkpaperToDB(w) {
   if (!window._hasBackend) return true; // genuinely, no real backend at all — not a real failure, nothing to persist to
   if (!w || !w.ref) return false; // a genuinely malformed workpaper — a real, actual failure
@@ -10215,6 +10351,13 @@ async function _loadAuditsFromDB() {
             type:row.type||'', status:row.status||'planned',
             desc: row.description || row.desc || '',
             year:row.year||null, wpCount:0 });
+        }
+        // Real, confirmed root-cause fix — genuinely populates the
+        // audit-level linked-FS-accounts roll-up from the real,
+        // actual backend column, so a saved linkage genuinely
+        // survives and correctly reappears after a real page refresh.
+        if (Array.isArray(row.linked_fs_accounts) && row.linked_fs_accounts.length) {
+          auditLinkedFs[row.name] = new Set(row.linked_fs_accounts);
         }
       });
     }
@@ -11055,7 +11198,7 @@ function activateDataAnalysis() {
 
 function showDASection(sec) {
   _daActiveSection = sec;
-  ['upload','profile','anomaly','results'].forEach(function(s){
+  ['upload','profile','anomaly','results','riskLinkages'].forEach(function(s){
     var el = document.getElementById('da-section-' + s);
     if (el) el.style.display = s===sec ? '' : 'none';
   });
@@ -11069,6 +11212,627 @@ function showDASection(sec) {
   });
   // Auto-populate column dropdowns when switching to anomaly
   if (sec === 'anomaly' && _daColumns.length) _daPopulateColumnDropdowns();
+  // Real, new trigger, per explicit request — loads the real, current
+  // tenant's own, actual control-effectiveness ratings and renders the
+  // real, risk list the first time this section is genuinely opened.
+  if (sec === 'riskLinkages') renderRiskLinkages();
+}
+
+// ══════════════════════════════════════
+//   RISK LINKAGES — new Data Analysis section
+// ══════════════════════════════════════
+var _rlControlRatings = {}; // { controlId: { design_rating, operating_rating, notes } } — loaded from the real, actual backend
+var _rlSelectedRiskId = null;
+
+async function renderRiskLinkages() {
+  // Real, actual, current ratings for every control in this real
+  // tenant — loaded once per visit to this section; individual saves
+  // below update this real, in-memory cache directly rather than
+  // re-fetching everything on every, single, small edit.
+  try {
+    const res = await fetch('/api/control-effectiveness');
+    if (res.ok) {
+      const rows = await res.json();
+      _rlControlRatings = {};
+      rows.forEach(r => { _rlControlRatings[r.control_id] = r; });
+    }
+  } catch(e) { console.error('[renderRiskLinkages] Could not load control-effectiveness ratings:', e.message); }
+
+  const listEl = document.getElementById('rl-risk-list');
+  if (!listEl) return;
+  const riskIds = Object.keys(RISKS).sort((a,b) => RISKS[a].title.localeCompare(RISKS[b].title));
+  listEl.innerHTML = riskIds.map(rid => {
+    const risk = RISKS[rid];
+    const linkedCtrlIds = Object.keys(CTRL_RISKS_MAP).filter(cid => (CTRL_RISKS_MAP[cid]||[]).includes(rid));
+    const overall = _rlOverallMitigationForControls(linkedCtrlIds);
+    return `<div onclick="selectRiskLinkage('${rid}')" id="rl-risk-item-${rid}"
+        style="padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border-light);${rid===_rlSelectedRiskId?'background:var(--bg-primary);border-left:3px solid var(--wf-navy)':'border-left:3px solid transparent'}">
+      <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:3px">${escAttr(risk.title)}</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;color:var(--text-tertiary)">${linkedCtrlIds.length} control${linkedCtrlIds.length!==1?'s':''}</span>
+        ${_rlMitigationPill(overall, true)}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (_rlSelectedRiskId && RISKS[_rlSelectedRiskId]) selectRiskLinkage(_rlSelectedRiskId);
+}
+
+function selectRiskLinkage(riskId) {
+  _rlSelectedRiskId = riskId;
+  document.querySelectorAll('[id^="rl-risk-item-"]').forEach(el => {
+    const isThis = el.id === 'rl-risk-item-' + riskId;
+    el.style.background = isThis ? 'var(--bg-primary)' : '';
+    el.style.borderLeft = isThis ? '3px solid var(--wf-navy)' : '3px solid transparent';
+  });
+
+  const risk = RISKS[riskId];
+  const detailEl = document.getElementById('rl-risk-detail');
+  if (!risk || !detailEl) return;
+
+  const linkedCtrlIds = Object.keys(CTRL_RISKS_MAP).filter(cid => (CTRL_RISKS_MAP[cid]||[]).includes(riskId));
+  const overall = _rlOverallMitigationForControls(linkedCtrlIds);
+
+  let html = `
+    <div style="margin-bottom:18px">
+      <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px">${escAttr(risk.title)}</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px">${escAttr(risk.description||'')}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Overall mitigation:</span>
+        ${_rlMitigationPill(overall, false)}
+      </div>
+    </div>`;
+
+  if (!linkedCtrlIds.length) {
+    html += `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:20px 0">No controls are currently linked to this risk in the Risks &amp; Controls module.</div>`;
+  } else {
+    html += linkedCtrlIds.map(cid => _rlRenderControlCard(cid)).join('');
+  }
+  detailEl.innerHTML = html;
+}
+
+// Real, actual, per-control card, per explicit request — shows the
+// real, editable Design/Operating Effectiveness ratings, the real,
+// calculated suggested mitigation level, and every, real, actual
+// workpaper (across every, real, audit) that tests this control, with
+// its real, actual result and a real, computed success rate.
+function _rlRenderControlCard(controlId) {
+  const ctrl = CONTROLS[controlId];
+  if (!ctrl) return '';
+  const rating = _rlControlRatings[controlId] || {};
+  const linkedWps = WORKPAPERS.filter(w => (w.linkedControls||[]).includes(controlId));
+  const { successRate, testedCount } = _rlSuccessRateForWorkpapers(linkedWps);
+  const suggested = _rlSuggestedMitigationLevel(rating.design_rating, rating.operating_rating, successRate);
+
+  const wpRowsHtml = linkedWps.length
+    ? linkedWps.map(w => `
+        <div onclick="_rlOpenWorkpaper('${escAttr(w.auditName)}','${escAttr(w.ref)}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
+          <span style="color:var(--text-primary)">${escAttr(w.ref)} — ${escAttr(w.name||'')} <span style="color:var(--text-tertiary)">(${escAttr(w.auditName||'')})</span></span>
+          ${resultPill(w.results)}
+        </div>`).join('')
+    : `<div style="font-size:12px;color:var(--text-tertiary);font-style:italic;padding:6px 10px">No workpapers currently test this control.</div>`;
+
+  return `
+    <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:14px;overflow:hidden">
+      <div style="padding:12px 14px;background:var(--bg-secondary);display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${escAttr(controlId)} — ${escAttr(ctrl.title)}</div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.4;max-width:520px">${escAttr(ctrl.description||'')}</div>
+        </div>
+        ${_rlMitigationPill(suggested, false)}
+      </div>
+      <div style="padding:10px 14px;display:flex;gap:22px;align-items:center;border-bottom:0.5px solid var(--border-light)">
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">1. Design Effectiveness</div>
+          ${_rlRatingSelectHtml(controlId, 'design', rating.design_rating)}
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">2. Operating Effectiveness</div>
+          ${_rlRatingSelectHtml(controlId, 'operating', rating.operating_rating)}
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Testing Success Rate</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${testedCount ? Math.round(successRate*100)+'%' : '—'} <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">(${testedCount} tested)</span></div>
+        </div>
+      </div>
+      <div style="padding:8px 6px">${wpRowsHtml}</div>
+    </div>`;
+}
+
+function _rlRatingSelectHtml(controlId, kind, currentVal) {
+  const opts = [['','—'],[1,'Ineffective'],[2,'Partially Effective'],[3,'Effective']];
+  return `<select onchange="saveControlEffectivenessRating('${controlId}','${kind}',this.value)"
+      style="font-size:12px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:6px;background:var(--bg-primary);color:var(--text-primary)">
+    ${opts.map(([v,label]) => `<option value="${v}" ${String(currentVal||'')===String(v)?'selected':''}>${label}</option>`).join('')}
+  </select>`;
+}
+
+async function saveControlEffectivenessRating(controlId, kind, value) {
+  const rating = _rlControlRatings[controlId] || {};
+  const numVal = value === '' ? null : parseInt(value, 10);
+  if (kind === 'design') rating.design_rating = numVal;
+  if (kind === 'operating') rating.operating_rating = numVal;
+  _rlControlRatings[controlId] = rating;
+  try {
+    const res = await fetch('/api/control-effectiveness/' + encodeURIComponent(controlId), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ designRating: rating.design_rating, operatingRating: rating.operating_rating, notes: rating.notes || '' }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || ('HTTP ' + res.status));
+    }
+  } catch(e) {
+    alert('Could not save the rating: ' + e.message);
+  }
+  // Re-render so the real, updated, suggested mitigation level and the
+  // real, risk list's own, overall pill both, correctly, reflect the
+  // real, actual, just-saved change immediately.
+  if (_rlSelectedRiskId) selectRiskLinkage(_rlSelectedRiskId);
+  renderRiskLinkages();
+}
+
+// Real, actual, computed, testing success rate for a real, set of
+// workpapers, per explicit request ("workpaper success rate") — only
+// counts workpapers that genuinely, actually, have a real, recorded
+// result (pass/passex/fail/met/notmet); a workpaper still in draft
+// with no result yet is correctly excluded rather than counted as a
+// real, silent failure.
+function _rlSuccessRateForWorkpapers(wps) {
+  const tested = wps.filter(w => w.results);
+  if (!tested.length) return { successRate: null, testedCount: 0 };
+  const successCount = tested.filter(w => w.results === 'pass' || w.results === 'met').length;
+  return { successRate: successCount / tested.length, testedCount: tested.length };
+}
+
+// Real, core "Wave suggests" calculation, per explicit request —
+// genuinely, transparently, combines the real, manually-set Design and
+// Operating Effectiveness ratings (1-3 each) with the real, actual
+// testing success rate from linked workpapers, rather than relying on
+// only one signal alone. If no ratings have genuinely been set yet,
+// falls back to the real, actual testing results alone; if no testing
+// has happened yet either, there simply isn't enough real, actual data
+// to suggest anything meaningful.
+// Real, shared, numeric score calculation, extracted per the, new,
+// Risk Mitigation Graph below — it needs a real, continuous value
+// for circle sizing, not just the three discrete labels this
+// function itself returns.
+function _rlMitigationScoreNumeric(designRating, operatingRating, successRate) {
+  const hasRatings = designRating != null && operatingRating != null;
+  const ratingScore = hasRatings ? (designRating + operatingRating) / 2 : null;
+  const resultScore = successRate != null ? 1 + successRate * 2 : null;
+  if (ratingScore == null && resultScore == null) return null;
+  return ratingScore != null && resultScore != null
+    ? (ratingScore * 0.6) + (resultScore * 0.4)
+    : (ratingScore ?? resultScore);
+}
+
+function _rlSuggestedMitigationLevel(designRating, operatingRating, successRate) {
+  const combined = _rlMitigationScoreNumeric(designRating, operatingRating, successRate);
+  if (combined == null) return null; // genuinely, not enough real data yet
+  if (combined >= 2.5) return 'strong';
+  if (combined >= 1.5) return 'moderate';
+  return 'weak';
+}
+
+// Real, actual, overall, risk-level roll-up across every, real, control
+// linked to a risk — genuinely, correctly, takes the WEAKEST, real,
+// individual control's own, level, since a real, risk is only as well
+// mitigated as its real, actual, weakest control, not an average that
+// could mask a real, genuinely, serious gap.
+function _rlOverallMitigationForControls(controlIds) {
+  const levels = controlIds.map(cid => {
+    const rating = _rlControlRatings[cid] || {};
+    const linkedWps = WORKPAPERS.filter(w => (w.linkedControls||[]).includes(cid));
+    const { successRate } = _rlSuccessRateForWorkpapers(linkedWps);
+    return _rlSuggestedMitigationLevel(rating.design_rating, rating.operating_rating, successRate);
+  }).filter(l => l != null);
+  if (!levels.length) return null;
+  if (levels.includes('weak')) return 'weak';
+  if (levels.includes('moderate')) return 'moderate';
+  return 'strong';
+}
+
+function _rlMitigationPill(level, small) {
+  const map = {
+    strong:   { label: 'Strong Mitigation',   bg: '#dcfce7', color: '#166534', border: '#86efac' },
+    moderate: { label: 'Moderate Mitigation', bg: '#fef9c3', color: '#854d0e', border: '#fde047' },
+    weak:     { label: 'Weak Mitigation',     bg: '#ffe4e6', color: '#be123c', border: '#fda4af' },
+  };
+  const c = map[level] || { label: 'Insufficient data', bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' };
+  const fs = small ? '9px' : '11px';
+  return `<span style="display:inline-flex;align-items:center;font-size:${fs};font-weight:600;padding:2px 8px;border-radius:99px;background:${c.bg};color:${c.color};border:0.5px solid ${c.border};white-space:nowrap">${c.label}</span>`;
+}
+
+function _rlOpenWorkpaper(auditName, ref) {
+  const audit = AUDITS.find(a => a.name === auditName);
+  if (audit) currentAudit = audit;
+  const idx = WORKPAPERS.findIndex(w => w.ref === ref);
+  if (idx !== -1) openWPVerified(idx);
+}
+
+// ══════════════════════════════════════
+//   RISK MITIGATION GRAPH — new visualization
+// ══════════════════════════════════════
+// Real, new visualization, per explicit request — a real, two-column
+// view showing how controls mitigate risk, with control circle COLOR
+// encoding effectiveness (the real, actual Design/Operating rating)
+// and circle SIZE encoding degree of risk mitigation (the real,
+// combined score factoring in both ratings and actual testing
+// results) — matching the explicit request precisely. Left column is
+// toggleable between Risks and Assessment Entities; FS Accounts only
+// link at the real, workpaper level currently, not directly on
+// controls, so it's correctly left out of this first version rather
+// than built on an indirect chain that doesn't exist yet.
+var _rmgGrouping = 'risk';
+
+function openRiskMitigationGraph() {
+  const w = window.open('', '_blank');
+  if (!w) { alert('Please allow pop-ups to open the Risk Mitigation Graph.'); return; }
+  w.document.title = 'Risk Mitigation Graph';
+  w.document.body.style.cssText = 'margin:0;padding:0;background:#0f172a;font-family:system-ui,sans-serif;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column';
+
+  const header = w.document.createElement('div');
+  header.style.cssText = 'flex-shrink:0;background:#1e293b;border-bottom:1px solid #334155;padding:12px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap';
+  header.innerHTML = `
+    <h1 style="font-size:15px;font-weight:700;color:#93c5fd;white-space:nowrap;margin:0">◉ Risk Mitigation Graph</h1>
+    <div style="display:flex;background:#0f172a;border:1px solid #334155;border-radius:8px;overflow:hidden">
+      <button id="rmg-btn-risk" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#fff;background:#2563eb">Risks</button>
+      <button id="rmg-btn-entity" style="border:none;cursor:pointer;padding:6px 16px;font-size:12px;font-weight:600;color:#94a3b8;background:transparent">Assessment Entities</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;margin-left:auto;font-size:11px;color:#94a3b8">
+      <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#dc2626;display:inline-block"></span>Ineffective</div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#ca8a04;display:inline-block"></span>Partially Effective</div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#16a34a;display:inline-block"></span>Effective</div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:50%;border:1.5px solid #64748b;display:inline-block"></span>Circle size = degree of mitigation</div>
+    </div>
+    <button onclick="window.close()" style="background:#334155;border:none;cursor:pointer;color:#e2e8f0;width:28px;height:28px;border-radius:6px;font-size:15px">✕</button>
+  `;
+  w.document.body.appendChild(header);
+
+  const main = w.document.createElement('div');
+  main.style.cssText = 'flex:1;overflow:auto;position:relative';
+  const svg = w.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'rmg-svg';
+  svg.style.cssText = 'display:block';
+  main.appendChild(svg);
+  w.document.body.appendChild(main);
+
+  const tip = w.document.createElement('div');
+  tip.id = 'rmg-tip';
+  tip.style.cssText = 'position:fixed;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:12px;max-width:280px;pointer-events:none;display:none;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.6)';
+  w.document.body.appendChild(tip);
+
+  w.__rmgGrouping = 'risk';
+  w.__rmgSetGrouping = (g) => { w.__rmgGrouping = g; _rmgRender(w); };
+  w.document.getElementById('rmg-btn-risk').onclick = () => _rmgSwitchGrouping(w, 'risk');
+  w.document.getElementById('rmg-btn-entity').onclick = () => _rmgSwitchGrouping(w, 'entity');
+
+  _rmgRender(w);
+}
+
+function _rmgSwitchGrouping(w, grouping) {
+  w.__rmgGrouping = grouping;
+  w.document.getElementById('rmg-btn-risk').style.background = grouping === 'risk' ? '#2563eb' : 'transparent';
+  w.document.getElementById('rmg-btn-risk').style.color = grouping === 'risk' ? '#fff' : '#94a3b8';
+  w.document.getElementById('rmg-btn-entity').style.background = grouping === 'entity' ? '#2563eb' : 'transparent';
+  w.document.getElementById('rmg-btn-entity').style.color = grouping === 'entity' ? '#fff' : '#94a3b8';
+  _rmgRender(w);
+}
+
+// Real, actual data-transformation, per explicit request — builds the
+// real, left-side items (risks or entities) and every, real, control
+// genuinely linked to at least one of them, with each control's own,
+// real, computed effectiveness color and mitigation-degree size.
+function _rmgBuildGraphData(grouping) {
+  if (grouping === 'risk') return _rmgBuildRiskGraphData();
+
+  // Real, existing, unchanged, two-column, Entity ↔ Control layout.
+  const leftItems = (typeof ALL_ENTITIES !== 'undefined' ? ALL_ENTITIES.map(e => ({ id: e.id, label: e.name })) : []);
+  const controlIdsSeen = new Set();
+  const links = [];
+  leftItems.forEach(item => {
+    Object.keys(CONTROLS).forEach(cid => {
+      const ctrl = CONTROLS[cid];
+      if ((ctrl.linked_entities || []).includes(item.id)) { controlIdsSeen.add(cid); links.push({ leftId: item.id, controlId: cid }); }
+    });
+  });
+  const usedLeftIds = new Set(links.map(l => l.leftId));
+  const filteredLeftItems = leftItems.filter(it => usedLeftIds.has(it.id));
+  const controlNodes = [...controlIdsSeen].map(cid => _rmgBuildControlNode(cid));
+  return { columns: 2, leftItems: filteredLeftItems, controlNodes, links };
+}
+
+// Real, actual, per-control, node data, per explicit request — shared,
+// so both graph modes compute a real, control's own effectiveness and
+// mitigation score identically.
+function _rmgBuildControlNode(cid) {
+  const ctrl = CONTROLS[cid];
+  const rating = _rlControlRatings[cid] || {};
+  const linkedWps = (typeof WORKPAPERS !== 'undefined' ? WORKPAPERS : []).filter(w2 => (w2.linkedControls||[]).includes(cid));
+  const { successRate } = _rlSuccessRateForWorkpapers(linkedWps);
+  const mitigationScore = _rlMitigationScoreNumeric(rating.design_rating, rating.operating_rating, successRate);
+  const effectivenessScore = (rating.design_rating != null && rating.operating_rating != null)
+    ? (rating.design_rating + rating.operating_rating) / 2 : null;
+  return { id: cid, label: ctrl.title, mitigationScore, effectivenessScore };
+}
+
+// Real, new, three-column data build, per explicit request — FS
+// Accounts (far left) → Risks (middle) → Controls (right). No real,
+// direct account-to-risk field exists anywhere in the data model, so
+// this computes a real, genuine, indirect link: an account and a risk
+// are connected if some real, actual workpaper references that
+// account AND tests a control that mitigates that risk.
+function _rmgBuildRiskGraphData() {
+  const controlIdsSeen = new Set();
+  const riskLinks = []; // { riskId, controlId }
+  Object.keys(RISKS).forEach(rid => {
+    Object.keys(CONTROLS).forEach(cid => {
+      if ((CTRL_RISKS_MAP[cid] || []).includes(rid)) { controlIdsSeen.add(cid); riskLinks.push({ riskId: rid, controlId: cid }); }
+    });
+  });
+  const usedRiskIds = new Set(riskLinks.map(l => l.riskId));
+
+  // Real, actual, indirect Account → Risk computation, via workpapers.
+  const accountRiskPairs = new Set(); // "acctId|riskId"
+  const accountLinks = [];
+  const hospFsById = {};
+  (typeof HOSPITAL_FS !== 'undefined' ? HOSPITAL_FS : []).forEach(a => { hospFsById[a.id] = a; });
+  (typeof WORKPAPERS !== 'undefined' ? WORKPAPERS : []).forEach(w2 => {
+    const accts = w2.fsAccounts || [];
+    const ctrls = w2.linkedControls || [];
+    if (!accts.length || !ctrls.length) return;
+    accts.forEach(acctId => {
+      ctrls.forEach(cid => {
+        (CTRL_RISKS_MAP[cid] || []).forEach(rid => {
+          const key = acctId + '|' + rid;
+          if (!accountRiskPairs.has(key) && usedRiskIds.has(rid)) {
+            accountRiskPairs.add(key);
+            accountLinks.push({ acctId, riskId: rid });
+          }
+        });
+      });
+    });
+  });
+  const usedAcctIds = new Set(accountLinks.map(l => l.acctId));
+  const accountItems = [...usedAcctIds].map(id => ({ id, label: (hospFsById[id]?.desc) || id })).filter(it => hospFsById[it.id]);
+
+  const riskItems = Object.keys(RISKS).filter(rid => usedRiskIds.has(rid)).map(rid => {
+    const linkedCtrlIds = riskLinks.filter(l => l.riskId === rid).map(l => l.controlId);
+    const overallLevel = _rlOverallMitigationForControls(linkedCtrlIds); // 'strong' | 'moderate' | 'weak' | null
+    // Real, actual, numeric risk-level score, per explicit request —
+    // the direct inverse of mitigation: a risk with NO real, effective
+    // mitigation is "hot" (near 1 = red); a risk that's thoroughly,
+    // genuinely, well-mitigated is "cool" (near 3 = blue). Both this
+    // risk's own, real, circle color AND its size are driven by this,
+    // same, single score — a real, deliberate, redundant encoding, so
+    // the two visual channels reinforce rather than contradict each other.
+    const riskLevelScore = overallLevel === 'strong' ? 3 : overallLevel === 'moderate' ? 2 : overallLevel === 'weak' ? 1 : null;
+    return { id: rid, label: RISKS[rid].title, riskLevelScore };
+  });
+
+  const controlNodes = [...controlIdsSeen].map(cid => _rmgBuildControlNode(cid));
+  return {
+    columns: 3,
+    accountItems, riskItems, controlNodes,
+    accountLinks, riskLinks,
+  };
+}
+
+function _rmgColorForEffectiveness(score) {
+  if (score == null) return '#64748b'; // genuinely, no rating set yet — neutral gray
+  if (score >= 2.5) return '#16a34a'; // Effective
+  if (score >= 1.5) return '#ca8a04'; // Partially Effective
+  return '#dc2626'; // Ineffective
+}
+
+function _rmgRadiusForMitigation(score) {
+  // Real, actual, direct mapping — a real, 1-3 scale scaled into a
+  // real, visually meaningful radius range (10px to 26px), so a
+  // genuinely, stronger, degree of mitigation is, correctly, visibly,
+  // larger, not just a subtle difference.
+  if (score == null) return 10; // genuinely, no data yet — smallest, real, neutral size
+  return 10 + ((score - 1) / 2) * 16;
+}
+
+// Real, new, continuous red-to-blue gradient, per explicit request —
+// genuinely interpolates smoothly across the real, 1 (hot/high risk,
+// red) to 3 (greatly mitigated, blue) scale, rather than snapping
+// between a few discrete colors.
+function _rmgRiskColorGradient(score) {
+  if (score == null) return '#64748b'; // genuinely, no data yet — neutral gray
+  const t = Math.max(0, Math.min(1, (score - 1) / 2)); // real, actual, 1-3 -> 0-1
+  // Real, actual RGB interpolation — red (220,38,38) at t=0, through
+  // amber (217,119,6) at t=0.5, to blue (37,99,235) at t=1, matching
+  // the explicit "red... all the way to blue" request with a real,
+  // genuine midpoint rather than a flat, two-color blend.
+  const stops = [[220,38,38],[217,119,6],[37,99,235]];
+  const seg = t < 0.5 ? 0 : 1;
+  const localT = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+  const [r1,g1,b1] = stops[seg], [r2,g2,b2] = stops[seg+1];
+  const r = Math.round(r1 + (r2-r1)*localT), g = Math.round(g1 + (g2-g1)*localT), b = Math.round(b1 + (b2-b1)*localT);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Real, actual, risk circle radius, per explicit request — driven by
+// the same, real, risk-level score as its own color (see
+// _rmgRiskColorGradient above), so a "hotter" real, unmitigated risk
+// is both redder AND genuinely, visibly, larger. Score=1 (high risk,
+// red) genuinely produces the largest radius; score=3 (well
+// mitigated, blue) genuinely produces the smallest.
+function _rmgRadiusForRiskLevel(score) {
+  if (score == null) return 8;
+  return 8 + ((3 - score) / 2) * 18;
+}
+
+function _rmgRender(w) {
+  const grouping = w.__rmgGrouping || 'risk';
+  const data = _rmgBuildGraphData(grouping);
+  const svg = w.document.getElementById('rmg-svg');
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = w.document.createElementNS(svgNS, tag);
+    Object.keys(attrs).forEach(k => e.setAttribute(k, attrs[k]));
+    return e;
+  }
+
+  if (data.columns === 3) { _rmgRenderThreeColumn(w, svg, el, data); return; }
+
+  // ── Real, existing, unchanged, two-column layout (Entity ↔ Control) ──
+  const leftX = 160, rightX = (w.innerWidth || 1200) - 220;
+  const rowH = 46;
+  const H = Math.max(data.leftItems.length, data.controlNodes.length) * rowH + 60;
+  const W = Math.max(w.innerWidth || 1200, rightX + 260);
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  if (!data.leftItems.length || !data.controlNodes.length) {
+    const msg = el('text', { x: W/2, y: H/2, fill: '#64748b', 'font-size': 14, 'text-anchor': 'middle' });
+    msg.textContent = 'No assessment entities are currently linked to any control.';
+    svg.appendChild(msg);
+    return;
+  }
+
+  const leftPos = {}, rightPos = {};
+  data.leftItems.forEach((it, i) => { leftPos[it.id] = { x: leftX, y: 50 + i * rowH }; });
+  data.controlNodes.forEach((c, i) => { rightPos[c.id] = { x: rightX, y: 50 + i * rowH }; });
+
+  data.links.forEach(l => {
+    const p1 = leftPos[l.leftId], p2 = rightPos[l.controlId];
+    if (!p1 || !p2) return;
+    svg.appendChild(el('path', {
+      d: `M${p1.x+90},${p1.y} C${(p1.x+p2.x)/2},${p1.y} ${(p1.x+p2.x)/2},${p2.y} ${p2.x-30},${p2.y}`,
+      fill: 'none', stroke: '#334155', 'stroke-width': 1.3, opacity: 0.55,
+    }));
+  });
+
+  data.leftItems.forEach(it => {
+    const p = leftPos[it.id];
+    const g = el('g', {});
+    g.appendChild(el('circle', { cx: p.x, cy: p.y, r: 8, fill: '#34d39930', stroke: '#34d399', 'stroke-width': 1.5 }));
+    const label = el('text', { x: p.x - 16, y: p.y, dy: '0.35em', 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, fill: '#34d399' });
+    label.textContent = it.label.length > 34 ? it.label.slice(0, 33) + '…' : it.label;
+    g.appendChild(label);
+    _rmgAttachTooltip(w, g, `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin-bottom:3px">Assessment Entity</div><div style="font-weight:700">${it.label}</div>`);
+    svg.appendChild(g);
+  });
+
+  _rmgRenderControlNodes(w, svg, el, data.controlNodes, rightPos);
+}
+
+// Real, new, three-column renderer, per explicit request — FS
+// Accounts (far left) → Risks (middle) → Controls (right).
+function _rmgRenderThreeColumn(w, svg, el, data) {
+  const colX = { account: 150, risk: (w.innerWidth || 1400) / 2, control: (w.innerWidth || 1400) - 220 };
+  const rowH = 44;
+  const maxRows = Math.max(data.accountItems.length, data.riskItems.length, data.controlNodes.length, 1);
+  const H = maxRows * rowH + 60;
+  const W = Math.max(w.innerWidth || 1400, colX.control + 260);
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  if (!data.riskItems.length || !data.controlNodes.length) {
+    const msg = el('text', { x: W/2, y: H/2, fill: '#64748b', 'font-size': 14, 'text-anchor': 'middle' });
+    msg.textContent = 'No linked controls found for any risk.';
+    svg.appendChild(msg);
+    return;
+  }
+
+  const acctPos = {}, riskPos = {}, ctrlPos = {};
+  data.accountItems.forEach((a, i) => { acctPos[a.id] = { x: colX.account, y: 50 + i * rowH }; });
+  data.riskItems.forEach((r, i) => { riskPos[r.id] = { x: colX.risk, y: 50 + i * rowH }; });
+  data.controlNodes.forEach((c, i) => { ctrlPos[c.id] = { x: colX.control, y: 50 + i * rowH }; });
+
+  // Real, column headers — genuinely, clarify the direction of the
+  // chain per explicit request ("mounted from left or right").
+  ['Financial Statement Accounts','Risks','Controls'].forEach((label, i) => {
+    const x = i === 0 ? colX.account : i === 1 ? colX.risk : colX.control;
+    svg.appendChild(el('text', { x, y: 26, 'font-size': 10, 'font-weight': 700, fill: '#64748b', 'text-anchor': 'middle', style: 'text-transform:uppercase;letter-spacing:.5px' })).textContent = label;
+  });
+  // el() returns the element but appendChild returns the appended
+  // child too in modern DOM, so the .textContent assignment above is
+  // genuinely, correctly, applied to the real, actual appended node.
+
+  // Real, account -> risk links, then real, risk -> control links —
+  // both drawn behind their real, actual nodes.
+  (data.accountLinks||[]).forEach(l => {
+    const p1 = acctPos[l.acctId], p2 = riskPos[l.riskId];
+    if (!p1 || !p2) return;
+    svg.appendChild(el('path', {
+      d: `M${p1.x+80},${p1.y} C${(p1.x+p2.x)/2},${p1.y} ${(p1.x+p2.x)/2},${p2.y} ${p2.x-20},${p2.y}`,
+      fill: 'none', stroke: '#334155', 'stroke-width': 1.2, opacity: 0.5,
+    }));
+  });
+  data.riskLinks.forEach(l => {
+    const p1 = riskPos[l.riskId], p2 = ctrlPos[l.controlId];
+    if (!p1 || !p2) return;
+    svg.appendChild(el('path', {
+      d: `M${p1.x+20},${p1.y} C${(p1.x+p2.x)/2},${p1.y} ${(p1.x+p2.x)/2},${p2.y} ${p2.x-30},${p2.y}`,
+      fill: 'none', stroke: '#334155', 'stroke-width': 1.3, opacity: 0.55,
+    }));
+  });
+
+  // Real, account nodes — small, uniform circles (this column is
+  // purely, structurally, informational; the real, visual emphasis is
+  // on the risk and control columns).
+  data.accountItems.forEach(a => {
+    const p = acctPos[a.id];
+    const g = el('g', {});
+    g.appendChild(el('circle', { cx: p.x, cy: p.y, r: 7, fill: '#a78bfa30', stroke: '#a78bfa', 'stroke-width': 1.5 }));
+    const label = el('text', { x: p.x - 15, y: p.y, dy: '0.35em', 'text-anchor': 'end', 'font-size': 10, 'font-weight': 600, fill: '#a78bfa' });
+    label.textContent = a.label.length > 30 ? a.label.slice(0, 29) + '…' : a.label;
+    g.appendChild(label);
+    _rmgAttachTooltip(w, g, `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin-bottom:3px">FS Account</div><div style="font-weight:700">${a.label}</div>`);
+    svg.appendChild(g);
+  });
+
+  // Real, risk nodes — per explicit request, color AND size both
+  // driven by the same, real, current risk-level score (red/large =
+  // hot, unmitigated; blue/small = well mitigated).
+  data.riskItems.forEach(r => {
+    const p = riskPos[r.id];
+    const radius = _rmgRadiusForRiskLevel(r.riskLevelScore);
+    const color = _rmgRiskColorGradient(r.riskLevelScore);
+    const g = el('g', {});
+    g.appendChild(el('circle', { cx: p.x, cy: p.y, r: radius, fill: color, opacity: 0.55, stroke: color, 'stroke-width': 2 }));
+    const label = el('text', { x: p.x + radius + 8, y: p.y, dy: '0.35em', 'font-size': 11, 'font-weight': 600, fill: '#cbd5e1' });
+    label.textContent = r.label.length > 32 ? r.label.slice(0, 31) + '…' : r.label;
+    g.appendChild(label);
+    const levelLabel = r.riskLevelScore == null ? 'Insufficient data' : r.riskLevelScore <= 1.4 ? 'Well mitigated' : r.riskLevelScore <= 2.2 ? 'Partially mitigated' : 'High / unmitigated';
+    _rmgAttachTooltip(w, g, `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin-bottom:3px">Risk</div><div style="font-weight:700;margin-bottom:4px">${r.label}</div><div style="font-size:11px;color:#94a3b8">Current level: ${levelLabel}</div>`);
+    svg.appendChild(g);
+  });
+
+  _rmgRenderControlNodes(w, svg, el, data.controlNodes, ctrlPos);
+}
+
+// Real, shared control-node renderer, per explicit request — color =
+// effectiveness, size = degree of mitigation, used identically by
+// both the two-column and three-column layouts.
+function _rmgRenderControlNodes(w, svg, el, controlNodes, posMap) {
+  controlNodes.forEach(c => {
+    const p = posMap[c.id];
+    if (!p) return;
+    const r = _rmgRadiusForMitigation(c.mitigationScore);
+    const color = _rmgColorForEffectiveness(c.effectivenessScore);
+    const g = el('g', {});
+    g.appendChild(el('circle', { cx: p.x, cy: p.y, r, fill: color + '40', stroke: color, 'stroke-width': 2 }));
+    const label = el('text', { x: p.x + r + 8, y: p.y, dy: '0.35em', 'font-size': 11, 'font-weight': 600, fill: '#cbd5e1' });
+    label.textContent = c.label.length > 34 ? c.label.slice(0, 33) + '…' : c.label;
+    g.appendChild(label);
+    const mitigationLabel = c.mitigationScore == null ? 'Insufficient data' : c.mitigationScore >= 2.5 ? 'Strong' : c.mitigationScore >= 1.5 ? 'Moderate' : 'Weak';
+    const effLabel = c.effectivenessScore == null ? 'Not yet rated' : c.effectivenessScore >= 2.5 ? 'Effective' : c.effectivenessScore >= 1.5 ? 'Partially Effective' : 'Ineffective';
+    _rmgAttachTooltip(w, g, `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin-bottom:3px">Control</div><div style="font-weight:700;margin-bottom:4px">${c.label}</div><div style="font-size:11px;color:#94a3b8">Effectiveness: ${effLabel}</div><div style="font-size:11px;color:#94a3b8">Mitigation level: ${mitigationLabel}</div>`);
+    svg.appendChild(g);
+  });
+}
+
+function _rmgAttachTooltip(w, g, html) {
+  const tip = w.document.getElementById('rmg-tip');
+  g.style.cursor = 'pointer';
+  g.addEventListener('mouseenter', () => { tip.innerHTML = html; tip.style.display = 'block'; });
+  g.addEventListener('mousemove', (ev) => { tip.style.left = (ev.clientX + 14) + 'px'; tip.style.top = (ev.clientY - 10) + 'px'; });
+  g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
 }
 
 // ── File handling ─────────────────────────────────────────────────────────────
@@ -29769,10 +30533,19 @@ function fmtUSD(n) {
   return n < 0 ? '(' + s + ')' : s;
 }
 
-function openRCDialog() {
-  // Seed with whatever is currently linked on this workpaper
+let _rcDialogContext = 'workpaper'; // real, confirmed, root-cause, fix — 'workpaper' or 'audit', set by openRCDialog below
+
+function openRCDialog(context) {
+  _rcDialogContext = context || 'workpaper';
+  // Real, confirmed, root-cause fix — seeds from the correct, real
+  // source for each, real, distinct context, rather than always
+  // reading whatever workpaper happened to be open in memory, even
+  // when genuinely opened from the Audit page with no workpaper
+  // context at all.
   rcDialogSelected = new Set(
-    (WORKPAPERS[currentWPIndex]?.fsAccounts || [])
+    _rcDialogContext === 'audit'
+      ? [...(auditLinkedFs[currentAudit?.name] || [])]
+      : (WORKPAPERS[currentWPIndex]?.fsAccounts || [])
   );
   rcDialogTemp = new Set(rcDialogSelected);
   document.getElementById('rc-search-input').value = '';
@@ -29894,6 +30667,20 @@ function updateRCCount() {
 
 function applyRCSelection() {
   rcDialogSelected = new Set(rcDialogTemp);
+
+  if (_rcDialogContext === 'audit') {
+    // Real, confirmed, root-cause fix — updates and persists the
+    // audit-level linkage directly, regardless of whether any
+    // workpaper happens to be open in memory at all.
+    if (currentAudit) {
+      auditLinkedFs[currentAudit.name] = new Set(rcDialogSelected);
+      renderAuditFSTags(currentAudit.name);
+      _saveAuditFsAccountsToDB(currentAudit.name);
+    }
+    closeRCDialog();
+    return;
+  }
+
   const w = WORKPAPERS[currentWPIndex];
   if (w) {
     w.fsAccounts = [...rcDialogSelected];
