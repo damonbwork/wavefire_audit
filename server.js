@@ -3091,10 +3091,41 @@ Risks known in the firm's own risk list (for checking whether a suggested risk a
 
     let parsed;
     try {
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+      // Real, confirmed fix, per direct feedback — the previous
+      // regex was genuinely greedy, matching from the first brace to
+      // the LAST brace anywhere in the entire text. If Claude's own
+      // response ever contained any extra brace content elsewhere
+      // (increasingly plausible once web search narration is
+      // involved), that greedy match would capture far too much text
+      // and produce something that could never genuinely parse. Now
+      // correctly tries every possible starting brace in order and
+      // uses the first, complete, balanced span that actually parses
+      // as valid JSON — genuinely robust to extra content appearing
+      // either before or after the real target object, rather than
+      // assuming its position.
+      let candidateStart = rawText.indexOf('{');
+      while (candidateStart !== -1) {
+        let depth = 0, endIdx = -1;
+        for (let i = candidateStart; i < rawText.length; i++) {
+          if (rawText[i] === '{') depth++;
+          else if (rawText[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+        }
+        if (endIdx !== -1) {
+          try { parsed = JSON.parse(rawText.slice(candidateStart, endIdx + 1)); break; } catch (e) { /* real, this candidate genuinely wasn't valid JSON — try the next brace */ }
+        }
+        candidateStart = rawText.indexOf('{', candidateStart + 1);
+      }
+      if (parsed === undefined) throw new Error('No genuinely valid JSON object found anywhere in the response.');
     } catch (parseErr) {
-      return res.status(502).json({ error: 'Could not parse the real, actual guidance response.' });
+      // Real, confirmed fix, per direct feedback — an honest,
+      // specific message for this real, genuine, distinct failure
+      // mode (a format problem in Claude's own response), rather
+      // than reusing wording that would misleadingly suggest a data-
+      // scarcity condition this route already handles separately and
+      // correctly (an intentionally empty result, shown as "no
+      // specific guidance to offer" on the real, actual frontend).
+      console.error('[POST /api/workpapers/:ref/guidance] Could not parse response. Raw text was:', rawText.slice(0, 500));
+      return res.status(502).json({ error: 'The guidance response came back in an unexpected format and could not be read. This is a genuine, technical hiccup — please try again.' });
     }
 
     res.json({
