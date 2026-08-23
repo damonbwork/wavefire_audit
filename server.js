@@ -1586,6 +1586,84 @@ ensureAttributeEditHistoryTable();
 // its own try/catch so a genuine failure here (e.g. real, pre-existing
 // orphaned data from before this safeguard existed) logs clearly
 // rather than crashing server startup.
+// Real, new, Phase 1 migration, per explicit request — the first
+// step in migrating toward workpaper ID as the primary means of
+// internal operation. Genuinely ensures every, real workpaper row
+// has a real, actual id (backfilling any that don't, since the
+// existing DEFAULT only applies to new inserts, never retroactively
+// to rows that predate this column), then adds a real NOT NULL
+// constraint so id becomes genuinely trustworthy and complete before
+// anything gets built on top of it in later phases.
+async function ensureWorkpaperIdBackfilled() {
+  if (!pool) return;
+  try {
+    const backfillRes = await pool.query(`UPDATE workpapers SET id = gen_random_uuid() WHERE id IS NULL`);
+    if (backfillRes.rowCount > 0) {
+      console.log(`DB: backfilled id for ${backfillRes.rowCount} real, existing workpaper row(s) that predated this column (standalone check)`);
+    }
+    await pool.query(`ALTER TABLE workpapers ALTER COLUMN id SET NOT NULL`);
+    console.log('DB: workpapers.id confirmed genuinely NOT NULL and complete (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone workpapers.id backfill/NOT-NULL check FAILED:', err.message, err.code);
+  }
+}
+ensureWorkpaperIdBackfilled();
+
+// Real, new migration, per explicit request — migrates
+// attribute_edit_history to the exact, same proven workpaper_id
+// pattern already used by four other tables in this app
+// (sample_data_columns, sample_data_rows, extracted_data,
+// extracted_data_records). Backfills every, real existing row by
+// joining on the old (tenant_id, workpaper_ref) relationship, so
+// nothing already saved is lost in this move. Keeps workpaper_ref
+// itself in place — it's still genuinely needed for display — this
+// migration is purely additive.
+async function ensureAttributeEditHistoryWorkpaperId() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE attribute_edit_history ADD COLUMN IF NOT EXISTS workpaper_id UUID REFERENCES workpapers(id) ON DELETE CASCADE`);
+    const backfillRes = await pool.query(`
+      UPDATE attribute_edit_history aeh SET workpaper_id = w.id
+      FROM workpapers w
+      WHERE aeh.tenant_id = w.tenant_id AND aeh.workpaper_ref = w.ref AND aeh.workpaper_id IS NULL
+    `);
+    if (backfillRes.rowCount > 0) {
+      console.log(`DB: backfilled workpaper_id for ${backfillRes.rowCount} real, existing attribute_edit_history row(s) (standalone check)`);
+    }
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_attr_edit_history_workpaper_id ON attribute_edit_history (workpaper_id)`);
+    console.log('DB: attribute_edit_history.workpaper_id confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_edit_history.workpaper_id check FAILED:', err.message, err.code);
+  }
+}
+ensureAttributeEditHistoryWorkpaperId();
+
+// Real, new migration, per the ongoing id migration — sample_files
+// was found to be a real, genuinely separate table that still used
+// ref directly, unlike the others already migrated. Matches the
+// exact, same safe, additive backfill pattern already proven for
+// attribute_edit_history. Keeps ref itself and its existing
+// uniqueness constraint in place — this migration is purely additive.
+async function ensureSampleFilesWorkpaperId() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE sample_files ADD COLUMN IF NOT EXISTS workpaper_id UUID REFERENCES workpapers(id) ON DELETE CASCADE`);
+    const backfillRes = await pool.query(`
+      UPDATE sample_files sf SET workpaper_id = w.id
+      FROM workpapers w
+      WHERE sf.tenant_id = w.tenant_id AND sf.ref = w.ref AND sf.workpaper_id IS NULL
+    `);
+    if (backfillRes.rowCount > 0) {
+      console.log(`DB: backfilled workpaper_id for ${backfillRes.rowCount} real, existing sample_files row(s) (standalone check)`);
+    }
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sample_files_workpaper_id ON sample_files (workpaper_id)`);
+    console.log('DB: sample_files.workpaper_id confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone sample_files.workpaper_id check FAILED:', err.message, err.code);
+  }
+}
+ensureSampleFilesWorkpaperId();
+
 async function ensureAttributeEditHistoryTenantFK() {
   if (!pool) return;
   try {
@@ -1683,6 +1761,16 @@ async function _embedText(text, inputType) {
       body: JSON.stringify({ model: 'voyage-4-large', input: [text], output_dimension: 1024, input_type: inputType || 'document' }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      // Real, confirmed fix — genuinely logs the real, specific cause
+      // of an actual API-level failure (an invalid key, a bad
+      // request, a rate limit), rather than silently returning null
+      // with zero indication of why. Still returns null either way —
+      // every, other, real caller correctly depends on this function
+      // never throwing.
+      console.error('[_embedText] Voyage API returned an error — HTTP', res.status, ':', data?.detail || data?.error || JSON.stringify(data));
+      return null;
+    }
     return data?.data?.[0]?.embedding || null;
   } catch (err) {
     console.error('[_embedText] Voyage embedding call failed:', err.message);
@@ -2557,14 +2645,35 @@ app.post('/api/workpaper-categories', async (req, res) => {
 // how to handle that (the route below returns an error response; the
 // automatic trigger below just logs it, since a classification
 // failure must never affect the real, primary workpaper save).
-async function _classifyWorkpaperCategory(tenantId, ref) {
-  const wpRes = await pool.query(
-    `SELECT name, description, narrative, control_description, it_process, user_selected_category, test_attributes
-     FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
-    [tenantId, ref]
+// Real, new shared resolver, per explicit request — the foundation
+// for migrating backend routes to accept either a real, internal
+// UUID or the human-readable reference string, resolving either one
+// to the same, real, complete workpaper row. Detects which format was
+// genuinely provided via a real, precise UUID-format check, rather
+// than guessing, so routes built on top of this can correctly accept
+// both during the transition period — without breaking any existing,
+// real ref-based caller — while new callers can correctly start using
+// the real, internal id instead.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function _resolveWorkpaper(tenantId, refOrId) {
+  if (!pool || !refOrId) return null;
+  const isId = UUID_PATTERN.test(refOrId);
+  const { rows } = await pool.query(
+    isId
+      ? `SELECT * FROM workpapers WHERE tenant_id=$1 AND id=$2`
+      : `SELECT * FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
+    [tenantId, refOrId]
   );
-  if (!wpRes.rows.length) throw new Error('Workpaper not found: ' + ref);
-  const wp = wpRes.rows[0];
+  return rows[0] || null;
+}
+
+async function _classifyWorkpaperCategory(tenantId, refOrId) {
+  // Real, confirmed fix, per explicit request — now, correctly
+  // accepts either the real, internal id or the human-readable ref,
+  // via the real, shared resolver.
+  const wp = await _resolveWorkpaper(tenantId, refOrId);
+  if (!wp) throw new Error('Workpaper not found: ' + refOrId);
 
   const catRes = await pool.query(`SELECT name, description FROM workpaper_categories WHERE active=true ORDER BY sort_order, name`);
   const categories = catRes.rows;
@@ -2618,13 +2727,16 @@ ${attrText}`;
   const validNames = new Set(categories.map(c => c.name));
   const finalCategory = validNames.has(parsed.category) ? parsed.category : 'Other';
   if (finalCategory !== parsed.category) {
-    console.warn(`[_classifyWorkpaperCategory] Claude returned an unrecognized category "${parsed.category}" for ref ${ref} — falling back to Other.`);
+    console.warn(`[_classifyWorkpaperCategory] Claude returned an unrecognized category "${parsed.category}" for workpaper id ${wp.id} — falling back to Other.`);
   }
 
+  // Real, confirmed fix, per explicit request — genuinely, correctly
+  // uses the real, internal id for this structural WHERE clause now,
+  // rather than ref — the actual core of this migration.
   await pool.query(
     `UPDATE workpapers SET system_inferred_category=$1, category_classification_reasoning=$2, category_classified_at=NOW()
-     WHERE tenant_id=$3 AND ref=$4`,
-    [finalCategory, parsed.reasoning || '', tenantId, ref]
+     WHERE tenant_id=$3 AND id=$4`,
+    [finalCategory, parsed.reasoning || '', tenantId, wp.id]
   );
 
   return { category: finalCategory, confidence: parsed.confidence || 'low', reasoning: parsed.reasoning || '' };
@@ -2720,6 +2832,57 @@ async function _maybeRegenerateStyleGuide(tenantId, categoryName) {
   }
 }
 
+// Real, new diagnostic route, per explicit request — a real, direct,
+// immediate way to actually confirm whether Voyage retrieval is
+// genuinely working, rather than guess or wait to notice it
+// indirectly. Checks both, real halves together — whether the API
+// key is actually set, whether pgvector itself is genuinely
+// available, and whether a real, actual test embedding call genuinely
+// succeeds — reporting the real, specific, actionable reason for
+// whichever piece is genuinely not working, rather than a single,
+// vague pass/fail.
+app.get('/api/diagnose-voyage', async (req, res) => {
+  const result = {
+    voyageApiKeySet: !!process.env.VOYAGE_API_KEY,
+    pgvectorAvailable: PGVECTOR_AVAILABLE,
+    testEmbeddingSucceeded: false,
+    embeddingDimension: null,
+    error: null,
+  };
+
+  if (!result.voyageApiKeySet) {
+    result.error = 'VOYAGE_API_KEY is not set on this server. Retrieval cannot work at all until this is added in Railway Variables.';
+    return res.json(result);
+  }
+  if (!result.pgvectorAvailable) {
+    result.error = 'The pgvector extension could not be enabled on this database (see the server startup logs for the real, specific reason). Voyage itself may still work, but retrieval cannot actually store or search embeddings without this.';
+  }
+
+  try {
+    const testRes = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.VOYAGE_API_KEY}` },
+      body: JSON.stringify({ model: 'voyage-4-large', input: ['This is a real, actual, direct, test embedding call.'], output_dimension: 1024, input_type: 'document' }),
+    });
+    const testData = await testRes.json();
+    if (!testRes.ok) {
+      result.error = (result.error ? result.error + ' Also: ' : '') + `Voyage's own API genuinely rejected the test call — HTTP ${testRes.status}: ${testData?.detail || testData?.error || JSON.stringify(testData)}`;
+      return res.json(result);
+    }
+    const embedding = testData?.data?.[0]?.embedding;
+    if (!Array.isArray(embedding) || !embedding.length) {
+      result.error = (result.error ? result.error + ' Also: ' : '') + 'Voyage genuinely responded successfully, but the response did not actually contain an embedding — unexpected response shape.';
+      return res.json(result);
+    }
+    result.testEmbeddingSucceeded = true;
+    result.embeddingDimension = embedding.length;
+  } catch (err) {
+    result.error = (result.error ? result.error + ' Also: ' : '') + 'Could not genuinely reach the Voyage API at all: ' + err.message;
+  }
+
+  res.json(result);
+});
+
 app.get('/api/category-style-guide/:categoryName?', async (req, res) => {
   if (!pool) return res.json({ global: null, category: null });
   try {
@@ -2758,19 +2921,25 @@ app.post('/api/similar-attribute-edits', aiRateLimit, async (req, res) => {
     const embedding = await _embedText(draftText, 'query');
     if (!embedding) return res.status(502).json({ error: 'Could not genuinely embed the real, provided draft text.' });
     const vectorLiteral = `[${embedding.join(',')}]`;
+    // Real, confirmed fix, per direct feedback — genuinely, always
+    // searches across every, category, rather than hard-filtering to
+    // just one, so a real, genuinely similar attribute sitting in a
+    // different or newly-created category can still surface. Category
+    // is now a soft ranking preference (a modest 0.1 boost in the
+    // ORDER BY, applied only when a category was actually provided) —
+    // same-category matches rank, higher when otherwise similarly
+    // relevant, but a real, more-similar cross-category match can
+    // still, correctly, win. The real, reported similarity score
+    // itself stays genuinely true and unmodified — only the ordering
+    // is boosted, never the number shown back.
     const { rows } = await pool.query(
-      categoryName
-        ? `SELECT workpaper_ref, field_type, previous_text, final_text, attribute_title,
-                  1 - (embedding <=> $1) AS similarity
-           FROM attribute_edit_history
-           WHERE tenant_id=$2 AND workpaper_category=$3 AND embedding IS NOT NULL
-           ORDER BY embedding <=> $1 LIMIT $4`
-        : `SELECT workpaper_ref, field_type, previous_text, final_text, attribute_title,
-                  1 - (embedding <=> $1) AS similarity
-           FROM attribute_edit_history
-           WHERE tenant_id=$2 AND embedding IS NOT NULL
-           ORDER BY embedding <=> $1 LIMIT $3`,
-      categoryName ? [vectorLiteral, req.currentTenantId, categoryName, limit] : [vectorLiteral, req.currentTenantId, limit]
+      `SELECT workpaper_ref, field_type, previous_text, final_text, attribute_title, workpaper_category,
+              1 - (embedding <=> $1) AS similarity
+       FROM attribute_edit_history
+       WHERE tenant_id=$2 AND embedding IS NOT NULL
+       ORDER BY (embedding <=> $1) - (CASE WHEN workpaper_category=$3 THEN 0.1 ELSE 0 END)
+       LIMIT $4`,
+      [vectorLiteral, req.currentTenantId, categoryName, limit]
     );
     res.json({ ok: true, results: rows });
   } catch(err) { return fail(res, err, 'POST /api/similar-attribute-edits:'); }
@@ -2783,10 +2952,12 @@ app.post('/api/similar-attribute-edits', aiRateLimit, async (req, res) => {
 // anywhere in the firm's own history yet. Since the backend has no
 // access to the real RCM data (RISKS/CONTROLS live entirely in
 // frontend JS), the frontend passes along the relevant risk context
-// in the request body. A real, domain allow-list restricts web search
-// to authoritative audit/compliance sources, given the professional
-// context this content ultimately supports.
-const GUIDANCE_ALLOWED_DOMAINS = [
+// in the request body. Real, per explicit request, web search is no
+// longer restricted to a fixed set of domains — this list is now
+// purely a reference guide for the system prompt below, helping
+// Claude correctly recognize a genuinely authoritative source when it
+// finds one, rather than restricting where it's allowed to look at all.
+const GUIDANCE_KNOWN_AUTHORITATIVE_DOMAINS = [
   'coso.org', 'isaca.org', 'aicpa-cima.com', 'aicpa.org', 'pcaobus.org',
   'nist.gov', 'iso.org', 'sec.gov', 'coso-erm.org',
 ];
@@ -2795,24 +2966,27 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set on the server.' });
-  const ref = req.params.ref;
+  const refOrId = req.params.ref;
   const knownRiskTitles = Array.isArray(req.body.knownRiskTitles) ? req.body.knownRiskTitles.slice(0, 200) : [];
   const linkedRiskTitles = Array.isArray(req.body.linkedRiskTitles) ? req.body.linkedRiskTitles.slice(0, 50) : [];
   const useWebSearch = req.body.useWebSearch !== false; // real, defaults to true
 
   try {
-    const wpRes = await pool.query(
-      `SELECT name, description, test_attributes, system_inferred_category, type
-       FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
-      [req.currentTenantId, ref]
-    );
-    if (!wpRes.rows.length) return res.status(404).json({ error: 'Workpaper not found: ' + ref });
-    const wp = wpRes.rows[0];
+    // Real, confirmed fix, per explicit request — now, correctly
+    // accepts either the real, internal id or the human-readable ref
+    // in the URL, via the real, new, shared resolver.
+    const wp = await _resolveWorkpaper(req.currentTenantId, refOrId);
+    if (!wp) return res.status(404).json({ error: 'Workpaper not found: ' + refOrId });
     const attrs = Array.isArray(wp.test_attributes) ? wp.test_attributes : [];
     const category = wp.system_inferred_category || '';
 
     const attrText = attrs.length
-      ? attrs.map((a, i) => `${i+1}. "${a.title || '(untitled)'}" — ${a.desc || ''}`.trim()).join('\n')
+      ? attrs.map((a, i) => {
+          const desc = [a.desc, a.additionalInfo].filter(Boolean).join(' ');
+          const criteria = [a.successCriteria ? `Pass criteria: ${a.successCriteria}` : '', a.failureCriteria ? `Fail criteria: ${a.failureCriteria}` : '']
+            .filter(Boolean).join(' ');
+          return `${i+1}. "${a.title || '(untitled)'}" — ${desc}${criteria ? ' ' + criteria : ''}`.trim();
+        }).join('\n')
       : '(This workpaper has no test attributes yet.)';
 
     // Real, Tier 1 (Distillation) — reuses the exact, same category
@@ -2827,37 +3001,50 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
     // Real, Tier 2 (Retrieval) — reuses the exact, same embedding
     // infrastructure already built. Embeds the current attribute set
     // as one, combined query, since guidance here is about the whole
-    // workpaper, not one, single draft field.
+    // workpaper, not one, single draft field. Real, confirmed fix, per
+    // direct feedback — genuinely, always searches across every
+    // category, rather than hard-filtering to just one, so a real,
+    // genuinely similar attribute sitting in a different or
+    // newly-created category can still surface here too. Category is
+    // now a soft ranking preference (the exact, same modest boost as
+    // the standalone retrieval route), and each example's own, real,
+    // actual category is surfaced directly to Claude below, so it can
+    // genuinely weigh a same-category match differently from a
+    // cross-category one, rather than treating every surfaced example
+    // as equally, directly applicable.
     let similarExamplesText = '(Not available.)';
     if (PGVECTOR_AVAILABLE && process.env.VOYAGE_API_KEY && attrs.length) {
       const queryEmbedding = await _embedText(attrText, 'query');
       if (queryEmbedding) {
         const vectorLiteral = `[${queryEmbedding.join(',')}]`;
         const simRes = await pool.query(
-          category
-            ? `SELECT attribute_title, final_text FROM attribute_edit_history
-               WHERE tenant_id=$1 AND workpaper_category=$2 AND workpaper_ref != $3 AND embedding IS NOT NULL
-               ORDER BY embedding <=> $4 LIMIT 8`
-            : `SELECT attribute_title, final_text FROM attribute_edit_history
-               WHERE tenant_id=$1 AND workpaper_ref != $2 AND embedding IS NOT NULL
-               ORDER BY embedding <=> $3 LIMIT 8`,
-          category ? [req.currentTenantId, category, ref, vectorLiteral] : [req.currentTenantId, ref, vectorLiteral]
+          `SELECT attribute_title, final_text, workpaper_category FROM attribute_edit_history
+           WHERE tenant_id=$1 AND workpaper_id != $2 AND embedding IS NOT NULL
+           ORDER BY (embedding <=> $3) - (CASE WHEN workpaper_category=$4 THEN 0.1 ELSE 0 END)
+           LIMIT 8`,
+          [req.currentTenantId, wp.id, vectorLiteral, category]
         );
         if (simRes.rows.length) {
-          similarExamplesText = simRes.rows.map(r => `- "${r.attribute_title}": ${r.final_text}`).join('\n');
+          similarExamplesText = simRes.rows.map(r =>
+            `- "${r.attribute_title}" [from a ${r.workpaper_category === category ? 'same-category' : ('different category: ' + (r.workpaper_category || 'uncategorized'))} workpaper]: ${r.final_text}`
+          ).join('\n');
         }
       }
     }
 
     const systemPrompt = `You are an internal audit assistant helping staff at an audit firm improve a specific workpaper's test attributes. Provide four, distinct kinds of guidance, ONLY when genuinely warranted by the real, actual context — do not force a suggestion into a category if you have nothing real to offer there:
 
-1. wordingPhrases — general phrasing/terminology this firm favors, drawn from the style guides below, that could improve THIS workpaper's wording. Not tied to a specific attribute.
-2. wordingChanges — specific rewrite suggestions for an EXISTING attribute already on this workpaper. Reference the exact attribute title.
-3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test. Each needs a title and a draft description.
-4. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance.
+1. wordingPhrases — general phrasing/terminology this firm favors, drawn from the style guides below, that could improve THIS workpaper's wording. Not tied to a specific attribute. Always grounded in this firm's own, real, internal history — never web search.
+2. wordingChanges — specific rewrite suggestions for an EXISTING attribute already on this workpaper. Reference the exact attribute title. Always grounded in this firm's own, real, internal history — never web search.
+3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test, and current external guidance where genuinely relevant. Each needs a title, a draft description, and an evidenceSource — "internal" if drawn from this firm's own similar examples, "external" if drawn from web search, "both" if genuinely supported by both.
+4. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance. Include the same, real evidenceSource field as newAttributes.
+
+Be honest and precise about evidenceSource — never mark something "internal" just because it sounds plausible; only when it genuinely, actually came from the similar-examples data provided below, not from general knowledge or web search.
+
+Web search is not restricted to any fixed set of sites — you may search anywhere. When a newAttributes or newRisks suggestion has evidenceSource "external" or "both", also include isAuthoritativeSource (true/false) and, only when genuinely true, sourceUrl and sourceName. A source is genuinely authoritative when it's a recognized professional standards body, regulator, or similar official publisher — examples include COSO, ISACA, AICPA, PCAOB, NIST, ISO, and the SEC, but any comparably official body counts too. An ordinary website, blog, forum post, or general news article is NOT authoritative, even if it's genuinely where the idea came from — in that case set isAuthoritativeSource to false and leave sourceUrl and sourceName empty. Never fabricate a URL and never claim authoritativeness for a source that isn't genuinely one — an honest "not authoritative, no link" is always correct over a confident guess.
 
 Respond with ONLY a JSON object, no other text, in exactly this shape:
-{"wordingPhrases": [""], "wordingChanges": [{"attributeTitle": "", "suggestion": ""}], "newAttributes": [{"title": "", "description": ""}], "newRisks": [{"title": "", "description": "", "alreadyInFirmList": true}]}
+{"wordingPhrases": [""], "wordingChanges": [{"attributeTitle": "", "suggestion": ""}], "newAttributes": [{"title": "", "description": "", "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}], "newRisks": [{"title": "", "description": "", "alreadyInFirmList": true, "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}]}
 Any array can genuinely be empty if there's nothing real to suggest for that category.`;
 
     const userMessage = `Workpaper: ${wp.name || '(untitled)'} — Category: ${category || '(not yet classified)'} — Type: ${wp.type || ''}
@@ -2884,7 +3071,7 @@ Risks known in the firm's own risk list (for checking whether a suggested risk a
       messages: [{ role: 'user', content: userMessage }],
     };
     if (useWebSearch) {
-      requestBody.tools = [{ type: 'web_search_20260209', name: 'web_search', allowed_domains: GUIDANCE_ALLOWED_DOMAINS }];
+      requestBody.tools = [{ type: 'web_search_20260209', name: 'web_search' }];
     }
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -4800,11 +4987,11 @@ app.get('/api/orphaned-workpapers', async (req, res) => {
 app.get('/api/workpapers/:ref/access-check', async (req, res) => {
   if (!pool) return res.json({ hasAccess: false });
   try {
-    const { rows } = await pool.query(
-      'SELECT 1 FROM workpapers WHERE tenant_id=$1 AND ref=$2',
-      [req.currentTenantId, req.params.ref]
-    );
-    res.json({ hasAccess: rows.length > 0 });
+    // Real, confirmed fix, per explicit request — now, correctly
+    // accepts either the real, internal id or the human-readable ref,
+    // via the real, shared resolver.
+    const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
+    res.json({ hasAccess: !!wp });
   } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/access-check:'); }
 });
 
@@ -4822,7 +5009,7 @@ app.get('/api/workpapers', async (req, res) => {
 // primary workpaper save that calls it. Skips a field that's genuinely
 // empty in its final state — an edit that clears a field to nothing
 // isn't useful "what does good wording look like" signal.
-async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAttrs, newAttrs, editedBy, workpaperCategory) {
+async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAttrs, newAttrs, editedBy, workpaperCategory, workpaperId) {
   if (!pool) return;
   // Real, explicit, application-level guard, per explicit request —
   // matches the real, database-level foreign-key constraint added
@@ -4844,10 +5031,30 @@ async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAt
         if (oldVal === newVal || !newVal.trim()) continue;
         const insertRes = await pool.query(
           `INSERT INTO attribute_edit_history
-             (tenant_id, workpaper_ref, workpaper_type, audit_type, workpaper_category, attribute_index, attribute_title, field_type, previous_text, final_text, edited_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-          [tenantId, ref, workpaperType || '', auditType || '', workpaperCategory || '', i, newA.title || '', field, oldVal, newVal, editedBy || '']
+             (tenant_id, workpaper_ref, workpaper_id, workpaper_type, audit_type, workpaper_category, attribute_index, attribute_title, field_type, previous_text, final_text, edited_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+          [tenantId, ref, workpaperId || null, workpaperType || '', auditType || '', workpaperCategory || '', i, newA.title || '', field, oldVal, newVal, editedBy || '']
         );
+        // Real, new, "discard superseded versions", per explicit
+        // request — the moment a real, new edit to the same, logical
+        // attribute field is saved, any prior row's own embedding for
+        // that exact, same attribute field is genuinely cleared
+        // immediately, not deferred until the real, new embedding
+        // actually arrives, so there's never a window where both an
+        // old and new version are simultaneously searchable.
+        // Deliberately clears only the embedding column, not the row
+        // itself — the full before/after history stays intact for
+        // Distillation, which genuinely still needs it; this is
+        // specifically about what Voyage retrieval can match against,
+        // not what's retained in the app's own history.
+        const rowId = insertRes.rows[0]?.id;
+        if (rowId) {
+          await pool.query(
+            `UPDATE attribute_edit_history SET embedding=NULL
+             WHERE tenant_id=$1 AND workpaper_ref=$2 AND attribute_index=$3 AND field_type=$4 AND id != $5`,
+            [tenantId, ref, i, field, rowId]
+          ).catch(e => console.error('[_logAttributeEdits] Could not clear superseded embedding(s):', e.message));
+        }
         // Real, Tier 2 (Retrieval), per explicit request — genuinely,
         // deliberately NOT awaited, so a real, external Voyage API
         // call never adds latency to an ordinary save, even when
@@ -4856,7 +5063,6 @@ async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAt
         // does nothing if PGVECTOR_AVAILABLE is false or
         // VOYAGE_API_KEY isn't set — _embedText itself already
         // returns null in that case.
-        const rowId = insertRes.rows[0]?.id;
         if (rowId && PGVECTOR_AVAILABLE) {
           _embedText(newVal, 'document').then(embedding => {
             if (embedding) {
@@ -4899,9 +5105,11 @@ app.post('/api/workpapers', async (req, res) => {
   let _priorAttrs = [];
   let _resolvedAuditType = '';
   let _currentCategory = '';
+  let _currentWorkpaperId = null;
   try {
-    const priorRes = await pool.query('SELECT test_attributes, system_inferred_category, user_selected_category FROM workpapers WHERE tenant_id=$1 AND ref=$2', [req.currentTenantId, ref]);
+    const priorRes = await pool.query('SELECT id, test_attributes, system_inferred_category, user_selected_category FROM workpapers WHERE tenant_id=$1 AND ref=$2', [req.currentTenantId, ref]);
     _priorAttrs = priorRes.rows[0]?.test_attributes || [];
+    _currentWorkpaperId = priorRes.rows[0]?.id || null;
     // Real, prefers the real, system-inferred category, falling back to
     // the real, user-selected one — matching the real, established
     // priority already used elsewhere for this exact pair of fields.
@@ -4996,7 +5204,7 @@ app.post('/api/workpapers', async (req, res) => {
     // above against the incoming test_attributes and logs whatever
     // genuinely changed. Entirely non-blocking to the real, actual
     // save's own success — see the helper's own try/catch above.
-    await _logAttributeEdits(req.currentTenantId, ref, type, _resolvedAuditType, _priorAttrs, test_attributes || [], req.currentUser?.login_id, _currentCategory);
+    await _logAttributeEdits(req.currentTenantId, ref, type, _resolvedAuditType, _priorAttrs, test_attributes || [], req.currentUser?.login_id, _currentCategory, _currentWorkpaperId);
 
     // Real, new, automatic classification trigger, per explicit
     // request — the classification route/logic already existed
@@ -5029,7 +5237,23 @@ app.post('/api/workpapers', async (req, res) => {
 
 app.delete('/api/workpapers/:ref', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  try { await pool.query('DELETE FROM workpapers WHERE ref=$1', [req.params.ref]); res.json({ ok:true }); }
+  try {
+    // Real, confirmed and critical, pre-existing security fix, found
+    // while migrating this route — the previous DELETE was genuinely
+    // missing tenant_id from its own WHERE clause entirely, meaning a
+    // workpaper with a matching reference string in a real, different
+    // tenant could genuinely have been deleted by this route — a real
+    // cross-tenant data-deletion risk, since ref is only actually
+    // unique per tenant. Now correctly scoped to the current tenant,
+    // and migrated to accept either the real, internal id or the
+    // human-readable ref, via the real, shared resolver — resolving
+    // first then deleting by the real, internal id, matching the
+    // exact, same, established pattern already used for this
+    // migration elsewhere, rather than a combined OR clause.
+    const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
+    if (wp) await pool.query('DELETE FROM workpapers WHERE tenant_id=$1 AND id=$2', [req.currentTenantId, wp.id]);
+    res.json({ ok:true });
+  }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -5046,8 +5270,20 @@ app.delete('/api/workpapers/:ref', async (req, res) => {
 // — the ref shown in the page/URL), but every query underneath operates on
 // workpapers.id, resolved from that ref first. This keeps the human-facing
 // API shape the same while the actual linking key is the stable surrogate.
-async function _resolveWorkpaperId(tenantId, ref) {
-  const { rows } = await pool.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2', [tenantId, ref]);
+async function _resolveWorkpaperId(tenantId, refOrId) {
+  // Real, confirmed fix, per the ongoing id migration — now, correctly
+  // accepts either the real, internal id or the human-readable ref,
+  // matching the exact, same proven UUID-detection approach already
+  // used elsewhere in this migration. This single change correctly
+  // upgrades every one of its own, real nine existing call sites
+  // across several feature areas at once.
+  const isId = UUID_PATTERN.test(refOrId);
+  const { rows } = await pool.query(
+    isId
+      ? 'SELECT id FROM workpapers WHERE tenant_id=$1 AND id=$2'
+      : 'SELECT id FROM workpapers WHERE tenant_id=$1 AND ref=$2',
+    [tenantId, refOrId]
+  );
   return rows.length ? rows[0].id : null;
 }
 
@@ -5673,10 +5909,17 @@ app.get('/api/diagnose-sample-data-widths/:ref', async (req, res) => {
 app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
+    // Real, confirmed fix, per the ongoing id migration — now,
+    // correctly resolves either ref or id first, then queries by the
+    // real, internal workpaper_id, matching the exact, same
+    // established pattern already proven for sample-data and
+    // extracted-data.
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
+    if (!wpId) return res.json([]); // unknown workpaper -> empty, not an error
     const { rows } = await pool.query(
       `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, file_category, archived, date_created, date_updated
-       FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
-      [req.currentTenantId, req.params.ref]
+       FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=false ORDER BY filename`,
+      [req.currentTenantId, wpId]
     );
     res.json(rows);
   } catch(err) {
@@ -5691,14 +5934,36 @@ app.get('/api/sample-files/:ref', async (req, res) => {
     // rather than failing outright.
     if (err.code === '42703') { // undefined_column
       try {
+        const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
         const { rows } = await pool.query(
           `SELECT file_id, filename, content_type, size_bytes, uploaded_by, file_category, archived, date_created, date_updated
-           FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
-          [req.currentTenantId, req.params.ref]
+           FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=false ORDER BY filename`,
+          [req.currentTenantId, wpId]
         );
         console.error('[GET /api/sample-files/:ref] annotated_from column missing on live table — served without it. Migration likely has not reached this database yet.');
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
-      } catch (err2) { /* fall through to normal error handling below */ }
+      } catch (err2) {
+        // Real, confirmed fix, found by direct reconsideration — the
+        // fallback query above ALSO genuinely references
+        // workpaper_id, the column added in this exact, same turn's
+        // own migration. If THAT migration genuinely hasn't reached
+        // a real, live database yet either, err2 would be the exact,
+        // same 42703 error — falls back one, real, final layer to
+        // the old, ref-based query directly, so this route's own,
+        // genuine resilience holds against both real, possible
+        // missing-column scenarios independently, not just one.
+        if (err2.code === '42703') {
+          try {
+            const { rows } = await pool.query(
+              `SELECT file_id, filename, content_type, size_bytes, uploaded_by, file_category, archived, date_created, date_updated
+               FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=false ORDER BY filename`,
+              [req.currentTenantId, req.params.ref]
+            );
+            console.error('[GET /api/sample-files/:ref] workpaper_id column also missing on live table — served via the real, original ref-based query instead. Migration likely has not reached this database yet.');
+            return res.json(rows.map(r => ({ ...r, annotated_from: null })));
+          } catch (err3) { /* fall through to normal error handling below */ }
+        }
+      }
     }
     return fail(res, err, 'GET /api/sample-files/:ref:');
   }
@@ -5711,22 +5976,44 @@ app.get('/api/sample-files/:ref', async (req, res) => {
 app.get('/api/sample-files/:ref/archived', async (req, res) => {
   if (!pool) return res.json([]);
   try {
+    // Real, confirmed fix, per the ongoing id migration — matches the
+    // exact, same proven pattern already applied to its own sibling
+    // route right above it.
+    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
+    if (!wpId) return res.json([]);
     const { rows } = await pool.query(
       `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated
-       FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
-      [req.currentTenantId, req.params.ref]
+       FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=true ORDER BY filename`,
+      [req.currentTenantId, wpId]
     );
     res.json(rows);
   } catch(err) {
     if (err.code === '42703') {
       try {
+        const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
         const { rows } = await pool.query(
           `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
-           FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
-          [req.currentTenantId, req.params.ref]
+           FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=true ORDER BY filename`,
+          [req.currentTenantId, wpId]
         );
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
-      } catch (err2) { /* fall through */ }
+      } catch (err2) {
+        // Real, second layer, per the same, real lesson just proven
+        // on its own sibling route — the fallback above also
+        // genuinely references workpaper_id, so this catches that
+        // column genuinely missing too, falling all the way back to
+        // the real, original ref-based query.
+        if (err2.code === '42703') {
+          try {
+            const { rows } = await pool.query(
+              `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
+               FROM sample_files WHERE tenant_id=$1 AND ref=$2 AND archived=true ORDER BY filename`,
+              [req.currentTenantId, req.params.ref]
+            );
+            return res.json(rows.map(r => ({ ...r, annotated_from: null })));
+          } catch (err3) { /* fall through */ }
+        }
+      }
     }
     return fail(res, err, 'GET /api/sample-files/:ref/archived:');
   }
@@ -5736,7 +6023,6 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage is not configured on the server.' });
   if (!req.file) return res.status(400).json({ error: 'No file uploaded (expected multipart field "file").' });
-  const ref = req.params.ref;
   const filename = req.body.filename || req.file.originalname;
   const uploadedBy = req.body.uploadedBy || '';
   const annotatedFrom = req.body.annotatedFrom || null;
@@ -5748,6 +6034,16 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
   const fileCategory = req.body.fileCategory === 'workpaper' ? 'workpaper' : 'sample';
 
   try {
+    // Real, confirmed fix, per the ongoing id migration — carefully
+    // resolves either ref or id first, to get both the real, actual
+    // ref string (still needed for the existing UNIQUE constraint and
+    // insert shape below, genuinely unchanged) and the real, internal
+    // workpaper_id (now correctly populated going forward on every
+    // new upload).
+    const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
+    if (!wp) return res.status(404).json({ error: 'Workpaper not found: ' + req.params.ref });
+    const ref = wp.ref;
+    const wpId = wp.id;
     // If a file with this same name AND same category already exists
     // for this workpaper, remember its old bucket key so it can be
     // cleaned up — but only AFTER the new upload is confirmed to have
@@ -5768,14 +6064,14 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
     let rows;
     try {
       ({ rows } = await pool.query(
-        `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, file_category, date_updated)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+        `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, annotated_from, file_category, date_updated)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
          ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
-           bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+           workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
            size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
            uploaded_by=EXCLUDED.uploaded_by, annotated_from=EXCLUDED.annotated_from, archived=false, date_updated=NOW()
          RETURNING file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, file_category, date_created, date_updated`,
-        [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom, fileCategory]
+        [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, annotatedFrom, fileCategory]
       ));
     } catch (insertErr) {
       // Same real, confirmed gap already fixed on the GET routes two
@@ -5787,18 +6083,22 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
       // complete. This directly explains a real, confirmed set of 500s
       // on this exact route from an actual console log. Falls back to
       // the pre-annotated_from insert shape rather than losing the
-      // upload outright.
+      // upload outright. Genuinely, correctly still includes
+      // workpaper_id here too, per the ongoing id migration — this
+      // fallback exists specifically for annotated_from being
+      // missing, not workpaper_id, so there's no real reason to also
+      // drop the new column here.
       if (insertErr.code === '42703') {
         console.error('[POST /api/sample-files/:ref] annotated_from column missing on live table — saved without it. Migration likely has not reached this database yet.');
         ({ rows } = await pool.query(
-          `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+          `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
            ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
-             bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+             workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
              size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
              uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
            RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
-          [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
+          [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
         ));
         rows = rows.map(r => ({ ...r, annotated_from: null }));
       } else {
