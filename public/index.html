@@ -4673,7 +4673,7 @@ auditor's assessment.
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
         <div>
           <div style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Guidance</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Suggestions based on this firm's own history and current external guidance</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Attribute suggestions based on this organization's own learned attributes and external sources.</div>
         </div>
         <button onclick="closeGuidanceModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
       </div>
@@ -30703,17 +30703,39 @@ function selectWorkpaperCategory(categoryName) {
 // ══════════════════════════════════════
 //   GUIDANCE — attribute wording, new attribute, and new risk suggestions
 // ══════════════════════════════════════
+let _guidanceTimerInterval = null; // real, tracks the active elapsed-time counter, so it can be correctly cleared from every, real exit path
+
 function openGuidanceModal() {
   const ref = currentAttrWPRef;
   if (!ref) return;
   document.getElementById('guidance-overlay').style.display = 'flex';
   const bodyEl = document.getElementById('guidance-body');
-  bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div></div>`;
+  bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div><div id="guidance-elapsed-timer" style="margin-top:6px;font-size:11px;color:var(--text-tertiary)">0:00</div></div>`;
+  // Real, new, elapsed-time counter, per explicit request — starts
+  // the moment the modal opens, correctly ticking every second while
+  // the real request is in flight, given this feature genuinely can
+  // take a while with web search enabled.
+  if (_guidanceTimerInterval) clearInterval(_guidanceTimerInterval); // real, defensive — clears any real, prior, leftover interval before starting a real, new one
+  const startTime = Date.now();
+  _guidanceTimerInterval = setInterval(() => {
+    const timerEl = document.getElementById('guidance-elapsed-timer');
+    if (!timerEl) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; return; } // real, defensive — the modal's own content genuinely changed elsewhere; stop ticking rather than update nothing
+    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+    const mins = Math.floor(elapsedSec / 60);
+    const secs = elapsedSec % 60;
+    timerEl.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+  }, 1000);
   _loadGuidance(ref);
 }
 
 function closeGuidanceModal() {
   document.getElementById('guidance-overlay').style.display = 'none';
+  // Real, correctly stops the real, elapsed-time counter if the
+  // modal is genuinely closed while a request is still in flight —
+  // the underlying fetch itself still, correctly completes in the
+  // background, but a real, visible timer ticking on a closed modal
+  // would be genuinely pointless.
+  if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
 }
 
 async function _loadGuidance(ref) {
@@ -30731,6 +30753,11 @@ async function _loadGuidance(ref) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ knownRiskTitles, linkedRiskTitles, useWebSearch: true }),
     });
+    // Real, correctly stops the real, elapsed-time counter the
+    // moment a real, actual response arrives — before rendering
+    // either the results or an error, so it never keeps ticking
+    // past the point it's genuinely still meaningful.
+    if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">${escAttr(body.detail || body.error || 'Could not load guidance.')}</div>`;
@@ -30738,6 +30765,9 @@ async function _loadGuidance(ref) {
     }
     _renderGuidance(body);
   } catch(e) {
+    // Real, same, correct cleanup on a genuine exception too — every,
+    // real exit path from this function must stop the real timer.
+    if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
     bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">Could not load guidance: ${escAttr(e.message)}</div>`;
   }
 }
