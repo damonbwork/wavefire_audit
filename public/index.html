@@ -2497,9 +2497,9 @@
                 <input id="wpd-title-input" type="text" maxlength="50" style="font-size:16px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);
                          border:0.5px solid var(--blue-600);border-radius:var(--radius-md);padding:4px 8px;
                          outline:none;flex:1;font-family:inherit" oninput="autoUpdateWPTag()">
-                <input id="wpd-tag-input" type="text" maxlength="4" placeholder="ABCD" list="wpd-tag-options" oninput="onTagInput()" onfocus="this.dataset.prev=this.value; this.value=''" onblur="if(!this.value)this.value=this.dataset.prev||''" style="font-size:14px;font-weight:700;color:var(--wf-navy);background:var(--bg-secondary);
+                <input id="wpd-tag-input" type="text" maxlength="4" readonly style="font-size:14px;font-weight:700;color:var(--wf-navy);background:var(--bg-secondary);
                          border:0.5px solid var(--blue-600);border-radius:var(--radius-md);padding:4px 8px;
-                         outline:none;width:90px;text-align:center;letter-spacing:1px;font-family:inherit" title="2–4 letters only. Replaces segment 3 of the workpaper reference.">
+                         outline:none;width:90px;text-align:center;letter-spacing:1px;font-family:inherit;cursor:default" title="Sourced from the Workpaper Category selected when this workpaper was created — set once and stable.">
                 <datalist id="wpd-tag-options">
                   <option value="CC">CC</option>
                   <option value="SEC">SEC</option>
@@ -4527,10 +4527,10 @@ auditor's assessment.
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
                 <div class="fl">Workpaper code</div>
-                <input id="nwp-seg3" type="text" maxlength="4" placeholder="ABCD" list="nwp-tag-options" oninput="nwpTagInput()" onfocus="this.dataset.prev=this.value; this.value=''; updateRefPreview()" onblur="if(!this.value)this.value=this.dataset.prev||''; updateRefPreview()" style="font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);
+                <input id="nwp-seg3" type="text" maxlength="4" readonly placeholder="Select category…" style="font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);
                          border:0.5px solid var(--border-light);border-radius:var(--radius-md);
                          padding:6px 8px;outline:none;width:72px;text-align:center;
-                         letter-spacing:1px;font-family:inherit" title="2-4 letters. Auto-filled from title if blank.">
+                         letter-spacing:1px;font-family:inherit;cursor:default" title="Sourced automatically from the selected Workpaper Category.">
                 <datalist id="nwp-tag-options">
                   <option value="CC">CC</option>
                   <option value="SEC">SEC</option>
@@ -21562,43 +21562,32 @@ function nwpDescInput(el) {
 }
 
 function autoFillNwpTag() {
-  const nameEl = document.getElementById('nwp-name');
-  const tagEl  = document.getElementById('nwp-seg3');
-  // Only auto-fill if user hasn't manually entered a value
-  if (tagEl && !tagEl.dataset.userEdited) {
-    tagEl.value = deriveWPTag(nameEl?.value || '');
-  }
+  const tagEl = document.getElementById('nwp-seg3');
+  // Real, confirmed fix, per explicit request — the tag now, correctly,
+  // comes from the real, selected category's own abbreviation, rather
+  // than being derived from the workpaper's own name. Genuinely,
+  // correctly clears the tag entirely when no category has been
+  // selected yet, rather than silently falling back to the old
+  // name-derived mechanism that's being deprecated here.
+  if (tagEl) tagEl.value = _nwpSelectedCategoryAbbrev || '';
   updateRefPreview();
 }
 
-function nwpTagInput() {
-  const el = document.getElementById('nwp-seg3');
-  if (el) {
-    el.value = el.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
-    el.dataset.userEdited = el.value ? 'true' : '';
-  }
-  updateRefPreview();
+function getNwpTag() {
+  // Real, confirmed fix, per explicit request — sourced from the
+  // real, selected category's own abbreviation now, not the
+  // deprecated, name-derived mechanism.
+  return (_nwpSelectedCategoryAbbrev || '').toUpperCase();
 }
 
 function getPlainRef() {
   const yearEl  = document.getElementById('nwp-seg-year');
   const year    = yearEl ? yearEl.textContent.trim() : new Date().getFullYear().toString();
-  const seg3El  = document.getElementById('nwp-seg3');
-  const seg3    = (seg3El?.value || '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4) || getNwpTag();
+  const seg3    = getNwpTag();
   const seg4El  = document.getElementById('nwp-seg4');
   const seg4raw = seg4El?.value || '';
   const seg4    = seg4raw ? String(parseInt(seg4raw, 10)).padStart(3, '0') : '000';
   return `WP-${year}-${seg3}-${seg4}`;
-}
-
-function getNwpTag() {
-  const tagEl   = document.getElementById('nwp-seg3');
-  const titleEl = document.getElementById('nwp-name');
-  let tag = (tagEl?.value || '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
-  if (tag.length < 2) {
-    tag = deriveWPTag(titleEl?.value || '');
-  }
-  return tag;
 }
 
 function updateRefPreview() {
@@ -21658,12 +21647,16 @@ async function submitNewWorkpaper() {
   const template = document.getElementById('nwp-type')?.value || 'Workpaper-Long Template';
   const seg4v    = document.getElementById('nwp-seg4')?.value || '0';
 
-  // Validate seg3 — derive from title if blank
+  // Real, confirmed fix, per explicit request — the deprecated
+  // "derive from title if blank" fallback is genuinely gone; the tag
+  // now only ever comes from the selected Workpaper Category, so this
+  // is now an explicit, required check instead, matching the real,
+  // established pattern of the seg4 validation right below it.
   const seg3El = document.getElementById('nwp-seg3');
-  let   seg3   = (seg3El?.value || '').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
-  if (seg3.length < 2) {
-    seg3 = deriveWPTag(name);
-    if (seg3El) seg3El.value = seg3;
+  const seg3   = (seg3El?.value || '').toUpperCase();
+  if (!seg3) {
+    showDupDialog('Please select a Workpaper Category before creating this workpaper — it determines the 2-3 letter code used in the reference.');
+    return;
   }
 
   // Validate seg4 — must be a positive number
@@ -26414,11 +26407,14 @@ function deriveWPTag(title) {
 }
 
 function autoUpdateWPTag() {
-  const titleIn  = document.getElementById('wpd-title-input');
   const tagIn    = document.getElementById('wpd-tag-input');
   const prefixEl = document.getElementById('wpd-ref-prefix');
   const w        = WORKPAPERS[currentWPIndex];
-  if (titleIn && tagIn) tagIn.value = deriveWPTag(titleIn.value);
+  // Real, confirmed fix, per explicit request — genuinely, no longer
+  // overwrites the real, stable, already-assigned tag from the title
+  // on every keystroke; the tag is deprecated from being name-derived
+  // and correctly stays exactly as it was set at creation time, from
+  // whatever category was selected then.
   if (prefixEl && w) {
     const parts = (w.ref || '').split('-');
     const base = parts.slice(0, 2).join('-');
@@ -30674,7 +30670,25 @@ function _renderCategoryDropdownList(filterText) {
 // established pattern already used by other header fields (set the
 // value on the current workpaper, then save immediately), rather
 // than requiring a real, separate explicit save step.
+let _nwpSelectedCategoryAbbrev = ''; // real, tracks the selected category's own abbreviation while creating a NEW workpaper, since there's no real workpaper object yet to store it on
+
 function selectWorkpaperCategory(categoryName) {
+  // Real, context-aware fix, per explicit request — the new-workpaper
+  // creation page has no real, existing workpaper object yet, so this
+  // branch correctly updates the tag field directly instead, sourcing
+  // the workpaper reference's own tag segment from the category's
+  // abbreviation, deprecating the old name-derived tag in its favor.
+  const onNewWpPage = document.getElementById('page-newwp')?.classList.contains('active');
+  if (onNewWpPage) {
+    const cat = (_wpCategoriesCache || []).find(c => c.name === categoryName);
+    _nwpSelectedCategoryAbbrev = cat?.abbreviation || '';
+    const displayEl = document.getElementById('wpd-category-display');
+    if (displayEl) { displayEl.textContent = categoryName; displayEl.style.color = 'var(--text-primary)'; }
+    document.getElementById('wpd-category-panel').style.display = 'none';
+    autoFillNwpTag();
+    return;
+  }
+
   const w = WORKPAPERS[currentWPIndex];
   if (!w) return;
   const ref = getWPRef();
@@ -30736,6 +30750,33 @@ function _renderGuidance(g) {
   const bodyEl = document.getElementById('guidance-body');
   const sections = [];
 
+  // Real, shared badge, per explicit request — a real, actual pattern
+  // this firm has genuinely used before is more directly trustworthy
+  // than something found externally that hasn't been proven at this
+  // firm at all, so this distinction is surfaced visibly rather than
+  // left implicit.
+  function evidenceBadge(source) {
+    if (source === 'external') return '<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1e40af">External source</span>';
+    if (source === 'both') return '<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;background:#ede9fe;color:#5b21b6">Internal + external</span>';
+    return '<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;background:#dcfce7;color:#166534">This firm\'s own history</span>';
+  }
+
+  // Real, new source-link rendering, per explicit request — web search
+  // is no longer restricted to a fixed set of sites, so when a
+  // suggestion genuinely comes from a recognized authoritative body,
+  // the real, actual link is shown directly so it can be verified.
+  // Defensively validates the URL is genuinely an actual http(s) link
+  // before ever rendering it as a clickable anchor — this content
+  // ultimately comes from a model's own output, so it's checked here
+  // rather than trusted blindly.
+  function sourceLink(item) {
+    if (!item.isAuthoritativeSource || !item.sourceUrl) return '';
+    let parsed;
+    try { parsed = new URL(item.sourceUrl); } catch(e) { return ''; }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return `<div style="margin-top:6px"><a href="${escAttr(parsed.href)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--wf-navy);text-decoration:none;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-external-link" style="font-size:11px"></i>${escAttr(item.sourceName || parsed.hostname)}</a></div>`;
+  }
+
   if (g.wordingPhrases?.length) {
     sections.push(`
       <div style="margin-bottom:20px">
@@ -30761,8 +30802,12 @@ function _renderGuidance(g) {
         ${g.newAttributes.map((a, i) => `
           <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
             <div>
-              <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${escAttr(a.title)}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span style="font-size:12px;font-weight:600;color:var(--text-primary)">${escAttr(a.title)}</span>
+                ${evidenceBadge(a.evidenceSource)}
+              </div>
               <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(a.description)}</div>
+              ${sourceLink(a)}
             </div>
             <button class="btn-s" style="font-size:11px;flex-shrink:0" onclick='_applyGuidanceNewAttribute(${JSON.stringify(a).replace(/'/g,"&#39;")})'>Add</button>
           </div>`).join('')}
@@ -30774,11 +30819,13 @@ function _renderGuidance(g) {
         <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Risks this workpaper's testing doesn't yet address</div>
         ${g.newRisks.map(r => `
           <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
               <span style="font-size:12px;font-weight:600;color:var(--text-primary)">${escAttr(r.title)}</span>
               <span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;${r.alreadyInFirmList ? 'background:#dcfce7;color:#166534' : 'background:#fef9c3;color:#854d0e'}">${r.alreadyInFirmList ? 'In firm risk list' : 'New suggestion'}</span>
+              ${evidenceBadge(r.evidenceSource)}
             </div>
             <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(r.description)}</div>
+            ${sourceLink(r)}
           </div>`).join('')}
       </div>`);
   }
