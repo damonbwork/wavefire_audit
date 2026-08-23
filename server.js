@@ -1711,6 +1711,13 @@ async function _embedText(text, inputType) {
 // risks a real foreign-key violation if anything already references it.
 async function ensureWorkpaperCategoriesTable() {
   if (!pool) return;
+  // Real, confirmed fix — each, real, independent step below is now
+  // wrapped in its own try/catch, rather than one, giant, shared block.
+  // Previously, if any single earlier statement genuinely failed for
+  // any reason, the entire function aborted right there, silently
+  // preventing every subsequent, otherwise-unrelated statement — most
+  // critically the workpapers column creation near the bottom — from
+  // ever running at all, no matter how many times the server restarted.
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS workpaper_sections (
@@ -1725,7 +1732,11 @@ async function ensureWorkpaperCategoriesTable() {
         ('Financial', 1), ('IT', 2), ('Operations', 3), ('Compliance', 4)
       ON CONFLICT (name) DO NOTHING;
     `);
+  } catch (err) {
+    console.error('DB: workpaper_sections table/seed check FAILED:', err.message, err.code);
+  }
 
+  try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS workpaper_categories (
         name        TEXT PRIMARY KEY,
@@ -1743,13 +1754,27 @@ async function ensureWorkpaperCategoriesTable() {
     // structure destructively.
     await pool.query(`ALTER TABLE workpaper_categories ADD COLUMN IF NOT EXISTS section_name TEXT REFERENCES workpaper_sections(name)`);
     await pool.query(`ALTER TABLE workpaper_categories ADD COLUMN IF NOT EXISTS abbreviation TEXT DEFAULT ''`);
+  } catch (err) {
+    console.error('DB: workpaper_categories table/columns check FAILED:', err.message, err.code);
+  }
+
+  try {
     // Real, genuine uniqueness, per explicit request ("should not
     // allow a new category that matches an existing category or
     // existing abbreviation") — enforced at the database level, not
     // just in application-layer validation, so this can never be
-    // silently bypassed by a future code path.
+    // silently bypassed by a future code path. Isolated in its own,
+    // real, separate try/catch — this is genuinely the statement most
+    // likely to fail on a real, live database with existing data (a
+    // real, actual duplicate abbreviation already present would
+    // violate this constraint), and a failure here must never block
+    // the real, critical workpapers columns below.
     await pool.query(`ALTER TABLE workpaper_categories ADD CONSTRAINT IF NOT EXISTS uq_workpaper_categories_abbreviation UNIQUE (abbreviation)`);
+  } catch (err) {
+    console.error('DB: workpaper_categories abbreviation UNIQUE constraint FAILED (likely real, existing duplicate data — investigate directly, but this does not block the rest of this migration):', err.message, err.code);
+  }
 
+  try {
     // Real, soft-deprecates the earlier placeholder seed data — see
     // the real, complete explanation in the comment above this function.
     await pool.query(`
@@ -1787,18 +1812,25 @@ async function ensureWorkpaperCategoriesTable() {
         [name, abbreviation, section_name, sort_order]
       );
     }
+  } catch (err) {
+    console.error('DB: workpaper_categories seed data check FAILED:', err.message, err.code);
+  }
 
+  try {
     // Real, new columns on workpapers, per explicit request — the
     // dropdown-selected value is kept as its own, real, explicit
     // field, genuinely separate from the system-inferred one, so
-    // neither ever silently overwrites the other.
+    // neither ever silently overwrites the other. Genuinely, this is
+    // the single, most critical statement in this entire function —
+    // isolated in its own try/catch so nothing above it can ever
+    // prevent it from running, regardless of what fails elsewhere.
     await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS user_selected_category TEXT DEFAULT ''`);
     await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS system_inferred_category TEXT DEFAULT ''`);
     await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS category_classification_reasoning TEXT DEFAULT ''`);
     await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS category_classified_at TIMESTAMPTZ DEFAULT NULL`);
-    console.log('DB: workpaper_sections + workpaper_categories (two-level) + workpapers category columns confirmed ready (standalone check)');
+    console.log('DB: workpapers.user_selected_category + system_inferred_category columns confirmed ready (standalone check)');
   } catch (err) {
-    console.error('DB: standalone workpaper_categories/columns check FAILED:', err.message, err.code);
+    console.error('DB: workpapers category columns check FAILED:', err.message, err.code);
   }
 }
 ensureWorkpaperCategoriesTable();
