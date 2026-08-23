@@ -4817,7 +4817,7 @@ auditor's assessment.
     </div>
   </div>
 
-  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: #38628C; z-index: 99999; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 20px; text-align: center">
         <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Sign in to Wavefire</div>
@@ -4940,7 +4940,7 @@ auditor's assessment.
     </div>
   </div>
 
-  <div id="tenant-selection-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99998; align-items: center; justify-content: center;">
+  <div id="tenant-selection-overlay" style="display: none; position: fixed; inset: 0px; background: #38628C; z-index: 99998; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 18px; text-align: center">
         <div style="width:44px;height:44px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
@@ -30719,7 +30719,7 @@ async function _loadGuidance(ref) {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">${escAttr(body.error || 'Could not load guidance.')}</div>`;
+      bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">${escAttr(body.detail || body.error || 'Could not load guidance.')}</div>`;
       return;
     }
     _renderGuidance(body);
@@ -31515,6 +31515,16 @@ function makeColumnsResizable(tableId) {
 function _showRealLoginModalFromLanding() {
   const landing = document.getElementById('wf-landing-page');
   if (landing) landing.style.display = 'none';
+  // Real, explicit "hide the app" safeguard, per explicit request — a
+  // real, defense-in-depth addition alongside the real, primary fix
+  // to this overlay's own background above. Removes the active class
+  // (rather than a raw inline display style, which would have higher
+  // specificity than the real, established CSS class rule and could
+  // persistently override showPage's own later attempt to correctly
+  // restore the right page after a successful login) from every, real
+  // page, so nothing underneath this overlay can genuinely be visible
+  // regardless of whatever opacity or z-index state exists.
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const overlay = document.getElementById('initial-login-overlay');
   if (overlay) overlay.style.display = 'flex';
 }
@@ -31886,6 +31896,12 @@ async function _submitRequiredPasswordChange() {
 async function _advanceToTenantSelection() {
   const loginOverlay = document.getElementById('initial-login-overlay');
   if (loginOverlay) loginOverlay.style.display = 'none';
+  // Real, same, explicit "hide the app" safeguard as
+  // _showRealLoginModalFromLanding, per explicit request that the
+  // solid background genuinely persist through organization
+  // selection too — this function should be safe on its own, not
+  // solely dependent on whatever function happened to run before it.
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const tenantOverlay = document.getElementById('tenant-selection-overlay');
   if (tenantOverlay) tenantOverlay.style.display = 'flex';
 
