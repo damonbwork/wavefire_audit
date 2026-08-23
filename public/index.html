@@ -44,7 +44,7 @@
 
   :root {
     /* Wavefire brand */
-    --wf-navy: #39618b;
+    --wf-navy: #38628C;
     --wf-navy-hover: #2e5278;
     --wf-blue: #3b82f6;
     --wf-blue-light: #dbeafe;
@@ -2586,10 +2586,32 @@
             </div>
           </div><!-- /fields wrapper -->
           <div class="sect-body">
-            <!-- Description -->
-            <div class="fld" style="margin-bottom:10px">
-              <div class="fl">Description</div>
-              <textarea id="wpd-description" maxlength="2500" oninput="autoResizeTA(this)" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Description')" placeholder="Workpaper scope and objectives…" style="width: 100%; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 3px 6px; resize: none; outline: none; line-height: 1.5; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; min-height: 20px; height: 45px;"></textarea>
+            <!-- Description + Workpaper Category -->
+            <div style="display:flex;gap:14px;margin-bottom:10px">
+              <div class="fld" style="flex:1">
+                <div class="fl">Description <span style="color:#dc2626">*</span></div>
+                <textarea id="wpd-description" maxlength="2500" oninput="autoResizeTA(this)" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Description')" placeholder="Workpaper scope and objectives…" style="width: 100%; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 3px 6px; resize: none; outline: none; line-height: 1.5; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; min-height: 20px; height: 45px;"></textarea>
+              </div>
+              <div class="fld" style="width:260px;position:relative;flex-shrink:0">
+                <div class="fl">Workpaper Category <span style="color:#dc2626">*</span></div>
+                <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
+                  style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left">
+                  <span id="wpd-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
+                  <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text-tertiary);flex-shrink:0"></i>
+                </button>
+                <div id="wpd-category-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:320px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+                  <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+                    <button type="button" onclick="openAddCategoryModal()" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
+                      <i class="ti ti-plus" style="font-size:13px"></i>Add new category
+                    </button>
+                  </div>
+                  <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                    <input type="text" id="wpd-category-search" placeholder="Search categories…" oninput="filterCategoryDropdown(this.value)"
+                      style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
+                  </div>
+                  <div id="wpd-category-list" style="padding:6px"></div>
+                </div>
+              </div>
             </div>
             <!-- Population, Sample Method & Sample Size -->
             <div class="field-grid">
@@ -3214,6 +3236,9 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-list-details"></i>Test attributes</div>
             <span id="attr-bulk-delete-slot"></span>
+            <button id="attr-guidance-btn" onclick="openGuidanceModal()" title="Get AI-powered suggestions for this workpaper's attributes and risks" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/></svg> Guidance
+            </button>
             <button id="attr-criteria-toggle" onclick="toggleAttrCriteria()" title="Show/hide Pass/Fail Criteria columns" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0">
               <i class="ti ti-circle-check" style="font-size:11px"></i> Pass/Fail Criteria
               <span id="attr-criteria-dot" style="display:none;width:7px;height:7px;border-radius:50%;background:#3b82f6;vertical-align:middle;margin-left:3px"></span>
@@ -4641,6 +4666,53 @@ auditor's assessment.
     </div>
   </div>
   <!-- Linked Risks & Controls — FS Accounts & Footnotes Grid Dialog -->
+  <!-- Add new Workpaper Category modal -->
+  <!-- Guidance modal -->
+  <div id="guidance-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:13500;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Guidance</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Suggestions based on this firm's own history and current external guidance</div>
+        </div>
+        <button onclick="closeGuidanceModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+      </div>
+      <div id="guidance-body" style="padding:20px;overflow-y:auto;flex:1"></div>
+    </div>
+  </div>
+
+  <div id="add-category-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:13000;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:420px;max-width:94vw;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light)">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Add new category</div>
+        <button onclick="closeAddCategoryModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+      </div>
+      <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+        <div class="fld">
+          <div class="fl">Section</div>
+          <input type="text" id="acm-section" list="acm-section-options" placeholder="Select existing or type a new section…"
+            style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+          <datalist id="acm-section-options"></datalist>
+        </div>
+        <div class="fld">
+          <div class="fl">Category name</div>
+          <input type="text" id="acm-category-name" placeholder="e.g. Vendor Risk Management"
+            style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
+        </div>
+        <div class="fld">
+          <div class="fl">Abbreviation (2-3 characters)</div>
+          <input type="text" id="acm-abbreviation" maxlength="3" oninput="this.value=this.value.toUpperCase()" placeholder="e.g. VRM"
+            style="width:120px;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px;text-transform:uppercase">
+        </div>
+        <div id="acm-error" style="display:none;font-size:12px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:8px 10px"></div>
+      </div>
+      <div style="padding:12px 20px 18px;display:flex;justify-content:flex-end;gap:8px;border-top:0.5px solid var(--border-light)">
+        <button class="btn-s" onclick="closeAddCategoryModal()">Cancel</button>
+        <button class="btn-p" id="acm-submit-btn" onclick="submitNewCategory()"><i class="ti ti-check"></i>Add category</button>
+      </div>
+    </div>
+  </div>
+
   <div id="rc-dialog-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:12000;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:900px;max-width:97vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <!-- Header -->
@@ -4738,14 +4810,14 @@ auditor's assessment.
        (no direct URL hash). The only, real, live link is the Sign In
        button, which opens the real, existing, established login modal
        below — nothing else on this page is interactive. -->
-  <div id="wf-landing-page" style="display: none; position: fixed; inset: 0px; background: linear-gradient(160deg, #38628C 0%, #2A4969 100%); z-index: 99997; align-items: center; justify-content: center; flex-direction: column;">
+  <div id="wf-landing-page" style="display: none; position: fixed; inset: 0px; background: #38628C; z-index: 99997; align-items: center; justify-content: center; flex-direction: column;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px">
       <img src="data:image/jpeg;base64,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" alt="Wavefire" style="height:56px;width:auto;display:block">
       <button class="btn-p" id="wf-landing-signin-btn" onclick="_showRealLoginModalFromLanding()" style="padding:12px 32px;font-size:14px">Sign In</button>
     </div>
   </div>
 
-  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: var(--bg-primary); z-index: 99999; align-items: center; justify-content: center;">
+  <div id="initial-login-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(15, 23, 42, 0.85); z-index: 99999; align-items: center; justify-content: center;">
     <div style="background: var(--bg-primary); border-radius: 14px; width: min(380px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.35); overflow: hidden">
       <div style="padding: 28px 28px 20px; text-align: center">
         <div style="font-size:17px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Sign in to Wavefire</div>
@@ -10256,7 +10328,8 @@ async function _saveWorkpaperToDB(w) {
         exceptions:            excpts,
         archived:              !!w.archived,
         wp_style:              w.wpStyle||'full',
-        template_used:         w.templateUsed||null
+        template_used:         w.templateUsed||null,
+        user_selected_category: w.userSelectedCategory||''
       })
     });
     // fetch() only rejects on a genuine network-level failure (DNS,
@@ -30531,6 +30604,278 @@ function fmtUSD(n) {
     ? '$' + (abs / 1_000_000).toFixed(1) + 'M'
     : '$' + abs.toLocaleString();
   return n < 0 ? '(' + s + ')' : s;
+}
+
+// ══════════════════════════════════════
+//   WORKPAPER CATEGORY — dropdown + add-category modal
+// ══════════════════════════════════════
+var _wpCategoriesCache = null; // [{ name, section_name, abbreviation }]
+var _wpSectionsCache = null;   // [{ name }]
+
+async function _ensureCategoriesLoaded() {
+  if (_wpCategoriesCache && _wpSectionsCache) return;
+  try {
+    const [catRes, secRes] = await Promise.all([
+      fetch('/api/workpaper-categories'), fetch('/api/workpaper-sections'),
+    ]);
+    _wpCategoriesCache = catRes.ok ? await catRes.json() : [];
+    _wpSectionsCache = secRes.ok ? await secRes.json() : [];
+  } catch(e) {
+    console.error('[_ensureCategoriesLoaded] Could not load categories/sections:', e.message);
+    _wpCategoriesCache = _wpCategoriesCache || [];
+    _wpSectionsCache = _wpSectionsCache || [];
+  }
+}
+
+async function toggleCategoryDropdown() {
+  const panel = document.getElementById('wpd-category-panel');
+  if (!panel) return;
+  const isOpening = panel.style.display === 'none';
+  panel.style.display = isOpening ? 'block' : 'none';
+  if (isOpening) {
+    await _ensureCategoriesLoaded();
+    document.getElementById('wpd-category-search').value = '';
+    _renderCategoryDropdownList('');
+    setTimeout(() => document.getElementById('wpd-category-search')?.focus(), 30);
+  }
+}
+
+function filterCategoryDropdown(text) { _renderCategoryDropdownList(text); }
+
+// Real, grouped-by-section rendering, per explicit request — matches
+// the real, two-level Section then Category structure. Search
+// matches against both the real category name and its own real
+// abbreviation, per explicit request for type-ahead search.
+function _renderCategoryDropdownList(filterText) {
+  const listEl = document.getElementById('wpd-category-list');
+  if (!listEl) return;
+  const q = (filterText || '').trim().toLowerCase();
+  const cats = (_wpCategoriesCache || []).filter(c =>
+    !q || c.name.toLowerCase().includes(q) || (c.abbreviation||'').toLowerCase().includes(q)
+  );
+  if (!cats.length) {
+    listEl.innerHTML = `<div style="padding:12px;font-size:12px;color:var(--text-tertiary);font-style:italic">No categories match "${escAttr(filterText)}".</div>`;
+    return;
+  }
+  const bySection = {};
+  cats.forEach(c => { (bySection[c.section_name || 'Other'] = bySection[c.section_name || 'Other'] || []).push(c); });
+  listEl.innerHTML = Object.keys(bySection).sort().map(section => `
+    <div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 10px 4px">${escAttr(section)}</div>
+    ${bySection[section].map(c => `
+      <div onclick="selectWorkpaperCategory('${escAttr(c.name)}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;font-size:13px;color:var(--text-primary)"
+        onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
+        <span>${escAttr(c.name)}</span>
+        <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--bg-secondary);padding:1px 6px;border-radius:4px">${escAttr(c.abbreviation)}</span>
+      </div>`).join('')}
+  `).join('');
+}
+
+// Real, select-then-save, per explicit request — matches the exact,
+// established pattern already used by other header fields (set the
+// value on the current workpaper, then save immediately), rather
+// than requiring a real, separate explicit save step.
+function selectWorkpaperCategory(categoryName) {
+  const w = WORKPAPERS[currentWPIndex];
+  if (!w) return;
+  const ref = getWPRef();
+  logChange(ref, 'Workpaper Category', w.userSelectedCategory || '', categoryName);
+  w.userSelectedCategory = categoryName;
+  const displayEl = document.getElementById('wpd-category-display');
+  if (displayEl) { displayEl.textContent = categoryName; displayEl.style.color = 'var(--text-primary)'; }
+  document.getElementById('wpd-category-panel').style.display = 'none';
+  _saveWorkpaperToDB(w);
+}
+
+// ══════════════════════════════════════
+//   GUIDANCE — attribute wording, new attribute, and new risk suggestions
+// ══════════════════════════════════════
+function openGuidanceModal() {
+  const ref = currentAttrWPRef;
+  if (!ref) return;
+  document.getElementById('guidance-overlay').style.display = 'flex';
+  const bodyEl = document.getElementById('guidance-body');
+  bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div></div>`;
+  _loadGuidance(ref);
+}
+
+function closeGuidanceModal() {
+  document.getElementById('guidance-overlay').style.display = 'none';
+}
+
+async function _loadGuidance(ref) {
+  const bodyEl = document.getElementById('guidance-body');
+  try {
+    // Real, gathers the current workpaper's own linked risk titles and
+    // the complete, real, firm-wide risk list from RISKS, per explicit
+    // request — the backend genuinely has no access to this RCM data
+    // itself, since RISKS lives entirely in this real, frontend JS.
+    const w = WORKPAPERS.find(x => x.ref === ref);
+    const linkedRiskTitles = ((w?.linkedRisks) || []).map(id => RISKS[id]?.title).filter(Boolean);
+    const knownRiskTitles = Object.values(RISKS).map(r => r.title).filter(Boolean);
+
+    const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/guidance', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ knownRiskTitles, linkedRiskTitles, useWebSearch: true }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">${escAttr(body.error || 'Could not load guidance.')}</div>`;
+      return;
+    }
+    _renderGuidance(body);
+  } catch(e) {
+    bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">Could not load guidance: ${escAttr(e.message)}</div>`;
+  }
+}
+
+// Real, renders each of the four, real, distinct suggestion
+// categories, per explicit request — skips an entire category's own
+// section if it genuinely came back empty, rather than showing an
+// empty heading with nothing under it.
+function _renderGuidance(g) {
+  const bodyEl = document.getElementById('guidance-body');
+  const sections = [];
+
+  if (g.wordingPhrases?.length) {
+    sections.push(`
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Wording phrases to consider</div>
+        ${g.wordingPhrases.map(p => `<div style="font-size:13px;color:var(--text-primary);padding:8px 10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:6px">${escAttr(p)}</div>`).join('')}
+      </div>`);
+  }
+  if (g.wordingChanges?.length) {
+    sections.push(`
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Suggested wording changes</div>
+        ${g.wordingChanges.map(c => `
+          <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${escAttr(c.attributeTitle)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(c.suggestion)}</div>
+          </div>`).join('')}
+      </div>`);
+  }
+  if (g.newAttributes?.length) {
+    sections.push(`
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Attributes this workpaper may be missing</div>
+        ${g.newAttributes.map((a, i) => `
+          <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${escAttr(a.title)}</div>
+              <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(a.description)}</div>
+            </div>
+            <button class="btn-s" style="font-size:11px;flex-shrink:0" onclick='_applyGuidanceNewAttribute(${JSON.stringify(a).replace(/'/g,"&#39;")})'>Add</button>
+          </div>`).join('')}
+      </div>`);
+  }
+  if (g.newRisks?.length) {
+    sections.push(`
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Risks this workpaper's testing doesn't yet address</div>
+        ${g.newRisks.map(r => `
+          <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:600;color:var(--text-primary)">${escAttr(r.title)}</span>
+              <span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;${r.alreadyInFirmList ? 'background:#dcfce7;color:#166534' : 'background:#fef9c3;color:#854d0e'}">${r.alreadyInFirmList ? 'In firm risk list' : 'New suggestion'}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(r.description)}</div>
+          </div>`).join('')}
+      </div>`);
+  }
+
+  bodyEl.innerHTML = sections.length ? sections.join('') : `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;text-align:center;padding:24px 0">No specific guidance to offer right now — this workpaper's own attributes and this firm's own history didn't surface anything worth flagging.</div>`;
+}
+
+// Real, actual, "Add" action, per explicit request — inserts the
+// suggested new attribute directly into the real, current workpaper's
+// own attribute grid, matching the exact, established pattern
+// addTestAttributeRow already uses (flush DOM state first, then push
+// the new row, so no in-progress edit elsewhere on the grid is lost).
+function _applyGuidanceNewAttribute(suggestion) {
+  const ref = currentAttrWPRef;
+  if (!ref) return;
+  const rows = wpTestAttributes[ref] || [];
+  rows.push({ num: '', attrRef: '', title: suggestion.title || '', desc: suggestion.description || '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
+  wpTestAttributes[ref] = rows;
+  renderTestAttributes(ref);
+  const w = WORKPAPERS.find(x => x.ref === ref);
+  if (w) _saveWorkpaperToDB(w);
+  closeGuidanceModal();
+}
+
+function openAddCategoryModal() {
+  document.getElementById('wpd-category-panel').style.display = 'none'; // close the real, underlying dropdown first
+  document.getElementById('acm-section').value = '';
+  document.getElementById('acm-category-name').value = '';
+  document.getElementById('acm-abbreviation').value = '';
+  document.getElementById('acm-error').style.display = 'none';
+  const datalist = document.getElementById('acm-section-options');
+  datalist.innerHTML = (_wpSectionsCache || []).map(s => `<option value="${escAttr(s.name)}">`).join('');
+  document.getElementById('add-category-overlay').style.display = 'flex';
+}
+
+function closeAddCategoryModal() {
+  document.getElementById('add-category-overlay').style.display = 'none';
+}
+
+async function submitNewCategory() {
+  const sectionName = document.getElementById('acm-section').value.trim();
+  const categoryName = document.getElementById('acm-category-name').value.trim();
+  const abbreviation = document.getElementById('acm-abbreviation').value.trim();
+  const errEl = document.getElementById('acm-error');
+  errEl.style.display = 'none';
+
+  if (!sectionName || !categoryName || !abbreviation) {
+    errEl.textContent = 'All three fields are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (abbreviation.length < 2 || abbreviation.length > 3) {
+    errEl.textContent = 'The abbreviation must be 2-3 characters.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Real, new warning, per explicit request — datalist inputs are
+  // genuinely just suggestions; they never actually prevent someone
+  // from typing anything, including a real, accidental typo that
+  // would silently create a real, near-duplicate section. A real,
+  // confirmable warning, not a hard block, since creating a genuinely
+  // new section is a legitimate, intended action this should still allow.
+  const existingSectionNames = (_wpSectionsCache || []).map(s => s.name.toLowerCase());
+  if (!existingSectionNames.includes(sectionName.toLowerCase())) {
+    const proceed = confirm(`"${sectionName}" is not an existing section. Are you sure you want to create it as a new section?`);
+    if (!proceed) return;
+  }
+
+  const btn = document.getElementById('acm-submit-btn');
+  const origHtml = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Adding…';
+  try {
+    const res = await fetch('/api/workpaper-categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: categoryName, abbreviation, sectionName }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Real, surfaces the real, specific backend rejection (duplicate
+      // name or abbreviation) directly, per explicit request, rather
+      // than a generic failure message.
+      errEl.textContent = body.error || 'Could not add this category.';
+      errEl.style.display = 'block';
+      return;
+    }
+    _wpCategoriesCache = null; // real, force a fresh reload so the real, new category shows up immediately
+    _wpSectionsCache = null;
+    closeAddCategoryModal();
+    await _ensureCategoriesLoaded();
+    selectWorkpaperCategory(categoryName); // real, auto-selects the real, newly-created category on the real, current workpaper, and correctly closes the dropdown itself
+  } catch(e) {
+    errEl.textContent = 'Could not add this category: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.innerHTML = origHtml;
+  }
 }
 
 let _rcDialogContext = 'workpaper'; // real, confirmed, root-cause, fix — 'workpaper' or 'audit', set by openRCDialog below
