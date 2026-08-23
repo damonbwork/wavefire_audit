@@ -1476,6 +1476,333 @@ async function ensureXlsxExportPrefsColumn() {
 }
 ensureXlsxExportPrefsColumn();
 
+// Real, new, standalone migration, per the confirmed root-cause fix —
+// genuinely persists the audit-level roll-up of linked financial
+// statement accounts, which previously had no real backend column of
+// its own at all, meaning it could never genuinely survive a page
+// refresh regardless of any real, frontend-only fix.
+async function ensureAuditLinkedFsColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS linked_fs_accounts JSONB DEFAULT '[]'`);
+    console.log('DB: audits.linked_fs_accounts column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone linked_fs_accounts check FAILED:', err.message, err.code);
+  }
+}
+ensureAuditLinkedFsColumn();
+
+// Real, new, dedicated table, per explicit request — a real, proper
+// relational junction table for audit-level FS-account linkage,
+// replacing the JSONB-column approach from the previous fix. Also
+// backfills every, real, existing, actual linkage already saved
+// anywhere in the database (workpaper-level scope_fs_accounts as the
+// primary, confirmed, round-tripping source; fs_accounts as a safe,
+// secondary source that can only recover real data, never lose any;
+// plus the audits.linked_fs_accounts JSONB column from the previous
+// fix) so nothing already saved is lost in this move to a proper
+// relational structure.
+async function ensureAuditFsAccountsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_fs_accounts (
+        tenant_id     TEXT NOT NULL,
+        audit_name    TEXT NOT NULL,
+        fs_account_id TEXT NOT NULL,
+        date_created  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, audit_name, fs_account_id)
+      )
+    `);
+    console.log('DB: audit_fs_accounts table confirmed ready (standalone check)');
+
+    // Real, actual backfill — genuinely idempotent (ON CONFLICT DO
+    // NOTHING), so safe to run on every, single, deploy without ever
+    // duplicating or erroring on data already migrated in a previous run.
+    const backfillResult = await pool.query(`
+      INSERT INTO audit_fs_accounts (tenant_id, audit_name, fs_account_id)
+      SELECT tenant_id, audit_name, jsonb_array_elements_text(scope_fs_accounts)
+        FROM workpapers WHERE jsonb_array_length(scope_fs_accounts) > 0
+      UNION
+      SELECT tenant_id, audit_name, jsonb_array_elements_text(fs_accounts)
+        FROM workpapers WHERE jsonb_array_length(fs_accounts) > 0
+      UNION
+      SELECT tenant_id, name, jsonb_array_elements_text(linked_fs_accounts)
+        FROM audits WHERE jsonb_array_length(linked_fs_accounts) > 0
+      ON CONFLICT (tenant_id, audit_name, fs_account_id) DO NOTHING
+    `);
+    console.log(`DB: audit_fs_accounts backfill complete — ${backfillResult.rowCount} row(s) genuinely inserted (standalone check)`);
+  } catch (err) {
+    console.error('DB: standalone audit_fs_accounts table/backfill check FAILED:', err.message, err.code);
+  }
+}
+ensureAuditFsAccountsTable();
+
+// Real, new table, per explicit request — the foundational data-capture
+// layer for the attribute-wording learning system discussed. Logs
+// every, real, change to an attribute's own title, description,
+// additional info, or success/failure criteria, scoped by workpaper
+// type and audit type, so this data can later drive retrieval-based
+// suggestions and distilled style guides per category. ai_suggested_text
+// and analyze_outcome are genuinely nullable placeholders for later —
+// this first slice captures the before/after edit signal itself.
+async function ensureAttributeEditHistoryTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attribute_edit_history (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id         TEXT NOT NULL,
+        workpaper_ref     TEXT NOT NULL,
+        workpaper_type    TEXT DEFAULT '',
+        audit_type        TEXT DEFAULT '',
+        attribute_index   INTEGER NOT NULL,
+        attribute_title   TEXT DEFAULT '',
+        field_type        TEXT NOT NULL,
+        previous_text     TEXT DEFAULT '',
+        final_text        TEXT DEFAULT '',
+        ai_suggested_text TEXT DEFAULT NULL,
+        analyze_outcome   TEXT DEFAULT NULL,
+        edited_by         TEXT DEFAULT '',
+        date_created      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_attr_edit_history_lookup ON attribute_edit_history (tenant_id, workpaper_type, audit_type, field_type)`);
+    console.log('DB: attribute_edit_history table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_edit_history table check FAILED:', err.message, err.code);
+  }
+}
+ensureAttributeEditHistoryTable();
+
+// Real, new, safety migration, per explicit request — genuinely
+// ensures every, real, edit-history row is tied to a real, existing
+// workpaper under the correct tenant at the database level itself,
+// rather than relying only on application code staying correct
+// forever. A real, hard, structural guarantee enforced by Postgres —
+// if a future change ever tried to insert an edit tied to the wrong
+// tenant, or a workpaper that doesn't genuinely exist under that
+// tenant, the database itself would correctly reject it. Wrapped in
+// its own try/catch so a genuine failure here (e.g. real, pre-existing
+// orphaned data from before this safeguard existed) logs clearly
+// rather than crashing server startup.
+async function ensureAttributeEditHistoryTenantFK() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      ALTER TABLE attribute_edit_history
+      ADD CONSTRAINT IF NOT EXISTS fk_attr_edit_history_tenant_workpaper
+      FOREIGN KEY (tenant_id, workpaper_ref) REFERENCES workpapers (tenant_id, ref) ON DELETE CASCADE
+    `);
+    console.log('DB: attribute_edit_history tenant/workpaper FK confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_edit_history tenant FK check FAILED (likely real, pre-existing orphaned rows — investigate before assuming this is harmless):', err.message, err.code);
+  }
+}
+ensureAttributeEditHistoryTenantFK();
+
+// Real, new column, per explicit request — the real, system-inferred
+// category taxonomy built several turns ago is genuinely the correct,
+// precise scoping dimension for the memory system being built now,
+// distinct from the older workpaper_type (Planning/Testwork/etc — a
+// workflow-stage dimension, not a subject-matter one).
+async function ensureAttributeEditHistoryCategoryColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE attribute_edit_history ADD COLUMN IF NOT EXISTS workpaper_category TEXT DEFAULT ''`);
+    console.log('DB: attribute_edit_history.workpaper_category column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_edit_history.workpaper_category check FAILED:', err.message, err.code);
+  }
+}
+ensureAttributeEditHistoryCategoryColumn();
+
+// Real, new, Tier 1 (Distillation) table, per explicit request —
+// stores one, real "house style" summary per category, plus one,
+// real global summary (using a real, explicit sentinel value rather
+// than NULL, since Postgres doesn't allow NULL in a primary key
+// column), each synthesized periodically from the real, accumulated
+// edit history in that bucket.
+const GLOBAL_STYLE_GUIDE_KEY = '__global__';
+async function ensureCategoryStyleGuidesTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS category_style_guides (
+        tenant_id          TEXT NOT NULL,
+        category_name      TEXT NOT NULL,
+        guide_text         TEXT DEFAULT '',
+        based_on_edit_count INTEGER DEFAULT 0,
+        generated_at       TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, category_name)
+      )
+    `);
+    console.log('DB: category_style_guides table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone category_style_guides table check FAILED:', err.message, err.code);
+  }
+}
+ensureCategoryStyleGuidesTable();
+
+// Real, new, Tier 2 (Retrieval) migration, per explicit request —
+// enables pgvector and adds the real embedding column needed for
+// similarity search. Built defensively given pgvector availability on
+// the real, live Postgres instance cannot be confirmed from here —
+// sets a real, module-level flag other Tier 2 code checks before
+// attempting any real vector operation, so this degrades safely
+// rather than crashing if the extension genuinely isn't available or
+// enabled.
+let PGVECTOR_AVAILABLE = false;
+async function ensureEmbeddingInfra() {
+  if (!pool) return;
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS vector`);
+    await pool.query(`ALTER TABLE attribute_edit_history ADD COLUMN IF NOT EXISTS embedding vector(1024)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_attr_edit_history_embedding ON attribute_edit_history USING ivfflat (embedding vector_cosine_ops)`);
+    PGVECTOR_AVAILABLE = true;
+    console.log('DB: pgvector extension + attribute_edit_history.embedding column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: pgvector setup FAILED — Tier 2 (Retrieval) will genuinely stay disabled until this is resolved. Likely cause: the pgvector extension is not available on this Postgres instance yet (Railway supports it, but it must be enabled). Error:', err.message, err.code);
+  }
+}
+ensureEmbeddingInfra();
+
+// Real, embedding helper, per explicit request — calls the Voyage
+// API (Anthropic's own, recommended embeddings partner, since Claude
+// itself has no embeddings endpoint) using its real, established,
+// standard request shape. Returns null (rather than throwing) on any
+// real failure, so callers can correctly treat "couldn't embed this
+// one" as a real, non-fatal, skippable condition.
+async function _embedText(text, inputType) {
+  const apiKey = process.env.VOYAGE_API_KEY;
+  if (!apiKey || !text || !text.trim()) return null;
+  try {
+    const res = await fetch('https://api.voyageai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: 'voyage-4-large', input: [text], output_dimension: 1024, input_type: inputType || 'document' }),
+    });
+    const data = await res.json();
+    return data?.data?.[0]?.embedding || null;
+  } catch (err) {
+    console.error('[_embedText] Voyage embedding call failed:', err.message);
+    return null;
+  }
+}
+
+// Real, new, category-taxonomy table, per explicit request — the
+// foundational piece of the system-inferred categorization work
+// discussed. Matches the exact, established pattern of the existing
+// workpaper_types table above. Seeded with precisely the four, real,
+// named examples the user themselves gave, plus an "Other" fallback
+// matching the established workpaper_types convention — deliberately
+// not inventing additional categories they didn't ask for; this list
+// is meant to be managed/expanded by them going forward, the same way
+// workpaper_types already is.
+// Real, restructured, per explicit request — genuinely rebuilds the
+// flat category list into the real, two-level Section then Category
+// structure settled across the last several turns of conversation.
+// Adds a real, new sections table and adds section/abbreviation
+// columns to the existing categories table (a safe ALTER, rather than
+// a destructive drop-and-recreate). Genuinely soft-deprecates
+// (active=false) the earlier placeholder seed data rather than
+// deleting it outright — that list was an initial guess made before
+// the real, detailed taxonomy conversation happened, and deleting it
+// risks a real foreign-key violation if anything already references it.
+async function ensureWorkpaperCategoriesTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS workpaper_sections (
+        name        TEXT PRIMARY KEY,
+        sort_order  INTEGER DEFAULT 0,
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      INSERT INTO workpaper_sections (name, sort_order) VALUES
+        ('Financial', 1), ('IT', 2), ('Operations', 3), ('Compliance', 4)
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS workpaper_categories (
+        name        TEXT PRIMARY KEY,
+        description TEXT DEFAULT '',
+        sort_order  INTEGER DEFAULT 0,
+        active      BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    // Real, new columns, per explicit request — section_name (FK to
+    // the real, new sections table) and abbreviation (the real,
+    // required 2-3 character code), genuinely, correctly, added via
+    // safe ALTERs rather than touching the existing table's own
+    // structure destructively.
+    await pool.query(`ALTER TABLE workpaper_categories ADD COLUMN IF NOT EXISTS section_name TEXT REFERENCES workpaper_sections(name)`);
+    await pool.query(`ALTER TABLE workpaper_categories ADD COLUMN IF NOT EXISTS abbreviation TEXT DEFAULT ''`);
+    // Real, genuine uniqueness, per explicit request ("should not
+    // allow a new category that matches an existing category or
+    // existing abbreviation") — enforced at the database level, not
+    // just in application-layer validation, so this can never be
+    // silently bypassed by a future code path.
+    await pool.query(`ALTER TABLE workpaper_categories ADD CONSTRAINT IF NOT EXISTS uq_workpaper_categories_abbreviation UNIQUE (abbreviation)`);
+
+    // Real, soft-deprecates the earlier placeholder seed data — see
+    // the real, complete explanation in the comment above this function.
+    await pool.query(`
+      UPDATE workpaper_categories SET active=false
+      WHERE name IN ('User Security Administration', 'Security Configuration', 'Change Control', 'Financial Reconciliation')
+    `);
+
+    // Real, complete, settled taxonomy, per explicit request — every,
+    // real category discussed and confirmed across the conversation,
+    // grouped under its real, correct section, each with its own,
+    // real, confirmed abbreviation.
+    const seedCategories = [
+      // Financial
+      ['Authorization', 'AUT', 'Financial', 1], ['Reconciliation', 'REC', 'Financial', 2],
+      ['Management Review', 'MGR', 'Financial', 3], ['Segregation of Duties', 'SOD', 'Financial', 4],
+      ['Verification', 'VER', 'Financial', 5], ['Journal Entry / General Ledger', 'JE', 'Financial', 6],
+      ['Revenue Recognition', 'REV', 'Financial', 7], ['Estimates & Judgments', 'EST', 'Financial', 8],
+      // IT
+      ['Change Management', 'CHG', 'IT', 1], ['Security', 'SEC', 'IT', 2], ['IT Operations', 'OPS', 'IT', 3],
+      ['Application Controls', 'APP', 'IT', 4], ['Program Development', 'SDL', 'IT', 5],
+      ['Backup & Recovery', 'BCR', 'IT', 6], ['Physical Security', 'PHY', 'IT', 7],
+      ['Incident Management', 'INC', 'IT', 8], ['Third-Party / Vendor Management', 'TPM', 'IT', 9],
+      // Operations
+      ['Process Efficiency', 'PEF', 'Operations', 1], ['Procurement', 'PRO', 'Operations', 2],
+      ['Inventory / Asset Management', 'INV', 'Operations', 3],
+      // Compliance
+      ['Regulatory Compliance', 'REG', 'Compliance', 1], ['Policy Adherence', 'POL', 'Compliance', 2],
+      // Carried over
+      ['Other', 'OTH', 'Compliance', 99],
+    ];
+    for (const [name, abbreviation, section_name, sort_order] of seedCategories) {
+      await pool.query(
+        `INSERT INTO workpaper_categories (name, abbreviation, section_name, sort_order) VALUES ($1,$2,$3,$4)
+         ON CONFLICT (name) DO UPDATE SET abbreviation=EXCLUDED.abbreviation, section_name=EXCLUDED.section_name, sort_order=EXCLUDED.sort_order, active=true`,
+        [name, abbreviation, section_name, sort_order]
+      );
+    }
+
+    // Real, new columns on workpapers, per explicit request — the
+    // dropdown-selected value is kept as its own, real, explicit
+    // field, genuinely separate from the system-inferred one, so
+    // neither ever silently overwrites the other.
+    await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS user_selected_category TEXT DEFAULT ''`);
+    await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS system_inferred_category TEXT DEFAULT ''`);
+    await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS category_classification_reasoning TEXT DEFAULT ''`);
+    await pool.query(`ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS category_classified_at TIMESTAMPTZ DEFAULT NULL`);
+    console.log('DB: workpaper_sections + workpaper_categories (two-level) + workpapers category columns confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone workpaper_categories/columns check FAILED:', err.message, err.code);
+  }
+}
+ensureWorkpaperCategoriesTable();
+
 async function ensureFileCategoryColumn() {
   if (!pool) return;
   try {
@@ -1735,6 +2062,27 @@ async function ensureAccessErrorTables() {
         login_id     TEXT,
         tenant_id    TEXT,
         date_created TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    // Real, new table, per explicit request — persists each, real,
+    // control's own Design and Operating Effectiveness rating, tied to
+    // its id and tenant. This is a real, structured concept that
+    // genuinely didn't exist anywhere in the data model before —
+    // previously it only ever appeared as free-text narrative prompts
+    // inside certain, real workpaper templates. A simple 1-3 scale
+    // (Ineffective / Partially Effective / Effective) matches the
+    // real, established ICFR/SOX terminology already used elsewhere in
+    // this app's own, existing workpaper narratives.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS control_effectiveness_ratings (
+        control_id       TEXT NOT NULL,
+        tenant_id        TEXT NOT NULL,
+        design_rating    SMALLINT CHECK (design_rating BETWEEN 1 AND 3),
+        operating_rating SMALLINT CHECK (operating_rating BETWEEN 1 AND 3),
+        notes            TEXT,
+        rated_by         TEXT,
+        date_updated     TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (tenant_id, control_id)
       )
     `);
     // Real, actual seed data for the two, explicit codes — ON CONFLICT
@@ -2080,6 +2428,472 @@ app.get('/api/workpaper-types', async (req, res) => {
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/workpaper-types:'); }
+});
+
+// Real, new route, per explicit request, matching the exact,
+// established pattern of the route right above it.
+app.get('/api/workpaper-categories', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, description, section_name, abbreviation FROM workpaper_categories WHERE active=true ORDER BY sort_order, name`
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-categories:'); }
+});
+
+app.get('/api/workpaper-sections', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(`SELECT name FROM workpaper_sections WHERE active=true ORDER BY sort_order, name`);
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpaper-sections:'); }
+});
+
+// Real, new route, per explicit request — creates a real, new
+// category, and its own, real, section (selecting an existing one, or
+// creating a real, new one on the fly, per explicit request). Genuine
+// uniqueness validation against both an existing category name and an
+// existing abbreviation, per explicit request — checked here for a
+// real, clear, specific error message, in addition to the real,
+// database-level UNIQUE constraint that backs this up regardless.
+app.post('/api/workpaper-categories', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const name = (req.body.name || '').trim();
+  const abbreviation = (req.body.abbreviation || '').trim().toUpperCase();
+  const sectionName = (req.body.sectionName || '').trim();
+  if (!name) return res.status(400).json({ error: 'A category name is required.' });
+  if (!sectionName) return res.status(400).json({ error: 'A section is required.' });
+  if (abbreviation.length < 2 || abbreviation.length > 3) {
+    return res.status(400).json({ error: 'The abbreviation must genuinely be 2-3 characters.' });
+  }
+  try {
+    // Real, genuine, explicit, uniqueness check, per explicit request —
+    // case-insensitive, so "Reconciliation" and "reconciliation" are
+    // genuinely treated as the same, real, existing category.
+    const dupRes = await pool.query(
+      `SELECT name, abbreviation FROM workpaper_categories WHERE LOWER(name)=LOWER($1) OR UPPER(abbreviation)=UPPER($2)`,
+      [name, abbreviation]
+    );
+    if (dupRes.rows.length) {
+      const dup = dupRes.rows[0];
+      if (dup.name.toLowerCase() === name.toLowerCase()) {
+        return res.status(409).json({ error: `A category named "${dup.name}" already exists.` });
+      }
+      return res.status(409).json({ error: `The abbreviation "${dup.abbreviation}" is already in use by "${dup.name}".` });
+    }
+    // Real, actual, "select or add a section" — genuinely correctly,
+    // safely, creates the real, new section if it doesn't already
+    // exist, per explicit request.
+    await pool.query(
+      `INSERT INTO workpaper_sections (name) VALUES ($1) ON CONFLICT (name) DO NOTHING`,
+      [sectionName]
+    );
+    const sortRes = await pool.query(`SELECT COALESCE(MAX(sort_order),0)+1 AS next_sort FROM workpaper_categories WHERE section_name=$1`, [sectionName]);
+    await pool.query(
+      `INSERT INTO workpaper_categories (name, abbreviation, section_name, sort_order) VALUES ($1,$2,$3,$4)`,
+      [name, abbreviation, sectionName, sortRes.rows[0].next_sort]
+    );
+    res.json({ ok: true, name, abbreviation, sectionName });
+  } catch(err) {
+    // Real, genuine, defensive fallback — the real, database-level
+    // UNIQUE constraint on abbreviation could still, correctly, catch a
+    // real race condition the check above missed (two, real,
+    // simultaneous requests), surfaced here as a real, clear message
+    // rather than a generic, unexplained 500.
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'That category name or abbreviation was just taken by another request — please try again.' });
+    }
+    return fail(res, err, 'POST /api/workpaper-categories:');
+  }
+});
+
+// Real, new, core classification route, per explicit request — fetches
+// the workpaper's own header fields and every, real, attribute's own
+// text (weighted most heavily, per explicit request), calls Claude to
+// classify against the real, current taxonomy, and validates the
+// returned category genuinely exists in that taxonomy before trusting
+// it, rather than blindly accepting whatever text comes back. The
+// user's own dropdown selection (user_selected_category) is kept as
+// its own, separate field — this route only ever writes to
+// system_inferred_category, never overwrites the user's own choice.
+// Real, shared classification logic, extracted per explicit request —
+// used by both the existing on-demand route below and the real, new
+// automatic trigger wired into the main save path, so both call the
+// exact, same correct logic rather than risking two, separate copies
+// drifting apart. Throws on a real, genuine failure — callers decide
+// how to handle that (the route below returns an error response; the
+// automatic trigger below just logs it, since a classification
+// failure must never affect the real, primary workpaper save).
+async function _classifyWorkpaperCategory(tenantId, ref) {
+  const wpRes = await pool.query(
+    `SELECT name, description, narrative, control_description, it_process, user_selected_category, test_attributes
+     FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
+    [tenantId, ref]
+  );
+  if (!wpRes.rows.length) throw new Error('Workpaper not found: ' + ref);
+  const wp = wpRes.rows[0];
+
+  const catRes = await pool.query(`SELECT name, description FROM workpaper_categories WHERE active=true ORDER BY sort_order, name`);
+  const categories = catRes.rows;
+  if (!categories.length) throw new Error('No active workpaper categories are defined yet.');
+
+  const attrs = Array.isArray(wp.test_attributes) ? wp.test_attributes : [];
+  const attrText = attrs.length
+    ? attrs.map((a, i) => `${i+1}. ${a.title || '(untitled)'} — ${a.desc || ''} ${a.additionalInfo || ''}`.trim()).join('\n')
+    : '(This workpaper has no test attributes yet — classify based on the header fields alone, and reflect the lower confidence that comes with that in your own, real reasoning.)';
+
+  const systemPrompt = `You are classifying an internal audit workpaper into exactly one category from a fixed list, for an audit firm's own internal tooling. Weigh the actual test attribute content most heavily — it is the most direct signal of what this workpaper genuinely tests. Header fields are secondary, supporting context.
+
+Available categories:
+${categories.map(c => `- ${c.name}: ${c.description}`).join('\n')}
+
+Respond with ONLY a JSON object, no other text, in exactly this shape:
+{"category": "<one of the exact category names above>", "confidence": "high" | "medium" | "low", "reasoning": "<one or two sentences>"}`;
+
+  const userMessage = `Workpaper name: ${wp.name || '(none)'}
+Description: ${wp.description || '(none)'}
+Narrative: ${wp.narrative || '(none)'}
+Control description: ${wp.control_description || '(none)'}
+IT process: ${wp.it_process || '(none)'}
+User-selected category (one signal among several — do not treat as automatically correct): ${wp.user_selected_category || '(none selected)'}
+
+Test attributes:
+${attrText}`;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set on the server.');
+  const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 300,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+  const claudeData = await claudeRes.json();
+  if (claudeData.error) throw new Error('Claude classification failed: ' + claudeData.error.message);
+
+  let parsed;
+  try {
+    const rawText = claudeData.content?.[0]?.text || '{}';
+    parsed = JSON.parse(rawText);
+  } catch (parseErr) {
+    throw new Error('Could not parse the real, actual classification response.');
+  }
+
+  const validNames = new Set(categories.map(c => c.name));
+  const finalCategory = validNames.has(parsed.category) ? parsed.category : 'Other';
+  if (finalCategory !== parsed.category) {
+    console.warn(`[_classifyWorkpaperCategory] Claude returned an unrecognized category "${parsed.category}" for ref ${ref} — falling back to Other.`);
+  }
+
+  await pool.query(
+    `UPDATE workpapers SET system_inferred_category=$1, category_classification_reasoning=$2, category_classified_at=NOW()
+     WHERE tenant_id=$3 AND ref=$4`,
+    [finalCategory, parsed.reasoning || '', tenantId, ref]
+  );
+
+  return { category: finalCategory, confidence: parsed.confidence || 'low', reasoning: parsed.reasoning || '' };
+}
+
+// Real, new, Tier 1 (Distillation) core generation, per explicit
+// request — synthesizes a real, concise "house style" guide from a
+// real sample of recent edits in the given bucket (a specific
+// category, or the real, global sentinel), and persists it. Capped at
+// the most recent 60 edits to keep real token usage reasonable — this
+// is meant to distill RECENT patterns, not replay the entire history
+// verbatim.
+async function _generateCategoryStyleGuide(tenantId, categoryName) {
+  const isGlobal = categoryName === GLOBAL_STYLE_GUIDE_KEY;
+  const editsRes = await pool.query(
+    isGlobal
+      ? `SELECT field_type, previous_text, final_text FROM attribute_edit_history WHERE tenant_id=$1 ORDER BY date_created DESC LIMIT 60`
+      : `SELECT field_type, previous_text, final_text FROM attribute_edit_history WHERE tenant_id=$1 AND workpaper_category=$2 ORDER BY date_created DESC LIMIT 60`,
+    isGlobal ? [tenantId] : [tenantId, categoryName]
+  );
+  const edits = editsRes.rows;
+  if (!edits.length) throw new Error(`No, real, actual, edit, history, exists, yet, for, "${categoryName}" — nothing to genuinely learn from yet.`);
+
+  const editsText = edits.map((e, i) =>
+    `${i+1}. [${e.field_type}] Before: "${(e.previous_text||'').slice(0,200)}" → After: "${(e.final_text||'').slice(0,200)}"`
+  ).join('\n');
+
+  const systemPrompt = isGlobal
+    ? `You are analyzing edits an audit firm's own staff have made to test attribute wording, across every real category of workpaper. Synthesize a real, concise, actionable "house style" guide — broad, cross-cutting patterns that hold true regardless of subject matter: tone, structure, common additions, phrasing habits. This is genuinely for another AI system to use as writing guidance, not a document for a human to read casually — be direct and specific, not generic. Respond with ONLY the guide text itself, no preamble, 150 words or fewer.`
+    : `You are analyzing edits an audit firm's own staff have made to test attribute wording, specifically within workpapers categorized as "${categoryName}". Synthesize a real, concise, actionable style guide specific to this category — domain-specific patterns: what kind of evidence or terminology tends to get referenced, common clarifications added, phrasing conventions specific to this subject matter. This is genuinely for another AI system to use as writing guidance, not a document for a human to read casually — be direct and specific, not generic. Respond with ONLY the guide text itself, no preamble, 150 words or fewer.`;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set on the server.');
+  const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 400,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `Recent edits:\n${editsText}` }],
+    }),
+  });
+  const claudeData = await claudeRes.json();
+  if (claudeData.error) throw new Error('Claude style-guide generation failed: ' + claudeData.error.message);
+  const guideText = claudeData.content?.[0]?.text?.trim() || '';
+
+  await pool.query(
+    `INSERT INTO category_style_guides (tenant_id, category_name, guide_text, based_on_edit_count, generated_at)
+     VALUES ($1,$2,$3,$4,NOW())
+     ON CONFLICT (tenant_id, category_name) DO UPDATE SET
+       guide_text=EXCLUDED.guide_text, based_on_edit_count=EXCLUDED.based_on_edit_count, generated_at=NOW()`,
+    [tenantId, categoryName, guideText, edits.length]
+  );
+
+  return { category: categoryName, guideText, editCount: edits.length };
+}
+
+// Real, new route, per explicit request — fetches the real, current
+// style guide (global, plus a specific category if one is provided)
+// for use by any real feature that needs writing guidance —
+// Analyze's own system prompt, or a real, future interactive
+// "suggest wording" feature.
+// Real, new, threshold-check helper, per explicit request — checks
+// whether enough, real, new edits have accumulated in this bucket
+// since its own last generation (or have never been generated at all
+// yet) and regenerates if so. Genuinely self-contained with its own
+// try/catch since it's called fire-and-forget — a failure here must
+// never surface as an unhandled rejection.
+const STYLE_GUIDE_REGEN_THRESHOLD = 15;
+async function _maybeRegenerateStyleGuide(tenantId, categoryName) {
+  try {
+    const isGlobal = categoryName === GLOBAL_STYLE_GUIDE_KEY;
+    const existingRes = await pool.query(
+      `SELECT generated_at FROM category_style_guides WHERE tenant_id=$1 AND category_name=$2`,
+      [tenantId, categoryName]
+    );
+    const sinceClause = existingRes.rows.length ? `AND date_created > $${isGlobal ? 2 : 3}` : '';
+    const countParams = existingRes.rows.length
+      ? (isGlobal ? [tenantId, existingRes.rows[0].generated_at] : [tenantId, categoryName, existingRes.rows[0].generated_at])
+      : (isGlobal ? [tenantId] : [tenantId, categoryName]);
+    const countRes = await pool.query(
+      isGlobal
+        ? `SELECT COUNT(*) AS cnt FROM attribute_edit_history WHERE tenant_id=$1 ${sinceClause}`
+        : `SELECT COUNT(*) AS cnt FROM attribute_edit_history WHERE tenant_id=$1 AND workpaper_category=$2 ${sinceClause}`,
+      countParams
+    );
+    const newEditCount = parseInt(countRes.rows[0]?.cnt || '0', 10);
+    if (newEditCount >= STYLE_GUIDE_REGEN_THRESHOLD) {
+      await _generateCategoryStyleGuide(tenantId, categoryName);
+    }
+  } catch (err) {
+    console.error(`[_maybeRegenerateStyleGuide] Failed for "${categoryName}" (does not affect the real, actual save):`, err.message);
+  }
+}
+
+app.get('/api/category-style-guide/:categoryName?', async (req, res) => {
+  if (!pool) return res.json({ global: null, category: null });
+  try {
+    const categoryName = req.params.categoryName;
+    const keys = categoryName ? [GLOBAL_STYLE_GUIDE_KEY, categoryName] : [GLOBAL_STYLE_GUIDE_KEY];
+    const { rows } = await pool.query(
+      `SELECT category_name, guide_text, based_on_edit_count, generated_at FROM category_style_guides WHERE tenant_id=$1 AND category_name = ANY($2)`,
+      [req.currentTenantId, keys]
+    );
+    const global = rows.find(r => r.category_name === GLOBAL_STYLE_GUIDE_KEY) || null;
+    const category = categoryName ? (rows.find(r => r.category_name === categoryName) || null) : null;
+    res.json({ global, category });
+  } catch(err) { return fail(res, err, 'GET /api/category-style-guide:'); }
+});
+
+// Real, final, Tier 2 (Retrieval), per explicit request — embeds a
+// real draft of attribute text and runs a real, cosine-similarity
+// search scoped to the given category, returning the top-K most
+// similar, real past edits. Correctly, explicitly checks
+// PGVECTOR_AVAILABLE and VOYAGE_API_KEY first, returning a real,
+// clear "not yet configured" response rather than a confusing
+// failure if either real dependency isn't actually set up yet.
+app.post('/api/similar-attribute-edits', aiRateLimit, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  if (!PGVECTOR_AVAILABLE) {
+    return res.status(503).json({ error: 'Retrieval is not yet available — the pgvector extension could not be enabled on this database. See the server startup logs for the real, specific reason.' });
+  }
+  if (!process.env.VOYAGE_API_KEY) {
+    return res.status(503).json({ error: 'Retrieval is not yet available — VOYAGE_API_KEY is not set on the server.' });
+  }
+  const draftText = (req.body.draftText || '').trim();
+  const categoryName = req.body.categoryName || '';
+  const limit = Math.min(Math.max(parseInt(req.body.limit, 10) || 5, 1), 20);
+  if (!draftText) return res.status(400).json({ error: 'draftText is required.' });
+  try {
+    const embedding = await _embedText(draftText, 'query');
+    if (!embedding) return res.status(502).json({ error: 'Could not genuinely embed the real, provided draft text.' });
+    const vectorLiteral = `[${embedding.join(',')}]`;
+    const { rows } = await pool.query(
+      categoryName
+        ? `SELECT workpaper_ref, field_type, previous_text, final_text, attribute_title,
+                  1 - (embedding <=> $1) AS similarity
+           FROM attribute_edit_history
+           WHERE tenant_id=$2 AND workpaper_category=$3 AND embedding IS NOT NULL
+           ORDER BY embedding <=> $1 LIMIT $4`
+        : `SELECT workpaper_ref, field_type, previous_text, final_text, attribute_title,
+                  1 - (embedding <=> $1) AS similarity
+           FROM attribute_edit_history
+           WHERE tenant_id=$2 AND embedding IS NOT NULL
+           ORDER BY embedding <=> $1 LIMIT $3`,
+      categoryName ? [vectorLiteral, req.currentTenantId, categoryName, limit] : [vectorLiteral, req.currentTenantId, limit]
+    );
+    res.json({ ok: true, results: rows });
+  } catch(err) { return fail(res, err, 'POST /api/similar-attribute-edits:'); }
+});
+
+// Real, new, "Guidance" route, per explicit request — the culmination
+// feature combining both real memory tiers (distillation style
+// guides, plus retrieval of similar past edits) with genuinely new
+// web-search grounding for suggesting content that doesn't exist
+// anywhere in the firm's own history yet. Since the backend has no
+// access to the real RCM data (RISKS/CONTROLS live entirely in
+// frontend JS), the frontend passes along the relevant risk context
+// in the request body. A real, domain allow-list restricts web search
+// to authoritative audit/compliance sources, given the professional
+// context this content ultimately supports.
+const GUIDANCE_ALLOWED_DOMAINS = [
+  'coso.org', 'isaca.org', 'aicpa-cima.com', 'aicpa.org', 'pcaobus.org',
+  'nist.gov', 'iso.org', 'sec.gov', 'coso-erm.org',
+];
+
+app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not set on the server.' });
+  const ref = req.params.ref;
+  const knownRiskTitles = Array.isArray(req.body.knownRiskTitles) ? req.body.knownRiskTitles.slice(0, 200) : [];
+  const linkedRiskTitles = Array.isArray(req.body.linkedRiskTitles) ? req.body.linkedRiskTitles.slice(0, 50) : [];
+  const useWebSearch = req.body.useWebSearch !== false; // real, defaults to true
+
+  try {
+    const wpRes = await pool.query(
+      `SELECT name, description, test_attributes, system_inferred_category, type
+       FROM workpapers WHERE tenant_id=$1 AND ref=$2`,
+      [req.currentTenantId, ref]
+    );
+    if (!wpRes.rows.length) return res.status(404).json({ error: 'Workpaper not found: ' + ref });
+    const wp = wpRes.rows[0];
+    const attrs = Array.isArray(wp.test_attributes) ? wp.test_attributes : [];
+    const category = wp.system_inferred_category || '';
+
+    const attrText = attrs.length
+      ? attrs.map((a, i) => `${i+1}. "${a.title || '(untitled)'}" — ${a.desc || ''}`.trim()).join('\n')
+      : '(This workpaper has no test attributes yet.)';
+
+    // Real, Tier 1 (Distillation) — reuses the exact, same category
+    // style guides already built.
+    const guideRes = await pool.query(
+      `SELECT category_name, guide_text FROM category_style_guides WHERE tenant_id=$1 AND category_name = ANY($2)`,
+      [req.currentTenantId, category ? [GLOBAL_STYLE_GUIDE_KEY, category] : [GLOBAL_STYLE_GUIDE_KEY]]
+    );
+    const globalGuide = guideRes.rows.find(r => r.category_name === GLOBAL_STYLE_GUIDE_KEY)?.guide_text || '';
+    const categoryGuide = category ? (guideRes.rows.find(r => r.category_name === category)?.guide_text || '') : '';
+
+    // Real, Tier 2 (Retrieval) — reuses the exact, same embedding
+    // infrastructure already built. Embeds the current attribute set
+    // as one, combined query, since guidance here is about the whole
+    // workpaper, not one, single draft field.
+    let similarExamplesText = '(Not available.)';
+    if (PGVECTOR_AVAILABLE && process.env.VOYAGE_API_KEY && attrs.length) {
+      const queryEmbedding = await _embedText(attrText, 'query');
+      if (queryEmbedding) {
+        const vectorLiteral = `[${queryEmbedding.join(',')}]`;
+        const simRes = await pool.query(
+          category
+            ? `SELECT attribute_title, final_text FROM attribute_edit_history
+               WHERE tenant_id=$1 AND workpaper_category=$2 AND workpaper_ref != $3 AND embedding IS NOT NULL
+               ORDER BY embedding <=> $4 LIMIT 8`
+            : `SELECT attribute_title, final_text FROM attribute_edit_history
+               WHERE tenant_id=$1 AND workpaper_ref != $2 AND embedding IS NOT NULL
+               ORDER BY embedding <=> $3 LIMIT 8`,
+          category ? [req.currentTenantId, category, ref, vectorLiteral] : [req.currentTenantId, ref, vectorLiteral]
+        );
+        if (simRes.rows.length) {
+          similarExamplesText = simRes.rows.map(r => `- "${r.attribute_title}": ${r.final_text}`).join('\n');
+        }
+      }
+    }
+
+    const systemPrompt = `You are an internal audit assistant helping staff at an audit firm improve a specific workpaper's test attributes. Provide four, distinct kinds of guidance, ONLY when genuinely warranted by the real, actual context — do not force a suggestion into a category if you have nothing real to offer there:
+
+1. wordingPhrases — general phrasing/terminology this firm favors, drawn from the style guides below, that could improve THIS workpaper's wording. Not tied to a specific attribute.
+2. wordingChanges — specific rewrite suggestions for an EXISTING attribute already on this workpaper. Reference the exact attribute title.
+3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test. Each needs a title and a draft description.
+4. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance.
+
+Respond with ONLY a JSON object, no other text, in exactly this shape:
+{"wordingPhrases": [""], "wordingChanges": [{"attributeTitle": "", "suggestion": ""}], "newAttributes": [{"title": "", "description": ""}], "newRisks": [{"title": "", "description": "", "alreadyInFirmList": true}]}
+Any array can genuinely be empty if there's nothing real to suggest for that category.`;
+
+    const userMessage = `Workpaper: ${wp.name || '(untitled)'} — Category: ${category || '(not yet classified)'} — Type: ${wp.type || ''}
+Description: ${wp.description || '(none)'}
+
+Current test attributes:
+${attrText}
+
+Firm-wide house style (all categories):
+${globalGuide || '(No global style guide generated yet.)'}
+
+House style specific to this category:
+${categoryGuide || '(No category-specific style guide generated yet.)'}
+
+Similar attributes from other, real workpapers at this firm:
+${similarExamplesText}
+
+Risks already linked to this workpaper: ${linkedRiskTitles.length ? linkedRiskTitles.join(', ') : '(none linked)'}
+Risks known in the firm's own risk list (for checking whether a suggested risk already exists there): ${knownRiskTitles.length ? knownRiskTitles.join(', ') : '(none provided)'}`;
+
+    const requestBody = {
+      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+    };
+    if (useWebSearch) {
+      requestBody.tools = [{ type: 'web_search_20260209', name: 'web_search', allowed_domains: GUIDANCE_ALLOWED_DOMAINS }];
+    }
+
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(requestBody),
+    });
+    const claudeData = await claudeRes.json();
+    if (claudeData.error) return res.status(502).json({ error: 'Claude guidance generation failed: ' + claudeData.error.message });
+
+    // Real, when web search is genuinely used, the response can
+    // contain multiple content blocks (tool use, tool result, text)
+    // — the real, final answer is the LAST text block, not
+    // necessarily content[0].
+    const textBlocks = (claudeData.content || []).filter(b => b.type === 'text');
+    const rawText = textBlocks.length ? textBlocks[textBlocks.length - 1].text : '{}';
+
+    let parsed;
+    try {
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText);
+    } catch (parseErr) {
+      return res.status(502).json({ error: 'Could not parse the real, actual guidance response.' });
+    }
+
+    res.json({
+      ok: true,
+      wordingPhrases: Array.isArray(parsed.wordingPhrases) ? parsed.wordingPhrases : [],
+      wordingChanges: Array.isArray(parsed.wordingChanges) ? parsed.wordingChanges : [],
+      newAttributes: Array.isArray(parsed.newAttributes) ? parsed.newAttributes : [],
+      newRisks: Array.isArray(parsed.newRisks) ? parsed.newRisks : [],
+    });
+  } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/guidance:'); }
+});
+
+app.post('/api/workpapers/:ref/classify-category', aiRateLimit, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const result = await _classifyWorkpaperCategory(req.currentTenantId, req.params.ref);
+    res.json({ ok: true, ...result });
+  } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/classify-category:'); }
 });
 
 // Direct diagnostic: lists every route Express has ACTUALLY registered
@@ -2723,8 +3537,21 @@ app.get('/api/audits/:name/access-check', async (req, res) => {
 
 app.get('/api/audits', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM audits WHERE tenant_id=$1 ORDER BY created_at', [req.currentTenantId]); res.json(rows); }
-  catch(err) { return fail(res, err, 'api'); }
+  try {
+    const { rows } = await pool.query(`
+      SELECT a.*, COALESCE(fs.fs_account_ids, '[]'::jsonb) AS linked_fs_accounts
+      FROM audits a
+      LEFT JOIN (
+        SELECT tenant_id, audit_name, jsonb_agg(fs_account_id) AS fs_account_ids
+        FROM audit_fs_accounts
+        WHERE tenant_id=$1
+        GROUP BY tenant_id, audit_name
+      ) fs ON fs.tenant_id = a.tenant_id AND fs.audit_name = a.name
+      WHERE a.tenant_id=$1 ORDER BY a.created_at`,
+      [req.currentTenantId]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'api'); }
 });
 
 app.post('/api/audits', async (req, res) => {
@@ -2768,6 +3595,13 @@ app.patch('/api/audits/:oldName', async (req, res) => {
       // Update workpapers that referenced the old audit name
       await pool.query(`UPDATE workpapers SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
         [name, req.currentTenantId, oldName]);
+      // Real, correct fix — also reassigns this audit's own linked FS
+      // accounts in the new dedicated table, matching the exact,
+      // established pattern for workpapers right above; without this
+      // a rename would genuinely orphan them under a name that no
+      // longer exists.
+      await pool.query(`UPDATE audit_fs_accounts SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
+        [name, req.currentTenantId, oldName]);
       await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [req.currentTenantId, oldName]);
     } else {
       await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
@@ -2782,6 +3616,32 @@ app.patch('/api/audits/:oldName', async (req, res) => {
   } catch(err) {
     await pool.query('ROLLBACK');
     return fail(res, err, '[API] audit rename error:');
+  }
+});
+
+// Real, new, dedicated route, per explicit request — replaces an
+// audit's entire, real set of linked FS accounts in the new dedicated
+// table. Wrapped in a real transaction (delete existing, then bulk
+// insert new) so a failure partway through can't leave the real set
+// in a half-replaced state.
+app.post('/api/audits/:name/fs-accounts', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const auditName = req.params.name;
+  const ids = Array.isArray(req.body.fsAccountIds) ? req.body.fsAccountIds : [];
+  try {
+    await pool.query('BEGIN');
+    await pool.query('DELETE FROM audit_fs_accounts WHERE tenant_id=$1 AND audit_name=$2', [req.currentTenantId, auditName]);
+    for (const id of ids) {
+      await pool.query(
+        'INSERT INTO audit_fs_accounts (tenant_id, audit_name, fs_account_id) VALUES ($1,$2,$3) ON CONFLICT (tenant_id, audit_name, fs_account_id) DO NOTHING',
+        [req.currentTenantId, auditName, id]
+      );
+    }
+    await pool.query('COMMIT');
+    res.json({ ok: true, count: ids.length });
+  } catch(err) {
+    await pool.query('ROLLBACK');
+    return fail(res, err, 'POST /api/audits/:name/fs-accounts:');
   }
 });
 
@@ -3184,6 +4044,48 @@ app.post('/api/auth/acknowledge-consent', async (req, res) => {
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'POST /api/auth/acknowledge-consent:'); }
+});
+
+// Real, new routes, per explicit request — supports the real, new Risk
+// Linkages view. GET returns every, real, control's own, actual
+// effectiveness rating for the current tenant in one, bulk fetch,
+// since the real, new page needs this for every control at once, not
+// one at a time. POST saves a real, single control's own rating.
+app.get('/api/control-effectiveness', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      'SELECT control_id, design_rating, operating_rating, notes, rated_by, date_updated FROM control_effectiveness_ratings WHERE tenant_id=$1',
+      [req.currentTenantId]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/control-effectiveness:'); }
+});
+
+app.post('/api/control-effectiveness/:controlId', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { designRating, operatingRating, notes } = req.body;
+  // Real, genuine validation — the real, database CHECK constraint would
+  // also, correctly, reject an out-of-range value, but surfacing this
+  // directly here gives a real, clear, specific error rather than a
+  // generic database failure.
+  if (designRating != null && (designRating < 1 || designRating > 3)) {
+    return res.status(400).json({ error: 'designRating must genuinely be between 1 and 3.' });
+  }
+  if (operatingRating != null && (operatingRating < 1 || operatingRating > 3)) {
+    return res.status(400).json({ error: 'operatingRating must genuinely be between 1 and 3.' });
+  }
+  try {
+    await pool.query(
+      `INSERT INTO control_effectiveness_ratings (tenant_id, control_id, design_rating, operating_rating, notes, rated_by, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+       ON CONFLICT (tenant_id, control_id) DO UPDATE SET
+         design_rating=EXCLUDED.design_rating, operating_rating=EXCLUDED.operating_rating,
+         notes=EXCLUDED.notes, rated_by=EXCLUDED.rated_by, date_updated=NOW()`,
+      [req.currentTenantId, req.params.controlId, designRating ?? null, operatingRating ?? null, notes || '', req.currentUser?.login_id || '']
+    );
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'POST /api/control-effectiveness/:controlId:'); }
 });
 
 // Real, new, small, public route exposing DEFAULT_TENANT_ID — needed so
@@ -3880,6 +4782,64 @@ app.get('/api/workpapers', async (req, res) => {
   catch(err) { return fail(res, err, 'api'); }
 });
 
+// Real, new helper, per explicit request — genuinely, compares a
+// workpaper's own previous and new test_attributes arrays, matched by
+// index (attributes don't carry a stable id of their own), and logs
+// one, real row per field that actually changed. Wrapped entirely in
+// its own try/catch so a real logging failure can never break the
+// primary workpaper save that calls it. Skips a field that's genuinely
+// empty in its final state — an edit that clears a field to nothing
+// isn't useful "what does good wording look like" signal.
+async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAttrs, newAttrs, editedBy, workpaperCategory) {
+  if (!pool) return;
+  // Real, explicit, application-level guard, per explicit request —
+  // matches the real, database-level foreign-key constraint added
+  // above, so the real requirement that every edit be genuinely tied
+  // to a real tenant is explicit and self-documenting here too, not
+  // just enforced silently by the database rejecting a bad insert.
+  if (!tenantId) {
+    console.error('[_logAttributeEdits] Refusing to log — no real, actual tenantId provided for ref:', ref);
+    return;
+  }
+  try {
+    const fields = ['title', 'desc', 'additionalInfo', 'successCriteria', 'failureCriteria'];
+    for (let i = 0; i < (newAttrs || []).length; i++) {
+      const oldA = (oldAttrs || [])[i] || {};
+      const newA = newAttrs[i] || {};
+      for (const field of fields) {
+        const oldVal = oldA[field] || '';
+        const newVal = newA[field] || '';
+        if (oldVal === newVal || !newVal.trim()) continue;
+        const insertRes = await pool.query(
+          `INSERT INTO attribute_edit_history
+             (tenant_id, workpaper_ref, workpaper_type, audit_type, workpaper_category, attribute_index, attribute_title, field_type, previous_text, final_text, edited_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+          [tenantId, ref, workpaperType || '', auditType || '', workpaperCategory || '', i, newA.title || '', field, oldVal, newVal, editedBy || '']
+        );
+        // Real, Tier 2 (Retrieval), per explicit request — genuinely,
+        // deliberately NOT awaited, so a real, external Voyage API
+        // call never adds latency to an ordinary save, even when
+        // several fields changed in one save (which would otherwise
+        // mean several, real, sequential embedding calls). Silently
+        // does nothing if PGVECTOR_AVAILABLE is false or
+        // VOYAGE_API_KEY isn't set — _embedText itself already
+        // returns null in that case.
+        const rowId = insertRes.rows[0]?.id;
+        if (rowId && PGVECTOR_AVAILABLE) {
+          _embedText(newVal, 'document').then(embedding => {
+            if (embedding) {
+              pool.query(`UPDATE attribute_edit_history SET embedding=$1 WHERE id=$2`, [`[${embedding.join(',')}]`, rowId])
+                .catch(e => console.error('[_logAttributeEdits] Could not save embedding for row', rowId, ':', e.message));
+            }
+          }).catch(e => console.error('[_logAttributeEdits] Embedding generation failed for row', rowId, ':', e.message));
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[_logAttributeEdits] Logging failed (does not affect the real, actual save):', err.message);
+  }
+}
+
 app.post('/api/workpapers', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const {
@@ -3897,9 +4857,26 @@ app.post('/api/workpapers', async (req, res) => {
     toc_period_from_mmyyyy, toc_period_to_mmyyyy,
     population_source, population_size, population_completeness_desc,
     toc_sample_size, sample_selection_method, mt_entity_name, mt_itgc_ref,
-    wp_style, template_used
+    wp_style, template_used, user_selected_category
   } = req.body;
   if (!ref) return res.status(400).json({ error: 'ref required' });
+  // Real, new — fetches the workpaper's own, existing test_attributes
+  // and resolves the real, current audit's own type, per explicit
+  // request, BEFORE the save runs, so there's a real "before" state to
+  // diff the incoming one against once the save itself completes.
+  let _priorAttrs = [];
+  let _resolvedAuditType = '';
+  let _currentCategory = '';
+  try {
+    const priorRes = await pool.query('SELECT test_attributes, system_inferred_category, user_selected_category FROM workpapers WHERE tenant_id=$1 AND ref=$2', [req.currentTenantId, ref]);
+    _priorAttrs = priorRes.rows[0]?.test_attributes || [];
+    // Real, prefers the real, system-inferred category, falling back to
+    // the real, user-selected one — matching the real, established
+    // priority already used elsewhere for this exact pair of fields.
+    _currentCategory = priorRes.rows[0]?.system_inferred_category || priorRes.rows[0]?.user_selected_category || '';
+    const auditRes = await pool.query('SELECT type FROM audits WHERE tenant_id=$1 AND name=$2', [req.currentTenantId, audit_name || '']);
+    _resolvedAuditType = auditRes.rows[0]?.type || '';
+  } catch (e) { /* real, genuinely, non-fatal — logging is best-effort; the actual save below still proceeds normally */ }
   try {
     await pool.query(`INSERT INTO workpapers
         (tenant_id,ref,audit_name,name,type,status,results,preparer,reviewer,secondary_reviewer,
@@ -3912,11 +4889,12 @@ app.post('/api/workpapers', async (req, res) => {
          toc_inquiry_performed,toc_observation_performed,toc_reperformance_performed,
          toc_period_from_mmyyyy,toc_period_to_mmyyyy,
          population_source,population_size,population_completeness_desc,
-         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,template_used,updated_at)
+         toc_sample_size,sample_selection_method,mt_entity_name,mt_itgc_ref,wp_style,template_used,
+         user_selected_category,updated_at)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
               $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,
               $32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,
-              $44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,NOW())
+              $44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,NOW())
       ON CONFLICT (tenant_id,ref) DO UPDATE SET
         audit_name=EXCLUDED.audit_name, name=EXCLUDED.name, type=EXCLUDED.type,
         status=EXCLUDED.status, results=EXCLUDED.results,
@@ -3960,6 +4938,7 @@ app.post('/api/workpapers', async (req, res) => {
         toc_sample_size=EXCLUDED.toc_sample_size, sample_selection_method=EXCLUDED.sample_selection_method,
         mt_entity_name=EXCLUDED.mt_entity_name, mt_itgc_ref=EXCLUDED.mt_itgc_ref,
         wp_style=EXCLUDED.wp_style, template_used=EXCLUDED.template_used,
+        user_selected_category=EXCLUDED.user_selected_category,
         updated_at=NOW()`,
       [req.currentTenantId, ref, audit_name||'', name||'', type||'', status||'draft', results||'',
        preparer||'', reviewer||'', secondary_reviewer||'',
@@ -3978,8 +4957,40 @@ app.post('/api/workpapers', async (req, res) => {
        !!toc_inquiry_performed, !!toc_observation_performed, !!toc_reperformance_performed,
        toc_period_from_mmyyyy||'', toc_period_to_mmyyyy||'',
        population_source||'', population_size||'', population_completeness_desc||'',
-       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full', template_used||null
+       toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full', template_used||null,
+       user_selected_category||''
       ]);
+    // Real, new, per explicit request — diffs the prior state fetched
+    // above against the incoming test_attributes and logs whatever
+    // genuinely changed. Entirely non-blocking to the real, actual
+    // save's own success — see the helper's own try/catch above.
+    await _logAttributeEdits(req.currentTenantId, ref, type, _resolvedAuditType, _priorAttrs, test_attributes || [], req.currentUser?.login_id, _currentCategory);
+
+    // Real, new, automatic classification trigger, per explicit
+    // request — the classification route/logic already existed
+    // correctly, but genuinely had zero callers anywhere in the
+    // codebase; categorization only ever happened if someone manually
+    // hit that route, which nothing did. Fires only when
+    // test_attributes genuinely changed in this save (reusing the
+    // exact, same before/after comparison as the edit-history logging
+    // above). Deliberately NOT awaited — a real, external Claude API
+    // call has real network latency that would noticeably slow down
+    // every, ordinary save that touches attributes if the response
+    // waited on it. A genuine classification failure is logged but
+    // can never affect the primary save's own success.
+    if (JSON.stringify(_priorAttrs) !== JSON.stringify(test_attributes || [])) {
+      _classifyWorkpaperCategory(req.currentTenantId, ref).catch(err => {
+        console.error('[POST /api/workpapers] Automatic category classification failed (does not affect the real, actual save):', err.message);
+      });
+      // Real, new, Tier 1 (Distillation) automatic trigger, per
+      // explicit request — checks whether enough, real, new edits
+      // have accumulated since the last generation for this
+      // category (and separately the global bucket), and
+      // regenerates the real, style guide if so. Same, non-blocking,
+      // fire-and-forget pattern as the classification trigger above.
+      if (_currentCategory) _maybeRegenerateStyleGuide(req.currentTenantId, _currentCategory);
+      _maybeRegenerateStyleGuide(req.currentTenantId, GLOBAL_STYLE_GUIDE_KEY);
+    }
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
 });
