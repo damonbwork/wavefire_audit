@@ -1609,6 +1609,86 @@ async function ensureWorkpaperIdBackfilled() {
 }
 ensureWorkpaperIdBackfilled();
 
+// Real, new tables, per explicit request — platform_settings is
+// genuinely global, not per-tenant, since superadmin is itself a
+// platform-wide role spanning every tenant; the AI unit conversion
+// factor makes sense as one, single, platform-wide rate, not a
+// separate number per tenant. Defaults to 70000 tokens per unit,
+// matching what was explicitly requested.
+async function ensurePlatformSettingsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS platform_settings (
+        id                      BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+        ai_unit_token_factor    INTEGER NOT NULL DEFAULT 70000,
+        updated_at              TIMESTAMPTZ DEFAULT NOW(),
+        updated_by              TEXT DEFAULT ''
+      );
+    `);
+    // Real, the CHECK(id) trick above genuinely, deliberately allows
+    // only ever one, single row to exist in this table — a real,
+    // simple way to enforce "exactly one, global settings row" at the
+    // database level, rather than relying on application code to
+    // remember never to insert a second one.
+    await pool.query(`INSERT INTO platform_settings (id) VALUES (true) ON CONFLICT (id) DO NOTHING`);
+    console.log('DB: platform_settings confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone platform_settings check FAILED:', err.message, err.code);
+  }
+}
+ensurePlatformSettingsTable();
+
+// Real, new table, per explicit request — stores raw, per-request
+// token and web-search counts, deliberately NOT pre-converted to AI
+// Units, so the real, actual conversion can always be correctly
+// recalculated from this real, underlying data if the factor is ever
+// changed later, rather than every historical row being permanently
+// stuck with a number computed under whatever rate happened to be
+// set at the time.
+async function ensureAiUsageLogTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_usage_log (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id       TEXT NOT NULL,
+        user_login_id   TEXT NOT NULL DEFAULT '',
+        feature         TEXT NOT NULL,
+        input_tokens    INTEGER NOT NULL DEFAULT 0,
+        output_tokens   INTEGER NOT NULL DEFAULT 0,
+        web_searches    INTEGER NOT NULL DEFAULT 0,
+        date_created    TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_usage_log_user ON ai_usage_log (user_login_id, date_created)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_usage_log_tenant ON ai_usage_log (tenant_id, date_created)`);
+    console.log('DB: ai_usage_log confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone ai_usage_log check FAILED:', err.message, err.code);
+  }
+}
+ensureAiUsageLogTable();
+
+// Real, new shared helper, per explicit request — a single, reusable
+// function called from every, real place this app actually calls
+// Claude, so usage genuinely gets tracked consistently everywhere,
+// not just in one feature. Deliberately, never throws — a real
+// logging failure must never break the actual feature that triggered
+// it; this is observability, not a critical path.
+async function _logAiUsage(tenantId, userLoginId, feature, claudeUsage) {
+  if (!pool || !claudeUsage) return;
+  try {
+    await pool.query(
+      `INSERT INTO ai_usage_log (tenant_id, user_login_id, feature, input_tokens, output_tokens, web_searches)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [tenantId || '', userLoginId || '', feature, claudeUsage.input_tokens || 0, claudeUsage.output_tokens || 0, claudeUsage.server_tool_use?.web_search_requests || 0]
+    );
+  } catch (err) {
+    console.error('[_logAiUsage] Could not log AI usage for feature', feature, ':', err.message);
+  }
+}
+
 // Real, new migration, per explicit request — migrates
 // attribute_edit_history to the exact, same proven workpaper_id
 // pattern already used by four other tables in this app
@@ -2530,6 +2610,103 @@ async function requireSuperAdmin(req, res, next) {
   next();
 }
 
+// Real, new routes, per explicit request — the AI unit conversion
+// factor is genuinely a platform-wide setting, correctly above the
+// tenant level (confirmed directly), not a per-tenant one, so these
+// use requireSuperAdmin rather than the ordinary tenant-scoped
+// pattern used elsewhere in this app.
+app.get('/api/admin/ai-unit-factor', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(`SELECT ai_unit_token_factor, updated_at, updated_by FROM platform_settings WHERE id=true`);
+    res.json(rows[0] || { ai_unit_token_factor: 70000, updated_at: null, updated_by: '' });
+  } catch(err) { return fail(res, err, 'GET /api/admin/ai-unit-factor:'); }
+});
+
+app.patch('/api/admin/ai-unit-factor', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const newFactor = parseInt(req.body.ai_unit_token_factor, 10);
+  if (!Number.isFinite(newFactor) || newFactor <= 0) {
+    return res.status(400).json({ error: 'ai_unit_token_factor must be a real, positive whole number.' });
+  }
+  try {
+    await pool.query(
+      `UPDATE platform_settings SET ai_unit_token_factor=$1, updated_at=NOW(), updated_by=$2 WHERE id=true`,
+      [newFactor, req.currentUser.login_id || '']
+    );
+    res.json({ ok: true, ai_unit_token_factor: newFactor });
+  } catch(err) { return fail(res, err, 'PATCH /api/admin/ai-unit-factor:'); }
+});
+
+// Real, new route, per explicit request — aggregates raw token and
+// search counts per user, computing AI Units from the real, CURRENT
+// conversion factor at query time, never from a stale value baked in
+// when each row was originally logged — so changing the factor later
+// correctly recalculates every, real historical total, not just new
+// usage going forward.
+app.get('/api/admin/ai-usage-by-user', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const factorRes = await pool.query(`SELECT ai_unit_token_factor FROM platform_settings WHERE id=true`);
+    const factor = factorRes.rows[0]?.ai_unit_token_factor || 70000;
+    const { rows } = await pool.query(`
+      SELECT user_login_id, tenant_id,
+             SUM(input_tokens) AS total_input_tokens,
+             SUM(output_tokens) AS total_output_tokens,
+             SUM(web_searches) AS total_web_searches,
+             COUNT(*) AS total_requests
+      FROM ai_usage_log
+      GROUP BY user_login_id, tenant_id
+      ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
+    `);
+    const results = rows.map(r => {
+      const totalTokens = parseInt(r.total_input_tokens, 10) + parseInt(r.total_output_tokens, 10);
+      return {
+        userLoginId: r.user_login_id, tenantId: r.tenant_id,
+        totalTokens, totalWebSearches: parseInt(r.total_web_searches, 10),
+        totalRequests: parseInt(r.total_requests, 10),
+        aiUnits: Math.round((totalTokens / factor) * 100) / 100,
+      };
+    });
+    res.json({ aiUnitTokenFactor: factor, usage: results });
+  } catch(err) { return fail(res, err, 'GET /api/admin/ai-usage-by-user:'); }
+});
+
+// Real, new route, per explicit request — for the top-right display,
+// accessible to any authenticated user, showing only their own usage
+// by default. Critically, the optional loginId override is only
+// honored for a real superadmin — an ordinary user passing a
+// different id in the URL is genuinely, always forced back to their
+// own usage regardless of what they pass in, preventing a real
+// privacy gap where anyone could otherwise see any other user's own
+// AI usage just by editing a query parameter. Computes both
+// month-to-date and year-to-date in a single query via conditional
+// aggregation, rather than two separate round-trips.
+app.get('/api/my-ai-usage', async (req, res) => {
+  if (!req.currentUser) return res.status(401).json({ error: 'Not authenticated.' });
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const requestedLoginId = req.query.loginId;
+  const targetLoginId = (requestedLoginId && req.currentUser.is_superadmin) ? requestedLoginId : req.currentUser.login_id;
+  try {
+    const factorRes = await pool.query(`SELECT ai_unit_token_factor FROM platform_settings WHERE id=true`);
+    const factor = factorRes.rows[0]?.ai_unit_token_factor || 70000;
+    const { rows } = await pool.query(`
+      SELECT
+        SUM(CASE WHEN date_created >= date_trunc('month', NOW()) THEN input_tokens + output_tokens ELSE 0 END) AS mtd_tokens,
+        SUM(CASE WHEN date_created >= date_trunc('year', NOW()) THEN input_tokens + output_tokens ELSE 0 END) AS ytd_tokens
+      FROM ai_usage_log WHERE user_login_id=$1
+    `, [targetLoginId]);
+    const mtdTokens = parseInt(rows[0]?.mtd_tokens, 10) || 0;
+    const ytdTokens = parseInt(rows[0]?.ytd_tokens, 10) || 0;
+    res.json({
+      loginId: targetLoginId,
+      aiUnitTokenFactor: factor,
+      mtdAiUnits: Math.round((mtdTokens / factor) * 100) / 100,
+      ytdAiUnits: Math.round((ytdTokens / factor) * 100) / 100,
+    });
+  } catch(err) { return fail(res, err, 'GET /api/my-ai-usage:'); }
+});
+
 // ── Control Categories API ────────────────────────────────────────────────────
 app.get('/api/control-categories', async (req, res) => {
   if (!pool) return res.json([]);
@@ -2715,6 +2892,12 @@ ${attrText}`;
   });
   const claudeData = await claudeRes.json();
   if (claudeData.error) throw new Error('Claude classification failed: ' + claudeData.error.message);
+  // Real, new usage logging, per explicit request — this is a real,
+  // background function with no individual acting user (an automatic
+  // system-triggered classification, not a direct user action), so
+  // it's honestly logged as "system" rather than fabricating an
+  // attribution to a person who didn't actually trigger it.
+  _logAiUsage(tenantId, 'system', 'classification', claudeData.usage);
 
   let parsed;
   try {
@@ -2781,6 +2964,10 @@ async function _generateCategoryStyleGuide(tenantId, categoryName) {
   });
   const claudeData = await claudeRes.json();
   if (claudeData.error) throw new Error('Claude style-guide generation failed: ' + claudeData.error.message);
+  // Real, new usage logging, per explicit request — the exact, same
+  // treatment as classification, a real, automatic background
+  // function with no individual acting user.
+  _logAiUsage(tenantId, 'system', 'style-guide', claudeData.usage);
   const guideText = claudeData.content?.[0]?.text?.trim() || '';
 
   await pool.query(
@@ -3036,10 +3223,12 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
 
 1. wordingPhrases — general phrasing/terminology this firm favors, drawn from the style guides below, that could improve THIS workpaper's wording. Not tied to a specific attribute. Always grounded in this firm's own, real, internal history — never web search.
 2. wordingChanges — specific rewrite suggestions for an EXISTING attribute already on this workpaper. Reference the exact attribute title. Always grounded in this firm's own, real, internal history — never web search.
-3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test, and current external guidance where genuinely relevant. Each needs a title, a draft description, and an evidenceSource — "internal" if drawn from this firm's own similar examples, "external" if drawn from web search, "both" if genuinely supported by both.
+3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test, and current external guidance. Each needs a title, a draft description, and an evidenceSource — "internal" if drawn from this firm's own similar examples, "external" if drawn from web search, "both" if genuinely supported by both.
 4. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance. Include the same, real evidenceSource field as newAttributes.
 
 Be honest and precise about evidenceSource — never mark something "internal" just because it sounds plausible; only when it genuinely, actually came from the similar-examples data provided below, not from general knowledge or web search.
+
+Actively use the web_search tool before answering — genuinely search for what this specific type of workpaper typically tests (based on its name, category, and description below), the way a real, thorough auditor would look this up themselves, rather than relying only on your own general training knowledge. Run more than one search if the first doesn't turn up enough — a single narrow query is often not enough to genuinely cover a real audit topic well. This instruction is about genuinely putting in the effort to search, not about lowering the bar for what counts as a real suggestion — the "only when genuinely warranted" rule above still, fully applies to what you actually recommend once you've looked.
 
 Web search is not restricted to any fixed set of sites — you may search anywhere. When a newAttributes or newRisks suggestion has evidenceSource "external" or "both", also include isAuthoritativeSource (true/false) and, only when genuinely true, sourceUrl and sourceName. A source is genuinely authoritative when it's a recognized professional standards body, regulator, or similar official publisher — examples include COSO, ISACA, AICPA, PCAOB, NIST, ISO, and the SEC, but any comparably official body counts too. An ordinary website, blog, forum post, or general news article is NOT authoritative, even if it's genuinely where the idea came from — in that case set isAuthoritativeSource to false and leave sourceUrl and sourceName empty. Never fabricate a URL and never claim authoritativeness for a source that isn't genuinely one — an honest "not authoritative, no link" is always correct over a confident guess.
 
@@ -3066,7 +3255,7 @@ Risks already linked to this workpaper: ${linkedRiskTitles.length ? linkedRiskTi
 Risks known in the firm's own risk list (for checking whether a suggested risk already exists there): ${knownRiskTitles.length ? knownRiskTitles.join(', ') : '(none provided)'}`;
 
     const requestBody = {
-      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      model: 'claude-sonnet-4-6', max_tokens: 50000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
     };
@@ -3081,6 +3270,11 @@ Risks known in the firm's own risk list (for checking whether a suggested risk a
     });
     const claudeData = await claudeRes.json();
     if (claudeData.error) return res.status(502).json({ error: 'Claude guidance generation failed: ' + claudeData.error.message });
+    // Real, new usage logging, per explicit request — captures the
+    // real, actual usage data Claude itself returns for this request.
+    // Fires without blocking the real response — logging must never
+    // add latency to the actual feature it's observing.
+    _logAiUsage(req.currentTenantId, req.currentUser?.login_id, 'guidance', claudeData.usage);
 
     // Real, when web search is genuinely used, the response can
     // contain multiple content blocks (tool use, tool result, text)
@@ -3731,6 +3925,10 @@ app.get('/api/test', aiRateLimit, async (req, res) => {
         type:   data.error.type
       });
     }
+    // Real, new usage logging, per explicit request — a real, small
+    // diagnostic route, but still genuinely worth tracking for
+    // complete coverage.
+    _logAiUsage(req.currentTenantId, req.currentUser?.login_id, 'test-diagnostic', data.usage);
     const reply = data.content?.[0]?.text || '(no text)';
     res.json({ ok: true, claude_replied: reply, model: data.model });
   } catch (err) {
@@ -3762,6 +3960,11 @@ app.post('/api/claude', express.json({ limit: CLAUDE_PROXY_BODY_LIMIT }), async 
       body: JSON.stringify(req.body),
     });
     const data = await response.json();
+    // Real, new usage logging, per explicit request — this is likely
+    // the real, highest-volume call site of all, given its own
+    // purpose powering the Analyze feature's own workpaper-level
+    // testing.
+    _logAiUsage(req.currentTenantId, req.currentUser?.login_id, 'claude-proxy', data.usage);
     res.status(response.status).json(data);
   } catch (err) {
     console.error('Claude API error:', err.message);
@@ -6395,6 +6598,12 @@ app.post('/api/ai/analyze', express.json({ limit: AI_ANALYZE_BODY_LIMIT }), aiRa
       });
       const antData = await antRes.json();
       if (!antRes.ok) return res.status(antRes.status).json({ error: antData.error?.message || 'Anthropic API error' });
+      // Real, new usage logging, per explicit request — genuinely
+      // only correct for this, real Anthropic-specific branch; Azure
+      // and OpenAI (also supported elsewhere in this same route)
+      // return a completely different response shape this helper
+      // isn't built to parse.
+      _logAiUsage(req.currentTenantId, req.currentUser?.login_id, 'analyze', antData.usage);
       return res.json({ ...antData, provider:'anthropic' });
     }
   } catch(err) { return fail(res, err, 'api'); }
