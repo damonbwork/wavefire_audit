@@ -888,6 +888,11 @@
              _currentDisplayUser is genuinely, correctly established. -->
         <span id="wf-current-tenant-label" onclick="toggleTenantSwitcher(event)"
           style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
+        <!-- Real, new AI Units display, per explicit request — right
+             alongside the existing userID and tenant labels, matching
+             their own established visual size and style. -->
+        <span id="wf-ai-units-label" title="Your AI usage this month and this year"
+          style="display:block;text-align:center;font-size:8px;font-weight:500;color:rgba(255,255,255,0.55);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px"></span>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
         <div id="wf-user-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
@@ -14305,10 +14310,29 @@ function _admCurrentUserName() {
   return `${_currentDisplayUser.first_name || ''} ${_currentDisplayUser.last_name || ''}`.trim() || _currentDisplayUser.email || 'Unknown user';
 }
 
+// Real, new shared helper, per explicit request — a single function
+// called from every, real place the userID label itself gets set,
+// rather than duplicating fetch logic across four separate sites.
+// Fails silently on error — this is a real, small informational
+// display and should never block or disrupt the actual login or
+// navigation flow it's attached to.
+async function _loadMyAiUsage(loginId) {
+  const labelEl = document.getElementById('wf-ai-units-label');
+  if (!labelEl) return;
+  try {
+    const url = loginId ? '/api/my-ai-usage?loginId=' + encodeURIComponent(loginId) : '/api/my-ai-usage';
+    const res = await fetch(url);
+    if (!res.ok) { labelEl.textContent = ''; return; }
+    const data = await res.json();
+    labelEl.textContent = `MTD ${data.mtdAiUnits} · YTD ${data.ytdAiUnits} units`;
+  } catch(e) { labelEl.textContent = ''; }
+}
+
 function selectSwitcherUser(userId, label) {
   const labelEl = document.getElementById('wf-current-userid-label');
   if (labelEl) labelEl.textContent = label;
   _currentDisplayUser = (_userSwitcherAllUsers || []).find(function(u){ return u.user_id === userId; }) || null;
+  _loadMyAiUsage(_currentDisplayUser?.login_id);
   _applySuperAdminTenantSwitcherUI();
   const panel = document.getElementById('wf-user-switcher-panel');
   if (panel) panel.style.display = 'none';
@@ -31650,6 +31674,7 @@ async function _bootstrapDirectUrlAccess() {
     if (labelEl && realUser) {
       labelEl.textContent = `${realUser.first_name || ''} ${realUser.last_name || ''}`.trim() || realUser.email || realUser.login_id || 'Unknown user';
     }
+    _loadMyAiUsage(realUser?.login_id);
     const adminNavEl = document.getElementById('nav-admin');
     if (adminNavEl) adminNavEl.style.display = (realUser && realUser.is_superadmin) ? '' : 'none';
     _applySuperAdminTenantSwitcherUI();
@@ -31878,6 +31903,7 @@ async function _doRealLogin() {
     if (labelEl) {
       labelEl.textContent = `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim() || data.user.email || data.user.login_id || 'Unknown user';
     }
+    _loadMyAiUsage(data.user?.login_id);
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = (data.user && data.user.is_superadmin) ? '' : 'none';
     _applySuperAdminTenantSwitcherUI();
@@ -32074,6 +32100,7 @@ async function _reverifySessionTenantAndUser() {
     if (labelEl) {
       labelEl.textContent = `${realUser.first_name || ''} ${realUser.last_name || ''}`.trim() || realUser.email || realUser.login_id || 'Unknown user';
     }
+    _loadMyAiUsage(realUser?.login_id);
     const adminNav = document.getElementById('nav-admin');
     if (adminNav) adminNav.style.display = realUser.is_superadmin ? '' : 'none';
     _applySuperAdminTenantSwitcherUI();
