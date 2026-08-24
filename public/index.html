@@ -4677,10 +4677,16 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
         <div>
-          <div style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Guidance</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Attribute Guidance</div>
           <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Attribute suggestions based on this organization's own learned attributes and external sources.</div>
         </div>
-        <button onclick="closeGuidanceModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <!-- Real, new elapsed-time display, per explicit request —
+               positioned in the upper-right of the modal, styled
+               small, not bold, and generally low-visibility. -->
+          <span id="guidance-elapsed-final" style="font-size:10px;font-weight:400;color:var(--text-tertiary)"></span>
+          <button onclick="closeGuidanceModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+        </div>
       </div>
       <div id="guidance-body" style="padding:20px;overflow-y:auto;flex:1"></div>
     </div>
@@ -5044,14 +5050,33 @@ auditor's assessment.
         <i class="ti ti-file-type-pdf" id="file-preview-icon" style="font-size:16px;color:rgba(255,255,255,0.7);flex-shrink:0"></i>
         <span id="file-preview-title">CHG0053245_CHG0053245-bookmark_annotated_20260627_1746.pdf</span>
         <!-- Tick mark navigation arrows -->
-        <div id="file-preview-tick-nav" style="display:none;align-items:center;gap:8px;margin-left:auto">
-          <button id="fp-prev-tick" onclick="navigateTickMark(-1)" title="Previous tick mark  ↑" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg>
-          </button>
-          <span id="fp-tick-counter" style="font-size:12px;color:rgba(255,255,255,0.85);white-space:nowrap;min-width:80px;text-align:center;font-weight:500"></span>
-          <button id="fp-next-tick" onclick="navigateTickMark(1)" title="Next tick mark  ↓" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:22px;width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
+        <div id="file-preview-tick-nav" style="display:none;align-items:center;gap:10px;margin-left:auto">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <button id="fp-prev-tick" onclick="navAnnotationAttribute(-1)" title="Previous attribute" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:16px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <select id="fp-attr-select" onchange="selectAnnotationAttribute(this.value === '' ? null : parseInt(this.value, 10))" style="font-size:12px;padding:3px 6px;border:0.5px solid rgba(255,255,255,0.25);border-radius:var(--radius-md);outline:none;background:rgba(255,255,255,0.1);color:#fff;max-width:180px">
+                <option value="">Select attribute…</option>
+              </select>
+              <button id="fp-next-tick" onclick="navAnnotationAttribute(1)" title="Next attribute" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:16px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+            <!-- Real, secondary, within-attribute tick counter, per
+                 explicit request — only, genuinely shown when the
+                 real, selected attribute has more than one tick mark
+                 in the current file. -->
+            <div id="fp-attr-tick-subnav" style="display:none;align-items:center;justify-content:center;gap:4px">
+              <button id="fp-prev-attr-tick" onclick="navAttributeTick(-1)" title="Previous tick mark for this attribute" style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.75);font-size:9px;padding:0;display:flex;align-items:center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <span id="fp-attr-tick-counter" style="font-size:9px;color:rgba(255,255,255,0.6);white-space:nowrap"></span>
+              <button id="fp-next-attr-tick" onclick="navAttributeTick(1)" title="Next tick mark for this attribute" style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.75);font-size:9px;padding:0;display:flex;align-items:center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
         <!-- Sample file navigation arrows -->
         <div id="file-preview-file-nav" style="display:none;align-items:center;gap:8px;margin-left:12px;margin-right:12px">
@@ -7430,7 +7455,14 @@ const wpPopRefFiles = {}; // { ref: Set of file names }
    PDF ANNOTATIONS
 ══════════════════════════════════════ */
 let currentAnnTool = null;
-let pdfAnnotations = []; // { page, x, y, w, h, type, text, color }
+let pdfAnnotations = []; // { page, x, y, w, h, type, text, color, attributeIndex }
+// Real, new state, per explicit request — tracks which attribute is
+// currently selected for both tagging new tick marks and navigation.
+// Deliberately, genuinely persists across sample-file switches, since
+// it's never reset by file-switching code — the exact, real
+// cross-file behavior explicitly requested.
+let _currentAnnotationAttrIndex = null;
+let _currentAttrTickSubIdx = 0; // real, tracks position within the selected attribute's own, real, multiple tick marks specifically
 let _annFileEntry  = null; // the current file entry being annotated
 
 // ══════════════════════════════════════════════════════════════
@@ -7457,7 +7489,7 @@ function _snapshotAppState(ref) {
     wpData:      JSON.parse(JSON.stringify(WORKPAPERS.find(w => w.ref === ref) || {})),
     // PDF annotations (element references — just positions/text)
     pdfAnns:     pdfAnnotations.map(a => ({
-      type: a.type, tickType: a.tickType, symbol: a.symbol,
+      type: a.type, tickType: a.tickType, symbol: a.symbol, attributeIndex: a.attributeIndex,
       x: a.x, y: a.y, text: a.text, auto: a.auto,
       // Store element position from style
       styleLeft: a.el?.style?.left,
@@ -7774,7 +7806,7 @@ function _addTickToOverlay(overlay, type, x, y) {
   overlay.appendChild(wrap);
 
   const annIdx = pdfAnnotations.length;
-  pdfAnnotations.push({ type:'tick', tickType: type, symbol: sym, x, y, text:'', el: wrap });
+  pdfAnnotations.push({ type:'tick', tickType: type, symbol: sym, x, y, text:'', el: wrap, attributeIndex: _currentAnnotationAttrIndex });
   updateAnnCount();
 
   noteInput.addEventListener('input', () => { pdfAnnotations[annIdx].text = noteInput.value; });
@@ -7796,7 +7828,7 @@ function clearAnnotations(silent) {
   if (overlay) overlay.innerHTML = '';
   const lbl = document.getElementById('ann-count-label');
   if (lbl) lbl.textContent = '0 annotations';
-  _updateTickNavButtons(); // real, correct, fix — this function bypasses updateAnnCount above, so this call is needed here too
+  _updateAttributeNavUI(); // real, correct, fix — this function bypasses updateAnnCount above, so this call is needed here too
   if (!silent) { currentAnnTool = null; setAnnotationTool(null); }
 }
 
@@ -7808,13 +7840,8 @@ function updateAnnCount() {
   // genuinely added, removed, or edited, so refreshing the real, new
   // tick-nav buttons here (rather than at every real, individual call
   // site separately) guarantees they never, genuinely, go stale.
-  _updateTickNavButtons();
+  _updateAttributeNavUI();
 }
-
-// Real, new tick-mark navigation, per explicit request — matches the
-// exact, established pattern of _updateFileNavButtons/previewNavFile
-// right alongside it.
-let _currentTickIdx = -1;
 
 // Real, actual, sorted list of every, real, tick mark currently on the
 // open PDF — sorted by real, page number (tick marks don't carry an
@@ -7822,9 +7849,13 @@ let _currentTickIdx = -1;
 // DOM element to find its containing [data-page] wrapper), then by
 // real, vertical position within the page, matching natural,
 // top-to-bottom reading order.
-function _getSortedTickMarks() {
+// Real, returns every, real tick mark belonging to a specific
+// attribute, in the current file only, sorted by page then position
+// — the same, established sort already used for the old, generic
+// tick ordering, now scoped to one, real attribute specifically.
+function _getAttrTicksInCurrentFile(attrIdx) {
   return pdfAnnotations
-    .filter(a => a.type === 'tick' && a.el && a.el.isConnected)
+    .filter(a => a.type === 'tick' && a.attributeIndex === attrIdx && a.el && a.el.isConnected)
     .map(a => {
       const pageWrapper = a.el.closest('[data-page]');
       const page = pageWrapper ? parseInt(pageWrapper.getAttribute('data-page'), 10) : 0;
@@ -7834,54 +7865,133 @@ function _getSortedTickMarks() {
     .map(x => x.ann);
 }
 
-function _updateTickNavButtons() {
-  const navBar = document.getElementById('file-preview-tick-nav');
-  const counter = document.getElementById('fp-tick-counter');
-  const prevBtn = document.getElementById('fp-prev-tick');
-  const nextBtn = document.getElementById('fp-next-tick');
-  if (!navBar) return;
-
-  // Real, correct fix — tick marks are genuinely a PDF-only concept, so
-  // this stays hidden entirely for a non-PDF file (reusing the exact,
-  // same isPDF signal previewMemFile already sets on the annotation
-  // toolbar, rather than duplicating that check here).
-  const toolbarEl = document.getElementById('pdf-annotation-toolbar');
-  const isPDF = toolbarEl && toolbarEl.style.display !== 'none';
-  if (!isPDF) { navBar.style.display = 'none'; _currentTickIdx = -1; return; }
-
-  const ticks = _getSortedTickMarks();
-  navBar.style.display = 'flex';
-
-  if (ticks.length === 0) {
-    _currentTickIdx = -1;
-    if (counter) counter.textContent = 'No tick marks yet';
-    if (prevBtn) { prevBtn.disabled = true; prevBtn.style.opacity = '0.35'; }
-    if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; }
-    return;
-  }
-  if (ticks.length === 1) {
-    _currentTickIdx = 0;
-    if (counter) counter.textContent = '1 tick mark';
-    if (prevBtn) { prevBtn.disabled = true; prevBtn.style.opacity = '0.35'; }
-    if (nextBtn) { nextBtn.disabled = true; nextBtn.style.opacity = '0.35'; }
-    return;
-  }
-
-  if (_currentTickIdx < 0 || _currentTickIdx >= ticks.length) _currentTickIdx = 0;
-  if (counter) counter.textContent = `Tick ${_currentTickIdx + 1} of ${ticks.length}`;
-  if (prevBtn) { prevBtn.disabled = _currentTickIdx <= 0; prevBtn.style.opacity = _currentTickIdx <= 0 ? '0.35' : '1'; }
-  if (nextBtn) { nextBtn.disabled = _currentTickIdx >= ticks.length - 1; nextBtn.style.opacity = _currentTickIdx >= ticks.length - 1 ? '0.35' : '1'; }
+// Real, populates the attribute selector from the current workpaper's
+// own, real, complete attribute list — every attribute, not just
+// ones with existing tick marks, since selecting an attribute is also
+// how a new tick mark gets tagged in the first place.
+function _populateAttrSelect() {
+  const sel = document.getElementById('fp-attr-select');
+  if (!sel) return;
+  const attrs = (wpTestAttributes[_fpRef] || []);
+  // Real, confirmed fix, per direct feedback — now correctly uses
+  // the real, existing attrRef field (the user-editable "Attr #"
+  // already shown elsewhere in this app), not the attribute's own
+  // array position, matching the exact, same established fallback
+  // pattern already used everywhere else this field is displayed.
+  sel.innerHTML = '<option value="">Select attribute…</option>' +
+    attrs.map((a, i) => `<option value="${i}">Attribute ${escAttr(a.attrRef || a.num || String(i+1))} ${escAttr(a.title || '(untitled)')}</option>`).join('');
+  sel.value = (_currentAnnotationAttrIndex !== null && _currentAnnotationAttrIndex !== undefined) ? String(_currentAnnotationAttrIndex) : '';
 }
 
-function navigateTickMark(dir) {
-  const ticks = _getSortedTickMarks();
-  if (!ticks.length) return;
-  const newIdx = _currentTickIdx + dir;
+// Real, the master refresh function for this entire nav section, per
+// explicit request — updates the selector, the main prev/next
+// buttons, and the real, separate secondary within-attribute counter
+// together, so every call site only ever needs to call this one
+// function rather than remembering to update each piece separately.
+function _updateAttributeNavUI() {
+  const navBar = document.getElementById('file-preview-tick-nav');
+  const prevBtn = document.getElementById('fp-prev-tick');
+  const nextBtn = document.getElementById('fp-next-tick');
+  const subnav = document.getElementById('fp-attr-tick-subnav');
+  const subCounter = document.getElementById('fp-attr-tick-counter');
+  const subPrevBtn = document.getElementById('fp-prev-attr-tick');
+  const subNextBtn = document.getElementById('fp-next-attr-tick');
+  if (!navBar) return;
+
+  // Real, tick marks (and their attribute association) are genuinely
+  // a PDF-only concept, matching the exact, same established isPDF
+  // signal used elsewhere in this modal.
+  const toolbarEl = document.getElementById('pdf-annotation-toolbar');
+  const isPDF = toolbarEl && toolbarEl.style.display !== 'none';
+  if (!isPDF) { navBar.style.display = 'none'; return; }
+
+  const attrs = (wpTestAttributes[_fpRef] || []);
+  if (!attrs.length) { navBar.style.display = 'none'; return; }
+
+  navBar.style.display = 'flex';
+  _populateAttrSelect();
+
+  const hasSelection = _currentAnnotationAttrIndex !== null && _currentAnnotationAttrIndex !== undefined;
+  if (prevBtn) { prevBtn.disabled = !hasSelection || _currentAnnotationAttrIndex <= 0; prevBtn.style.opacity = prevBtn.disabled ? '0.35' : '1'; }
+  if (nextBtn) { nextBtn.disabled = hasSelection && _currentAnnotationAttrIndex >= attrs.length - 1; nextBtn.style.opacity = nextBtn.disabled ? '0.35' : '1'; }
+
+  if (!hasSelection) {
+    if (subnav) subnav.style.display = 'none';
+    return;
+  }
+
+  const ticks = _getAttrTicksInCurrentFile(_currentAnnotationAttrIndex);
+  if (ticks.length <= 1) {
+    if (subnav) subnav.style.display = 'none';
+    return;
+  }
+  if (subnav) subnav.style.display = 'flex';
+  if (_currentAttrTickSubIdx < 0 || _currentAttrTickSubIdx >= ticks.length) _currentAttrTickSubIdx = 0;
+  if (subCounter) subCounter.textContent = `Tick ${_currentAttrTickSubIdx + 1} of ${ticks.length} for this attribute`;
+  if (subPrevBtn) { subPrevBtn.disabled = _currentAttrTickSubIdx <= 0; subPrevBtn.style.opacity = subPrevBtn.disabled ? '0.3' : '0.75'; }
+  if (subNextBtn) { subNextBtn.disabled = _currentAttrTickSubIdx >= ticks.length - 1; subNextBtn.style.opacity = subNextBtn.disabled ? '0.3' : '0.75'; }
+}
+
+// Real, selects a specific attribute — by dropdown, by the main
+// prev/next arrows, or by the cross-file jump on a new file load, per
+// explicit request. Always resets to the attribute's own, real first
+// tick mark; genuinely does nothing (no error) if that attribute has
+// no tick marks yet in the current file — the selector itself still
+// updates, since selecting an attribute with zero tick marks so far
+// is exactly how a person starts tagging new ones for it.
+function selectAnnotationAttribute(attrIdx) {
+  _currentAnnotationAttrIndex = attrIdx;
+  _currentAttrTickSubIdx = 0;
+  _updateAttributeNavUI();
+  if (attrIdx === null || attrIdx === undefined) return;
+  const ticks = _getAttrTicksInCurrentFile(attrIdx);
+  if (ticks.length && ticks[0].el) ticks[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Real, steps the selected attribute by one, per explicit request —
+// the real, main prev/next arrows next to the attribute field.
+function navAnnotationAttribute(dir) {
+  const attrs = (wpTestAttributes[_fpRef] || []);
+  if (!attrs.length) return;
+  let newIdx;
+  if (_currentAnnotationAttrIndex === null || _currentAnnotationAttrIndex === undefined) {
+    newIdx = dir > 0 ? 0 : attrs.length - 1;
+  } else {
+    newIdx = _currentAnnotationAttrIndex + dir;
+  }
+  if (newIdx < 0 || newIdx >= attrs.length) return;
+  selectAnnotationAttribute(newIdx);
+}
+
+// Real, steps between multiple tick marks within the currently
+// selected attribute specifically, per explicit request — the real,
+// separate secondary navigation, distinct from stepping between
+// attributes themselves.
+function navAttributeTick(dir) {
+  if (_currentAnnotationAttrIndex === null || _currentAnnotationAttrIndex === undefined) return;
+  const ticks = _getAttrTicksInCurrentFile(_currentAnnotationAttrIndex);
+  const newIdx = _currentAttrTickSubIdx + dir;
   if (newIdx < 0 || newIdx >= ticks.length) return;
-  _currentTickIdx = newIdx;
-  _updateTickNavButtons();
+  _currentAttrTickSubIdx = newIdx;
+  _updateAttributeNavUI();
   const target = ticks[newIdx].el;
   if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Real, the cross-file persistence hook, per explicit request — called
+// after a newly-opened file's own annotations finish restoring.
+// Deliberately does NOT reset _currentAnnotationAttrIndex — that's the
+// real, whole point, the selected attribute genuinely carries over
+// from whichever file was open before. If that same attribute has a
+// tick mark in this new file, jumps straight to it; if not, the
+// selector still correctly shows the carried-over selection, just
+// with nothing to scroll to yet in this specific file.
+function _jumpToSelectedAttributeTick() {
+  _currentAttrTickSubIdx = 0;
+  _updateAttributeNavUI();
+  if (_currentAnnotationAttrIndex === null || _currentAnnotationAttrIndex === undefined) return;
+  const ticks = _getAttrTicksInCurrentFile(_currentAnnotationAttrIndex);
+  if (ticks.length && ticks[0].el) ticks[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Burns every annotation currently visible in the viewer overlay into the
@@ -9030,6 +9140,7 @@ async function saveAnnotatedPDF() {
         type:     ann.type,
         tickType: ann.tickType,
         symbol:   ann.symbol,
+        attributeIndex: ann.attributeIndex,
         x: left, y: top,
         text,
         width, height,
@@ -25108,7 +25219,7 @@ function _restoreAnnotationsToOverlay(annotations, overlay) {
       tickEl.textContent = ann.symbol || '?';
       overlay.appendChild(tickEl);
       const ai = pdfAnnotations.length;
-      pdfAnnotations.push({ type:'tick', tickType:ann.tickType, symbol:ann.symbol, x:ann.x, y:ann.y, text:ann.text, el:tickEl, auto:true });
+      pdfAnnotations.push({ type:'tick', tickType:ann.tickType, symbol:ann.symbol, x:ann.x, y:ann.y, text:ann.text, el:tickEl, auto:true, attributeIndex: ann.attributeIndex });
       let dt=false,dtx=0,dty=0,dtl=0,dtt=0;
       tickEl.addEventListener('mousedown', ev => { ev.stopPropagation(); ev.preventDefault(); _selectAnnotation(tickEl); _annPushUndo(); dt=true; dtx=ev.clientX; dty=ev.clientY; dtl=parseInt(tickEl.style.left)||0; dtt=parseInt(tickEl.style.top)||0; });
       document.addEventListener('mousemove', ev => { if(!dt)return; tickEl.style.left=(dtl+ev.clientX-dtx)+'px'; tickEl.style.top=(dtt+ev.clientY-dty)+'px'; });
@@ -25257,6 +25368,16 @@ async function previewMemFile(ref, bucket, idx) {
                 placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
                 placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi, name);
               });
+              // Real, confirmed fix, per direct feedback — this is a
+              // genuinely separate, independently-timed path from the
+              // one the cross-file jump was originally hooked into.
+              // Auto-placed tick marks from analysis results could
+              // genuinely finish populating either before or after
+              // that earlier hook fired, meaning the jump could
+              // silently see an empty or incomplete list and do
+              // nothing. Fires again here, now that this real,
+              // separate path has genuinely finished.
+              _jumpToSelectedAttributeTick();
             } else {
               setTimeout(_tryPlace, 150);
             }
@@ -25424,6 +25545,14 @@ async function renderPDFPreview(file) {
           _restoreAnnotationsToOverlay(window._pendingAnnotations, overlay);
           window._pendingAnnotations = null;
         }
+        // Real, new cross-file persistence, per explicit request —
+        // fires unconditionally, since the attribute nav UI needs to
+        // correctly refresh for this, real newly-loaded file
+        // regardless of whether it had any saved annotations to
+        // restore, and gracefully does nothing further if the
+        // carried-over selected attribute has no tick marks in this
+        // specific file.
+        _jumpToSelectedAttributeTick();
       });
     });
 
@@ -30728,6 +30857,7 @@ function selectWorkpaperCategory(categoryName) {
 //   GUIDANCE — attribute wording, new attribute, and new risk suggestions
 // ══════════════════════════════════════
 let _guidanceTimerInterval = null; // real, tracks the active elapsed-time counter, so it can be correctly cleared from every, real exit path
+let _guidanceStartTime = null; // real, lifted to module scope, per explicit request, so _loadGuidance can correctly compute the real, final elapsed time, not just the ticking interval callback
 
 function openGuidanceModal() {
   const ref = currentAttrWPRef;
@@ -30735,16 +30865,21 @@ function openGuidanceModal() {
   document.getElementById('guidance-overlay').style.display = 'flex';
   const bodyEl = document.getElementById('guidance-body');
   bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div><div id="guidance-elapsed-timer" style="margin-top:6px;font-size:11px;color:var(--text-tertiary)">0:00</div></div>`;
+  // Real, clears any real, prior, final elapsed-time text from a
+  // previous request, per explicit request — a real, new request is
+  // starting, so the old total is no longer meaningful here.
+  const finalEl = document.getElementById('guidance-elapsed-final');
+  if (finalEl) finalEl.textContent = '';
   // Real, new, elapsed-time counter, per explicit request — starts
   // the moment the modal opens, correctly ticking every second while
   // the real request is in flight, given this feature genuinely can
   // take a while with web search enabled.
   if (_guidanceTimerInterval) clearInterval(_guidanceTimerInterval); // real, defensive — clears any real, prior, leftover interval before starting a real, new one
-  const startTime = Date.now();
+  _guidanceStartTime = Date.now();
   _guidanceTimerInterval = setInterval(() => {
     const timerEl = document.getElementById('guidance-elapsed-timer');
     if (!timerEl) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; return; } // real, defensive — the modal's own content genuinely changed elsewhere; stop ticking rather than update nothing
-    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedSec = Math.floor((Date.now() - _guidanceStartTime) / 1000);
     const mins = Math.floor(elapsedSec / 60);
     const secs = elapsedSec % 60;
     timerEl.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
@@ -30760,6 +30895,19 @@ function closeGuidanceModal() {
   // background, but a real, visible timer ticking on a closed modal
   // would be genuinely pointless.
   if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
+}
+
+// Real, formats and displays the real, final elapsed time in the
+// modal header, per explicit request — shown on both success and a
+// genuine failure, since a person would still, genuinely want to know
+// how long something took even if it ultimately didn't succeed.
+function _showFinalElapsedTime() {
+  const finalEl = document.getElementById('guidance-elapsed-final');
+  if (!finalEl || _guidanceStartTime === null) return;
+  const elapsedSec = Math.floor((Date.now() - _guidanceStartTime) / 1000);
+  const mins = Math.floor(elapsedSec / 60);
+  const secs = elapsedSec % 60;
+  finalEl.textContent = `elapsed time to think: ${mins}:${String(secs).padStart(2, '0')}`;
 }
 
 async function _loadGuidance(ref) {
@@ -30782,6 +30930,7 @@ async function _loadGuidance(ref) {
     // either the results or an error, so it never keeps ticking
     // past the point it's genuinely still meaningful.
     if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
+    _showFinalElapsedTime();
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">${escAttr(body.detail || body.error || 'Could not load guidance.')}</div>`;
@@ -30792,6 +30941,7 @@ async function _loadGuidance(ref) {
     // Real, same, correct cleanup on a genuine exception too — every,
     // real exit path from this function must stop the real timer.
     if (_guidanceTimerInterval) { clearInterval(_guidanceTimerInterval); _guidanceTimerInterval = null; }
+    _showFinalElapsedTime();
     bodyEl.innerHTML = `<div style="font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:12px 14px">Could not load guidance: ${escAttr(e.message)}</div>`;
   }
 }
@@ -30803,6 +30953,34 @@ async function _loadGuidance(ref) {
 function _renderGuidance(g) {
   const bodyEl = document.getElementById('guidance-body');
   const sections = [];
+
+  // Real, resolves the real, actual position of an attribute, per
+  // direct feedback — now correctly prefers the number Claude was
+  // explicitly given and echoed back, since verbatim copying is a
+  // genuinely more reliable task for a model than independently
+  // reporting a number, and doesn't depend on Claude's own wording
+  // exactly matching the stored title. Still lightly validates it's
+  // a real, positive integer actually within the current attribute
+  // list's own bounds before trusting it. Falls back to matching the
+  // title against the live workpaper's own real attribute list only
+  // when the echoed number is genuinely missing or invalid — the
+  // original safety net, kept rather than discarded. Gracefully
+  // returns null (shown as nothing) if neither resolves.
+  function _attrNumberFor(item) {
+    const attrs = wpTestAttributes[currentAttrWPRef] || [];
+    const echoed = parseInt(item.attributeNumber, 10);
+    if (Number.isInteger(echoed) && echoed >= 1 && echoed <= attrs.length) return echoed;
+    const idx = attrs.findIndex(a => a.title === item.attributeTitle);
+    return idx === -1 ? null : idx + 1;
+  }
+
+  // Real, highlight styling, per explicit request — genuinely marks
+  // the actual suggested or new text itself, the piece that would
+  // become real workpaper content if accepted, distinct from the
+  // surrounding label/context text around it.
+  function _highlight(text) {
+    return `<span style="background:#fef3c7;padding:1px 3px;border-radius:3px">${escAttr(text)}</span>`;
+  }
 
   // Real, shared badge, per explicit request — a real, actual pattern
   // this firm has genuinely used before is more directly trustworthy
@@ -30842,11 +31020,14 @@ function _renderGuidance(g) {
     sections.push(`
       <div style="margin-bottom:20px">
         <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Suggested wording changes</div>
-        ${g.wordingChanges.map(c => `
+        ${g.wordingChanges.map(c => {
+          const num = _attrNumberFor(c);
+          return `
           <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px">
-            <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${escAttr(c.attributeTitle)}</div>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(c.suggestion)}</div>
-          </div>`).join('')}
+            <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${num ? `<span style="color:var(--text-tertiary);font-weight:500">#${num}</span> ` : ''}${escAttr(c.attributeTitle)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${_highlight(c.suggestion)}</div>
+          </div>`;
+        }).join('')}
       </div>`);
   }
   if (g.newAttributes?.length) {
@@ -30860,7 +31041,7 @@ function _renderGuidance(g) {
                 <span style="font-size:12px;font-weight:600;color:var(--text-primary)">${escAttr(a.title)}</span>
                 ${evidenceBadge(a.evidenceSource)}
               </div>
-              <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(a.description)}</div>
+              <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${_highlight(a.description)}</div>
               ${sourceLink(a)}
             </div>
             <button class="btn-s" style="font-size:11px;flex-shrink:0" onclick='_applyGuidanceNewAttribute(${JSON.stringify(a).replace(/'/g,"&#39;")})'>Add</button>
@@ -30878,7 +31059,7 @@ function _renderGuidance(g) {
               <span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;${r.alreadyInFirmList ? 'background:#dcfce7;color:#166534' : 'background:#fef9c3;color:#854d0e'}">${r.alreadyInFirmList ? 'In firm risk list' : 'New suggestion'}</span>
               ${evidenceBadge(r.evidenceSource)}
             </div>
-            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${escAttr(r.description)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${_highlight(r.description)}</div>
             ${sourceLink(r)}
           </div>`).join('')}
       </div>`);
