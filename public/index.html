@@ -7873,6 +7873,11 @@ function _populateAttrSelect() {
   const sel = document.getElementById('fp-attr-select');
   if (!sel) return;
   const attrs = (wpTestAttributes[_fpRef] || []);
+  // Real, temporary diagnostic logging — will show the real, exact
+  // live values involved here, to pinpoint the real, actual root
+  // cause directly rather than continued guessing from static code
+  // alone. Safe to remove once this is resolved.
+  console.log('[AttrSelect] _fpRef=', _fpRef, 'attrs found=', attrs.length, 'sample:', attrs[0]);
   // Real, confirmed fix, per direct feedback — now correctly uses
   // the real, existing attrRef field (the user-editable "Attr #"
   // already shown elsewhere in this app), not the attribute's own
@@ -7896,19 +7901,26 @@ function _updateAttributeNavUI() {
   const subCounter = document.getElementById('fp-attr-tick-counter');
   const subPrevBtn = document.getElementById('fp-prev-attr-tick');
   const subNextBtn = document.getElementById('fp-next-attr-tick');
-  if (!navBar) return;
+  // Real, temporary diagnostic logging — added at every real, distinct
+  // exit point below, to definitively reveal which exact path is
+  // actually being taken live. Safe to remove once this is resolved.
+  console.log('[AttrNavUI] called. navBar found=', !!navBar);
+  if (!navBar) { console.log('[AttrNavUI] EXIT: navBar element not found in DOM.'); return; }
 
   // Real, tick marks (and their attribute association) are genuinely
   // a PDF-only concept, matching the exact, same established isPDF
   // signal used elsewhere in this modal.
   const toolbarEl = document.getElementById('pdf-annotation-toolbar');
   const isPDF = toolbarEl && toolbarEl.style.display !== 'none';
-  if (!isPDF) { navBar.style.display = 'none'; return; }
+  console.log('[AttrNavUI] toolbarEl found=', !!toolbarEl, 'toolbar display=', toolbarEl?.style?.display, 'isPDF=', isPDF);
+  if (!isPDF) { navBar.style.display = 'none'; console.log('[AttrNavUI] EXIT: not detected as a PDF.'); return; }
 
   const attrs = (wpTestAttributes[_fpRef] || []);
-  if (!attrs.length) { navBar.style.display = 'none'; return; }
+  console.log('[AttrNavUI] _fpRef=', _fpRef, 'attrs.length=', attrs.length);
+  if (!attrs.length) { navBar.style.display = 'none'; console.log('[AttrNavUI] EXIT: zero attributes found for this workpaper ref.'); return; }
 
   navBar.style.display = 'flex';
+  console.log('[AttrNavUI] Reached the end — about to call _populateAttrSelect().');
   _populateAttrSelect();
 
   const hasSelection = _currentAnnotationAttrIndex !== null && _currentAnnotationAttrIndex !== undefined;
@@ -7987,6 +7999,7 @@ function navAttributeTick(dir) {
 // selector still correctly shows the carried-over selection, just
 // with nothing to scroll to yet in this specific file.
 function _jumpToSelectedAttributeTick() {
+  console.log('[JumpToAttr] called.');
   _currentAttrTickSubIdx = 0;
   _updateAttributeNavUI();
   if (_currentAnnotationAttrIndex === null || _currentAnnotationAttrIndex === undefined) return;
