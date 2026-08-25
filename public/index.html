@@ -7456,6 +7456,11 @@ const wpPopRefFiles = {}; // { ref: Set of file names }
 ══════════════════════════════════════ */
 let currentAnnTool = null;
 let pdfAnnotations = []; // { page, x, y, w, h, type, text, color, attributeIndex }
+// Real, temporary, unconditional diagnostic — fires the instant this
+// script parses, completely independent of opening a PDF or clicking
+// anything, to definitively confirm whether this version of the code
+// is even running at all. Safe to remove once this is resolved.
+console.log('[BUILD CHECK] Attribute navigation code loaded — version marker 2026-08-24-A');
 // Real, new state, per explicit request — tracks which attribute is
 // currently selected for both tagging new tick marks and navigation.
 // Deliberately, genuinely persists across sample-file switches, since
