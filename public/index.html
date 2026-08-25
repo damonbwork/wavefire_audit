@@ -5057,7 +5057,7 @@ auditor's assessment.
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <select id="fp-attr-select" onchange="selectAnnotationAttribute(this.value === '' ? null : parseInt(this.value, 10))" style="font-size:12px;padding:3px 6px;border:0.5px solid rgba(255,255,255,0.25);border-radius:var(--radius-md);outline:none;background:rgba(255,255,255,0.1);color:#fff;max-width:180px">
-                <option value="">Select attribute…</option>
+                <option value="" style="color:#111827;background:#fff">Select attribute…</option>
               </select>
               <button id="fp-next-tick" onclick="navAnnotationAttribute(1)" title="Next attribute" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;font-size:16px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0" onmouseover="this.style.background='rgba(255,255,255,0.28)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -7888,8 +7888,20 @@ function _populateAttrSelect() {
   // already shown elsewhere in this app), not the attribute's own
   // array position, matching the exact, same established fallback
   // pattern already used everywhere else this field is displayed.
-  sel.innerHTML = '<option value="">Select attribute…</option>' +
-    attrs.map((a, i) => `<option value="${i}">Attribute ${escAttr(a.attrRef || a.num || String(i+1))} ${escAttr(a.title || '(untitled)')}</option>`).join('');
+  // Real, confirmed fix, per direct evidence — the data was confirmed
+  // correctly reaching this exact line, so the real, remaining
+  // explanation was rendering, not logic. Many browsers render a
+  // select element's own opened list using their own native,
+  // typically light background, completely separate from how the
+  // closed box looks — options don't automatically inherit a
+  // readable color for that native list. The parent select sets
+  // white text meant for its own dark, closed-state background, but
+  // that color never reaches the actual option rows once opened.
+  // Explicitly setting a dark color directly on each option fixes
+  // this regardless of how a given browser handles the open list's
+  // own background.
+  sel.innerHTML = '<option value="" style="color:#111827;background:#fff">Select attribute…</option>' +
+    attrs.map((a, i) => `<option value="${i}" style="color:#111827;background:#fff">Attribute ${escAttr(a.attrRef || a.num || String(i+1))} ${escAttr(a.title || '(untitled)')}</option>`).join('');
   sel.value = (_currentAnnotationAttrIndex !== null && _currentAnnotationAttrIndex !== undefined) ? String(_currentAnnotationAttrIndex) : '';
 }
 
