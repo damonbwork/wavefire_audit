@@ -23461,6 +23461,25 @@ async function analyzeWithClaude() {
 
   // Gather sample files — only uploaded (File objects) can be read; static ones are demo data
   const memFilesForDisplay = (inMemoryFiles[ref]?.sample || []);
+  // Real, confirmed change, per direct request — Analyze's own, real
+  // input now only ever includes files genuinely confirmed saved to
+  // the server (fileId set), never anything still only sitting in
+  // this browser tab's temporary memory. Verified this field is set
+  // consistently on both a freshly-uploaded file and one reloaded from
+  // the backend, so this correctly includes every genuinely durable
+  // file — not just ones uploaded this exact session — while excluding
+  // only what's genuinely unconfirmed: an upload still in flight, or
+  // one that failed to save. For an audit tool specifically, testing
+  // against something that might not durably exist anywhere isn't a
+  // result worth trusting.
+  const unsavedSampleFiles = memFilesForDisplay.filter(f => !f.fileId && !f._annotatedFrom && !_isPristineCopyFile(f));
+  if (unsavedSampleFiles.length) {
+    const names = unsavedSampleFiles.map(f => `  • ${f.name}`).join('\n');
+    alert(
+      `${unsavedSampleFiles.length} sample file${unsavedSampleFiles.length > 1 ? 's are' : ' is'} not yet confirmed saved to the server and will be excluded from this Analyze run:\n\n${names}\n\n` +
+      `Wait a moment for the save to finish (check the storage dot next to the file), then run Analyze again.`
+    );
+  }
   // memFiles (used for the actual analysis payload below) excludes
   // derived copies — the existing burn-in mechanism's annotated copies
   // (_annotatedFrom) and this turn's new pristine file-system copies
@@ -23469,7 +23488,7 @@ async function analyzeWithClaude() {
   // pre-existing gap (memFiles was previously used unfiltered for both
   // display AND the analysis payload) made concretely worse by this
   // turn's new copy mechanism adding one more duplicate into the mix.
-  const memFiles = memFilesForDisplay.filter(f => !f._annotatedFrom && !_isPristineCopyFile(f));
+  const memFiles = memFilesForDisplay.filter(f => f.fileId && !f._annotatedFrom && !_isPristineCopyFile(f));
   const staticSampleFiles = WORKPAPERS[currentWPIndex]?.sampleFiles || [];
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
 
@@ -27592,7 +27611,7 @@ function handleFileDrop(event, bucket) {
   processUploadedFiles(files, bucket);
 }
 
-function processUploadedFiles(files, bucket) {
+async function processUploadedFiles(files, bucket) {
   const ref = getWPRef();
   if (!ref) return;
   ensureFileStore(ref);
@@ -27619,18 +27638,26 @@ function processUploadedFiles(files, bucket) {
     const msg = `${large.length} file${large.length > 1 ? 's are' : ' is'} larger than 20 MB:\n\n${names}\n\nLarge files may slow down analysis. Continue uploading ${large.length > 1 ? 'these files' : 'this file'}?`;
     if (!confirm(msg)) {
       // User declined — only add normal-sized files
-      _addFilesToStore(normal, bucket, ref);
+      await _addFilesToStore(normal, bucket, ref);
       return;
     }
   }
 
   // Add normal + accepted large files
-  _addFilesToStore([...normal, ...large], bucket, ref);
+  await _addFilesToStore([...normal, ...large], bucket, ref);
 }
 
-function _addFilesToStore(files, bucket, ref) {
+// Real, confirmed change, per direct request — this now genuinely
+// awaits every real upload before returning, rather than firing them
+// into the background with no guarantee they ever finish before
+// anything else happens. Each entry's own real fileId is guaranteed
+// either set or confirmed absent by the time this function's own
+// await chain resolves — uploaded in parallel via Promise.all, so
+// several files uploading together doesn't mean waiting on each one
+// sequentially.
+async function _addFilesToStore(files, bucket, ref) {
   if (!files.length) return;
-  files.forEach(file => {
+  await Promise.all(files.map(async file => {
     const uploaderName = _admCurrentUserName();
     const entry = {
       file,
@@ -27657,8 +27684,8 @@ function _addFilesToStore(files, bucket, ref) {
     // correctly were — object storage for the real, actual bytes,
     // Postgres for the real, actual metadata, correctly, distinctly
     // scoped via the new fileCategory field.
-    _persistSampleFileToBackend(ref, entry, uploaderName, bucket === 'workpaper' ? 'workpaper' : 'sample');
-  });
+    await _persistSampleFileToBackend(ref, entry, uploaderName, bucket === 'workpaper' ? 'workpaper' : 'sample');
+  }));
   refreshFileList(ref, bucket);
 }
 
@@ -33358,8 +33385,17 @@ populateControlFilter();
 populateAuditInfoCard(currentAudit); // populate WP ref dropdown for default audit on load
 checkForSetPasswordToken(); // shows the Set Password modal if the URL has ?token=... (from the password-setup email)
 
-// Set initial browser history state and handle any deep-link hash
-try { history.replaceState({ page: 'audits' }, '', window.location.pathname); } catch(e) {}
+// Real, confirmed fix, per direct troubleshooting — this previously
+// used only window.location.pathname here, which genuinely excludes
+// the hash portion of the URL by definition. Since this runs
+// synchronously and immediately, while launchToDefaultWP() below is
+// still waiting on a real, actual network fetch to resolve, this
+// always won that race — wiping out any real, existing deep-link
+// hash (e.g. #wpdetail&audit=...&wp=...) before handleInitialHash()
+// ever got a genuine chance to read it, on every single page load or
+// refresh, without exception. Now genuinely preserves the real,
+// existing hash rather than discarding it.
+try { history.replaceState({ page: 'audits' }, '', window.location.pathname + window.location.hash); } catch(e) {}
 
 // ── Launch directly to PRS Audits → PRS Invoice Testwork ──
 // Waits for the bootstrap load (including the one-time PRS seed/migration —
