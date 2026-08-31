@@ -5129,16 +5129,28 @@ auditor's assessment.
         <!-- Row 1: reference / read material -->
         <div style="display:flex;align-items:center;gap:6px">
           <button class="btn-s" id="dl-guidance-btn" style="display:none" onclick="downloadTestGuidance()">
-            <i class="ti ti-file-description"></i>Test Guidance
+            <i class="ti ti-file-description"></i>Test Inputs Provided to AI
           </button>
           <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
             <i class="ti ti-message-chatbot"></i>Commentary
           </button>
           <button class="btn-s" id="dl-reasoning-log-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download Claude's per-attribute reasoning for this analysis" onclick="downloadReasoningLog()">
-            <i class="ti ti-brain"></i>Reasoning Log
+            <i class="ti ti-brain"></i>AI Reasoning Log
           </button>
           <button class="btn-s" id="dl-notes-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download the brief per-attribute finding notes for this analysis" onclick="downloadNotesOnly()">
-            <i class="ti ti-notes"></i>Notes
+            <i class="ti ti-notes"></i>Test Notes
+          </button>
+          <!-- Real, new, per direct request — reuses the existing,
+               proven Guidance mechanism directly (its own modal, its
+               own loading state, its own elapsed-timer, its own
+               backend call) rather than duplicating any of that logic
+               — genuinely functional today, matching the design
+               already captured in the memory plan for surfacing this
+               right after Analyze finishes rather than only from the
+               editing page. Colored identically to its two siblings
+               here, per direct request. -->
+          <button class="btn-s" id="analysis-test-analysis-btn" style="background:#334155;color:#94f1b8;border-color:#334155" title="Get AI-powered guidance for this workpaper's attributes and risks" onclick="openGuidanceModal()">
+            <i class="ti ti-sparkles"></i>Test Analysis
           </button>
         </div>
         <!-- Row 2: deliverables / actions -->
