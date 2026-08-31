@@ -1744,6 +1744,81 @@ async function ensureSampleFilesWorkpaperId() {
 }
 ensureSampleFilesWorkpaperId();
 
+// Real, new tables, per the complete reference-file architecture design
+// worked out across several turns — reference_files stores the actual
+// uploaded content plus the three, real notes fields that make it
+// usable, its own lineage (grouping every version of "the same" file
+// together), and a status distinguishing current from deprecated or
+// retired versions. reference_file_scopes stores the flexible scope
+// attachments — tenant, audit, workpaper, or attribute level — that
+// let one reference file apply anywhere from a single attribute to
+// an entire tenant.
+async function ensureReferenceFilesTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reference_files (
+        id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id               TEXT NOT NULL,
+        lineage_id              UUID NOT NULL,
+        display_name            TEXT NOT NULL DEFAULT '',
+        filename                TEXT NOT NULL,
+        bucket_key              TEXT NOT NULL,
+        content_type            TEXT DEFAULT 'application/octet-stream',
+        size_bytes              BIGINT DEFAULT 0,
+        bucket_name             TEXT DEFAULT '',
+        notes_description       TEXT NOT NULL DEFAULT '',
+        notes_location          TEXT NOT NULL DEFAULT '',
+        notes_interpretation    TEXT NOT NULL DEFAULT '',
+        effective_start_date    DATE DEFAULT NULL,
+        effective_end_date      DATE DEFAULT NULL,
+        status                  TEXT NOT NULL DEFAULT 'current',
+        uploaded_by             TEXT DEFAULT '',
+        date_created            TIMESTAMPTZ DEFAULT NOW(),
+        date_updated            TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reference_files_lineage ON reference_files (lineage_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reference_files_tenant_status ON reference_files (tenant_id, status)`);
+    console.log('DB: reference_files confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone reference_files check FAILED:', err.message, err.code);
+  }
+}
+ensureReferenceFilesTable();
+
+async function ensureReferenceFileScopesTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reference_file_scopes (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id       TEXT NOT NULL,
+        lineage_id      UUID NOT NULL,
+        scope_type      TEXT NOT NULL,
+        audit_name      TEXT DEFAULT NULL,
+        workpaper_id    UUID DEFAULT NULL,
+        attribute_index INTEGER DEFAULT NULL,
+        active          BOOLEAN NOT NULL DEFAULT true,
+        created_by      TEXT DEFAULT '',
+        date_created    TIMESTAMPTZ DEFAULT NOW(),
+        detached_at     TIMESTAMPTZ DEFAULT NULL
+      );
+    `);
+    // Real, indexes matching the exact, real shape of the resolution
+    // query — one per scope type, so each real, distinct condition in
+    // that union resolves quickly regardless of library size.
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ref_scopes_tenant ON reference_file_scopes (tenant_id, scope_type) WHERE active=true`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ref_scopes_audit ON reference_file_scopes (tenant_id, audit_name) WHERE active=true AND scope_type='audit'`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ref_scopes_workpaper ON reference_file_scopes (workpaper_id) WHERE active=true AND scope_type='workpaper'`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ref_scopes_attribute ON reference_file_scopes (workpaper_id, attribute_index) WHERE active=true AND scope_type='attribute'`);
+    console.log('DB: reference_file_scopes confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone reference_file_scopes check FAILED:', err.message, err.code);
+  }
+}
+ensureReferenceFileScopesTable();
+
 async function ensureAttributeEditHistoryTenantFK() {
   if (!pool) return;
   try {
@@ -6143,17 +6218,19 @@ app.get('/api/diagnose-sample-data-widths/:ref', async (req, res) => {
 app.get('/api/sample-files/:ref', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    // Real, confirmed fix, per the ongoing id migration — now,
-    // correctly resolves either ref or id first, then queries by the
-    // real, internal workpaper_id, matching the exact, same
-    // established pattern already proven for sample-data and
-    // extracted-data.
-    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
-    if (!wpId) return res.json([]); // unknown workpaper -> empty, not an error
+    // Real, confirmed fix, per a real, reported case of files
+    // appearing to vanish — rather than assert one, specific root
+    // cause with certainty, this makes the actual query itself
+    // genuinely resilient regardless of why, matching by either the
+    // real, internal id or the reference string, so no row is ever
+    // silently unreachable just because one of its two possible
+    // links happens to be missing or not yet backfilled.
+    const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
+    if (!wp) return res.json([]); // unknown workpaper -> empty, not an error
     const { rows } = await pool.query(
       `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, file_category, archived, date_created, date_updated
-       FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=false ORDER BY filename`,
-      [req.currentTenantId, wpId]
+       FROM sample_files WHERE tenant_id=$1 AND (workpaper_id=$2 OR ref=$3) AND archived=false ORDER BY filename`,
+      [req.currentTenantId, wp.id, wp.ref]
     );
     res.json(rows);
   } catch(err) {
@@ -6168,11 +6245,11 @@ app.get('/api/sample-files/:ref', async (req, res) => {
     // rather than failing outright.
     if (err.code === '42703') { // undefined_column
       try {
-        const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
+        const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
         const { rows } = await pool.query(
           `SELECT file_id, filename, content_type, size_bytes, uploaded_by, file_category, archived, date_created, date_updated
-           FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=false ORDER BY filename`,
-          [req.currentTenantId, wpId]
+           FROM sample_files WHERE tenant_id=$1 AND (workpaper_id=$2 OR ref=$3) AND archived=false ORDER BY filename`,
+          [req.currentTenantId, wp?.id || null, wp?.ref || req.params.ref]
         );
         console.error('[GET /api/sample-files/:ref] annotated_from column missing on live table — served without it. Migration likely has not reached this database yet.');
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
@@ -6210,25 +6287,25 @@ app.get('/api/sample-files/:ref', async (req, res) => {
 app.get('/api/sample-files/:ref/archived', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    // Real, confirmed fix, per the ongoing id migration — matches the
-    // exact, same proven pattern already applied to its own sibling
-    // route right above it.
-    const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
-    if (!wpId) return res.json([]);
+    // Real, confirmed fix, matching the exact, same resilience just
+    // applied to its own sibling route right above it, per a real
+    // reported case of files appearing to vanish.
+    const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
+    if (!wp) return res.json([]);
     const { rows } = await pool.query(
       `SELECT file_id, filename, content_type, size_bytes, uploaded_by, annotated_from, date_created, date_updated
-       FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=true ORDER BY filename`,
-      [req.currentTenantId, wpId]
+       FROM sample_files WHERE tenant_id=$1 AND (workpaper_id=$2 OR ref=$3) AND archived=true ORDER BY filename`,
+      [req.currentTenantId, wp.id, wp.ref]
     );
     res.json(rows);
   } catch(err) {
     if (err.code === '42703') {
       try {
-        const wpId = await _resolveWorkpaperId(req.currentTenantId, req.params.ref);
+        const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
         const { rows } = await pool.query(
           `SELECT file_id, filename, content_type, size_bytes, uploaded_by, date_created, date_updated
-           FROM sample_files WHERE tenant_id=$1 AND workpaper_id=$2 AND archived=true ORDER BY filename`,
-          [req.currentTenantId, wpId]
+           FROM sample_files WHERE tenant_id=$1 AND (workpaper_id=$2 OR ref=$3) AND archived=true ORDER BY filename`,
+          [req.currentTenantId, wp?.id || null, wp?.ref || req.params.ref]
         );
         return res.json(rows.map(r => ({ ...r, annotated_from: null })));
       } catch (err2) {
@@ -6408,6 +6485,322 @@ app.delete('/api/sample-files/:ref/:fileId', async (req, res) => {
     );
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'DELETE /api/sample-files/:ref/:fileId:'); }
+});
+
+// ── Reference Files API ───────────────────────────────────────────────────────
+// Real, complete implementation of the reference-file architecture
+// worked out across several turns — attribute tests can draw on
+// reference material beyond the sample being tested (an approver
+// list, a facility-type table), scoped anywhere from one attribute to
+// an entire tenant, with real versioning so a newer upload never
+// silently changes what an already-completed analysis actually used.
+
+function _buildReferenceFileBucketKey(tenantId, filename) {
+  const safeExt = (filename.match(/\.[a-zA-Z0-9]+$/) || [''])[0];
+  return `reference-files/${tenantId}/${crypto.randomUUID()}${safeExt}`;
+}
+
+// Real, uploads a genuinely brand-new reference file — not a new
+// version of an existing one. Its own id becomes its own lineage_id,
+// since it's the first and only version of itself so far.
+app.post('/api/reference-files', sampleFileUpload.single('file'), async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage is not configured on the server.' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded (expected multipart field "file").' });
+  const displayName = (req.body.displayName || '').trim();
+  const notesDescription = (req.body.notesDescription || '').trim();
+  const notesLocation = (req.body.notesLocation || '').trim();
+  const notesInterpretation = (req.body.notesInterpretation || '').trim();
+  if (!displayName || !notesDescription || !notesLocation || !notesInterpretation) {
+    return res.status(400).json({ error: 'displayName, notesDescription, notesLocation, and notesInterpretation are all required.' });
+  }
+  try {
+    const bucketKey = _buildReferenceFileBucketKey(req.currentTenantId, req.file.originalname);
+    await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
+    const { rows } = await pool.query(
+      `INSERT INTO reference_files
+         (tenant_id, lineage_id, display_name, filename, bucket_key, content_type, size_bytes, bucket_name,
+          notes_description, notes_location, notes_interpretation, effective_start_date, effective_end_date, uploaded_by)
+       VALUES ($1, gen_random_uuid(), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING id, lineage_id, display_name, filename, notes_description, notes_location, notes_interpretation,
+                 effective_start_date, effective_end_date, status, uploaded_by, date_created`,
+      [req.currentTenantId, displayName, req.file.originalname, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET,
+       notesDescription, notesLocation, notesInterpretation, req.body.effectiveStartDate || null, req.body.effectiveEndDate || null,
+       req.currentUser?.login_id || '']
+    );
+    // Real, a brand-new reference file's own lineage_id genuinely
+    // equals its own id — set as a real, direct UPDATE right after
+    // insert, since gen_random_uuid() inside the INSERT itself has no
+    // way to also reference the row's own id being created in that
+    // same statement.
+    await pool.query(`UPDATE reference_files SET lineage_id=id WHERE id=$1`, [rows[0].id]);
+    rows[0].lineage_id = rows[0].id;
+    res.json({ ok: true, referenceFile: rows[0] });
+  } catch(err) { return fail(res, err, 'POST /api/reference-files:'); }
+});
+
+// Real, uploads a newer version of an existing reference file — same
+// lineage, this new row becomes current, the version it replaces is
+// automatically deprecated. Scope attachments were already defined
+// against the lineage itself, not this specific row, so nothing about
+// them needs to change for them to correctly pick up the new content.
+app.post('/api/reference-files/:id/new-version', sampleFileUpload.single('file'), async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage is not configured on the server.' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded (expected multipart field "file").' });
+  try {
+    const { rows: priorRows } = await pool.query(
+      `SELECT * FROM reference_files WHERE tenant_id=$1 AND id=$2`,
+      [req.currentTenantId, req.params.id]
+    );
+    if (!priorRows.length) return res.status(404).json({ error: 'Reference file not found.' });
+    const prior = priorRows[0];
+    // Real, new values default to whatever the prior version already
+    // had, per field — a newer version of the same file very
+    // plausibly keeps the same description and interpretation notes,
+    // with only the actual content or a specific field changing.
+    const displayName = (req.body.displayName || prior.display_name || '').trim();
+    const notesDescription = (req.body.notesDescription ?? prior.notes_description) || '';
+    const notesLocation = (req.body.notesLocation ?? prior.notes_location) || '';
+    const notesInterpretation = (req.body.notesInterpretation ?? prior.notes_interpretation) || '';
+    const effectiveStartDate = req.body.effectiveStartDate !== undefined ? (req.body.effectiveStartDate || null) : prior.effective_start_date;
+    const effectiveEndDate = req.body.effectiveEndDate !== undefined ? (req.body.effectiveEndDate || null) : prior.effective_end_date;
+
+    const bucketKey = _buildReferenceFileBucketKey(req.currentTenantId, req.file.originalname);
+    await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
+
+    const { rows } = await pool.query(
+      `INSERT INTO reference_files
+         (tenant_id, lineage_id, display_name, filename, bucket_key, content_type, size_bytes, bucket_name,
+          notes_description, notes_location, notes_interpretation, effective_start_date, effective_end_date, uploaded_by, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'current')
+       RETURNING id, lineage_id, display_name, filename, notes_description, notes_location, notes_interpretation,
+                 effective_start_date, effective_end_date, status, uploaded_by, date_created`,
+      [req.currentTenantId, prior.lineage_id, displayName, req.file.originalname, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET,
+       notesDescription, notesLocation, notesInterpretation, effectiveStartDate, effectiveEndDate, req.currentUser?.login_id || '']
+    );
+    // Real, deprecates every, other real row in this same lineage —
+    // not just the one specific prior row — so this stays correct
+    // even if a real, previous data issue ever left more than one row
+    // in a lineage marked current at once.
+    await pool.query(
+      `UPDATE reference_files SET status='deprecated', date_updated=NOW() WHERE tenant_id=$1 AND lineage_id=$2 AND id != $3 AND status='current'`,
+      [req.currentTenantId, prior.lineage_id, rows[0].id]
+    );
+    res.json({ ok: true, referenceFile: rows[0] });
+  } catch(err) { return fail(res, err, 'POST /api/reference-files/:id/new-version:'); }
+});
+
+// Real, list/search — genuinely only current versions by default;
+// ?includeDeprecated=true switches the same search to also surface
+// deprecated ones, for someone who genuinely needs to find an earlier
+// version. Genuinely searches all three notes fields alongside the
+// display name and filename, not just the label.
+app.get('/api/reference-files', async (req, res) => {
+  if (!pool) return res.json([]);
+  const q = (req.query.q || '').trim();
+  const includeDeprecated = req.query.includeDeprecated === 'true';
+  try {
+    const statusClause = includeDeprecated ? `status IN ('current','deprecated')` : `status = 'current'`;
+    const params = [req.currentTenantId];
+    let searchClause = '';
+    if (q) {
+      params.push(`%${q}%`);
+      searchClause = `AND (display_name ILIKE $2 OR filename ILIKE $2 OR notes_description ILIKE $2 OR notes_location ILIKE $2 OR notes_interpretation ILIKE $2)`;
+    }
+    const { rows } = await pool.query(
+      `SELECT id, lineage_id, display_name, filename, content_type, size_bytes, notes_description, notes_location,
+              notes_interpretation, effective_start_date, effective_end_date, status, uploaded_by, date_created, date_updated
+       FROM reference_files WHERE tenant_id=$1 AND ${statusClause} ${searchClause}
+       ORDER BY display_name`,
+      params
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/reference-files:'); }
+});
+
+// Real, edits metadata and notes on an existing row directly — never
+// the file content itself, which requires the new-version route
+// instead, per the explicit reproducibility design.
+app.patch('/api/reference-files/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const fields = [];
+    const params = [req.currentTenantId, req.params.id];
+    const allowed = { displayName: 'display_name', notesDescription: 'notes_description', notesLocation: 'notes_location', notesInterpretation: 'notes_interpretation', effectiveStartDate: 'effective_start_date', effectiveEndDate: 'effective_end_date' };
+    for (const [bodyKey, col] of Object.entries(allowed)) {
+      if (req.body[bodyKey] !== undefined) { params.push(req.body[bodyKey] || null); fields.push(`${col}=$${params.length}`); }
+    }
+    if (!fields.length) return res.status(400).json({ error: 'No recognized fields to update.' });
+    const { rows } = await pool.query(
+      `UPDATE reference_files SET ${fields.join(', ')}, date_updated=NOW() WHERE tenant_id=$1 AND id=$2 RETURNING id`,
+      params
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Reference file not found.' });
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'PATCH /api/reference-files/:id:'); }
+});
+
+// Real, retires a reference file — soft, never a real hard delete, so
+// a file that ever actually informed a completed analysis stays real,
+// traceable evidence rather than silently vanishing.
+app.delete('/api/reference-files/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE reference_files SET status='retired', date_updated=NOW() WHERE tenant_id=$1 AND id=$2 RETURNING id`,
+      [req.currentTenantId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Reference file not found.' });
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'DELETE /api/reference-files/:id:'); }
+});
+
+// Real, download — works regardless of status, since a deprecated or
+// retired version's own content is never actually deleted, only its
+// status changes.
+app.get('/api/reference-files/:id/download', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT filename, bucket_key, content_type FROM reference_files WHERE tenant_id=$1 AND id=$2`,
+      [req.currentTenantId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Reference file not found.' });
+    const file = rows[0];
+    // Real, confirmed fix, found by direct verification — the real
+    // established function here is getFileFromStorage, returning a
+    // real stream, matching the exact, same deliberate pattern
+    // already used by the sample-files download route specifically
+    // to avoid buffering large files in server memory.
+    const stored = await getFileFromStorage(file.bucket_key);
+    res.setHeader('Content-Type', file.content_type || stored.ContentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename.replace(/"/g, '')}"`);
+    if (stored.ContentLength) res.setHeader('Content-Length', stored.ContentLength);
+    stored.Body.pipe(res);
+  } catch(err) { return fail(res, err, 'GET /api/reference-files/:id/download:'); }
+});
+
+// Real, attaches a reference file's own lineage to a scope — tenant,
+// audit, workpaper, or a specific attribute.
+app.post('/api/reference-file-scopes', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { lineageId, scopeType, auditName, workpaperId, attributeIndex } = req.body;
+  if (!lineageId || !['tenant', 'audit', 'workpaper', 'attribute'].includes(scopeType)) {
+    return res.status(400).json({ error: 'lineageId and a valid scopeType are required.' });
+  }
+  if (scopeType !== 'tenant' && !auditName) return res.status(400).json({ error: 'auditName is required for this scope type.' });
+  if ((scopeType === 'workpaper' || scopeType === 'attribute') && !workpaperId) return res.status(400).json({ error: 'workpaperId is required for this scope type.' });
+  if (scopeType === 'attribute' && (attributeIndex === undefined || attributeIndex === null)) return res.status(400).json({ error: 'attributeIndex is required for this scope type.' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO reference_file_scopes (tenant_id, lineage_id, scope_type, audit_name, workpaper_id, attribute_index, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [req.currentTenantId, lineageId, scopeType,
+       scopeType === 'tenant' ? null : auditName,
+       (scopeType === 'workpaper' || scopeType === 'attribute') ? workpaperId : null,
+       scopeType === 'attribute' ? attributeIndex : null,
+       req.currentUser?.login_id || '']
+    );
+    res.json({ ok: true, id: rows[0].id });
+  } catch(err) { return fail(res, err, 'POST /api/reference-file-scopes:'); }
+});
+
+// Real, soft-detaches a scope attachment — never a hard delete, so
+// what actually informed a past analysis stays reconstructable even
+// after the live scoping has since changed.
+app.delete('/api/reference-file-scopes/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE reference_file_scopes SET active=false, detached_at=NOW() WHERE tenant_id=$1 AND id=$2 AND active=true RETURNING id`,
+      [req.currentTenantId, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Scope attachment not found or already detached.' });
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'DELETE /api/reference-file-scopes/:id:'); }
+});
+
+// Real, the resolution query — the actual heart of this whole
+// feature. Given a workpaper and, optionally, a specific attribute
+// index, returns every reference file that genuinely applies: any
+// tenant-scoped file, any audit-scoped file matching this workpaper's
+// own audit, any workpaper-scoped file matching this workpaper, and —
+// only when an attribute index is genuinely provided — any
+// attribute-scoped file matching that exact attribute. A second,
+// separate filter then keeps only files genuinely in their effective
+// window as of today, and only ever the current version of each
+// lineage — a deprecated or retired version is never returned here,
+// regardless of how it's scoped.
+app.get('/api/workpapers/:ref/reference-files', async (req, res) => {
+  if (!pool) return res.json([]);
+  const attributeIndex = req.query.attributeIndex !== undefined ? parseInt(req.query.attributeIndex, 10) : null;
+  try {
+    const wpRes = await pool.query(`SELECT id, audit_name FROM workpapers WHERE tenant_id=$1 AND ref=$2`, [req.currentTenantId, req.params.ref]);
+    if (!wpRes.rows.length) return res.json([]);
+    const wp = wpRes.rows[0];
+
+    const { rows } = await pool.query(
+      `SELECT DISTINCT rf.id, rf.lineage_id, rf.display_name, rf.filename, rf.notes_description, rf.notes_location,
+              rf.notes_interpretation, rf.content_type, rfs.scope_type
+       FROM reference_file_scopes rfs
+       JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
+       WHERE rfs.tenant_id = $1 AND rfs.active = true
+         AND (
+           rfs.scope_type = 'tenant'
+           OR (rfs.scope_type = 'audit' AND rfs.audit_name = $2)
+           OR (rfs.scope_type = 'workpaper' AND rfs.workpaper_id = $3)
+           OR (rfs.scope_type = 'attribute' AND rfs.workpaper_id = $3 AND rfs.attribute_index = $4)
+         )
+         AND (rf.effective_start_date IS NULL OR rf.effective_start_date <= CURRENT_DATE)
+         AND (rf.effective_end_date IS NULL OR rf.effective_end_date >= CURRENT_DATE)`,
+      [req.currentTenantId, wp.audit_name, wp.id, attributeIndex]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/reference-files:'); }
+});
+
+// Real, new bulk route, per the per-attribute icon feature — avoids
+// one network call per attribute when rendering a whole table.
+// Computes the shared "inherited" list exactly once, since a
+// tenant, audit, or workpaper-scoped file applies identically to
+// every attribute, then separately groups direct, attribute-specific
+// attachments by their own real index in a single query.
+app.get('/api/workpapers/:ref/reference-files-by-attribute', async (req, res) => {
+  if (!pool) return res.json({ inherited: [], byAttribute: {} });
+  try {
+    const wpRes = await pool.query(`SELECT id, audit_name FROM workpapers WHERE tenant_id=$1 AND ref=$2`, [req.currentTenantId, req.params.ref]);
+    if (!wpRes.rows.length) return res.json({ inherited: [], byAttribute: {} });
+    const wp = wpRes.rows[0];
+
+    const { rows: inherited } = await pool.query(
+      `SELECT DISTINCT rf.id, rf.display_name, rfs.scope_type
+       FROM reference_file_scopes rfs
+       JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
+       WHERE rfs.tenant_id = $1 AND rfs.active = true
+         AND (rfs.scope_type = 'tenant' OR (rfs.scope_type = 'audit' AND rfs.audit_name = $2) OR (rfs.scope_type = 'workpaper' AND rfs.workpaper_id = $3))
+         AND (rf.effective_start_date IS NULL OR rf.effective_start_date <= CURRENT_DATE)
+         AND (rf.effective_end_date IS NULL OR rf.effective_end_date >= CURRENT_DATE)`,
+      [req.currentTenantId, wp.audit_name, wp.id]
+    );
+
+    const { rows: direct } = await pool.query(
+      `SELECT DISTINCT rfs.id AS scope_id, rf.id, rf.display_name, rfs.attribute_index
+       FROM reference_file_scopes rfs
+       JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
+       WHERE rfs.tenant_id = $1 AND rfs.active = true AND rfs.scope_type = 'attribute' AND rfs.workpaper_id = $2
+         AND (rf.effective_start_date IS NULL OR rf.effective_start_date <= CURRENT_DATE)
+         AND (rf.effective_end_date IS NULL OR rf.effective_end_date >= CURRENT_DATE)`,
+      [req.currentTenantId, wp.id]
+    );
+
+    const byAttribute = {};
+    direct.forEach(r => {
+      if (!byAttribute[r.attribute_index]) byAttribute[r.attribute_index] = [];
+      byAttribute[r.attribute_index].push({ id: r.id, scopeId: r.scope_id, display_name: r.display_name });
+    });
+    res.json({ inherited: inherited.map(r => ({ id: r.id, display_name: r.display_name, scope_type: r.scope_type })), byAttribute });
+  } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/reference-files-by-attribute:'); }
 });
 
 
