@@ -352,6 +352,32 @@ async function uploadFileToStorage(bucketKey, body, contentType) {
   await upload.done();
 }
 
+// Real, new, per direct request — a real upload call not throwing only
+// proves the request was accepted, not that the actual bytes genuinely
+// and completely arrived intact. This directly confirms both, using
+// the exact, same HeadObjectCommand pattern already proven in the
+// existing sample-files diagnostic route, extracted here into one
+// shared, reusable helper rather than duplicated at every real place
+// this same check is now needed. Throws a real, specific error — never
+// silently returns false — so a genuine mismatch is impossible to
+// accidentally ignore at any real call site.
+async function verifyFileInStorage(bucketKey, expectedSizeBytes) {
+  if (!STORAGE_CONFIGURED || !s3Client) {
+    throw new Error('Object storage is not configured on the server — cannot verify upload.');
+  }
+  let head;
+  try {
+    head = await s3Client.send(new HeadObjectCommand({ Bucket: STORAGE_BUCKET, Key: bucketKey }));
+  } catch (e) {
+    throw new Error(`Upload verification failed — the file does not actually exist in storage after upload (${e.name === 'NotFound' ? 'not found' : e.message}).`);
+  }
+  const actualSize = head.ContentLength;
+  if (expectedSizeBytes !== undefined && expectedSizeBytes !== null && actualSize !== expectedSizeBytes) {
+    throw new Error(`Upload verification failed — the file in storage is ${actualSize} bytes, but ${expectedSizeBytes} bytes were sent. The upload may be truncated or corrupted.`);
+  }
+  return actualSize;
+}
+
 // Returns a readable stream for a stored file — the download route pipes
 // this directly to the HTTP response rather than buffering the entire
 // file into server memory first, which matters at the file sizes this
@@ -6563,6 +6589,15 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
 
     const bucketKey = _buildBucketKey(req.currentTenantId, ref, filename);
     await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
+    // Real, new, per direct request — a real upload call not throwing
+    // only proves the request was accepted, not that the actual bytes
+    // genuinely and completely arrived intact. This directly confirms
+    // both before the database row below ever gets created — a
+    // genuinely truncated or corrupted upload throws a real, clear
+    // error right here, rather than silently letting a database row
+    // get created claiming a healthy file exists when what's actually
+    // in storage is broken.
+    await verifyFileInStorage(bucketKey, req.file.size);
 
     let rows;
     try {
@@ -6593,17 +6628,47 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
       // drop the new column here.
       if (insertErr.code === '42703') {
         console.error('[POST /api/sample-files/:ref] annotated_from column missing on live table — saved without it. Migration likely has not reached this database yet.');
-        ({ rows } = await pool.query(
-          `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-           ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
-             workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
-             size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
-             uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
-           RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
-          [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
-        ));
-        rows = rows.map(r => ({ ...r, annotated_from: null }));
+        try {
+          ({ rows } = await pool.query(
+            `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+             ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
+               workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+               size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+               uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+             RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
+            [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
+          ));
+          rows = rows.map(r => ({ ...r, annotated_from: null }));
+        } catch (insertErr2) {
+          // Real, confirmed fix, per a real, live, reported 500 on
+          // this exact route — the fallback above still genuinely
+          // references workpaper_id, a column added by its own,
+          // separate migration, which could just as easily not have
+          // reached a given live database yet either. If that's the
+          // real column actually missing here, rather than
+          // annotated_from, this catches that too, falling back one
+          // more layer to the real, original insert shape from before
+          // either column existed — the exact, same two-layer pattern
+          // already proven on the GET routes for this identical class
+          // of problem.
+          if (insertErr2.code === '42703') {
+            console.error('[POST /api/sample-files/:ref] workpaper_id column also missing on live table — saved without it too. Migration likely has not reached this database yet.');
+            ({ rows } = await pool.query(
+              `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+               ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
+                 bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+                 size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+                 uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+               RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
+              [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
+            ));
+            rows = rows.map(r => ({ ...r, annotated_from: null }));
+          } else {
+            throw insertErr2;
+          }
+        }
       } else {
         throw insertErr;
       }
