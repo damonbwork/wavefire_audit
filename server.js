@@ -1575,6 +1575,43 @@ async function ensureAttributeEditHistoryTable() {
 }
 ensureAttributeEditHistoryTable();
 
+// Real, new, per the chunking discussion — a genuinely separate table
+// from attribute_edit_history, and deliberately so: that table logs
+// one row per field-edit, over time; this one holds exactly one row
+// per attribute's own current, whole state — title, description,
+// additional info, and both criteria combined into a single
+// embedding. Upserted whenever any of those fields changes, never
+// accumulating history the way attribute_edit_history does, since
+// only the current combined state is ever meaningful to search
+// against. Built specifically so Guidance's own whole-workpaper query
+// can compare against something the same shape as itself, rather than
+// against one isolated field in isolation.
+async function ensureAttributeCurrentEmbeddingsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attribute_current_embeddings (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id         TEXT NOT NULL,
+        workpaper_ref     TEXT NOT NULL,
+        workpaper_id      UUID DEFAULT NULL,
+        attribute_index   INTEGER NOT NULL,
+        attribute_title   TEXT DEFAULT '',
+        workpaper_category TEXT DEFAULT '',
+        combined_text     TEXT DEFAULT '',
+        embedding         vector(1024),
+        date_updated      TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, workpaper_ref, attribute_index)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_attr_current_emb_tenant ON attribute_current_embeddings (tenant_id) WHERE embedding IS NOT NULL`);
+    console.log('DB: attribute_current_embeddings table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_current_embeddings table check FAILED:', err.message, err.code);
+  }
+}
+ensureAttributeCurrentEmbeddingsTable();
+
 // Real, new, safety migration, per explicit request — genuinely
 // ensures every, real, edit-history row is tied to a real, existing
 // workpaper under the correct tenant at the database level itself,
@@ -1786,6 +1823,26 @@ async function ensureReferenceFilesTable() {
   }
 }
 ensureReferenceFilesTable();
+
+// Real, new, per the chunking discussion — one combined embedding per
+// reference file (display name plus all three notes fields together),
+// deliberately not split per-field the way attribute embeddings are —
+// a reference file's own notes only make sense read together, unlike
+// an attribute's fields which serve genuinely separate purposes.
+// Wrapped in its own standalone migration, the exact, same pattern
+// already used for the embedding column on attribute_edit_history,
+// since this could genuinely fail if pgvector isn't available on a
+// given database.
+async function ensureReferenceFilesEmbeddingColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE reference_files ADD COLUMN IF NOT EXISTS embedding vector(1024)`);
+    console.log('DB: reference_files.embedding column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: reference_files.embedding column check FAILED (pgvector likely unavailable):', err.message, err.code);
+  }
+}
+ensureReferenceFilesEmbeddingColumn();
 
 async function ensureReferenceFileScopesTable() {
   if (!pool) return;
@@ -3199,13 +3256,51 @@ app.post('/api/similar-attribute-edits', aiRateLimit, async (req, res) => {
               1 - (embedding <=> $1) AS similarity
        FROM attribute_edit_history
        WHERE tenant_id=$2 AND embedding IS NOT NULL
-       ORDER BY (embedding <=> $1) - (CASE WHEN workpaper_category=$3 THEN 0.1 ELSE 0 END)
+       ORDER BY (embedding <=> $1) - (CASE WHEN workpaper_category=$3 THEN 0.1 ELSE 0 END) - _refOutcomeBoost()
        LIMIT $4`,
       [vectorLiteral, req.currentTenantId, categoryName, limit]
     );
     res.json({ ok: true, results: rows });
   } catch(err) { return fail(res, err, 'POST /api/similar-attribute-edits:'); }
 });
+
+// Real, new, per the memory/guidance plan — analyze_outcome has
+// existed as a real column since this table was first created, but
+// was never actually written to or used anywhere. This is the first
+// piece that gives it a real value: logs a simple, honest
+// classification of how testing actually went for a specific
+// attribute's current wording, onto every currently-active
+// (embedding IS NOT NULL) history row for that exact attribute —
+// naturally landing on whichever fields represent its current
+// wording, regardless of which specific field that is.
+app.post('/api/attribute-edit-history/log-outcome', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database configured' });
+  const { workpaperRef, attributeIndex, outcome } = req.body;
+  if (!workpaperRef || attributeIndex === undefined || attributeIndex === null) {
+    return res.status(400).json({ error: 'workpaperRef and attributeIndex are required.' });
+  }
+  if (!['clean', 'hedged', 'failed'].includes(outcome)) {
+    return res.status(400).json({ error: 'outcome must be one of: clean, hedged, failed.' });
+  }
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE attribute_edit_history SET analyze_outcome=$1
+       WHERE tenant_id=$2 AND workpaper_ref=$3 AND attribute_index=$4 AND embedding IS NOT NULL`,
+      [outcome, req.currentTenantId, workpaperRef, attributeIndex]
+    );
+    res.json({ ok: true, rowsUpdated: rowCount });
+  } catch(err) { return fail(res, err, 'POST /api/attribute-edit-history/log-outcome:'); }
+});
+
+// Real, new, per the memory/guidance plan — a small, shared ranking
+// boost reused by every retrieval query, so an example with a real
+// track record of testing cleanly ranks ahead of one that merely
+// reads well. Genuinely neutral for anything never yet tested
+// (analyze_outcome IS NULL) — there's no evidence yet either way, so
+// it neither helps nor hurts until a real outcome exists.
+function _refOutcomeBoost() {
+  return `(CASE WHEN analyze_outcome='clean' THEN 0.15 WHEN analyze_outcome='hedged' THEN -0.05 WHEN analyze_outcome='failed' THEN -0.15 ELSE 0 END)`;
+}
 
 // Real, new, "Guidance" route, per explicit request — the culmination
 // feature combining both real memory tiers (distillation style
@@ -3242,12 +3337,52 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
     const attrs = Array.isArray(wp.test_attributes) ? wp.test_attributes : [];
     const category = wp.system_inferred_category || '';
 
+    // Real, new, per the memory/guidance plan — reference files are
+    // currently wired into Analyze only; Guidance has no awareness of
+    // them at all. Queried in bulk here, the exact, same shape as the
+    // existing reference-files-by-attribute route, rather than one
+    // query per attribute.
+    let referenceInherited = [];
+    let referenceByAttribute = {};
+    try {
+      const { rows: inheritedRows } = await pool.query(
+        `SELECT DISTINCT rf.display_name, rf.notes_description
+         FROM reference_file_scopes rfs
+         JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
+         WHERE rfs.tenant_id = $1 AND rfs.active = true
+           AND (rfs.scope_type = 'tenant' OR (rfs.scope_type = 'audit' AND rfs.audit_name = $2) OR (rfs.scope_type = 'workpaper' AND rfs.workpaper_id = $3))
+           AND (rf.effective_start_date IS NULL OR rf.effective_start_date <= CURRENT_DATE)
+           AND (rf.effective_end_date IS NULL OR rf.effective_end_date >= CURRENT_DATE)`,
+        [req.currentTenantId, wp.audit_name, wp.id]
+      );
+      referenceInherited = inheritedRows;
+      const { rows: directRows } = await pool.query(
+        `SELECT DISTINCT rf.display_name, rf.notes_description, rfs.attribute_index
+         FROM reference_file_scopes rfs
+         JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
+         WHERE rfs.tenant_id = $1 AND rfs.active = true AND rfs.scope_type = 'attribute' AND rfs.workpaper_id = $2
+           AND (rf.effective_start_date IS NULL OR rf.effective_start_date <= CURRENT_DATE)
+           AND (rf.effective_end_date IS NULL OR rf.effective_end_date >= CURRENT_DATE)`,
+        [req.currentTenantId, wp.id]
+      );
+      directRows.forEach(r => {
+        if (!referenceByAttribute[r.attribute_index]) referenceByAttribute[r.attribute_index] = [];
+        referenceByAttribute[r.attribute_index].push(r.display_name);
+      });
+    } catch (e) { /* Guidance should still work even if reference-file lookup fails for any reason */ }
+
+    const referenceLibraryText = referenceInherited.length
+      ? referenceInherited.map(r => `- "${r.display_name}": ${r.notes_description}`).join('\n')
+      : '(None currently linked at the tenant, audit, or workpaper level.)';
+
     const attrText = attrs.length
       ? attrs.map((a, i) => {
           const desc = [a.desc, a.additionalInfo].filter(Boolean).join(' ');
           const criteria = [a.successCriteria ? `Pass criteria: ${a.successCriteria}` : '', a.failureCriteria ? `Fail criteria: ${a.failureCriteria}` : '']
             .filter(Boolean).join(' ');
-          return `${i+1}. "${a.title || '(untitled)'}" — ${desc}${criteria ? ' ' + criteria : ''}`.trim();
+          const refFiles = referenceByAttribute[i];
+          const refNote = refFiles?.length ? ` [Reference material already attached: ${refFiles.join(', ')}]` : '';
+          return `${i+1}. "${a.title || '(untitled)'}" — ${desc}${criteria ? ' ' + criteria : ''}${refNote}`.trim();
         }).join('\n')
       : '(This workpaper has no test attributes yet.)';
 
@@ -3264,25 +3399,43 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
     // infrastructure already built. Embeds the current attribute set
     // as one, combined query, since guidance here is about the whole
     // workpaper, not one, single draft field. Real, confirmed fix, per
-    // direct feedback — genuinely, always searches across every
-    // category, rather than hard-filtering to just one, so a real,
-    // genuinely similar attribute sitting in a different or
+    // the chunking discussion — now searches attribute_current_embeddings
+    // rather than attribute_edit_history's own per-field chunks. That
+    // table stores one combined embedding per attribute (title, description,
+    // additional info, and both criteria together) — a genuinely closer
+    // match to this query's own whole-workpaper shape than comparing
+    // against one isolated field ever was. Genuinely, always searches
+    // across every category, rather than hard-filtering to just one, so a
+    // real, genuinely similar attribute sitting in a different or
     // newly-created category can still surface here too. Category is
     // now a soft ranking preference (the exact, same modest boost as
     // the standalone retrieval route), and each example's own, real,
     // actual category is surfaced directly to Claude below, so it can
     // genuinely weigh a same-category match differently from a
     // cross-category one, rather than treating every surfaced example
-    // as equally, directly applicable.
+    // as equally, directly applicable. Joined against
+    // attribute_edit_history to keep the outcome boost consistent with
+    // the standalone retrieval route, rather than silently dropping it —
+    // this new table doesn't track outcome on its own, but the worst
+    // logged outcome for the same attribute is a genuine, real signal
+    // worth still factoring in here.
     let similarExamplesText = '(Not available.)';
     if (PGVECTOR_AVAILABLE && process.env.VOYAGE_API_KEY && attrs.length) {
       const queryEmbedding = await _embedText(attrText, 'query');
       if (queryEmbedding) {
         const vectorLiteral = `[${queryEmbedding.join(',')}]`;
         const simRes = await pool.query(
-          `SELECT attribute_title, final_text, workpaper_category FROM attribute_edit_history
-           WHERE tenant_id=$1 AND workpaper_id != $2 AND embedding IS NOT NULL
-           ORDER BY (embedding <=> $3) - (CASE WHEN workpaper_category=$4 THEN 0.1 ELSE 0 END)
+          `SELECT ace.attribute_title, ace.combined_text AS final_text, ace.workpaper_category,
+                  (ace.embedding <=> $3) - (CASE WHEN ace.workpaper_category=$4 THEN 0.1 ELSE 0 END)
+                    - (CASE worst.severity WHEN 2 THEN 0.15 WHEN 0 THEN -0.05 WHEN -1 THEN -0.15 ELSE 0 END) AS rank_score
+           FROM attribute_current_embeddings ace
+           LEFT JOIN LATERAL (
+             SELECT MIN(CASE aeh.analyze_outcome WHEN 'clean' THEN 2 WHEN 'hedged' THEN 0 WHEN 'failed' THEN -1 ELSE NULL END) AS severity
+             FROM attribute_edit_history aeh
+             WHERE aeh.tenant_id = ace.tenant_id AND aeh.workpaper_ref = ace.workpaper_ref AND aeh.attribute_index = ace.attribute_index
+           ) worst ON true
+           WHERE ace.tenant_id=$1 AND ace.workpaper_id != $2 AND ace.embedding IS NOT NULL
+           ORDER BY rank_score
            LIMIT 8`,
           [req.currentTenantId, wp.id, vectorLiteral, category]
         );
@@ -3294,12 +3447,13 @@ app.post('/api/workpapers/:ref/guidance', aiRateLimit, async (req, res) => {
       }
     }
 
-    const systemPrompt = `You are an internal audit assistant helping staff at an audit firm improve a specific workpaper's test attributes. Provide four, distinct kinds of guidance, ONLY when genuinely warranted by the real, actual context — do not force a suggestion into a category if you have nothing real to offer there:
+    const systemPrompt = `You are an internal audit assistant helping staff at an audit firm improve a specific workpaper's test attributes. Provide five, distinct kinds of guidance, ONLY when genuinely warranted by the real, actual context — do not force a suggestion into a category if you have nothing real to offer there:
 
 1. wordingPhrases — general phrasing/terminology this firm favors, drawn from the style guides below, that could improve THIS workpaper's wording. Not tied to a specific attribute. Always grounded in this firm's own, real, internal history — never web search.
 2. wordingChanges — specific rewrite suggestions for an EXISTING attribute already on this workpaper. Reference the exact attribute title, and also include attributeNumber — the exact, real number that attribute is already listed under above (e.g., if it's "3. \"Some Title\" — ...", attributeNumber is 3). Copy this number directly, don't compute or guess it. Always grounded in this firm's own, real, internal history — never web search.
-3. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test, and current external guidance. Each needs a title, a draft description, and an evidenceSource — "internal" if drawn from this firm's own similar examples, "external" if drawn from web search, "both" if genuinely supported by both.
-4. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance. Include the same, real evidenceSource field as newAttributes.
+3. objectiveAlignment — a genuinely distinct check from wordingChanges: not "is this well-worded," but "does this specific attribute's own wording actually trace back to and test the workpaper's stated description/objective below." An attribute can be clear, testable, and well-worded, and still not genuinely serve the objective it's supposed to support — that mismatch is what this category exists to surface. This includes the case where an attribute's own wording genuinely requires reference material to actually be testable (e.g. checking something against an approved list) but has none attached — that gap is a real alignment concern, not just a wording issue. Only include an attribute here when there's a real, specific concern; a well-aligned attribute needs no entry at all — this array being empty for a workpaper whose attributes genuinely all trace back to its objective is the correct, honest answer, not a sign something was skipped. Reference the same attributeTitle and attributeNumber fields as wordingChanges, plus a concern explaining specifically what's missing or misaligned.
+4. newAttributes — entirely new attributes this workpaper is genuinely missing, given its category and what similar workpapers elsewhere typically test, and current external guidance. Each needs a title, a draft description, and an evidenceSource — "internal" if drawn from this firm's own similar examples, "external" if drawn from web search, "both" if genuinely supported by both. If the objective below calls for something no current attribute addresses at all, that's a strong, concrete basis for a suggestion here — say so directly rather than only citing similar workpapers elsewhere. If a suggested attribute would genuinely need reference material to be testable, check the reference material listed below first and name it directly if something already fits, rather than suggesting an attribute that would land untestable as written.
+5. newRisks — risks this workpaper's testing doesn't yet address. For each, state whether it's already in the firm's own risk list but not yet linked to this workpaper, or a genuinely new risk suggestion informed by current external guidance. Include the same, real evidenceSource field as newAttributes.
 
 Be honest and precise about evidenceSource — never mark something "internal" just because it sounds plausible; only when it genuinely, actually came from the similar-examples data provided below, not from general knowledge or web search.
 
@@ -3308,7 +3462,7 @@ Actively use the web_search tool before answering — genuinely search for what 
 Web search is not restricted to any fixed set of sites — you may search anywhere. When a newAttributes or newRisks suggestion has evidenceSource "external" or "both", also include isAuthoritativeSource (true/false) and, only when genuinely true, sourceUrl and sourceName. A source is genuinely authoritative when it's a recognized professional standards body, regulator, or similar official publisher — examples include COSO, ISACA, AICPA, PCAOB, NIST, ISO, and the SEC, but any comparably official body counts too. An ordinary website, blog, forum post, or general news article is NOT authoritative, even if it's genuinely where the idea came from — in that case set isAuthoritativeSource to false and leave sourceUrl and sourceName empty. Never fabricate a URL and never claim authoritativeness for a source that isn't genuinely one — an honest "not authoritative, no link" is always correct over a confident guess.
 
 Respond with ONLY a JSON object, no other text, in exactly this shape:
-{"wordingPhrases": [""], "wordingChanges": [{"attributeTitle": "", "attributeNumber": 1, "suggestion": ""}], "newAttributes": [{"title": "", "description": "", "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}], "newRisks": [{"title": "", "description": "", "alreadyInFirmList": true, "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}]}
+{"wordingPhrases": [""], "wordingChanges": [{"attributeTitle": "", "attributeNumber": 1, "suggestion": ""}], "objectiveAlignment": [{"attributeTitle": "", "attributeNumber": 1, "concern": ""}], "newAttributes": [{"title": "", "description": "", "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}], "newRisks": [{"title": "", "description": "", "alreadyInFirmList": true, "evidenceSource": "internal", "isAuthoritativeSource": false, "sourceUrl": "", "sourceName": ""}]}
 Any array can genuinely be empty if there's nothing real to suggest for that category.`;
 
     const userMessage = `Workpaper: ${wp.name || '(untitled)'} — Category: ${category || '(not yet classified)'} — Type: ${wp.type || ''}
@@ -3316,6 +3470,9 @@ Description: ${wp.description || '(none)'}
 
 Current test attributes:
 ${attrText}
+
+Reference material already available at the tenant, audit, or workpaper level (applies to every attribute above unless a specific attribute already lists its own reference material inline):
+${referenceLibraryText}
 
 Firm-wide house style (all categories):
 ${globalGuide || '(No global style guide generated yet.)'}
@@ -5334,10 +5491,12 @@ async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAt
     for (let i = 0; i < (newAttrs || []).length; i++) {
       const oldA = (oldAttrs || [])[i] || {};
       const newA = newAttrs[i] || {};
+      let attributeChanged = false;
       for (const field of fields) {
         const oldVal = oldA[field] || '';
         const newVal = newA[field] || '';
         if (oldVal === newVal || !newVal.trim()) continue;
+        attributeChanged = true;
         const insertRes = await pool.query(
           `INSERT INTO attribute_edit_history
              (tenant_id, workpaper_ref, workpaper_id, workpaper_type, audit_type, workpaper_category, attribute_index, attribute_title, field_type, previous_text, final_text, edited_by)
@@ -5380,6 +5539,39 @@ async function _logAttributeEdits(tenantId, ref, workpaperType, auditType, oldAt
             }
           }).catch(e => console.error('[_logAttributeEdits] Embedding generation failed for row', rowId, ':', e.message));
         }
+      }
+      // Real, new, per the chunking discussion — once per attribute
+      // that genuinely changed, not once per field, upserts its own
+      // current, whole combined state and regenerates one combined
+      // embedding for it, so Guidance's own whole-workpaper query has
+      // something the same shape as itself to compare against,
+      // rather than one isolated field. Deliberately fire-and-forget,
+      // the exact, same pattern as the per-field embedding just
+      // above — never adds latency to the actual save.
+      if (attributeChanged && newA.title) {
+        const combinedText = [
+          newA.title, newA.desc, newA.additionalInfo,
+          newA.successCriteria ? `Pass criteria: ${newA.successCriteria}` : '',
+          newA.failureCriteria ? `Fail criteria: ${newA.failureCriteria}` : '',
+        ].filter(Boolean).join('\n');
+        pool.query(
+          `INSERT INTO attribute_current_embeddings (tenant_id, workpaper_ref, workpaper_id, attribute_index, attribute_title, workpaper_category, combined_text, date_updated)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+           ON CONFLICT (tenant_id, workpaper_ref, attribute_index) DO UPDATE SET
+             attribute_title=EXCLUDED.attribute_title, workpaper_category=EXCLUDED.workpaper_category,
+             combined_text=EXCLUDED.combined_text, embedding=NULL, date_updated=NOW()`,
+          [tenantId, ref, workpaperId || null, i, newA.title, workpaperCategory || '', combinedText]
+        ).then(() => {
+          if (!PGVECTOR_AVAILABLE) return;
+          _embedText(combinedText, 'document').then(embedding => {
+            if (embedding) {
+              pool.query(
+                `UPDATE attribute_current_embeddings SET embedding=$1 WHERE tenant_id=$2 AND workpaper_ref=$3 AND attribute_index=$4`,
+                [`[${embedding.join(',')}]`, tenantId, ref, i]
+              ).catch(e => console.error('[_logAttributeEdits] Could not save whole-attribute embedding:', e.message));
+            }
+          }).catch(e => console.error('[_logAttributeEdits] Whole-attribute embedding generation failed:', e.message));
+        }).catch(e => console.error('[_logAttributeEdits] Could not upsert whole-attribute row:', e.message));
       }
     }
   } catch (err) {
@@ -6503,6 +6695,24 @@ function _buildReferenceFileBucketKey(tenantId, filename) {
 // Real, uploads a genuinely brand-new reference file — not a new
 // version of an existing one. Its own id becomes its own lineage_id,
 // since it's the first and only version of itself so far.
+// Real, new, per the chunking discussion — one shared helper reused
+// by every real place a reference file's own notes get set or
+// changed (initial upload, a new version, or an edit), so the exact,
+// same embedding logic never has to be duplicated three times.
+// Deliberately fire-and-forget, the exact, same pattern already
+// proven for attribute embeddings — never adds latency to the actual
+// save.
+function _embedReferenceFile(id, displayName, notesDescription, notesLocation, notesInterpretation) {
+  if (!PGVECTOR_AVAILABLE) return;
+  const combinedText = [displayName, notesDescription, notesLocation, notesInterpretation].filter(Boolean).join('\n');
+  _embedText(combinedText, 'document').then(embedding => {
+    if (embedding) {
+      pool.query(`UPDATE reference_files SET embedding=$1 WHERE id=$2`, [`[${embedding.join(',')}]`, id])
+        .catch(e => console.error('[_embedReferenceFile] Could not save embedding for', id, ':', e.message));
+    }
+  }).catch(e => console.error('[_embedReferenceFile] Embedding generation failed for', id, ':', e.message));
+}
+
 app.post('/api/reference-files', sampleFileUpload.single('file'), async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
   if (!STORAGE_CONFIGURED) return res.status(503).json({ error: 'Object storage is not configured on the server.' });
@@ -6535,6 +6745,7 @@ app.post('/api/reference-files', sampleFileUpload.single('file'), async (req, re
     // same statement.
     await pool.query(`UPDATE reference_files SET lineage_id=id WHERE id=$1`, [rows[0].id]);
     rows[0].lineage_id = rows[0].id;
+    _embedReferenceFile(rows[0].id, displayName, notesDescription, notesLocation, notesInterpretation);
     res.json({ ok: true, referenceFile: rows[0] });
   } catch(err) { return fail(res, err, 'POST /api/reference-files:'); }
 });
@@ -6587,6 +6798,7 @@ app.post('/api/reference-files/:id/new-version', sampleFileUpload.single('file')
       `UPDATE reference_files SET status='deprecated', date_updated=NOW() WHERE tenant_id=$1 AND lineage_id=$2 AND id != $3 AND status='current'`,
       [req.currentTenantId, prior.lineage_id, rows[0].id]
     );
+    _embedReferenceFile(rows[0].id, displayName, notesDescription, notesLocation, notesInterpretation);
     res.json({ ok: true, referenceFile: rows[0] });
   } catch(err) { return fail(res, err, 'POST /api/reference-files/:id/new-version:'); }
 });
@@ -6619,6 +6831,36 @@ app.get('/api/reference-files', async (req, res) => {
   } catch(err) { return fail(res, err, 'GET /api/reference-files:'); }
 });
 
+// Real, new, per the chunking discussion — given a draft attribute's
+// own text, finds the most semantically similar reference files in
+// the tenant's own library, using the exact, same embedding-and-cosine-
+// similarity mechanism already proven for similar-attribute-edits,
+// pointed at reference_files instead. Only ever current versions —
+// a deprecated or retired reference file is never suggested.
+app.post('/api/reference-files/suggest', aiRateLimit, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  if (!PGVECTOR_AVAILABLE) return res.status(503).json({ error: 'Suggestions are not yet available — the pgvector extension could not be enabled on this database.' });
+  if (!process.env.VOYAGE_API_KEY) return res.status(503).json({ error: 'Suggestions are not yet available — VOYAGE_API_KEY is not set on the server.' });
+  const draftText = (req.body.draftText || '').trim();
+  const limit = Math.min(Math.max(parseInt(req.body.limit, 10) || 3, 1), 10);
+  if (!draftText) return res.status(400).json({ error: 'draftText is required.' });
+  try {
+    const embedding = await _embedText(draftText, 'query');
+    if (!embedding) return res.status(502).json({ error: 'Could not genuinely embed the real, provided draft text.' });
+    const vectorLiteral = `[${embedding.join(',')}]`;
+    const { rows } = await pool.query(
+      `SELECT id, lineage_id, display_name, notes_description, notes_location, notes_interpretation,
+              1 - (embedding <=> $1) AS similarity
+       FROM reference_files
+       WHERE tenant_id=$2 AND status='current' AND embedding IS NOT NULL
+       ORDER BY embedding <=> $1
+       LIMIT $3`,
+      [vectorLiteral, req.currentTenantId, limit]
+    );
+    res.json({ ok: true, results: rows });
+  } catch(err) { return fail(res, err, 'POST /api/reference-files/suggest:'); }
+});
+
 // Real, edits metadata and notes on an existing row directly — never
 // the file content itself, which requires the new-version route
 // instead, per the explicit reproducibility design.
@@ -6633,10 +6875,23 @@ app.patch('/api/reference-files/:id', async (req, res) => {
     }
     if (!fields.length) return res.status(400).json({ error: 'No recognized fields to update.' });
     const { rows } = await pool.query(
-      `UPDATE reference_files SET ${fields.join(', ')}, date_updated=NOW() WHERE tenant_id=$1 AND id=$2 RETURNING id`,
+      `UPDATE reference_files SET ${fields.join(', ')}, date_updated=NOW() WHERE tenant_id=$1 AND id=$2
+       RETURNING id, display_name, notes_description, notes_location, notes_interpretation`,
       params
     );
     if (!rows.length) return res.status(404).json({ error: 'Reference file not found.' });
+    // Real, only regenerates the embedding when the edit genuinely
+    // touched one of the four fields it's actually built from — a
+    // dates-only edit shouldn't trigger a needless re-embed. RETURNING
+    // above gives the real, correct post-update state of all four
+    // fields regardless of which specific ones this particular
+    // request touched, since this route allows a genuinely partial
+    // update.
+    const embeddingRelevantKeys = ['displayName', 'notesDescription', 'notesLocation', 'notesInterpretation'];
+    if (embeddingRelevantKeys.some(k => req.body[k] !== undefined)) {
+      const r = rows[0];
+      _embedReferenceFile(r.id, r.display_name, r.notes_description, r.notes_location, r.notes_interpretation);
+    }
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'PATCH /api/reference-files/:id:'); }
 });
@@ -6685,12 +6940,27 @@ app.get('/api/reference-files/:id/download', async (req, res) => {
 // audit, workpaper, or a specific attribute.
 app.post('/api/reference-file-scopes', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database configured' });
-  const { lineageId, scopeType, auditName, workpaperId, attributeIndex } = req.body;
+  const { lineageId, scopeType, workpaperRef, attributeIndex } = req.body;
+  let { workpaperId, auditName } = req.body;
   if (!lineageId || !['tenant', 'audit', 'workpaper', 'attribute'].includes(scopeType)) {
     return res.status(400).json({ error: 'lineageId and a valid scopeType are required.' });
   }
+  // Real, confirmed fix — the frontend genuinely has no access to a
+  // workpaper's own internal id, only its ref, so resolves it here
+  // server-side, matching the exact, same established helper already
+  // used throughout this app for exactly this situation. Still
+  // accepts a raw workpaperId directly too, for any other caller that
+  // already has it. Also resolves auditName from the same lookup,
+  // since _resolveWorkpaper already returns it — no reason to make
+  // the frontend separately know and pass it when a ref was given.
+  if (!workpaperId && workpaperRef && (scopeType === 'workpaper' || scopeType === 'attribute')) {
+    const wp = await _resolveWorkpaper(req.currentTenantId, workpaperRef);
+    if (!wp) return res.status(404).json({ error: 'Workpaper not found.' });
+    workpaperId = wp.id;
+    if (!auditName) auditName = wp.audit_name;
+  }
   if (scopeType !== 'tenant' && !auditName) return res.status(400).json({ error: 'auditName is required for this scope type.' });
-  if ((scopeType === 'workpaper' || scopeType === 'attribute') && !workpaperId) return res.status(400).json({ error: 'workpaperId is required for this scope type.' });
+  if ((scopeType === 'workpaper' || scopeType === 'attribute') && !workpaperId) return res.status(400).json({ error: 'workpaperId or workpaperRef is required for this scope type.' });
   if (scopeType === 'attribute' && (attributeIndex === undefined || attributeIndex === null)) return res.status(400).json({ error: 'attributeIndex is required for this scope type.' });
   try {
     const { rows } = await pool.query(
@@ -6785,7 +7055,8 @@ app.get('/api/workpapers/:ref/reference-files-by-attribute', async (req, res) =>
     );
 
     const { rows: direct } = await pool.query(
-      `SELECT DISTINCT rfs.id AS scope_id, rf.id, rf.display_name, rfs.attribute_index
+      `SELECT DISTINCT rfs.id AS scope_id, rf.id, rf.display_name, rf.notes_description, rf.notes_location,
+              rf.notes_interpretation, rf.effective_start_date, rf.effective_end_date, rfs.attribute_index
        FROM reference_file_scopes rfs
        JOIN reference_files rf ON rf.lineage_id = rfs.lineage_id AND rf.tenant_id = rfs.tenant_id AND rf.status = 'current'
        WHERE rfs.tenant_id = $1 AND rfs.active = true AND rfs.scope_type = 'attribute' AND rfs.workpaper_id = $2
@@ -6797,7 +7068,11 @@ app.get('/api/workpapers/:ref/reference-files-by-attribute', async (req, res) =>
     const byAttribute = {};
     direct.forEach(r => {
       if (!byAttribute[r.attribute_index]) byAttribute[r.attribute_index] = [];
-      byAttribute[r.attribute_index].push({ id: r.id, scopeId: r.scope_id, display_name: r.display_name });
+      byAttribute[r.attribute_index].push({
+        id: r.id, scopeId: r.scope_id, display_name: r.display_name,
+        notes_description: r.notes_description, notes_location: r.notes_location, notes_interpretation: r.notes_interpretation,
+        effective_start_date: r.effective_start_date, effective_end_date: r.effective_end_date,
+      });
     });
     res.json({ inherited: inherited.map(r => ({ id: r.id, display_name: r.display_name, scope_type: r.scope_type })), byAttribute });
   } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/reference-files-by-attribute:'); }
