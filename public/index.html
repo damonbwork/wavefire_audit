@@ -953,6 +953,12 @@
           <span>FS Risk Assessment</span>
         </button>
 
+        <button class="fnd-nav-btn" id="fnd-btn-reference-files" onclick="showFoundationsSection('reference-files')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <i class="ti ti-file-search" style="font-size:15px;flex-shrink:0"></i>
+          <span>Reference Material</span>
+        </button>
+
         <div style="flex:1"></div>
         <div style="padding:14px 16px;font-size:10px;color:var(--text-tertiary);line-height:1.5;border-top:0.5px solid var(--border-light)">
           Configure foundational data used across all audit workpapers.
@@ -997,6 +1003,27 @@
             <button class="btn-p" onclick="addFoundationsFS()" style="flex-shrink:0;margin-left:20px"><i class="ti ti-plus"></i>Add FS Account</button>
           </div>
           <div id="fnd-fsra-list" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+
+        <!-- Real, new Reference Material section, per the complete
+             architecture design worked out across several turns. -->
+        <div id="fnd-section-reference-files" class="fnd-section" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-size:18px;font-weight:700;color:var(--text-primary)">Reference Material</div>
+              <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Upload reference documents — approver lists, facility reference tables, and similar — that support attribute testing beyond the sample being tested. Attach them to specific attributes, workpapers, audits, or the whole tenant from a workpaper directly.</div>
+            </div>
+            <button class="btn-p" onclick="openUploadReferenceFileModal()" style="flex-shrink:0;margin-left:20px"><i class="ti ti-upload"></i>Upload Reference File</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <input id="fnd-reffile-search" type="text" placeholder="Search by name or notes…" oninput="_debouncedSearchReferenceFiles()"
+              style="flex:1;max-width:360px;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap">
+              <input id="fnd-reffile-include-deprecated" type="checkbox" onchange="loadReferenceFilesLibrary()">
+              Include deprecated versions
+            </label>
+          </div>
+          <div id="fnd-reffile-list" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
 
       </div>
@@ -4689,6 +4716,65 @@ auditor's assessment.
         </div>
       </div>
       <div id="guidance-body" style="padding:20px;overflow-y:auto;flex:1"></div>
+    </div>
+  </div>
+
+  <!-- Real, new Reference File modal, per the complete architecture
+       design — one, shared modal branching by mode (new upload, new
+       version, edit notes only) rather than three separate ones. -->
+  <div id="reffile-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:13600;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:600px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+        <div id="reffile-modal-title" style="font-size:15px;font-weight:600;color:var(--text-primary)">Upload Reference File</div>
+        <button onclick="closeReferenceFileModal()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+      </div>
+      <div style="padding:20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px">
+        <div id="reffile-error" style="display:none;font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fecaca;border-radius:6px;padding:10px 12px"></div>
+
+        <div>
+          <div class="fl">Display Name</div>
+          <input id="reffile-display-name" type="text" placeholder="e.g., Q3 2026 Approved Approvers"
+            style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
+        </div>
+
+        <div id="reffile-file-picker-row">
+          <div class="fl">File</div>
+          <input id="reffile-file-input" type="file">
+        </div>
+
+        <div>
+          <div class="fl">Description of Reference Data</div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Describe what this reference data contains and represents. List one or two concrete examples of actual entries so the format is unambiguous — e.g., "Row example: John Smith, IT Security Manager, approved for Tier 1–2 changes."</div>
+          <textarea id="reffile-notes-description" rows="3" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;font-family:inherit;resize:vertical"></textarea>
+        </div>
+
+        <div>
+          <div class="fl">Where to Find the Data</div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Describe where in the document to find the data — section header, table name, page numbers. List examples of key data relationships (e.g., how one column or field relates to another).</div>
+          <textarea id="reffile-notes-location" rows="3" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;font-family:inherit;resize:vertical"></textarea>
+        </div>
+
+        <div>
+          <div class="fl">How to Interpret and Apply the Data</div>
+          <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:4px">Describe exactly how to use this data when testing the attribute — the specific comparison or logic to apply. If more than one step is involved, list them in order. Note what should happen if no match is found or the data doesn't clearly apply.</div>
+          <textarea id="reffile-notes-interpretation" rows="4" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;font-family:inherit;resize:vertical"></textarea>
+        </div>
+
+        <div style="display:flex;gap:14px">
+          <div style="flex:1">
+            <div class="fl">Effective Start Date (optional)</div>
+            <input id="reffile-effective-start" type="date" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
+          </div>
+          <div style="flex:1">
+            <div class="fl">Effective End Date (optional)</div>
+            <input id="reffile-effective-end" type="date" style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
+        <button class="btn-s" onclick="closeReferenceFileModal()">Cancel</button>
+        <button id="reffile-submit-btn" class="btn-p" onclick="_submitReferenceFileModal()">Upload</button>
+      </div>
     </div>
   </div>
 
@@ -13550,6 +13636,7 @@ function showFoundationsSection(section) {
   if (section === 'entities') renderFoundationsEntities();
   if (section === 'rcm')      renderFoundationsRCM();
   if (section === 'fsra')     renderFoundationsFS();
+  if (section === 'reference-files') renderFoundationsReferenceFiles();
 }
 
 function activateAdmin() {
@@ -18956,6 +19043,218 @@ function renderFoundationsFS() {
     </div>`;
 }
 
+// ══════════════════════════════════════
+//   REFERENCE MATERIAL — library load/search/render, upload/version/
+//   edit modal, and retire. Per the complete architecture design
+//   worked out across several turns.
+// ══════════════════════════════════════
+
+let _reffileModalMode = 'new'; // 'new' | 'new-version' | 'edit'
+let _reffileModalTargetId = null; // the real, actual id being edited or versioned, when relevant
+
+function renderFoundationsReferenceFiles() {
+  loadReferenceFilesLibrary();
+}
+
+let _reffileSearchDebounce = null;
+function _debouncedSearchReferenceFiles() {
+  if (_reffileSearchDebounce) clearTimeout(_reffileSearchDebounce);
+  _reffileSearchDebounce = setTimeout(loadReferenceFilesLibrary, 300);
+}
+
+async function loadReferenceFilesLibrary() {
+  const listEl = document.getElementById('fnd-reffile-list');
+  if (!listEl) return;
+  const q = document.getElementById('fnd-reffile-search')?.value || '';
+  const includeDeprecated = document.getElementById('fnd-reffile-include-deprecated')?.checked || false;
+  listEl.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i></div>`;
+  try {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (includeDeprecated) params.set('includeDeprecated', 'true');
+    const res = await fetch('/api/reference-files?' + params.toString());
+    const files = await res.json();
+    _renderReferenceFilesList(Array.isArray(files) ? files : []);
+  } catch(e) {
+    listEl.innerHTML = `<div style="font-size:13px;color:#dc2626;padding:12px 0">Could not load the reference library: ${escAttr(e.message)}</div>`;
+  }
+}
+
+function _renderReferenceFilesList(files) {
+  const listEl = document.getElementById('fnd-reffile-list');
+  if (!listEl) return;
+  if (!files.length) {
+    listEl.innerHTML = `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;text-align:center;padding:24px 0">No reference files yet — upload one to get started.</div>`;
+    return;
+  }
+  listEl.innerHTML = files.map(f => {
+    const isDeprecated = f.status === 'deprecated';
+    const dateRange = (f.effective_start_date || f.effective_end_date)
+      ? `<span style="font-size:11px;color:var(--text-tertiary)">Effective ${escAttr(f.effective_start_date || '…')} – ${escAttr(f.effective_end_date || '…')}</span>` : '';
+    return `
+      <div style="padding:14px 16px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);${isDeprecated ? 'opacity:0.65;background:var(--bg-secondary)' : ''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:14px;font-weight:600;color:var(--text-primary)">${escAttr(f.display_name)}</span>
+              ${isDeprecated ? '<span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;background:#f3f4f6;color:#6b7280">DEPRECATED</span>' : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;max-width:440px">${escAttr(f.notes_description)}</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+              <span style="font-size:11px;color:var(--text-tertiary)">${escAttr(f.filename)} · Uploaded by ${escAttr(f.uploaded_by || 'unknown')}</span>
+              ${dateRange}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="btn-s" style="font-size:11px" onclick="downloadReferenceFile('${f.id}')" title="Download"><i class="ti ti-download"></i></button>
+            ${!isDeprecated ? `
+              <button class="btn-s" style="font-size:11px" onclick="openEditReferenceFileModal('${f.id}')" title="Edit notes"><i class="ti ti-edit"></i></button>
+              <button class="btn-s" style="font-size:11px" onclick="openNewVersionModal('${f.id}')" title="Provide a newer version"><i class="ti ti-replace"></i></button>
+              <button class="btn-s" style="font-size:11px;color:#dc2626" onclick="retireReferenceFile('${f.id}')" title="Retire"><i class="ti ti-archive"></i></button>
+            ` : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function downloadReferenceFile(id) {
+  window.open('/api/reference-files/' + encodeURIComponent(id) + '/download', '_blank');
+}
+
+async function retireReferenceFile(id) {
+  if (!confirm('Retire this reference file? It will no longer apply to any attribute, but stays fully downloadable and traceable — nothing is deleted.')) return;
+  try {
+    const res = await fetch('/api/reference-files/' + encodeURIComponent(id), { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.detail || body.error || 'Could not retire this reference file.'); return; }
+    loadReferenceFilesLibrary();
+  } catch(e) { alert('Could not retire this reference file: ' + e.message); }
+}
+
+function openUploadReferenceFileModal() {
+  _reffileModalMode = 'new';
+  _reffileModalTargetId = null;
+  document.getElementById('reffile-modal-title').textContent = 'Upload Reference File';
+  document.getElementById('reffile-submit-btn').textContent = 'Upload';
+  document.getElementById('reffile-file-picker-row').style.display = '';
+  document.getElementById('reffile-display-name').value = '';
+  document.getElementById('reffile-notes-description').value = '';
+  document.getElementById('reffile-notes-location').value = '';
+  document.getElementById('reffile-notes-interpretation').value = '';
+  document.getElementById('reffile-effective-start').value = '';
+  document.getElementById('reffile-effective-end').value = '';
+  document.getElementById('reffile-error').style.display = 'none';
+  document.getElementById('reffile-overlay').style.display = 'flex';
+}
+
+async function openNewVersionModal(id) {
+  try {
+    const res = await fetch('/api/reference-files?q=');
+    const files = await res.json();
+    const existing = (Array.isArray(files) ? files : []).find(f => f.id === id);
+    _reffileModalMode = 'new-version';
+    _reffileModalTargetId = id;
+    document.getElementById('reffile-modal-title').textContent = 'Provide a Newer Version';
+    document.getElementById('reffile-submit-btn').textContent = 'Upload New Version';
+    document.getElementById('reffile-file-picker-row').style.display = '';
+    document.getElementById('reffile-display-name').value = existing?.display_name || '';
+    document.getElementById('reffile-notes-description').value = existing?.notes_description || '';
+    document.getElementById('reffile-notes-location').value = existing?.notes_location || '';
+    document.getElementById('reffile-notes-interpretation').value = existing?.notes_interpretation || '';
+    document.getElementById('reffile-effective-start').value = existing?.effective_start_date || '';
+    document.getElementById('reffile-effective-end').value = existing?.effective_end_date || '';
+    document.getElementById('reffile-error').style.display = 'none';
+    document.getElementById('reffile-overlay').style.display = 'flex';
+  } catch(e) { alert('Could not load this reference file: ' + e.message); }
+}
+
+async function openEditReferenceFileModal(id) {
+  try {
+    const res = await fetch('/api/reference-files?q=');
+    const files = await res.json();
+    const existing = (Array.isArray(files) ? files : []).find(f => f.id === id);
+    if (!existing) { alert('Reference file not found.'); return; }
+    _reffileModalMode = 'edit';
+    _reffileModalTargetId = id;
+    document.getElementById('reffile-modal-title').textContent = 'Edit Reference File Notes';
+    document.getElementById('reffile-submit-btn').textContent = 'Save Changes';
+    // Real, editing notes never touches the file content itself — per
+    // the explicit reproducibility design, that requires the separate
+    // "provide a newer version" flow instead.
+    document.getElementById('reffile-file-picker-row').style.display = 'none';
+    document.getElementById('reffile-display-name').value = existing.display_name || '';
+    document.getElementById('reffile-notes-description').value = existing.notes_description || '';
+    document.getElementById('reffile-notes-location').value = existing.notes_location || '';
+    document.getElementById('reffile-notes-interpretation').value = existing.notes_interpretation || '';
+    document.getElementById('reffile-effective-start').value = existing.effective_start_date || '';
+    document.getElementById('reffile-effective-end').value = existing.effective_end_date || '';
+    document.getElementById('reffile-error').style.display = 'none';
+    document.getElementById('reffile-overlay').style.display = 'flex';
+  } catch(e) { alert('Could not load this reference file: ' + e.message); }
+}
+
+function closeReferenceFileModal() {
+  document.getElementById('reffile-overlay').style.display = 'none';
+}
+
+async function _submitReferenceFileModal() {
+  const errEl = document.getElementById('reffile-error');
+  errEl.style.display = 'none';
+  const displayName = document.getElementById('reffile-display-name').value.trim();
+  const notesDescription = document.getElementById('reffile-notes-description').value.trim();
+  const notesLocation = document.getElementById('reffile-notes-location').value.trim();
+  const notesInterpretation = document.getElementById('reffile-notes-interpretation').value.trim();
+  const effectiveStart = document.getElementById('reffile-effective-start').value;
+  const effectiveEnd = document.getElementById('reffile-effective-end').value;
+  const fileInput = document.getElementById('reffile-file-input');
+
+  if (!displayName || !notesDescription || !notesLocation || !notesInterpretation) {
+    errEl.textContent = 'Display name and all three notes fields are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (_reffileModalMode !== 'edit' && !fileInput.files.length) {
+    errEl.textContent = 'A file is required.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    let res;
+    if (_reffileModalMode === 'edit') {
+      res = await fetch('/api/reference-files/' + encodeURIComponent(_reffileModalTargetId), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName, notesDescription, notesLocation, notesInterpretation, effectiveStartDate: effectiveStart || null, effectiveEndDate: effectiveEnd || null }),
+      });
+    } else {
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('displayName', displayName);
+      formData.append('notesDescription', notesDescription);
+      formData.append('notesLocation', notesLocation);
+      formData.append('notesInterpretation', notesInterpretation);
+      if (effectiveStart) formData.append('effectiveStartDate', effectiveStart);
+      if (effectiveEnd) formData.append('effectiveEndDate', effectiveEnd);
+      const url = _reffileModalMode === 'new-version'
+        ? '/api/reference-files/' + encodeURIComponent(_reffileModalTargetId) + '/new-version'
+        : '/api/reference-files';
+      res = await fetch(url, { method: 'POST', body: formData });
+    }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errEl.textContent = body.detail || body.error || 'Could not save this reference file.';
+      errEl.style.display = 'block';
+      return;
+    }
+    closeReferenceFileModal();
+    loadReferenceFilesLibrary();
+  } catch(e) {
+    errEl.textContent = 'Could not save this reference file: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
 function _fsSortBy(col) {
   if (_fsSortCol===col) _fsSortDir=_fsSortDir==='asc'?'desc':'asc';
   else { _fsSortCol=col; _fsSortDir='asc'; }
@@ -23050,19 +23349,22 @@ async function analyzeWithClaude() {
     </div>${errorLine}${retryBtn}`;
   }
 
-  // Build attribute prompt text — conditionally include desc, addl info, criteria based on options
-  const attrPrompt = attributes.map((a, i) => {
-    let parts = [`${i+1}. "${a.title}"`];
-    if (opts.attrDesc !== false && a.desc) parts.push(`\n   Test Attribute Description: ${a.desc}`);
-    if (opts.attrAddl && a.additionalInfo) parts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
-    if (opts.success && a.successCriteria) parts.push(
-      `\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`
-    );
-    if (opts.failure && a.failureCriteria) parts.push(
-      `\n   Failure Criteria (the following describes conditions that, if present in the document, constitute a definitive failure of this attribute regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):\n   ${a.failureCriteria}`
-    );
-    return parts.join('');
-  }).join('\n\n');
+  // Build attribute prompt text — conditionally include desc, addl info, criteria based on options.
+  // Real, also fetches and injects each attribute's own applicable
+  // reference files, per the complete reference-file architecture —
+  // referenceFilesById is shared via closure with wherever document
+  // content blocks get built later, so their real, actual content
+  // reaches the model alongside these notes, not just the notes alone.
+  const referenceFilesById = new Map();
+  const attrPrompt = await _buildAttrPromptWithReferenceFiles(attributes, opts, ref, referenceFilesById);
+
+  // Real, builds the actual reference-file document content blocks
+  // exactly once here, now that referenceFilesById is fully populated
+  // across every attribute — genuinely avoids redundantly re-fetching
+  // and re-encoding the same real file content once per sample being
+  // tested. Both real analyze functions below reuse this exact, same
+  // shared array via closure.
+  const referenceFileDocBlocks = await _buildReferenceFileContentBlocks(referenceFilesById);
 
   // Build context section — workpaper-level data prepended to the user message
   const contextParts = [];
@@ -23240,6 +23542,11 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
 
       const docBlocks = await _buildAllFileContentBlocks();
       if (docBlocks.length === 0) throw new Error('No sample files could be read.');
+      // Real, merged in after the check above, deliberately — that
+      // check must stay scoped to sample files only, so a genuine
+      // sample-file read failure is never silently masked just
+      // because reference files also happen to exist.
+      docBlocks.push(...referenceFileDocBlocks);
 
       // ── API endpoint detection ─────────────────────────────────────────
       const host = window.location.hostname;
@@ -23350,6 +23657,11 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       .filter(f => base64Cache[f.name])
       .map(f => ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Cache[f.name] }, title: f.name }));
     if (docBlocks.length === 0) return { ok: false, error: 'Failed to read sample files', commentary: '' };
+    // Real, merged in after the check above, deliberately — the exact,
+    // same treatment as its own sibling occurrence, so a genuine
+    // sample-file read failure is never silently masked just because
+    // reference files also happen to exist.
+    docBlocks.push(...referenceFileDocBlocks);
     const sampleDesc = _describeSampleRow(row) || '(sample row)';
     setProgress(Math.round(5 + (processed / sampleRows.length) * 75), `Testing sample: ${sampleDesc}…`);
 
@@ -23782,7 +24094,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   }
 }
 
-function downloadTestGuidance() {
+async function downloadTestGuidance() {
   const ref         = getWPRef();
   const wp          = WORKPAPERS[currentWPIndex];
   const opts        = _analysisOptions || {};
@@ -24039,18 +24351,12 @@ Be as precise as possible — these coordinates are used to place tick marks dir
   }
 
   // ── 2h. Attribute prompt + field extraction (exactly as sent to Claude) ───
-  const attrPrompt = attributes.map((a, i) => {
-    let parts = [`${i+1}. "${a.title}"`];
-    if (opts.attrDesc !== false && a.desc)
-      parts.push(`\n   Test Attribute Description: ${a.desc}`);
-    if (opts.attrAddl && a.additionalInfo)
-      parts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
-    if (opts.success && a.successCriteria)
-      parts.push(`\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`);
-    if (opts.failure && a.failureCriteria)
-      parts.push(`\n   Failure Criteria (the following describes conditions that, if present in the document, constitute a definitive failure of this attribute regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):\n   ${a.failureCriteria}`);
-    return parts.join('');
-  }).join('\n\n');
+  // Real, also fetches and injects each attribute's own applicable
+  // reference files, per the complete reference-file architecture —
+  // reuses the exact, same shared referenceFilesById Map and ref from
+  // the enclosing scope, since this is genuinely the same single
+  // analyze run, not a separate one.
+  const attrPrompt = await _buildAttrPromptWithReferenceFiles(attributes, opts, ref, referenceFilesById);
 
   const fieldPrompt = sampleFields.length
     ? '\n\nSAMPLE FIELD EXTRACTION:\nAlso extract the following fields from the document. Include them in the "fields" array in your JSON response:\n' +
@@ -24107,6 +24413,96 @@ Be as precise as possible — these coordinates are used to place tick marks dir
 
 function closeAnalysis() {
   document.getElementById('analysis-overlay').style.display = 'none';
+}
+
+// Real, new shared helper, per the complete reference-file
+// architecture — calls the real backend resolution endpoint for a
+// specific attribute on this workpaper, returning every reference
+// file that genuinely applies (tenant, audit, workpaper, or
+// attribute-scoped, already filtered to current versions within
+// their own effective window). Fails silently to an empty array —
+// a reference-file lookup failure should never block an ordinary
+// Analyze run from proceeding.
+async function _fetchApplicableReferenceFiles(ref, attributeIndex) {
+  try {
+    const res = await fetch(`/api/workpapers/${encodeURIComponent(ref)}/reference-files?attributeIndex=${attributeIndex}`);
+    if (!res.ok) return [];
+    const files = await res.json();
+    return Array.isArray(files) ? files : [];
+  } catch(e) { return []; }
+}
+
+// Real, new shared helper, per the complete reference-file
+// architecture — fetches a reference file's own, actual content from
+// the backend and converts it to base64, reusing the exact, same
+// chunk-based conversion already proven for sample files in
+// fileToBase64 right below this, since a fetch response's own
+// arrayBuffer() works identically to a local File object's.
+async function _referenceFileToBase64(fileId) {
+  try {
+    const res = await fetch(`/api/reference-files/${encodeURIComponent(fileId)}/download`);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const CHUNK = 32768;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary);
+  } catch(e) { return null; }
+}
+
+// Real, new shared helper, per the complete reference-file
+// architecture — given a Map of unique reference files actually
+// needed across every attribute in this analyze run (deduplicated by
+// id, so a tenant-wide file cited by many attributes only gets fetched
+// and sent once), builds real document content blocks matching the
+// exact, same shape already used for sample files.
+async function _buildReferenceFileContentBlocks(referenceFilesById) {
+  const blocks = [];
+  for (const rf of referenceFilesById.values()) {
+    const b64 = await _referenceFileToBase64(rf.id);
+    if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: rf.content_type || 'application/pdf', data: b64 }, title: `Reference: ${rf.display_name}` });
+  }
+  return blocks;
+}
+
+// Real, new shared helper, per the complete reference-file
+// architecture — builds the exact, same attribute prompt text already
+// used by both real Analyze code paths, while also fetching and
+// injecting each attribute's own applicable reference files, so a
+// person's real, actual notes ("compare against Column B...") reach
+// the model as instruction, right alongside that same attribute's own
+// title, description, and criteria. Used by both analyzeOneFile and
+// analyzeOneFileFast, so the two real code paths can never silently
+// drift apart on this. Populates referenceFilesById (a real, shared
+// Map, passed in by the caller) with every unique reference file
+// actually needed across the whole attribute set — deduplicated by
+// id, so a tenant-wide file cited by many attributes only gets its
+// own real content fetched and sent once, not once per attribute.
+async function _buildAttrPromptWithReferenceFiles(attributes, opts, ref, referenceFilesById) {
+  const parts = await Promise.all(attributes.map(async (a, i) => {
+    let attrParts = [`${i+1}. "${a.title}"`];
+    if (opts.attrDesc !== false && a.desc) attrParts.push(`\n   Test Attribute Description: ${a.desc}`);
+    if (opts.attrAddl && a.additionalInfo) attrParts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
+    if (opts.success && a.successCriteria) attrParts.push(
+      `\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`
+    );
+    if (opts.failure && a.failureCriteria) attrParts.push(
+      `\n   Failure Criteria (the following describes conditions that, if present in the document, constitute a definitive failure of this attribute regardless of other evidence — if any condition below is observed, the result is a fail even if other aspects appear satisfactory):\n   ${a.failureCriteria}`
+    );
+    const referenceFiles = await _fetchApplicableReferenceFiles(ref, i);
+    if (referenceFiles.length) {
+      attrParts.push(`\n   Reference material for this attribute (see the attached "Reference:" documents by the same titles below):`);
+      referenceFiles.forEach(rf => {
+        referenceFilesById.set(rf.id, rf);
+        attrParts.push(`\n   - "${rf.display_name}": ${rf.notes_description} Where to look: ${rf.notes_location} How to use it: ${rf.notes_interpretation}`);
+      });
+    }
+    return attrParts.join('');
+  }));
+  return parts.join('\n\n');
 }
 
 async function fileToBase64(file) {
@@ -30385,6 +30781,11 @@ function deleteSelectedAttrRows() {
 
 function renderTestAttributes(ref) {
   currentAttrWPRef = ref;
+  // Real, fire-and-forget, per the per-attribute icon feature —
+  // deliberately not awaited, so opening a workpaper never waits on
+  // this network call before showing its own attributes; icons
+  // update in place the moment this resolves.
+  _loadReferenceFileSummaryForWP(ref);
   const rows = wpTestAttributes[ref] || [];
   const container = document.getElementById('test-attr-rows');
   if (!container) return;
@@ -30459,6 +30860,112 @@ function moveAttrRow(idx, dir) {
   if (w) _saveWorkpaperToDB(w);
 }
 
+// Real, new state, per the per-attribute icon feature — holds the
+// most recently fetched bulk summary per workpaper, so
+// makeAttrRowHtml can synchronously read whatever's currently known
+// when building each row's own icon. Genuinely refetched every real
+// render rather than cached across visits — this query is
+// lightweight, and staying current after someone attaches something
+// new matters more here than avoiding a redundant, cheap call.
+let _refFileSummaryByWP = {};
+
+// Real, fetches the bulk summary for a workpaper and updates every
+// currently-rendered icon in place once it arrives — deliberately not
+// awaited by the caller, so opening a workpaper never waits on this
+// network call before showing its own attributes.
+async function _loadReferenceFileSummaryForWP(ref) {
+  try {
+    const res = await fetch(`/api/workpapers/${encodeURIComponent(ref)}/reference-files-by-attribute`);
+    if (!res.ok) return;
+    _refFileSummaryByWP[ref] = await res.json();
+  } catch(e) { return; }
+  if (ref === currentAttrWPRef) _updateAllAttrRefFileIcons(ref);
+}
+
+// Real, resolves a specific attribute's own icon state from whatever
+// summary is currently cached — genuinely correct even before the
+// real fetch above ever completes, since an uncached workpaper simply
+// has no inherited or direct entries yet, matching the real, honest
+// "nothing to show yet" state rather than a misleading guess.
+function _getAttrRefFileState(ref, idx) {
+  const summary = _refFileSummaryByWP[ref] || { inherited: [], byAttribute: {} };
+  const direct = summary.byAttribute[idx] || [];
+  if (direct.length) return { state: 'direct', count: direct.length, direct, inherited: summary.inherited };
+  if (summary.inherited.length) return { state: 'inherited', count: 0, direct: [], inherited: summary.inherited };
+  return { state: 'none', count: 0, direct: [], inherited: [] };
+}
+
+// Real, builds the actual icon HTML for one attribute row, per the
+// three-state visual design — one consistent icon shape throughout,
+// varying only color and fill, so the visual language stays
+// predictable: muted outline for nothing linked at all, a neutral
+// fill for something that only applies because it's inherited, and
+// the app's own accent color with a count badge for files
+// specifically chosen for this exact attribute. Always clickable in
+// every state — clicking at zero opens the same attach flow directly.
+function _buildAttrRefFileIconHtml(ref, idx) {
+  const info = _getAttrRefFileState(ref, idx);
+  let color, fill;
+  if (info.state === 'direct') { color = 'var(--wf-navy)'; fill = 'var(--wf-navy)'; }
+  else if (info.state === 'inherited') { color = 'var(--text-tertiary)'; fill = 'var(--text-tertiary)'; }
+  else { color = 'var(--text-tertiary)'; fill = 'none'; }
+  const badge = info.state === 'direct' ? `<span style="position:absolute;top:-4px;right:-5px;background:var(--wf-navy);color:#fff;font-size:8px;font-weight:700;border-radius:7px;min-width:12px;height:12px;display:flex;align-items:center;justify-content:center;padding:0 2px">${info.count}</span>` : '';
+  return `<span class="attr-reffile-icon" id="attr-reffile-icon-${idx}" style="position:relative;display:inline-flex;cursor:pointer" title="Reference files" onmouseenter="_showAttrRefFileHover(event,${idx})" onmouseleave="_hideAttrRefFileHover()" onclick="event.stopPropagation();_openAttrRefFileAttach(${idx})">
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="${fill}" stroke="${color}" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
+    ${badge}
+  </span>`;
+}
+
+
+// Real, updates every currently-rendered icon in place once the real
+// bulk summary arrives — replaces each icon's own complete element,
+// since _buildAttrRefFileIconHtml returns the full wrapper itself,
+// not just inner content.
+function _updateAllAttrRefFileIcons(ref) {
+  const rows = wpTestAttributes[ref] || [];
+  rows.forEach((a, idx) => {
+    const el = document.getElementById(`attr-reffile-icon-${idx}`);
+    if (el) el.outerHTML = _buildAttrRefFileIconHtml(ref, idx);
+  });
+}
+
+// Real, the hover panel — shows the two groups (specific to this
+// attribute versus inherited from a broader scope) plus the brief
+// legend explaining the three colors in every hover, positioned near
+// the real icon itself.
+function _showAttrRefFileHover(event, idx) {
+  _hideAttrRefFileHover();
+  const info = _getAttrRefFileState(currentAttrWPRef, idx);
+  const rect = event.currentTarget.getBoundingClientRect();
+  const directHtml = info.direct.length
+    ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Specific to this attribute</div>` +
+      info.direct.map(f => `<div style="font-size:12px;color:var(--text-primary);padding:2px 0">${escAttr(f.display_name)}</div>`).join('') + `<div style="height:8px"></div>`
+    : '';
+  const inheritedHtml = info.inherited.length
+    ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Applies to this whole workpaper</div>` +
+      info.inherited.map(f => `<div style="font-size:12px;color:var(--text-secondary);padding:2px 0">${escAttr(f.display_name)}</div>`).join('')
+    : '';
+  const emptyHtml = (!info.direct.length && !info.inherited.length)
+    ? `<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No reference files linked yet — click to add one.</div>`
+    : '';
+  const legendHtml = `
+    <div style="margin-top:10px;padding-top:8px;border-top:0.5px solid var(--border-light);display:flex;flex-direction:column;gap:3px">
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;background:var(--wf-navy);flex-shrink:0"></span>Added specifically to this attribute</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;background:var(--text-tertiary);flex-shrink:0"></span>Inherited from a broader scope</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;border:1.5px solid var(--text-tertiary);flex-shrink:0"></span>Nothing linked yet</div>
+    </div>`;
+  const panel = document.createElement('div');
+  panel.id = 'attr-reffile-hover-panel';
+  panel.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom + 6}px;z-index:14000;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.15);padding:12px 14px;min-width:200px;max-width:280px;pointer-events:none`;
+  panel.innerHTML = directHtml + inheritedHtml + emptyHtml + legendHtml;
+  document.body.appendChild(panel);
+}
+
+function _hideAttrRefFileHover() {
+  const existing = document.getElementById('attr-reffile-hover-panel');
+  if (existing) existing.remove();
+}
+
 function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRows, isSelected) {
   const base   = (idx * 4) + 1;
   const rowNum = idx + 1; // always sequential, not user-editable
@@ -30512,6 +31019,9 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
       <textarea class="attr-input attr-failure" maxlength="2500" placeholder="Failure criteria…"
         tabindex="${base+5}" oninput="saveAttrRow(${idx});autoResizeTA(this);updateAttrCriteriaDot()" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;cursor:default"></textarea>
+    </div>
+    <div class="attr-cell" style="flex-shrink:0;width:26px;padding:9px 2px 6px;display:flex;align-items:center;justify-content:center">
+      ${_buildAttrRefFileIconHtml(currentAttrWPRef, idx)}
     </div>
     <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
