@@ -352,6 +352,32 @@ async function uploadFileToStorage(bucketKey, body, contentType) {
   await upload.done();
 }
 
+// Real, new, per direct request — a real upload call not throwing only
+// proves the request was accepted, not that the actual bytes genuinely
+// and completely arrived intact. This directly confirms both, using
+// the exact, same HeadObjectCommand pattern already proven in the
+// existing sample-files diagnostic route, extracted here into one
+// shared, reusable helper rather than duplicated at every real place
+// this same check is now needed. Throws a real, specific error — never
+// silently returns false — so a genuine mismatch is impossible to
+// accidentally ignore at any real call site.
+async function verifyFileInStorage(bucketKey, expectedSizeBytes) {
+  if (!STORAGE_CONFIGURED || !s3Client) {
+    throw new Error('Object storage is not configured on the server — cannot verify upload.');
+  }
+  let head;
+  try {
+    head = await s3Client.send(new HeadObjectCommand({ Bucket: STORAGE_BUCKET, Key: bucketKey }));
+  } catch (e) {
+    throw new Error(`Upload verification failed — the file does not actually exist in storage after upload (${e.name === 'NotFound' ? 'not found' : e.message}).`);
+  }
+  const actualSize = head.ContentLength;
+  if (expectedSizeBytes !== undefined && expectedSizeBytes !== null && actualSize !== expectedSizeBytes) {
+    throw new Error(`Upload verification failed — the file in storage is ${actualSize} bytes, but ${expectedSizeBytes} bytes were sent. The upload may be truncated or corrupted.`);
+  }
+  return actualSize;
+}
+
 // Returns a readable stream for a stored file — the download route pipes
 // this directly to the HTTP response rather than buffering the entire
 // file into server memory first, which matters at the file sizes this
@@ -450,6 +476,31 @@ function fail(res, err, context, status = 500) {
 async function initDB() {
   if (!pool) { console.log('No DATABASE_URL — running without database'); return; }
   try {
+    // Real, confirmed fix, per a real, live reported error — this now
+    // runs first, before anything else, rather than deep inside a
+    // later batch that assumed these columns were already gone. The
+    // real, actual root cause: an earlier version of this migration
+    // sequence had this DROP COLUMN step running AFTER a statement
+    // that only worked correctly if the column still existed —
+    // meaning on any database where it had already been dropped
+    // (which live production genuinely was), that later statement
+    // would throw immediately, silently aborting every remaining
+    // statement in its own batch, including this exact DROP COLUMN
+    // step meant to make that column's absence permanent. A single
+    // early failure was quietly preventing a large number of
+    // unrelated tables and columns from ever being created or updated
+    // on every single startup. Isolated in its own try/catch, in
+    // isolated statements — a hard lesson from several preceding
+    // turns, where a shared catch block silently swallowed a failure
+    // and prevented a column from ever reaching the live table across
+    // multiple deploys without any visible error.
+    try {
+      await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS layout_key`);
+      await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS plain_type_selectable`);
+      console.log('DB: workpaper_types columns corrected — now purely administrative categorization');
+    } catch (colDropErr) {
+      console.error('DB: could not drop obsolete workpaper_types columns:', colDropErr.message);
+    }
     await pool.query(`
       -- ── Tenants (scaffold for future multi-tenancy) ────────────────────────
       -- The master tenant table — every other table's tenant_id column is a
@@ -757,23 +808,21 @@ async function initDB() {
       -- alone: on a database where workpaper_types already exists from
       -- before this session's Type/Template split, IF NOT EXISTS means
       -- Postgres skips that CREATE TABLE entirely, leaving the LIVE
-      -- table's actual structure in place — which still has layout_key
-      -- defined as TEXT NOT NULL at this exact point in execution (the
-      -- migration that drops that column is a separate, LATER query,
-      -- not part of this same multi-statement batch). An INSERT that
-      -- omits layout_key would violate that constraint and throw,
-      -- silently aborting every statement after it in this one giant
-      -- query — including workpaper_templates' own CREATE TABLE further
-      -- below, which is the actual, now-confirmed reason it never
-      -- existed at all despite being correctly written. Providing an
-      -- explicit, harmless value here satisfies the live constraint
-      -- regardless of whether the later DROP COLUMN migration has run.
-      INSERT INTO workpaper_types (name, description, sort_order, layout_key) VALUES
-        ('Planning', 'Planning workpaper.', 1, 'n/a'),
-        ('Testwork', 'Testwork workpaper.', 2, 'n/a'),
-        ('Report',   'Report workpaper.', 3, 'n/a'),
-        ('Admin',    'Administrative workpaper.', 4, 'n/a'),
-        ('Other',    'Other workpaper type.', 5, 'n/a')
+      -- table's actual structure in place. Real, confirmed fix, per a
+      -- real, live reported error — layout_key is no longer referenced
+      -- here at all. A dedicated, early-running migration (see
+      -- ensureWorkpaperTypesColumnsDropped below, which now runs before
+      -- this batch rather than after it) genuinely and reliably removes
+      -- that column before this statement ever executes, so this
+      -- INSERT is correct for the column's real, current, intended
+      -- absence rather than needing to accommodate its possible
+      -- presence.
+      INSERT INTO workpaper_types (name, description, sort_order) VALUES
+        ('Planning', 'Planning workpaper.', 1),
+        ('Testwork', 'Testwork workpaper.', 2),
+        ('Report',   'Report workpaper.', 3),
+        ('Admin',    'Administrative workpaper.', 4),
+        ('Other',    'Other workpaper type.', 5)
       ON CONFLICT (name) DO NOTHING;
 
       -- ── Workpaper Templates (New Workpaper modal only) ───────────────────────
@@ -1181,13 +1230,12 @@ async function initDB() {
       } catch (cleanupErr) {
         console.error('DB: could not remove template rows from workpaper_types:', cleanupErr.message);
       }
-      try {
-        await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS layout_key`);
-        await pool.query(`ALTER TABLE workpaper_types DROP COLUMN IF EXISTS plain_type_selectable`);
-        console.log('DB: workpaper_types columns corrected — now purely administrative categorization');
-      } catch (colDropErr) {
-        console.error('DB: could not drop obsolete workpaper_types columns:', colDropErr.message);
-      }
+      // Real, confirmed fix, per a real, live reported error — this
+      // DROP COLUMN step now runs early, near the very top of this
+      // function, before any statement that assumes these columns are
+      // already gone. See the comment there for the full, real
+      // explanation of why this specific ordering was the actual root
+      // cause of a much wider, confirmed problem.
 
       // Defensive backfill for workpaper_templates — in case it's already
       // live from a prior deploy of this exact turn's change without
@@ -1879,10 +1927,23 @@ ensureReferenceFileScopesTable();
 async function ensureAttributeEditHistoryTenantFK() {
   if (!pool) return;
   try {
+    // Real, confirmed fix, per a real, live, reported error — PostgreSQL
+    // genuinely does not support IF NOT EXISTS for ADD CONSTRAINT at
+    // all (only ADD COLUMN supports it) — this exact statement was
+    // syntactically invalid from the start, meaning this foreign key
+    // has genuinely never once been successfully added on any real
+    // deployment, regardless of whether it already existed or not.
+    // Uses the real, established PostgreSQL pattern for this exact
+    // situation instead — checking pg_constraint directly before
+    // attempting the ALTER.
     await pool.query(`
-      ALTER TABLE attribute_edit_history
-      ADD CONSTRAINT IF NOT EXISTS fk_attr_edit_history_tenant_workpaper
-      FOREIGN KEY (tenant_id, workpaper_ref) REFERENCES workpapers (tenant_id, ref) ON DELETE CASCADE
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_attr_edit_history_tenant_workpaper') THEN
+          ALTER TABLE attribute_edit_history
+          ADD CONSTRAINT fk_attr_edit_history_tenant_workpaper
+          FOREIGN KEY (tenant_id, workpaper_ref) REFERENCES workpapers (tenant_id, ref) ON DELETE CASCADE;
+        END IF;
+      END $$;
     `);
     console.log('DB: attribute_edit_history tenant/workpaper FK confirmed ready (standalone check)');
   } catch (err) {
@@ -2069,7 +2130,19 @@ async function ensureWorkpaperCategoriesTable() {
     // real, actual duplicate abbreviation already present would
     // violate this constraint), and a failure here must never block
     // the real, critical workpapers columns below.
-    await pool.query(`ALTER TABLE workpaper_categories ADD CONSTRAINT IF NOT EXISTS uq_workpaper_categories_abbreviation UNIQUE (abbreviation)`);
+    // Real, confirmed fix, per a real, live, reported error — the
+    // exact, same PostgreSQL syntax bug already fixed above:
+    // IF NOT EXISTS is genuinely not supported for ADD CONSTRAINT,
+    // meaning this uniqueness constraint has genuinely never once
+    // been successfully added on any real deployment. Uses the exact,
+    // same corrected pattern.
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_workpaper_categories_abbreviation') THEN
+          ALTER TABLE workpaper_categories ADD CONSTRAINT uq_workpaper_categories_abbreviation UNIQUE (abbreviation);
+        END IF;
+      END $$;
+    `);
   } catch (err) {
     console.error('DB: workpaper_categories abbreviation UNIQUE constraint FAILED (likely real, existing duplicate data — investigate directly, but this does not block the rest of this migration):', err.message, err.code);
   }
@@ -2156,14 +2229,27 @@ async function ensureFileCategoryColumn() {
       // Only touch a real constraint that's genuinely the old, real
       // (tenant_id, ref, filename) shape — never a different, real,
       // unrelated one this table might also have.
+      // Real, confirmed fix, per a real, live reported error —
+      // a.attname is a Postgres name type, not plain text, and
+      // array_agg over it produces name[] — a less-common array type
+      // the pg driver has genuinely had gaps reliably parsing,
+      // sometimes returning the raw, unparsed array literal as a
+      // string instead of a real array. Casting explicitly to text
+      // here means this always comes back as a reliably-parsed
+      // text[].
       const { rows: colCheck } = await pool.query(`
-        SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+        SELECT array_agg(a.attname::text ORDER BY a.attname::text) AS cols
         FROM pg_constraint c
         JOIN unnest(c.conkey) AS k(attnum) ON true
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
         WHERE c.conname = $1 AND c.conrelid = 'sample_files'::regclass
       `, [conname]);
-      const cols = (colCheck[0]?.cols || []).sort();
+      // Real, genuine JS-level safety net too, regardless of the SQL
+      // cast above — never assumes the driver's own parsed shape,
+      // falls back to empty rather than genuinely crashing on
+      // anything that isn't actually a real array.
+      const rawCols = colCheck[0]?.cols;
+      const cols = (Array.isArray(rawCols) ? rawCols : []).sort();
       const isOldShape = JSON.stringify(cols) === JSON.stringify(['filename', 'ref', 'tenant_id'].sort());
       if (isOldShape) {
         await pool.query(`ALTER TABLE sample_files DROP CONSTRAINT "${conname}"`);
@@ -6563,6 +6649,15 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
 
     const bucketKey = _buildBucketKey(req.currentTenantId, ref, filename);
     await uploadFileToStorage(bucketKey, req.file.buffer, req.file.mimetype);
+    // Real, new, per direct request — a real upload call not throwing
+    // only proves the request was accepted, not that the actual bytes
+    // genuinely and completely arrived intact. This directly confirms
+    // both before the database row below ever gets created — a
+    // genuinely truncated or corrupted upload throws a real, clear
+    // error right here, rather than silently letting a database row
+    // get created claiming a healthy file exists when what's actually
+    // in storage is broken.
+    await verifyFileInStorage(bucketKey, req.file.size);
 
     let rows;
     try {
@@ -6593,17 +6688,47 @@ app.post('/api/sample-files/:ref', sampleFileUpload.single('file'), async (req, 
       // drop the new column here.
       if (insertErr.code === '42703') {
         console.error('[POST /api/sample-files/:ref] annotated_from column missing on live table — saved without it. Migration likely has not reached this database yet.');
-        ({ rows } = await pool.query(
-          `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-           ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
-             workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
-             size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
-             uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
-           RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
-          [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
-        ));
-        rows = rows.map(r => ({ ...r, annotated_from: null }));
+        try {
+          ({ rows } = await pool.query(
+            `INSERT INTO sample_files (tenant_id, ref, workpaper_id, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+             ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
+               workpaper_id=EXCLUDED.workpaper_id, bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+               size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+               uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+             RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
+            [req.currentTenantId, ref, wpId, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
+          ));
+          rows = rows.map(r => ({ ...r, annotated_from: null }));
+        } catch (insertErr2) {
+          // Real, confirmed fix, per a real, live, reported 500 on
+          // this exact route — the fallback above still genuinely
+          // references workpaper_id, a column added by its own,
+          // separate migration, which could just as easily not have
+          // reached a given live database yet either. If that's the
+          // real column actually missing here, rather than
+          // annotated_from, this catches that too, falling back one
+          // more layer to the real, original insert shape from before
+          // either column existed — the exact, same two-layer pattern
+          // already proven on the GET routes for this identical class
+          // of problem.
+          if (insertErr2.code === '42703') {
+            console.error('[POST /api/sample-files/:ref] workpaper_id column also missing on live table — saved without it too. Migration likely has not reached this database yet.');
+            ({ rows } = await pool.query(
+              `INSERT INTO sample_files (tenant_id, ref, filename, bucket_key, content_type, size_bytes, bucket_name, uploaded_by, file_category, date_updated)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+               ON CONFLICT (tenant_id, ref, filename, file_category) DO UPDATE SET
+                 bucket_key=EXCLUDED.bucket_key, content_type=EXCLUDED.content_type,
+                 size_bytes=EXCLUDED.size_bytes, bucket_name=EXCLUDED.bucket_name,
+                 uploaded_by=EXCLUDED.uploaded_by, archived=false, date_updated=NOW()
+               RETURNING file_id, filename, content_type, size_bytes, uploaded_by, file_category, date_created, date_updated`,
+              [req.currentTenantId, ref, filename, bucketKey, req.file.mimetype, req.file.size, STORAGE_BUCKET, uploadedBy, fileCategory]
+            ));
+            rows = rows.map(r => ({ ...r, annotated_from: null }));
+          } else {
+            throw insertErr2;
+          }
+        }
       } else {
         throw insertErr;
       }
