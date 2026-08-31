@@ -546,6 +546,7 @@
   .analysis-opt-row:hover { background:var(--bg-secondary); }
   .analysis-opt-cb { width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer;flex-shrink:0; }
   .analysis-opt-label { font-size:13px;color:var(--text-primary);line-height:1.4; }
+  .attr-col-resize {
     position: absolute;
     right: 0; top: 0; bottom: 0;
     width: 5px;
@@ -563,6 +564,7 @@
     align-items: stretch;
   }
   .attr-row-flex .attr-cell { padding: 6px 8px; overflow: hidden; }
+  .attr-num-input {
     width: 100%; font-size: 12px; font-weight: 600; color: var(--wf-blue);
     background: transparent; border: none; outline: none;
     font-family: inherit; padding-top: 2px;
@@ -789,6 +791,7 @@
   }
   .rcm-dialog-sec { padding-bottom: 28px; margin-bottom: 4px; border-bottom: 0.5px solid var(--border-light); }
   .rcm-dialog-sec:last-child { border-bottom: none; padding-bottom: 12px; }
+  .entity-tag-biomed {
     display: inline-flex; align-items: center; gap: 5px;
     font-size: 11px; font-weight: 500;
     padding: 3px 9px; border-radius: var(--radius-md);
@@ -27698,6 +27701,23 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     // genuinely discoverable is the right balance until this has been
     // exercised against a real bucket and proven reliable enough to
     // warrant a more visible failure state.
+  } finally {
+    // Real, confirmed fix, per direct troubleshooting — this function
+    // is the one, real place fileId actually gets set on success, but
+    // it never told the screen to look again once it finished. Every
+    // real caller refreshes immediately after starting an upload — a
+    // genuinely correct, deliberate choice, showing the new entry
+    // right away rather than leaving the screen blank while it
+    // uploads — but two of the three real upload paths never
+    // refreshed a second time once the actual async upload genuinely
+    // completed, leaving a correctly, successfully saved file showing
+    // as unsaved forever, with nothing ever telling the display to
+    // check again. This fires regardless of success or failure, since
+    // either way the display should reflect whatever the real,
+    // current state now actually is — the storage dot correctly
+    // staying gray on a real failure is exactly as important as it
+    // correctly turning green on a real success.
+    refreshFileList(ref, fileCategory === 'workpaper' ? 'workpaper' : 'sample');
   }
 }
 
