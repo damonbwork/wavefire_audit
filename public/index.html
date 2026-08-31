@@ -449,6 +449,7 @@
   .bm-btn:hover { background: var(--blue-50); color: var(--wf-blue); border-color: var(--blue-100); }
   .bm-btn.active { background: var(--blue-50); color: var(--wf-blue); border-color: var(--blue-100); }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes refToastIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
   #wpd-tag-input::placeholder { color: #b0b8c4; font-style: italic; font-weight: 400; letter-spacing: 0.5px; }
   #nwp-seg3::placeholder      { color: #b0b8c4; font-style: italic; font-weight: 400; letter-spacing: 0.5px; }
@@ -3299,7 +3300,8 @@ attribute.
               <div class="attr-col-hdr-cell attr-criteria-col" data-col="failure" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default" onmouseenter="document.getElementById('criteria-tooltip').style.display='block'" onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
                 Failure Criteria
               </div>
-              <div style="width:36px;flex-shrink:0"></div>
+              <div class="attr-col-hdr-cell" style="width:26px;min-width:26px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 2px;text-align:center;white-space:nowrap;cursor:default" title="Reference files provide information needed to support testing an attribute. E.g. a list of individuals whom are valid approvers.">REF FILE</div>
+              <div style="width:36px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 4px;text-align:center">REMOVE</div>
             </div>
             <!-- Attribute rows -->
             <div id="test-attr-rows"><div class="attr-row" id="attr-row-0" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
@@ -4722,6 +4724,32 @@ auditor's assessment.
   <!-- Real, new Reference File modal, per the complete architecture
        design — one, shared modal branching by mode (new upload, new
        version, edit notes only) rather than three separate ones. -->
+  <!-- Real, new attribute-specific attach modal, per direct request —
+       reuses the existing reffile-overlay for the actual upload flow
+       rather than duplicating it; this modal is specifically for
+       managing what's attached to one exact attribute. -->
+  <div id="attr-reffile-attach-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:13500;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:960px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+        <div id="attr-reffile-attach-title" style="font-size:15px;font-weight:600;color:var(--text-primary)">Reference Files for this Attribute</div>
+        <button onclick="_closeAttrRefFileAttach()" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:2px">&#x00D7;</button>
+      </div>
+      <div style="padding:16px 20px;overflow-y:auto;flex:1">
+        <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Currently Linked Reference Files</div>
+        <div id="attr-reffile-attach-current"></div>
+
+        <div style="font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin:20px 0 8px;padding-top:16px;border-top:0.5px solid var(--border-light)">Add a New Reference File</div>
+        <div>
+          <div class="fl">Attach an existing reference file</div>
+          <input id="attr-reffile-attach-search" type="text" placeholder="Search the reference library…" oninput="_searchAttrRefFileAttach()"
+            style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none;margin-top:4px">
+          <div id="attr-reffile-attach-results" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+        </div>
+        <button class="btn-s" style="margin-top:14px;width:100%" onclick="_openUploadAndAttachModal()"><i class="ti ti-upload"></i> Upload a New File and Attach It</button>
+      </div>
+    </div>
+  </div>
+
   <div id="reffile-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:13600;align-items:center;justify-content:center">
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:600px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
@@ -9021,6 +9049,56 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
     } catch (err) {
       console.error('[AcrobatAnnotate] Failed to process', origEntry.name, ':', err);
     }
+  }
+}
+
+// Real, new, per the memory/guidance plan — classifies how testing
+// actually went for each attribute's current wording, using a real,
+// direct heuristic rather than an additional Claude call just to
+// self-assess (which would add real cost and latency to every single
+// Analyze run). An actual error is the clearest, strongest signal;
+// short of that, scans the reasoning text for real hedging language —
+// the kind of phrasing that shows up when an attribute's own wording
+// left genuine room for doubt about what it actually required.
+// Aggregates the worst outcome across every sample tested for a given
+// attribute, since even one genuinely confusing result is a real
+// signal worth keeping, not something an otherwise-clean run should
+// average away.
+const _REF_HEDGING_PHRASES = [
+  'unclear', 'ambiguous', 'cannot determine', 'unable to confirm', 'not specified',
+  'uncertain', 'difficult to assess', 'no clear evidence', 'appears to', 'seems to',
+  'may or may not', 'insufficient information', 'not entirely clear', 'hard to tell',
+  'not clearly stated', 'somewhat unclear',
+];
+
+function _classifyOneAttributeResult(r) {
+  if (!r || r.result === 'error') return 'failed';
+  const reasoningLower = (r.reasoning || '').toLowerCase();
+  if (_REF_HEDGING_PHRASES.some(p => reasoningLower.includes(p))) return 'hedged';
+  return 'clean';
+}
+
+const _REF_OUTCOME_SEVERITY = { clean: 0, hedged: 1, failed: 2 };
+
+async function _classifyAndLogAttributeOutcomes(ref, attributes, analysisResults) {
+  if (!Array.isArray(attributes) || !attributes.length) return;
+  for (let i = 0; i < attributes.length; i++) {
+    const title = attributes[i]?.title;
+    if (!title) continue;
+    let worst = null;
+    for (const fileResult of (analysisResults || [])) {
+      const match = (fileResult.results || []).find(r => r.title === title);
+      if (!match) continue;
+      const outcome = _classifyOneAttributeResult(match);
+      if (worst === null || _REF_OUTCOME_SEVERITY[outcome] > _REF_OUTCOME_SEVERITY[worst]) worst = outcome;
+    }
+    if (worst === null) continue; // this attribute genuinely had no matching result in any sample this run
+    try {
+      await fetch('/api/attribute-edit-history/log-outcome', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workpaperRef: ref, attributeIndex: i, outcome: worst }),
+      });
+    } catch(e) { /* a failed log call here should never surface as an Analyze failure */ }
   }
 }
 
@@ -19052,6 +19130,143 @@ function renderFoundationsFS() {
 let _reffileModalMode = 'new'; // 'new' | 'new-version' | 'edit'
 let _reffileModalTargetId = null; // the real, actual id being edited or versioned, when relevant
 
+// Real, new state, per the attribute-attach flow — tracks which
+// attribute (if any) an in-progress upload should also get attached
+// to once it succeeds. Null means "just an ordinary library upload,"
+// set means "this upload should also create an attribute scope."
+let _reffileAttachContext = null;
+let _attrRefFileAttachIdx = null; // which attribute the attach modal is currently open for
+
+function _openAttrRefFileAttach(idx) {
+  _attrRefFileAttachIdx = idx;
+  const attrs = wpTestAttributes[currentAttrWPRef] || [];
+  const a = attrs[idx];
+  document.getElementById('attr-reffile-attach-title').textContent = `Reference Files — ${a?.attrRef ? 'Attribute ' + a.attrRef : 'Attribute ' + (idx + 1)}${a?.title ? ': ' + a.title : ''}`;
+  document.getElementById('attr-reffile-attach-search').value = '';
+  // Real, new, per the suggestion-feature plan — pre-fills the
+  // results area with the suggested match when this modal was opened
+  // via the suggested icon or the toast, matching the exact, same row
+  // structure and Attach button already established for an ordinary
+  // search result, so accepting a suggestion and accepting a manual
+  // search result are the exact, same motion. A distinct label and
+  // accent border mark it as the reason someone landed here, rather
+  // than an ordinary search result.
+  const suggestion = _refFileSuggestionByAttr[idx];
+  document.getElementById('attr-reffile-attach-results').innerHTML = suggestion
+    ? `<div style="font-size:10px;font-weight:700;color:var(--wf-navy);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Suggested match</div>
+       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:1.5px dashed var(--wf-navy);border-radius:var(--radius-md)">
+         <span style="font-size:13px;color:var(--text-primary)">${escAttr(suggestion.display_name)}</span>
+         <button class="btn-s" style="font-size:11px" onclick="_attachExistingReferenceFileToAttr('${suggestion.lineage_id}')">Attach</button>
+       </div>`
+    : '';
+  _renderAttrRefFileAttachCurrent();
+  document.getElementById('attr-reffile-attach-overlay').style.display = 'flex';
+}
+
+function _closeAttrRefFileAttach() {
+  document.getElementById('attr-reffile-attach-overlay').style.display = 'none';
+  _attrRefFileAttachIdx = null;
+}
+
+// Real, renders the "currently attached" section of the modal —
+// direct attachments only, matching the exact, same principle already
+// established for the hover panel: an inherited file can't
+// meaningfully be detached from one specific attribute's own view.
+function _renderAttrRefFileAttachCurrent() {
+  const el = document.getElementById('attr-reffile-attach-current');
+  if (!el) return;
+  const info = _getAttrRefFileState(currentAttrWPRef, _attrRefFileAttachIdx);
+  if (!info.direct.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">Nothing attached specifically to this attribute yet.</div>`;
+    return;
+  }
+  const th = (label, width) => `<th style="text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:4px 8px;border-bottom:0.5px solid var(--border-light);${width ? 'width:'+width+';' : ''}">${label}</th>`;
+  const td = (content, extra) => `<td style="font-size:12px;color:var(--text-primary);padding:6px 8px;border-bottom:0.5px solid var(--border-light);vertical-align:top;${extra || ''}">${content}</td>`;
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+    <thead><tr>${th('Reference File', '140px')}${th('Description', '')}${th('Location', '')}${th('Interpretation', '')}${th('Start Date', '90px')}${th('End Date', '90px')}${th('', '60px')}</tr></thead>
+    <tbody>${info.direct.map(f => `
+      <tr>
+        ${td(escAttr(f.display_name), 'font-weight:600')}
+        ${td(escAttr(f.notes_description || ''))}
+        ${td(escAttr(f.notes_location || ''))}
+        ${td(escAttr(f.notes_interpretation || ''))}
+        ${td(escAttr(f.effective_start_date || '—'))}
+        ${td(escAttr(f.effective_end_date || '—'))}
+        ${td(`<button class="btn-s" style="font-size:11px;color:#dc2626" onclick="_detachAttrReferenceFile('${f.scopeId}')">Remove</button>`)}
+      </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+let _attrRefFileSearchDebounce = null;
+function _searchAttrRefFileAttach() {
+  if (_attrRefFileSearchDebounce) clearTimeout(_attrRefFileSearchDebounce);
+  _attrRefFileSearchDebounce = setTimeout(_runAttrRefFileAttachSearch, 250);
+}
+
+async function _runAttrRefFileAttachSearch() {
+  const resultsEl = document.getElementById('attr-reffile-attach-results');
+  const q = document.getElementById('attr-reffile-attach-search').value.trim();
+  if (!q) { resultsEl.innerHTML = ''; return; }
+  try {
+    const res = await fetch('/api/reference-files?q=' + encodeURIComponent(q));
+    const files = await res.json();
+    if (!Array.isArray(files) || !files.length) {
+      resultsEl.innerHTML = `<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No matching reference files.</div>`;
+      return;
+    }
+    resultsEl.innerHTML = files.map(f => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+        <span style="font-size:13px;color:var(--text-primary)">${escAttr(f.display_name)}</span>
+        <button class="btn-s" style="font-size:11px" onclick="_attachExistingReferenceFileToAttr('${f.lineage_id}')">Attach</button>
+      </div>`).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div style="font-size:12px;color:#dc2626">Could not search the reference library: ${escAttr(e.message)}</div>`;
+  }
+}
+
+// Real, attaches an already-existing library file to the currently
+// open attribute — matching scopeType 'attribute', letting the
+// backend resolve the real, internal workpaper id and audit name from
+// the ref this app already has, rather than needing either on the
+// frontend.
+async function _attachExistingReferenceFileToAttr(lineageId) {
+  try {
+    const res = await fetch('/api/reference-file-scopes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lineageId, scopeType: 'attribute', workpaperRef: currentAttrWPRef, attributeIndex: _attrRefFileAttachIdx }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.detail || body.error || 'Could not attach this reference file.'); return; }
+    document.getElementById('attr-reffile-attach-search').value = '';
+    document.getElementById('attr-reffile-attach-results').innerHTML = '';
+    _renderAttrRefFileAttachCurrent();
+    _loadReferenceFileSummaryForWP(currentAttrWPRef);
+  } catch(e) { alert('Could not attach this reference file: ' + e.message); }
+}
+
+async function _detachAttrReferenceFile(scopeId) {
+  try {
+    const res = await fetch('/api/reference-file-scopes/' + encodeURIComponent(scopeId), { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.detail || body.error || 'Could not remove this reference file.'); return; }
+    _renderAttrRefFileAttachCurrent();
+    _loadReferenceFileSummaryForWP(currentAttrWPRef);
+  } catch(e) { alert('Could not remove this reference file: ' + e.message); }
+}
+
+// Real, the bridge into the existing upload modal — sets the attach
+// context first, so a successful new upload also creates the
+// attribute scope automatically, then reuses the exact, same modal
+// and fields already built for an ordinary library upload rather than
+// duplicating that entire form.
+function _openUploadAndAttachModal() {
+  // Real, order matters here — openUploadReferenceFileModal resets
+  // this exact context, so it must be called first, with the real
+  // context set immediately after, not before.
+  openUploadReferenceFileModal();
+  _reffileAttachContext = { ref: currentAttrWPRef, attributeIndex: _attrRefFileAttachIdx };
+}
+
 function renderFoundationsReferenceFiles() {
   loadReferenceFilesLibrary();
 }
@@ -19135,6 +19350,12 @@ async function retireReferenceFile(id) {
 function openUploadReferenceFileModal() {
   _reffileModalMode = 'new';
   _reffileModalTargetId = null;
+  // Real, resets any leftover attach context from a previous flow —
+  // safe here specifically because the one caller that needs a
+  // context preserved (the attribute-attach flow) sets it AFTER
+  // calling this function, not before, so there's no ordering
+  // conflict with this reset.
+  _reffileAttachContext = null;
   document.getElementById('reffile-modal-title').textContent = 'Upload Reference File';
   document.getElementById('reffile-submit-btn').textContent = 'Upload';
   document.getElementById('reffile-file-picker-row').style.display = '';
@@ -19245,6 +19466,28 @@ async function _submitReferenceFileModal() {
     if (!res.ok) {
       errEl.textContent = body.detail || body.error || 'Could not save this reference file.';
       errEl.style.display = 'block';
+      return;
+    }
+    // Real, the actual auto-attach step, per direct request — only
+    // for a genuinely brand-new upload (not an edit or a new
+    // version, neither of which needs a fresh attribute attachment),
+    // and only when this upload was opened from the attribute-attach
+    // flow specifically.
+    if (_reffileModalMode === 'new' && _reffileAttachContext && body.referenceFile?.lineage_id) {
+      try {
+        await fetch('/api/reference-file-scopes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lineageId: body.referenceFile.lineage_id, scopeType: 'attribute',
+            workpaperRef: _reffileAttachContext.ref, attributeIndex: _reffileAttachContext.attributeIndex,
+          }),
+        });
+      } catch(e) { /* the file itself uploaded successfully either way; a failed attach can be retried from the attach modal directly */ }
+      const ctxRef = _reffileAttachContext.ref;
+      _reffileAttachContext = null;
+      closeReferenceFileModal();
+      _renderAttrRefFileAttachCurrent();
+      _loadReferenceFileSummaryForWP(ctxRef);
       return;
     }
     closeReferenceFileModal();
@@ -23154,6 +23397,25 @@ function downloadCommentary() {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Real, confirmed fix, per direct troubleshooting — this app
+// genuinely produces error responses in two different shapes, and the
+// two real Analyze call sites below only ever knew how to read one of
+// them. Anthropic's own errors (and this server's own
+// ANTHROPIC_API_KEY-missing case) nest a message under error.message.
+// But this app's own session-check middleware — the thing that runs
+// before every single API request — returns error as a plain string
+// directly, not an object. Reading only errBody.error.message meant
+// that specific, real, and most common case (an expired login
+// session) was silently discarded every time, falling back to a bare
+// "HTTP 401" with none of the actual reason. This one, shared helper
+// now correctly reads either shape.
+function _extractApiErrorMessage(errBody, response) {
+  const err = errBody?.error;
+  if (typeof err === 'string' && err) return err;
+  if (err?.message) return err.message;
+  return `HTTP ${response.status}${response.statusText ? ' ' + response.statusText : ''}`;
+}
+
 async function analyzeWithClaude() {
   const ref = getWPRef();
   if (!ref) return;
@@ -23599,7 +23861,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       // Check HTTP status first
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
-        const reason  = errBody?.error?.message || `HTTP ${response.status} ${response.statusText}`;
+        const reason  = _extractApiErrorMessage(errBody, response);
         throw new Error(reason);
       }
 
@@ -23701,7 +23963,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
       } finally { clearTimeout(reqTimeout); }
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody?.error?.message || `HTTP ${response.status}`);
+        throw new Error(_extractApiErrorMessage(errBody, response));
       }
       const data = await response.json();
       if (data.error) throw new Error(data.error.message || 'API error');
@@ -23871,6 +24133,15 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // pattern: doesn't block the rest of Analyze, and a failure here is
   // logged, not surfaced as an Analyze failure.
   _makeAcrobatAnnotatedCopyAfterAnalyze(ref).catch(err => console.error('[AcrobatAnnotate] Unexpected failure:', err));
+
+  // Real, new, per the memory/guidance plan — the exact, same
+  // fire-and-forget pattern as the two calls just above: classifies
+  // and logs how testing actually went for each attribute's current
+  // wording, so the memory system built this session can eventually
+  // learn from real testing outcomes, not just from how polished a
+  // suggestion reads. A failure here is logged, not surfaced as an
+  // Analyze failure — this is a background signal, never a blocker.
+  _classifyAndLogAttributeOutcomes(ref, attributes, analysisResults).catch(err => console.error('[OutcomeLogging] Unexpected failure:', err));
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
@@ -30869,6 +31140,107 @@ function moveAttrRow(idx, dir) {
 // new matters more here than avoiding a redundant, cheap call.
 let _refFileSummaryByWP = {};
 
+// Real, new state, per the suggestion-feature plan — a debounce timer
+// and the current suggestion (if any) per attribute index, so editing
+// one row's own timer never resets another row's.
+let _attrSuggestDebounceTimers = {};
+let _refFileSuggestionByAttr = {};
+
+// Real, starting threshold, per the plan — a genuine cosine-similarity
+// cutoff below which a "match" isn't confident enough to surface at
+// all. This is a reasonable starting point, not a scientifically
+// derived number — there's no real usage data yet to tune it against,
+// and it's the first, real thing worth adjusting once there is.
+const REF_FILE_SUGGESTION_THRESHOLD = 0.75;
+
+// Real, minimum combined-text length, per the plan — a title alone,
+// or a half-typed draft, is usually too thin to judge; avoids
+// checking on nearly-empty content that couldn't produce a
+// meaningful match either way.
+const REF_FILE_SUGGESTION_MIN_LENGTH = 20;
+
+// Real, session-level toast rate limit, per the plan — the icon stays
+// accurate for every row regardless, but the transient toast
+// specifically holds back if several genuine matches turn up in quick
+// succession, so writing several attributes in one sitting doesn't
+// turn into a stream of pop-ups.
+let _lastRefFileToastAt = 0;
+const REF_FILE_TOAST_MIN_GAP_MS = 15000;
+
+// Real, resets this row's own debounce timer — called from
+// saveAttrRow on every real edit, so the check only ever fires a
+// couple of seconds after someone genuinely stops editing this
+// specific attribute, not on every keystroke.
+function _scheduleRefFileSuggestionCheck(idx) {
+  if (_attrSuggestDebounceTimers[idx]) clearTimeout(_attrSuggestDebounceTimers[idx]);
+  _attrSuggestDebounceTimers[idx] = setTimeout(() => _runRefFileSuggestionCheck(idx), 2500);
+}
+
+// Real, the actual check, per the plan — builds the same, real
+// combined text the whole-attribute embedding is built from, skips
+// entirely if there's not enough content yet or if something's
+// already directly attached (a suggestion is pointless once the gap
+// it would have flagged is already closed), and only ever surfaces a
+// result that clears the real similarity threshold — silence is the
+// correct, default outcome otherwise.
+async function _runRefFileSuggestionCheck(idx) {
+  if (!currentAttrWPRef) return;
+  const attrs = wpTestAttributes[currentAttrWPRef] || [];
+  const a = attrs[idx];
+  if (!a || !a.title) return;
+  const existing = _getAttrRefFileState(currentAttrWPRef, idx);
+  if (existing.state === 'direct') return; // already, correctly, has, something, specifically, attached — nothing to suggest
+  const combinedText = [
+    a.title, a.desc, a.additionalInfo,
+    a.successCriteria ? `Pass criteria: ${a.successCriteria}` : '',
+    a.failureCriteria ? `Fail criteria: ${a.failureCriteria}` : '',
+  ].filter(Boolean).join('\n');
+  if (combinedText.length < REF_FILE_SUGGESTION_MIN_LENGTH) return;
+  try {
+    const res = await fetch('/api/reference-files/suggest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftText: combinedText, limit: 1 }),
+    });
+    if (!res.ok) return; // real, silent — a suggestion failure should never surface as an error to someone just typing
+    const body = await res.json();
+    const top = body.results?.[0];
+    if (!top || top.similarity < REF_FILE_SUGGESTION_THRESHOLD) {
+      delete _refFileSuggestionByAttr[idx];
+      return;
+    }
+    // Real, if this specific attribute is genuinely no longer the one
+    // currently open (the person has since navigated elsewhere), the
+    // icon element itself won't exist to update — the state still
+    // gets recorded so it's correctly reflected if they come back.
+    _refFileSuggestionByAttr[idx] = top;
+    const iconEl = document.getElementById(`attr-reffile-icon-${idx}`);
+    if (iconEl) iconEl.outerHTML = _buildAttrRefFileIconHtml(currentAttrWPRef, idx);
+    _maybeShowRefFileSuggestionToast(idx, top);
+  } catch(e) { /* a suggestion-check failure should never surface as an error to someone just typing */ }
+}
+
+// Real, the toast itself, per the plan — quiet, self-dismissing, near
+// the row it concerns, rate-limited across the session even though
+// the icon stays accurate for every row regardless, and clickable
+// straight to the same pre-filled attach modal the icon opens.
+function _maybeShowRefFileSuggestionToast(idx, suggestion) {
+  const now = Date.now();
+  if (now - _lastRefFileToastAt < REF_FILE_TOAST_MIN_GAP_MS) return;
+  const rowEl = document.getElementById('attr-row-' + idx);
+  if (!rowEl) return;
+  _lastRefFileToastAt = now;
+  const existing = document.getElementById('ref-suggest-toast');
+  if (existing) existing.remove();
+  const rect = rowEl.getBoundingClientRect();
+  const toast = document.createElement('div');
+  toast.id = 'ref-suggest-toast';
+  toast.style.cssText = `position:fixed;left:${rect.left + 20}px;top:${rect.bottom + 4}px;z-index:13400;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 6px 20px rgba(0,0,0,0.18);padding:10px 12px;max-width:280px;cursor:pointer;font-size:12px;color:var(--text-primary);animation:refToastIn 0.2s ease-out`;
+  toast.innerHTML = `<div style="font-weight:600;margin-bottom:2px">Possible reference file match</div><div style="color:var(--text-secondary)">"${escAttr(suggestion.display_name)}" looks relevant to this attribute.</div>`;
+  toast.onclick = () => { toast.remove(); _openAttrRefFileAttach(idx); };
+  document.body.appendChild(toast);
+  setTimeout(() => { if (document.getElementById('ref-suggest-toast') === toast) toast.remove(); }, 6000);
+}
+
 // Real, fetches the bulk summary for a workpaper and updates every
 // currently-rendered icon in place once it arrives — deliberately not
 // awaited by the caller, so opening a workpaper never waits on this
@@ -30892,26 +31264,37 @@ function _getAttrRefFileState(ref, idx) {
   const direct = summary.byAttribute[idx] || [];
   if (direct.length) return { state: 'direct', count: direct.length, direct, inherited: summary.inherited };
   if (summary.inherited.length) return { state: 'inherited', count: 0, direct: [], inherited: summary.inherited };
+  // Real, the fourth state, per the suggestion-feature plan — only
+  // checked once neither direct nor inherited has anything, since a
+  // suggestion is pointless once the gap it would have flagged is
+  // already closed some other way.
+  if (_refFileSuggestionByAttr[idx]) return { state: 'suggested', count: 0, direct: [], inherited: [], suggestion: _refFileSuggestionByAttr[idx] };
   return { state: 'none', count: 0, direct: [], inherited: [] };
 }
 
 // Real, builds the actual icon HTML for one attribute row, per the
-// three-state visual design — one consistent icon shape throughout,
-// varying only color and fill, so the visual language stays
+// visual design — one consistent icon shape throughout, varying only
+// color, fill, and border style, so the visual language stays
 // predictable: muted outline for nothing linked at all, a neutral
-// fill for something that only applies because it's inherited, and
-// the app's own accent color with a count badge for files
-// specifically chosen for this exact attribute. Always clickable in
-// every state — clicking at zero opens the same attach flow directly.
+// fill for something that only applies because it's inherited, the
+// app's own accent color with a count badge for files specifically
+// chosen for this exact attribute, and a dashed accent outline —
+// genuinely distinct from all three of those — for a real suggestion
+// that hasn't been acted on yet, signaling "something's here, not yet
+// confirmed" the same way a dashed border conventionally does
+// elsewhere. Always clickable in every state — clicking at zero opens
+// the same attach flow directly.
 function _buildAttrRefFileIconHtml(ref, idx) {
   const info = _getAttrRefFileState(ref, idx);
-  let color, fill;
+  let color, fill, strokeDasharray = '';
   if (info.state === 'direct') { color = 'var(--wf-navy)'; fill = 'var(--wf-navy)'; }
   else if (info.state === 'inherited') { color = 'var(--text-tertiary)'; fill = 'var(--text-tertiary)'; }
+  else if (info.state === 'suggested') { color = 'var(--wf-navy)'; fill = 'none'; strokeDasharray = 'stroke-dasharray:2.5,2'; }
   else { color = 'var(--text-tertiary)'; fill = 'none'; }
   const badge = info.state === 'direct' ? `<span style="position:absolute;top:-4px;right:-5px;background:var(--wf-navy);color:#fff;font-size:8px;font-weight:700;border-radius:7px;min-width:12px;height:12px;display:flex;align-items:center;justify-content:center;padding:0 2px">${info.count}</span>` : '';
-  return `<span class="attr-reffile-icon" id="attr-reffile-icon-${idx}" style="position:relative;display:inline-flex;cursor:pointer" title="Reference files" onmouseenter="_showAttrRefFileHover(event,${idx})" onmouseleave="_hideAttrRefFileHover()" onclick="event.stopPropagation();_openAttrRefFileAttach(${idx})">
-    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="${fill}" stroke="${color}" stroke-width="1.8"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
+  const title = info.state === 'suggested' ? `Possible match: ${info.suggestion.display_name}` : 'Reference files';
+  return `<span class="attr-reffile-icon" id="attr-reffile-icon-${idx}" style="position:relative;display:inline-flex;cursor:pointer" title="${escAttr(title)}" onmouseenter="_showAttrRefFileHover(event,${idx})" onmouseleave="_hideAttrRefFileHover()" onclick="event.stopPropagation();_openAttrRefFileAttach(${idx})">
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="${fill}" stroke="${color}" stroke-width="1.8" style="${strokeDasharray}"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/></svg>
     ${badge}
   </span>`;
 }
@@ -30945,20 +31328,38 @@ function _showAttrRefFileHover(event, idx) {
     ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Applies to this whole workpaper</div>` +
       info.inherited.map(f => `<div style="font-size:12px;color:var(--text-secondary);padding:2px 0">${escAttr(f.display_name)}</div>`).join('')
     : '';
-  const emptyHtml = (!info.direct.length && !info.inherited.length)
+  const emptyHtml = (!info.direct.length && !info.inherited.length && info.state !== 'suggested')
     ? `<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">No reference files linked yet — click to add one.</div>`
+    : '';
+  const suggestionHtml = info.state === 'suggested'
+    ? `<div style="font-size:10px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Possible match, not yet attached</div>
+       <div style="font-size:12px;color:var(--text-primary);padding:2px 0">${escAttr(info.suggestion.display_name)}</div>
+       <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">Click to review and attach</div>`
     : '';
   const legendHtml = `
     <div style="margin-top:10px;padding-top:8px;border-top:0.5px solid var(--border-light);display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;background:var(--wf-navy);flex-shrink:0"></span>Added specifically to this attribute</div>
       <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;background:var(--text-tertiary);flex-shrink:0"></span>Inherited from a broader scope</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;border:1.5px dashed var(--wf-navy);flex-shrink:0"></span>Possible match found, not yet attached</div>
       <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-tertiary)"><span style="width:8px;height:8px;border-radius:2px;border:1.5px solid var(--text-tertiary);flex-shrink:0"></span>Nothing linked yet</div>
     </div>`;
   const panel = document.createElement('div');
   panel.id = 'attr-reffile-hover-panel';
   panel.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.bottom + 6}px;z-index:14000;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.15);padding:12px 14px;min-width:200px;max-width:280px;pointer-events:none`;
-  panel.innerHTML = directHtml + inheritedHtml + emptyHtml + legendHtml;
+  panel.innerHTML = directHtml + inheritedHtml + suggestionHtml + emptyHtml + legendHtml;
   document.body.appendChild(panel);
+  // Real, confirmed fix, per direct feedback — measures the panel's
+  // own, actual rendered width now that it's genuinely in the DOM
+  // (its real width varies between min and max depending on content,
+  // so this can't be known before insertion). If the original,
+  // left-anchored position would genuinely run off the right edge of
+  // the screen, flips it to hang left of the icon instead, rather
+  // than extending rightward off-screen.
+  const panelRect = panel.getBoundingClientRect();
+  const margin = 12;
+  if (panelRect.right > window.innerWidth - margin) {
+    panel.style.left = Math.max(margin, rect.right - panelRect.width) + 'px';
+  }
 }
 
 function _hideAttrRefFileHover() {
@@ -31060,6 +31461,13 @@ function saveAttrRow(idx, persist) {
   while (rows.length <= idx) rows.push({ num: '', attrRef: '', title: '', desc: '', additionalInfo: '', successCriteria: '', failureCriteria: '' });
   rows[idx] = { num, attrRef, title, desc, additionalInfo, successCriteria, failureCriteria };
   wpTestAttributes[currentAttrWPRef] = rows;
+  // Real, new, per the suggestion-feature plan — fires on every real
+  // edit, the exact, same place every other field's own input already
+  // flows through. The debounce timer inside this call is what
+  // ensures the actual check only resolves a couple of seconds after
+  // someone genuinely stops editing this specific row, not on every
+  // keystroke.
+  _scheduleRefFileSuggestionCheck(idx);
   // Only persist to Postgres on blur (persist === true), not on every
   // keystroke from oninput — otherwise typing a description would fire a
   // network request per character. The in-memory update above still
@@ -31566,6 +31974,20 @@ function _renderGuidance(g) {
           <div style="padding:10px 12px;border:0.5px solid var(--border-light);border-radius:6px;margin-bottom:8px">
             <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${num ? `<span style="color:var(--text-tertiary);font-weight:500">#${num}</span> ` : ''}${escAttr(c.attributeTitle)}</div>
             <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${_highlight(c.suggestion)}</div>
+          </div>`;
+        }).join('')}
+      </div>`);
+  }
+  if (g.objectiveAlignment?.length) {
+    sections.push(`
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Attributes that may not fully serve this workpaper's objective</div>
+        ${g.objectiveAlignment.map(c => {
+          const num = _attrNumberFor(c);
+          return `
+          <div style="padding:10px 12px;border:0.5px solid #fde68a;background:#fffbeb;border-radius:6px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px">${num ? `<span style="color:var(--text-tertiary);font-weight:500">#${num}</span> ` : ''}${escAttr(c.attributeTitle)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">${_highlight(c.concern)}</div>
           </div>`;
         }).join('')}
       </div>`);
