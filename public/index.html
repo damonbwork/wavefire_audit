@@ -2886,7 +2886,7 @@
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
-              <div id="risks-empty-msg" style="display:none;font-size:12px;color:var(--text-tertiary);font-style:italic;min-height:24px">None linked — click "Add / edit" to link risks and controls</div>
+              <div id="risks-empty-msg" style="display:none;font-size:12px;color:var(--text-tertiary);font-style:italic;min-height:24px">No risks &amp; controls are linked — click Add / edit to link risks &amp; controls to this workpaper.</div>
               <table id="risks-table" style="width:100%;border-collapse:collapse;table-layout:fixed">
                 <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
                 <thead>
@@ -2909,7 +2909,7 @@
                   <i class="ti ti-plus"></i>Add / edit
                 </button>
               </div>
-              <div id="wpd-fs-accounts" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px"><span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes</span></div>
+              <div id="wpd-fs-accounts" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px"><span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes.</span></div>
             </div>
 
           </div></div>
@@ -3303,8 +3303,8 @@ attribute.
               <div class="attr-col-hdr-cell attr-criteria-col" data-col="failure" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default" onmouseenter="document.getElementById('criteria-tooltip').style.display='block'" onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
                 Failure Criteria
               </div>
-              <div class="attr-col-hdr-cell" style="width:26px;min-width:26px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 2px;text-align:center;white-space:nowrap;cursor:default" title="Reference files provide information needed to support testing an attribute. E.g. a list of individuals whom are valid approvers.">REF FILE</div>
-              <div style="width:36px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 4px;text-align:center">REMOVE</div>
+              <div class="attr-col-hdr-cell" style="width:26px;min-width:26px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 2px;text-align:center;white-space:normal;word-break:keep-all;line-height:1.3;cursor:default" title="Reference files provide information needed to support testing an attribute. E.g. a list of individuals whom are valid approvers.">REF FILE</div>
+              <div style="width:44px;flex-shrink:0;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-tertiary);padding:7px 1px;text-align:center;white-space:normal;word-break:keep-all;line-height:1.3">REMOVE</div>
             </div>
             <!-- Attribute rows -->
             <div id="test-attr-rows"><div class="attr-row" id="attr-row-0" style="display:flex;border-bottom:0.5px solid var(--border-light);align-items:start">
@@ -4709,7 +4709,7 @@ auditor's assessment.
     <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:640px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
         <div>
-          <div style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Attribute Guidance</div>
+          <div id="guidance-modal-title" style="font-size:15px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>Attribute Guidance</div>
           <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">Attribute suggestions based on this organization's own learned attributes and external sources.</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -4721,6 +4721,20 @@ auditor's assessment.
         </div>
       </div>
       <div id="guidance-body" style="padding:20px;overflow-y:auto;flex:1"></div>
+      <!-- Real, new, per direct request — lives outside guidance-body
+           deliberately, since that entire area gets replaced by
+           innerHTML on every load; a checkbox placed there would lose
+           its own checked state the moment results render. Checked by
+           default, matching the request. -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
+        <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);cursor:pointer">
+          <input type="checkbox" id="guidance-use-web-search" checked style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
+          Search external sources for guidance on improving the test.
+        </label>
+        <button class="btn-s" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="_regenerateGuidance()">
+          <i class="ti ti-refresh"></i> Regenerate
+        </button>
+      </div>
     </div>
   </div>
 
@@ -5119,12 +5133,13 @@ auditor's assessment.
         </div>
         <div id="analysis-commentary-text" style="font-size:13px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"></div>
       </div>
-      <!-- Buttons — two FIXED rows, not a flex-wrap row that reflows based
-           on width. Every button always occupies the same row and the same
-           position within it; a hidden button (display:none) leaves its
-           slot empty rather than letting its neighbors shift to fill the
-           gap, so the two-row layout is identical regardless of modal size
-           or which buttons happen to be visible for this particular run. -->
+      <!-- Buttons — three FIXED rows, not a flex-wrap row that reflows
+           based on width. Every button always occupies the same row and
+           the same position within it; a hidden button (display:none)
+           leaves its slot empty rather than letting its neighbors shift
+           to fill the gap, so the three-row layout is identical
+           regardless of modal size or which buttons happen to be
+           visible for this particular run. -->
       <div id="analysis-btn-rows" style="border-top:0.5px solid var(--border-light);padding-top:14px;margin-top:4px;display:flex;flex-direction:column;gap:8px">
         <!-- Row 1: reference / read material -->
         <div style="display:flex;align-items:center;gap:6px">
@@ -5134,6 +5149,12 @@ auditor's assessment.
           <button class="btn-s" id="download-commentary-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="downloadCommentary()">
             <i class="ti ti-message-chatbot"></i>Commentary
           </button>
+        </div>
+        <!-- Row 2: the three matching dark/mint buttons — Claude's own
+             detailed, per-attribute outputs from this run — moved to
+             their own row, directly below Test Inputs Provided to AI,
+             per direct request. -->
+        <div style="display:flex;align-items:center;gap:6px">
           <button class="btn-s" id="dl-reasoning-log-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Download Claude's per-attribute reasoning for this analysis" onclick="downloadReasoningLog()">
             <i class="ti ti-brain"></i>AI Reasoning Log
           </button>
@@ -5149,20 +5170,23 @@ auditor's assessment.
                right after Analyze finishes rather than only from the
                editing page. Colored identically to its two siblings
                here, per direct request. -->
-          <button class="btn-s" id="analysis-test-analysis-btn" style="background:#334155;color:#94f1b8;border-color:#334155" title="Get AI-powered guidance for this workpaper's attributes and risks" onclick="openGuidanceModal()">
+          <button class="btn-s" id="analysis-test-analysis-btn" style="display:none;background:#334155;color:#94f1b8;border-color:#334155" title="Get AI-powered guidance for this workpaper's attributes and risks" onclick="openGuidanceModal('Test Analysis')">
             <i class="ti ti-sparkles"></i>Test Analysis
           </button>
         </div>
-        <!-- Row 2: deliverables / actions -->
+        <!-- Row 3: deliverables / actions -->
         <div style="display:flex;align-items:center;gap:6px">
-          <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
-            <i class="ti ti-file-word"></i>Exception Memo
-          </button>
           <button class="btn-s" id="export-xlsx-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(false)">
             <i class="ti ti-download"></i>Workpaper (.xlsx)
           </button>
           <button class="btn-s" id="attach-xlsx-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" onclick="exportToXlsx(true)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Workpaper Files
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Add to Current Workpaper Files in Wavefire
+          </button>
+          <!-- Real, moved, per direct request — now sits immediately
+               right of Add to Current Workpaper Files in Wavefire,
+               rather than before both xlsx buttons. -->
+          <button class="btn-s" id="dl-exception-memo-btn" style="display:none;background:#1e40af;color:#fff;border-color:#1e40af" title="Download formatted exception memo as a Word document" onclick="downloadExceptionMemo()">
+            <i class="ti ti-file-word"></i>Exception Memo
           </button>
           <div style="flex:1"></div>
           <button class="btn-s" id="analysis-close-btn" onclick="closeAnalysis()">Close</button>
@@ -5638,7 +5662,7 @@ auditor's assessment.
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdetails" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Details <span style="font-size:9px;color:var(--text-tertiary);font-weight:400">(description, additional info, pass &amp; fail criteria)</span></span></label>
           </div>
         </div>
@@ -6946,12 +6970,20 @@ function openWP(i) {
   const risksTable = document.getElementById('risks-tbody');
   const risksTableEl = document.getElementById('risks-table');
   const risksEmptyMsg = document.getElementById('risks-empty-msg');
-  if (risksTable && w.risks) {
-    const hasRisks = w.risks.length > 0;
+  if (risksTable) {
+    // Real, confirmed fix, per a real, reported issue — requiring
+    // w.risks to be truthy before this toggle logic even ran meant a
+    // workpaper whose own risks field is genuinely missing or
+    // undefined (not just an empty array — plausible for older data)
+    // left both elements at their raw HTML defaults: the table
+    // visible and empty, the nicer message hidden. Treating a missing
+    // field the same as an empty array closes that gap.
+    const risksArr = w.risks || [];
+    const hasRisks = risksArr.length > 0;
     if (risksTableEl) risksTableEl.style.display = hasRisks ? '' : 'none';
     if (risksEmptyMsg) risksEmptyMsg.style.display = hasRisks ? 'none' : '';
-    risksTable.innerHTML = !hasRisks ? '' : w.risks.map((r, ri) => {
-          const isLast = ri === w.risks.length - 1;
+    risksTable.innerHTML = !hasRisks ? '' : risksArr.map((r, ri) => {
+          const isLast = ri === risksArr.length - 1;
           const ctrlHtml = (r.controls || []).map(cid => {
             const cd = CONTROLS[cid];
             const label = cd ? `${cid}: ${cd.title}` : cid;
@@ -23584,6 +23616,7 @@ async function analyzeWithClaude() {
   const _eb = document.getElementById('export-xlsx-btn'); if(_eb) _eb.style.display = 'none';
   const _ab = document.getElementById('attach-xlsx-btn'); if(_ab) _ab.style.display = 'none';
   const _gb = document.getElementById('dl-guidance-btn'); if(_gb) _gb.style.display = 'none';
+  const _tab = document.getElementById('analysis-test-analysis-btn'); if(_tab) _tab.style.display = 'none';
   const _commentaryBtn = document.getElementById('download-commentary-btn');
   if (_commentaryBtn) _commentaryBtn.style.display = 'none';
   const _commentaryEl = document.getElementById('analysis-commentary');
@@ -23612,6 +23645,7 @@ async function analyzeWithClaude() {
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
       const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
       const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
+      const _tab2 = document.getElementById('analysis-test-analysis-btn'); if(_tab2) _tab2.style.display = 'none';
     }
   }, TIMEOUT_MS);
 
@@ -24266,7 +24300,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     _attachBtn.style.color        = '#fff';
     _attachBtn.style.borderColor  = '#1e40af';
     _attachBtn.disabled           = false;
-    _attachBtn.innerHTML          = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Add to Workpaper Files';
+    _attachBtn.innerHTML          = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Add to Current Workpaper Files in Wavefire';
   }
   // Show exception memo button if there are any exceptions/results
   const _exMemoBtn = document.getElementById('dl-exception-memo-btn');
@@ -24288,9 +24322,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
 
+  // Real, new, per direct request — this button now only ever appears
+  // once real results genuinely exist, the exact same point and
+  // condition its siblings use, rather than sitting there before
+  // Analyze has produced anything for it to speak to.
+  const _testAnalysisBtn = document.getElementById('analysis-test-analysis-btn');
+  if (_testAnalysisBtn) _testAnalysisBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
+
   // ── Safety net: ensure core buttons always visible after analysis ─────────
   function _ensureButtonsVisible() {
-    const ids = ['export-xlsx-btn','attach-xlsx-btn','dl-guidance-btn'];
+    const ids = ['export-xlsx-btn','attach-xlsx-btn','dl-guidance-btn','analysis-test-analysis-btn'];
     ids.forEach(function(id) {
       const el = document.getElementById(id);
       if (el && el.style.display === 'none') el.style.display = 'inline-flex';
@@ -31556,7 +31597,7 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
     <div class="attr-cell" style="flex-shrink:0;width:26px;padding:9px 2px 6px;display:flex;align-items:center;justify-content:center">
       ${_buildAttrRefFileIconHtml(currentAttrWPRef, idx)}
     </div>
-    <div class="attr-cell" style="flex-shrink:0;width:36px;padding:6px 4px;align-self:flex-start">
+    <div class="attr-cell" style="flex-shrink:0;width:44px;padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove row" onclick="removeAttrRow(${idx})"
         tabindex="-1" style="width:24px;height:24px;font-size:12px">&#x00D7;</button>
     </div>
@@ -31939,10 +31980,15 @@ function selectWorkpaperCategory(categoryName) {
 let _guidanceTimerInterval = null; // real, tracks the active elapsed-time counter, so it can be correctly cleared from every, real exit path
 let _guidanceStartTime = null; // real, lifted to module scope, per explicit request, so _loadGuidance can correctly compute the real, final elapsed time, not just the ticking interval callback
 
-function openGuidanceModal() {
+function openGuidanceModal(title) {
   const ref = currentAttrWPRef;
   if (!ref) return;
   document.getElementById('guidance-overlay').style.display = 'flex';
+  // Real, new, per direct request — defaults to the existing, real
+  // title so the original Guidance button's own call site (which
+  // passes no argument) keeps its own current behavior unchanged.
+  const titleEl = document.getElementById('guidance-modal-title');
+  if (titleEl) titleEl.innerHTML = `<i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>${escAttr(title || 'Attribute Guidance')}`;
   const bodyEl = document.getElementById('guidance-body');
   bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div><div id="guidance-elapsed-timer" style="margin-top:6px;font-size:11px;color:var(--text-tertiary)">0:00</div></div>`;
   // Real, clears any real, prior, final elapsed-time text from a
@@ -31990,6 +32036,19 @@ function _showFinalElapsedTime() {
   finalEl.textContent = `elapsed time to think: ${mins}:${String(secs).padStart(2, '0')}`;
 }
 
+// Real, new, per direct request — reuses openGuidanceModal's own
+// complete setup (the loading state, the elapsed-timer reset) rather
+// than duplicating any of it, so a Regenerate click gets the exact,
+// same visual feedback the first load did. Reads the currently-shown
+// title first so this doesn't silently reset it back to the default
+// if the modal was opened as something other than plain "Attribute
+// Guidance".
+function _regenerateGuidance() {
+  const titleEl = document.getElementById('guidance-modal-title');
+  const currentTitle = titleEl ? titleEl.textContent.trim() : undefined;
+  openGuidanceModal(currentTitle);
+}
+
 async function _loadGuidance(ref) {
   const bodyEl = document.getElementById('guidance-body');
   try {
@@ -32001,9 +32060,15 @@ async function _loadGuidance(ref) {
     const linkedRiskTitles = ((w?.linkedRisks) || []).map(id => RISKS[id]?.title).filter(Boolean);
     const knownRiskTitles = Object.values(RISKS).map(r => r.title).filter(Boolean);
 
+    // Real, new, per direct request — genuinely reads the persistent
+    // checkbox's own current state rather than always sending true
+    // regardless of it. Defaults to true if the element somehow
+    // doesn't exist, matching the established checked-by-default
+    // behavior.
+    const useWebSearch = document.getElementById('guidance-use-web-search')?.checked !== false;
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/guidance', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ knownRiskTitles, linkedRiskTitles, useWebSearch: true }),
+      body: JSON.stringify({ knownRiskTitles, linkedRiskTitles, useWebSearch }),
     });
     // Real, correctly stops the real, elapsed-time counter the
     // moment a real, actual response arrives — before rendering
@@ -32423,7 +32488,7 @@ function renderLinkedFSAccounts() {
   if (!container) return;
   const selected = HOSPITAL_FS.filter(r => rcDialogSelected.has(r.id));
   if (!selected.length) {
-    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes</span>`;
+    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes.</span>`;
     return;
   }
   container.innerHTML = selected.map(r =>
@@ -32608,7 +32673,7 @@ function renderFsAccountTags() {
   if (!container) return;
   const selected = ALL_FS_ACCOUNTS.filter(a => currentFsSelection.has(a.id));
   if (!selected.length) {
-    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes</span>`;
+    container.innerHTML = `<span style="font-size:12px;color:var(--text-tertiary);font-style:italic">None linked — click "Add / edit" to link accounts or footnotes.</span>`;
     return;
   }
   container.innerHTML = selected.map(a =>
