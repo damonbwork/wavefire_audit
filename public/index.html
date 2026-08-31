@@ -8503,6 +8503,115 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 // viewer having ever been opened for this file. Returns the annotated PDF's
 // bytes, or null if this file has no relevant results at all (a file with
 // nothing to mark up is skipped, not included blank).
+// Real, new, per direct request — produces the "_annotated3" variant.
+// A sibling to _burnAnnotationsForFileFromResults above, reusing its
+// exact, same proven matching and positioning logic (identical
+// source-file verification, identical paragraph-fraction-based y
+// position) but drawing each label as a genuine PDF form field rather
+// than a separately-drawn rectangle plus text. A form field carries
+// its own background color as one intrinsic part of a single object
+// — closing the "two separate layers" gap discussed directly, at the
+// real cost of becoming interactive content rather than flattened
+// page content, which is a deliberate, different tradeoff from the
+// existing burn-in mechanism, not a strict improvement on it. Field
+// names must be genuinely unique across the whole document, per the
+// real PDF form-field spec — constructed here from page index,
+// attribute index, and field role so two attributes on the same page
+// (or the same attribute across two files) never collide.
+async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const pages    = pdfDoc.getPages();
+  const font     = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const form     = pdfDoc.getForm();
+
+  const TICK_LABELS = { pass:'PASS', pass_exception:'EXC', fail:'FAIL', error:'N/A' };
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+
+  function pdfText(s) {
+    return String(s || '')
+      .replace(/[─━┄┅┈┉╌╍]/g, '-').replace(/[│┃┆┇┊┋╎╏]/g, '|')
+      .replace(/[┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┤┬┴┼╋╬]/g, '+')
+      .replace(/[✓✔]/g, '(PASS)').replace(/[✗✘]/g, '(FAIL)').replace(/[⚠⚡]/g, '(!)')
+      .replace(/[–—]/g, '-').replace(/['']/g, "'").replace(/[""]/g, '"')
+      .replace(/[…]/g, '...').replace(/[•·]/g, '*')
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
+  }
+
+  // Draws one, single, real, read-only form field — its own background
+  // color is an intrinsic part of this one object, not a separate
+  // rectangle drawn behind it. width/height sized generously around
+  // the text via a simple estimate (form fields don't expose the same
+  // widthOfTextAtSize-based precise measurement the drawn version
+  // uses, since the field's own text layout is handled internally by
+  // the PDF viewer, not by pdf-lib at creation time).
+  function placeField(page, name, text, opts) {
+    const { x, y, width, height, size, textColor, bg } = opts;
+    const field = form.createTextField(name);
+    field.setText(text);
+    field.enableReadOnly();
+    field.setFontSize(size);
+    field.addToPage(page, {
+      x, y, width, height,
+      font: font,
+      textColor: textColor,
+      backgroundColor: bg || rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+  }
+
+  var anyPlaced = false;
+  var exNum = 0;
+  var fieldSeq = 0; // Genuinely guarantees unique field names even if two entries would otherwise collide.
+  wpResults.forEach(function(fileResult){
+    attributes.forEach(function(attr, ai){
+      var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!match) return;
+      // Identical source-file verification to the existing, proven
+      // burn-in function — kept word-for-word consistent rather than
+      // re-derived, since drift between the two mechanisms here would
+      // mean annotations landing on different files for the same
+      // underlying result.
+      if (match.sourceFile) {
+        var normSource = match.sourceFile.trim().toLowerCase();
+        var normFile    = fileName.trim().toLowerCase();
+        if (normSource !== normFile) return;
+      }
+
+      var pgIdx = Math.max(0, (match.page || 1) - 1);
+      if (pgIdx >= pages.length) return;
+      var page = pages[pgIdx];
+      var ptH = page.getSize().height;
+
+      var result = match.result || 'error';
+      var label = TICK_LABELS[result] || 'N/A';
+      var col = TICK_COLS[result] || TICK_COLS.error;
+      if (result === 'pass_exception' || result === 'fail') exNum++;
+
+      var paraNum = Math.max(1, match.paragraph || (ai + 1));
+      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+      var pdfY = ptH * (1 - paraFrac);
+
+      var boxW = 34, boxH = 14;
+      var uid = fieldSeq++;
+      placeField(page, 'wf_tick_' + uid, pdfText(label), { x: 10, y: pdfY - boxH, width: boxW, height: boxH, size: 9, textColor: col });
+
+      var attrNum = attr.attrRef || attr.num || String(ai + 1);
+      var attrTag = '[' + attrNum + ']' + (exNum && (result==='fail'||result==='pass_exception') ? ' (Exception E' + exNum + ')' : '');
+      placeField(page, 'wf_attrnum_' + uid, pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH, width: 180, height: boxH, size: 8, textColor: rgb(0.15,0.15,0.15) });
+
+      if (match.note) {
+        placeField(page, 'wf_note_' + uid, pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 14, width: 280, height: 14, size: 7, textColor: rgb(0.35,0.35,0.35) });
+      }
+      anyPlaced = true;
+    });
+  });
+
+  if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
+  return pdfDoc.save();
+}
+
 async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
@@ -8555,10 +8664,15 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     const lineH = useFont.heightAtSize(size) * 1.15;
     const widest = Math.max(...lines.map(function(l){ return useFont.widthOfTextAtSize(l, size); }));
     const bgH = lines.length * lineH;
+    // Real, confirmed change, per direct request — fully solid white
+    // (opacity 1, not 0.88), matching the explicit "solid white color"
+    // wording. Applies consistently to every field using this shared
+    // helper (attribute number, pass/fail, description, exception),
+    // not just one of them.
     page.drawRectangle({
       x: x - padX, y: y - bgH + lineH - padY,
       width: widest + padX * 2, height: bgH + padY * 2,
-      color: rgb(1, 1, 1), opacity: 0.88,
+      color: rgb(1, 1, 1), opacity: 1,
     });
     lines.forEach(function(line, li){
       page.drawText(line, { x: x, y: y - li * lineH, font: useFont, size: size, color: color });
@@ -8609,14 +8723,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
       var pdfY = ptH * (1 - paraFrac);
 
-      // Box sized to actually fit the label at this font size — PASS/FAIL/
-      // EXC/N/A are all 3-4 characters, comfortably within 34pt at 9pt bold.
-      // A solid white background (drawn by drawTextWithBg below) sits behind
-      // the label text itself, since this colored border box alone is only
-      // a translucent accent — not enough to keep text legible over busy
-      // page content underneath.
+      // Real, confirmed simplification, per direct request — this used
+      // to also draw a separate, translucent colored accent box here,
+      // stacked behind the solid white background drawTextWithBg draws
+      // below, creating multiple layers in Adobe for what should read
+      // as one label. Removed entirely: the pass/fail text itself is
+      // already colored (green/red/etc, via the color passed to
+      // drawTextWithBg just below), which already provides clear
+      // visual distinction without a second colored box behind it —
+      // the solid white background is now the only layer.
       var boxW = 34, boxH = 14;
-      page.drawRectangle({ x: 10, y: pdfY - boxH, width: boxW, height: boxH, borderColor: col, borderWidth: 1.5, color: rgb(col.red*0.1, col.green*0.1, col.blue*0.1), opacity: 0.2 });
       drawTextWithBg(page, pdfText(label), { x: 13, y: pdfY - boxH + 4, font: font, size: 9, color: col });
 
       // Attribute number in brackets, on the SAME line as the tick label but
@@ -8852,6 +8968,66 @@ async function loadPdfAnnotateLib() {
 // same real, precise locations the existing mechanism already gets
 // right — just expressed as genuine annotation objects instead of
 // drawn pixels.
+// Real, new, per direct request — draws one, small, plain, colored
+// circle per matched attribute result, with genuinely no text baked
+// into it at all — the actual visual mark the "annotated4_comments"
+// variant needs, since the existing comment mechanism's own "icon" is
+// just Acrobat's generic comment-icon glyph, not a real drawn shape of
+// its own. Deliberately its own, separate, standalone step — this
+// draws directly into the page content with pdf-lib first, and its
+// own output bytes then get handed to pdfAnnotateLib afterward to add
+// the actual comments on top, since these are two genuinely separate
+// libraries operating in sequence on the same bytes, not simultaneously.
+async function _drawTickMarksOnlyForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+  const { PDFDocument, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const pages  = pdfDoc.getPages();
+
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+
+  var anyPlaced = false;
+  wpResults.forEach(function(fileResult){
+    attributes.forEach(function(attr, ai){
+      var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!match) return;
+      // Identical source-file verification to the existing, proven
+      // burn-in function — kept word-for-word consistent so this
+      // variant's own marks land on exactly the same files as every
+      // other mechanism's, not a drifted subset.
+      if (match.sourceFile) {
+        var normSource = match.sourceFile.trim().toLowerCase();
+        var normFile    = fileName.trim().toLowerCase();
+        if (normSource !== normFile) return;
+      }
+
+      var pgIdx = Math.max(0, (match.page || 1) - 1);
+      if (pgIdx >= pages.length) return;
+      var page = pages[pgIdx];
+      var ptH = page.getSize().height;
+
+      var result = match.result || 'error';
+      var col = TICK_COLS[result] || TICK_COLS.error;
+
+      var paraNum = Math.max(1, match.paragraph || (ai + 1));
+      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+      // Identical y-position math to every other mechanism here, so
+      // this variant's own marks land at the exact, same vertical spot
+      // the drawn labels and comment icons already do.
+      var pdfY = ptH * (1 - paraFrac);
+
+      // A small, plain, colored circle — genuinely no text drawn here
+      // at all, per direct request. Sized deliberately small (5pt
+      // radius) since its whole job is to be a quiet, unobtrusive
+      // marker, not a label competing with the page's own content.
+      page.drawCircle({ x: 16, y: pdfY - 7, size: 5, color: col, borderColor: rgb(0,0,0), borderWidth: 0.5 });
+      anyPlaced = true;
+    });
+  });
+
+  if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
+  return pdfDoc.save();
+}
+
 async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   const wpResults = _wpAnalysisResults[ref];
   if (!wpResults || !wpResults.length) return;
@@ -9099,6 +9275,217 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   }
 }
 
+// Real, new, per direct request — produces "annotated4_comments.pdf":
+// small, plain colored circles in the page body with genuinely no
+// text drawn into them at all, and every piece of information (pass/
+// fail, attribute number, test description, exception number and
+// detail where applicable) packed into the actual PDF comment instead.
+// A sibling to _makeAcrobatAnnotatedCopyAfterAnalyze above, reusing
+// its exact, same proven structure faithfully — matching filenames,
+// exception numbering, comment content, and entry cleanup — adding
+// only the one new step this variant actually needs: drawing the
+// small tick circles first, with pdf-lib, before pdfAnnotateLib adds
+// the comments on top of those already-modified bytes. Two genuinely
+// separate libraries operating in sequence on the same bytes, not
+// simultaneously.
+async function _autoTickCommentFilesAfterAnalyze(ref) {
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const bucketArr = inMemoryFiles[ref]?.sample;
+  if (!bucketArr || !bucketArr.length) return;
+
+  const looksTickCommentByName = (name) => /_annotated4_comments\.pdf$/i.test(name || '');
+  const originalEntries = bucketArr.filter(f =>
+    f.file && !f._annotatedFrom && !_isPristineCopyFile(f) && !looksTickCommentByName(f.name)
+  );
+  if (!originalEntries.length) return;
+
+  let PDFLib, pdfAnnotateLib;
+  try {
+    PDFLib = await loadPdfLib();
+    pdfAnnotateLib = await loadPdfAnnotateLib();
+  } catch (err) {
+    console.error('[TickComment] Could not load required libraries:', err);
+    return; // fail quietly — this is an additive convenience, not the primary Analyze outcome
+  }
+
+  // Identical global exception numbering to the existing comment
+  // mechanism — the exact, same algorithm, so the number shown here
+  // matches every other output for the same underlying exception.
+  let exNumGlobal = 0;
+  const exMap = {};
+  wpResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
+      let match = (fileResult.results || []).find(r => r.title === attr.title);
+      if (!match) return;
+      if (match.result === 'fail' || match.result === 'pass_exception') {
+        exNumGlobal++;
+        exMap[`${fi}-${ai}`] = `E${exNumGlobal}`;
+      }
+    });
+  });
+
+  const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
+  const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 234, g: 88, b: 12 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
+  const TICK_SYMS = { pass: '\u2713', pass_exception: '\u26A0', fail: '\u2717', error: '\u2013' };
+
+  for (const origEntry of originalEntries) {
+    try {
+      const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
+      const tickCommentName = baseName + '_annotated4_comments.pdf';
+      const existingIdx = bucketArr.findIndex(f => f.name === tickCommentName && f._annotatedFrom === origEntry.name);
+
+      if (existingIdx >= 0) {
+        const staleEntry = bucketArr[existingIdx];
+        if (staleEntry.fileId) {
+          try {
+            await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(staleEntry.fileId), { method: 'DELETE' });
+          } catch (delErr) {
+            console.error('[TickComment] Could not delete stale copy for', origEntry.name, ':', delErr.message);
+          }
+        }
+        bucketArr.splice(existingIdx, 1);
+      }
+
+      const pristineBytes = await origEntry.file.arrayBuffer();
+
+      // Step 1: draw the small, plain tick circles first, with pdf-lib,
+      // on the pristine bytes. Produces new, modified bytes with only
+      // the visual marks — no text, no comments yet.
+      const tickedBytes = await _drawTickMarksOnlyForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      if (!tickedBytes) continue; // nothing relevant to this file — skip it entirely
+
+      let realPageHeights = [];
+      try {
+        const dimsDoc = await PDFLib.PDFDocument.load(pristineBytes, { ignoreEncryption: true });
+        realPageHeights = dimsDoc.getPages().map(p => p.getSize().height);
+      } catch (err) {
+        console.error('[TickComment] Could not read real page dimensions for', origEntry.name, ':', err.message);
+        continue;
+      }
+
+      // Step 2: hand the already-ticked bytes to pdfAnnotateLib, adding
+      // the real comments on top — identical content shape to the
+      // existing comment mechanism, so the two stay consistent with
+      // each other.
+      let factory;
+      try {
+        factory = new pdfAnnotateLib.AnnotationFactory(new Uint8Array(tickedBytes));
+      } catch (err) {
+        console.error('[TickComment] Could not parse', origEntry.name, 'as a valid PDF:', err.message);
+        continue;
+      }
+
+      const fi = wpResults.indexOf(wpResults.find(r => r.fileName === origEntry.name));
+      let anyPlaced = false;
+      const summaryLines = ['Testwork Summary', '-'.repeat(40)];
+      attributes.forEach(function(attr, ai) {
+        const fileResult = wpResults[fi] || {};
+        let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
+        if (!match) {
+          const al = attr.title.toLowerCase();
+          match = (fileResult.results || []).find(r =>
+            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+          );
+        }
+        if (!match) return;
+        if (match.sourceFile) {
+          const normSource = match.sourceFile.trim().toLowerCase();
+          const normFile = origEntry.name.trim().toLowerCase();
+          if (normSource !== normFile) return;
+        }
+
+        const pgIdx = Math.max(0, (match.page || 1) - 1);
+        if (pgIdx >= realPageHeights.length) return;
+        const realPageHeight = realPageHeights[pgIdx];
+
+        const result = match.result || 'error';
+        const exRef = exMap[`${fi}-${ai}`] || '';
+
+        const paraNum = Math.max(1, match.paragraph || (ai + 1));
+        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        const pdfY = realPageHeight * (1 - paraFrac);
+        const iconSize = 20;
+        const rectY1 = Math.max(0, pdfY - iconSize);
+        const rectY2 = Math.max(iconSize, pdfY);
+
+        const attrNum = attr.attrRef || attr.num || String(ai + 1);
+        const label = TICK_LABELS[result] || 'N/A';
+        const exTag = exRef ? ' [' + exRef + ']' : '';
+        // Real, per direct request — every piece of information lives
+        // here, in the comment, since nothing is drawn as visible text
+        // on the page for this variant: the attribute number, the
+        // pass/fail/exception label, the exception reference where
+        // applicable, and the test description/note.
+        const contents = '[' + attrNum + ']' + exTag + ' ' + label + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+
+        try {
+          factory.createTextAnnotation({
+            page: pgIdx,
+            rect: [24, rectY1, 24 + iconSize, rectY2], // offset from x=10 so this comment icon doesn't sit directly on top of the small tick circle drawn in Step 1
+            contents: contents,
+            author: 'Wavefire',
+            color: TICK_COLORS[result] || TICK_COLORS.error,
+            open: false,
+          });
+          anyPlaced = true;
+        } catch (annErr) {
+          console.error('[TickComment] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+        }
+
+        const tickSym = TICK_SYMS[result] || '-';
+        const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
+        summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
+        if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+      });
+
+      if (!anyPlaced) continue;
+
+      try {
+        factory.createTextAnnotation({
+          page: 0,
+          rect: [24, (realPageHeights[0] || 792) - 30, 44, (realPageHeights[0] || 792) - 10],
+          contents: summaryLines.join('\n'),
+          author: 'Wavefire',
+          color: { r: 57, g: 97, b: 139 },
+          open: false,
+        });
+      } catch (summErr) {
+        console.error('[TickComment] Could not place summary annotation on', origEntry.name, ':', summErr.message);
+      }
+
+      let outBytes;
+      try {
+        outBytes = factory.write();
+      } catch (err) {
+        console.error('[TickComment] factory.write() failed for', origEntry.name, ':', err.message);
+        continue;
+      }
+
+      const now = new Date();
+      const nowStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                   + ' at ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const tickCommentFile = new File([outBytes], tickCommentName, { type: 'application/pdf' });
+      const tickCommentEntry = {
+        file: tickCommentFile,
+        name: tickCommentName,
+        size: formatFileSize(tickCommentFile.size),
+        type: 'application/pdf',
+        uploadedBy: 'Wavefire',
+        uploadedOn: nowStr,
+        _annotatedFrom: origEntry.name,
+        _autoGenerated: true,
+      };
+      bucketArr.push(tickCommentEntry);
+      refreshFileList(ref, 'sample');
+      await _persistSampleFileToBackend(ref, tickCommentEntry, 'Wavefire');
+    } catch (err) {
+      console.error('[TickComment] Failed to process', origEntry.name, ':', err);
+    }
+  }
+}
+
 // Real, new, per the memory/guidance plan — classifies how testing
 // actually went for each attribute's current wording, using a real,
 // direct heuristic rather than an additional Claude call just to
@@ -9328,6 +9715,112 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   if (annotationSaveFailures.length) {
     alert(
       `${annotationSaveFailures.length} annotated file${annotationSaveFailures.length > 1 ? 's' : ''} could not be saved to the server:\n\n` +
+      annotationSaveFailures.map(n => `  • ${n}`).join('\n') +
+      `\n\nThe underlying Analyze results are unaffected, but ${annotationSaveFailures.length > 1 ? 'these copies are' : 'this copy is'} not yet durably saved. Check the browser console for the specific reason, or try re-running Analyze.`
+    );
+  }
+}
+
+// Real, new, per direct request — produces the "_annotated3" variant,
+// a sibling to _autoBurnAnnotatedFilesAfterAnalyze above, replicating
+// its exact, same proven wiring pattern (delete any stale prior copy
+// -> preserve the pristine original's bytes first, written to storage
+// on their own -> mark up that same copy -> persist the marked-up
+// version over it), adapted here for the new, real form-field marking
+// function above rather than duplicated ad hoc.
+async function _autoFormFieldFilesAfterAnalyze(ref) {
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const bucketArr = inMemoryFiles[ref]?.sample;
+  if (!bucketArr || !bucketArr.length) return;
+
+  const annotationSaveFailures = [];
+  // Genuinely excludes every derived-copy type this app produces, not
+  // just this mechanism's own prior output — the exact, same real gap
+  // already found and fixed for the burn-in mechanism, applied here
+  // from the start rather than discovered again the same way.
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !_isPristineCopyFile(f));
+  if (!originalEntries.length) return;
+
+  let PDFLib;
+  try {
+    PDFLib = await loadPdfLib();
+  } catch (err) {
+    console.error('[AutoFormField] Could not load pdf-lib:', err);
+    return;
+  }
+
+  for (const origEntry of originalEntries) {
+    try {
+      const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
+      const annName  = baseName + '_annotated3.pdf';
+      const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
+      if (existingIdx >= 0 && bucketArr[existingIdx]._autoGenerated === false) continue;
+
+      if (existingIdx >= 0) {
+        const staleEntry = bucketArr[existingIdx];
+        if (staleEntry.fileId) {
+          try {
+            await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(staleEntry.fileId), { method: 'DELETE' });
+          } catch (delErr) {
+            console.error('[AutoFormField] Could not delete stale copy for', origEntry.name, ':', delErr.message);
+          }
+        }
+        bucketArr.splice(existingIdx, 1);
+      }
+
+      const pristineBytes = await origEntry.file.arrayBuffer();
+      const pristineCopyFile = new File([pristineBytes], annName, { type: 'application/pdf' });
+      const now0    = new Date();
+      const nowStr0 = now0.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                    + ' at ' + now0.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+      const annEntry = {
+        file: pristineCopyFile,
+        name: annName,
+        size: formatFileSize(pristineCopyFile.size),
+        type: 'application/pdf',
+        uploadedBy: 'Wavefire',
+        uploadedOn: nowStr0,
+        _annotatedFrom: origEntry.name,
+        _autoGenerated: true,
+      };
+      bucketArr.push(annEntry);
+      refreshFileList(ref, 'sample');
+      await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
+
+      const outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      if (!outBytes) {
+        if (annEntry.fileId) {
+          fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
+        }
+        const idx = bucketArr.indexOf(annEntry);
+        if (idx >= 0) bucketArr.splice(idx, 1);
+        continue;
+      }
+
+      const now     = new Date();
+      const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                    + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+      const annotatedFile = new File([outBytes], annName, { type: 'application/pdf' });
+
+      annEntry.file        = annotatedFile;
+      annEntry.size        = formatFileSize(annotatedFile.size);
+      annEntry.updatedBy   = 'Wavefire';
+      annEntry.updatedOn   = nowStr;
+      annEntry._autoGenerated = true;
+      await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
+      if (!annEntry.fileId) annotationSaveFailures.push(annName);
+    } catch (err) {
+      console.error('[AutoFormField] Failed to annotate', origEntry.name, err);
+      annotationSaveFailures.push(origEntry.name);
+    }
+  }
+
+  refreshFileList(ref, 'sample');
+  if (annotationSaveFailures.length) {
+    alert(
+      `${annotationSaveFailures.length} form-field annotated file${annotationSaveFailures.length > 1 ? 's' : ''} could not be saved to the server:\n\n` +
       annotationSaveFailures.map(n => `  • ${n}`).join('\n') +
       `\n\nThe underlying Analyze results are unaffected, but ${annotationSaveFailures.length > 1 ? 'these copies are' : 'this copy is'} not yet durably saved. Check the browser console for the specific reason, or try re-running Analyze.`
     );
@@ -24223,6 +24716,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // showing results; a failure here is logged, not surfaced as an Analyze
   // failure, since annotation is a convenience on top of the actual results.
   _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
+
+  // Real, new, per direct request — the "_annotated3" form-field
+  // variant, independent and parallel to the burn-in mechanism above,
+  // the exact, same fire-and-forget pattern.
+  _autoFormFieldFilesAfterAnalyze(ref).catch(err => console.error('[AutoFormField] Unexpected failure:', err));
+
+  // Real, new, per direct request — the "annotated4_comments" variant,
+  // independent and parallel to the mechanisms above, the exact, same
+  // fire-and-forget pattern.
+  _autoTickCommentFilesAfterAnalyze(ref).catch(err => console.error('[TickComment] Unexpected failure:', err));
 
   // Genuinely new, third mechanism — real, native Acrobat-editable
   // annotations via pdfAnnotate, additive alongside the existing burn-in
