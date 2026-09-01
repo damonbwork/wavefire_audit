@@ -25457,6 +25457,58 @@ async function _fetchApplicableReferenceFiles(ref, attributeIndex) {
 // chunk-based conversion already proven for sample files in
 // fileToBase64 right below this, since a fetch response's own
 // arrayBuffer() works identically to a local File object's.
+// Real, new, per direct request — mammoth and SheetJS both need raw
+// bytes, not base64, so this reuses the exact, same download call as
+// its base64 sibling below but returns the real, actual ArrayBuffer
+// directly, avoiding an unnecessary round-trip through base64
+// encoding for this specific use case.
+async function _referenceFileToArrayBuffer(fileId) {
+  try {
+    const res = await fetch(`/api/reference-files/${encodeURIComponent(fileId)}/download`);
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch(e) { return null; }
+}
+
+// Real, new, per direct request — extracts plain text from a .docx
+// reference file using mammoth, the exact, same library already
+// proven for the docx preview feature elsewhere in this app.
+// Deliberately uses extractRawText rather than convertToHtml (the
+// other established usage here) — plain text is what a text content
+// block actually wants, and HTML markup would just add noise to what
+// Claude reads.
+async function _extractDocxText(arrayBuffer) {
+  try {
+    const mammoth = await loadMammoth();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return (result?.value || '').trim() || null;
+  } catch(e) {
+    console.error('[_extractDocxText] Could not extract text:', e.message);
+    return null;
+  }
+}
+
+// Real, new, per direct request — converts a .xlsx reference file to
+// CSV text using SheetJS, the exact, same library already proven for
+// this app's own spreadsheet import/export features. Every real sheet
+// in the workbook gets converted and clearly labeled, so a multi-sheet
+// workbook stays distinguishable rather than silently collapsing into
+// one undifferentiated block of text.
+async function _extractXlsxAsCsv(arrayBuffer) {
+  try {
+    const XLSX = await loadSheetJS();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const parts = workbook.SheetNames.map(name => {
+      const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+      return `Sheet: ${name}\n${csv}`;
+    });
+    return parts.join('\n\n').trim() || null;
+  } catch(e) {
+    console.error('[_extractXlsxAsCsv] Could not convert to CSV:', e.message);
+    return null;
+  }
+}
+
 async function _referenceFileToBase64(fileId) {
   try {
     const res = await fetch(`/api/reference-files/${encodeURIComponent(fileId)}/download`);
@@ -25481,23 +25533,44 @@ async function _referenceFileToBase64(fileId) {
 async function _buildReferenceFileContentBlocks(referenceFilesById) {
   const blocks = [];
   const skipped = [];
+  const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   for (const rf of referenceFilesById.values()) {
+    if (rf.content_type === 'application/pdf' || !rf.content_type) {
+      const b64 = await _referenceFileToBase64(rf.id);
+      if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: `Reference: ${rf.display_name}` });
+      else skipped.push(rf.display_name);
+      continue;
+    }
+    // Real, new, per direct request — a docx or xlsx reference file
+    // now gets its own real text/CSV extracted and included as a
+    // genuine text content block, rather than being skipped entirely.
+    // Matches the official Anthropic guidance to convert an
+    // unsupported format to plain text and include it directly in the
+    // message, rather than as a document block, which only ever
+    // accepts application/pdf.
+    if (rf.content_type === DOCX_MIME || rf.content_type === XLSX_MIME) {
+      const arrayBuffer = await _referenceFileToArrayBuffer(rf.id);
+      if (!arrayBuffer) { skipped.push(rf.display_name); continue; }
+      const extracted = rf.content_type === DOCX_MIME
+        ? await _extractDocxText(arrayBuffer)
+        : await _extractXlsxAsCsv(arrayBuffer);
+      if (!extracted) { skipped.push(rf.display_name); continue; }
+      blocks.push({ type: 'text', text: `[Reference: ${rf.display_name}]\n${extracted}` });
+      continue;
+    }
     // Real, confirmed fix, per a real, live reported error — the
     // Anthropic API's own document content block type only ever
     // accepts application/pdf, regardless of what a given reference
     // file's own real content_type actually is. Sending a non-PDF
     // reference file this way doesn't just fail for that one file —
     // it gets the entire request rejected outright, blocking every
-    // sample file in the same Analyze run along with it. Skips a
-    // non-PDF reference file rather than let it break the whole
-    // request, and reports what was skipped so this never happens
-    // silently.
-    if (rf.content_type && rf.content_type !== 'application/pdf') {
-      skipped.push(rf.display_name);
-      continue;
-    }
-    const b64 = await _referenceFileToBase64(rf.id);
-    if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: `Reference: ${rf.display_name}` });
+    // sample file in the same Analyze run along with it. Only a
+    // genuinely unsupported type reaches this point now — docx and
+    // xlsx are handled above — and this still skips it rather than
+    // let it break the whole request, reporting what was skipped so
+    // this never happens silently.
+    skipped.push(rf.display_name);
   }
   return { blocks, skipped };
 }
