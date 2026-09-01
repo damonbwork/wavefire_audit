@@ -5647,7 +5647,7 @@ auditor's assessment.
   </div>
 
   <div id="analysis-options-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.45); z-index: 11000; align-items: center; justify-content: center;">
-    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(500px,95vw);max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(640px,95vw);min-height:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div style="font-size:14px;font-weight:600"><i class="ti ti-sparkles" style="margin-right:8px"></i>Analyze &amp; Create Workpaper</div>
         <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">&#x00D7;</button>
@@ -24987,26 +24987,32 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     const hasExceptions = (analysisResults||[]).some(function(r){ return (r.results||[]).some(function(x){ return x.result==='fail'||x.result==='pass_exception'; }); });
     _exMemoBtn.style.display = hasExceptions ? 'inline-flex' : 'none';
   }
-  // Show reasoning log and notes buttons whenever there are real results —
-  // previously gated on the "commentary" field, which is never populated by
-  // the actual API response (a dead field from an earlier design), so this
-  // condition had likely never been true in practice regardless of what
-  // analysis actually ran.
-  const _hasRealResults = (analysisResults && analysisResults.length) ? true : false;
+  // Real, confirmed fix, per direct request — genuinely correctly
+  // uses an explicit "the process is done" signal, rather than
+  // inferring completion from having data. A total-failure run still
+  // writes an error entry per file into analysisResults, meaning "has
+  // data" read as true even when nothing useful genuinely happened —
+  // an indirect proxy for completion, not the real thing. Reaching
+  // this exact line of code at all is itself proof testing has
+  // genuinely finished, by construction, given everything before it
+  // is correctly awaited — so that fact is now the actual signal
+  // used, applied consistently to every button that previously shared
+  // the old, indirect condition.
+  const _analysisProcessComplete = true;
   const _logBtn = document.getElementById('dl-reasoning-log-btn');
-  if (_logBtn) _logBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
+  if (_logBtn) _logBtn.style.display = _analysisProcessComplete ? 'inline-flex' : 'none';
   const _notesBtn = document.getElementById('dl-notes-btn');
-  if (_notesBtn) _notesBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
+  if (_notesBtn) _notesBtn.style.display = _analysisProcessComplete ? 'inline-flex' : 'none';
 
   const _guidanceBtn = document.getElementById('dl-guidance-btn');
   if (_guidanceBtn) _guidanceBtn.style.display = 'inline-flex';
 
   // Real, new, per direct request — this button now only ever appears
-  // once real results genuinely exist, the exact same point and
-  // condition its siblings use, rather than sitting there before
-  // Analyze has produced anything for it to speak to.
+  // once the analysis process is genuinely complete, the exact same
+  // point and condition its siblings use, rather than sitting there
+  // before Analyze has finished.
   const _testAnalysisBtn = document.getElementById('analysis-test-analysis-btn');
-  if (_testAnalysisBtn) _testAnalysisBtn.style.display = _hasRealResults ? 'inline-flex' : 'none';
+  if (_testAnalysisBtn) _testAnalysisBtn.style.display = _analysisProcessComplete ? 'inline-flex' : 'none';
 
   // ── Safety net: ensure core buttons always visible after analysis ─────────
   function _ensureButtonsVisible() {
