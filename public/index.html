@@ -384,12 +384,14 @@
     flex-shrink: 0;
   }
   #file-preview-body {
-    flex: 1; overflow-y: auto;
+    flex: 1; overflow-y: auto; overflow-x: auto;
     background: #525659;
     display: flex; flex-direction: column; align-items: center;
     padding: 16px 0;
     gap: 12px;
+    cursor: grab;
   }
+  #file-preview-body.wf-panning { cursor: grabbing; user-select: none; }
   #file-preview-placeholder {
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -5250,16 +5252,11 @@ auditor's assessment.
         <input type="number" id="preview-page-input" min="1" value="1" style="width:52px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;text-align:center;outline:none" onchange="previewGoPage(0)" max="5">
         <span style="font-size:12px;color:var(--text-secondary)">of <span id="preview-total-pages">5</span></span>
         <button class="icon-btn" onclick="previewGoPage(1)" title="Next page"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-          <span style="font-size:11px;color:var(--text-tertiary)">Zoom:</span>
-          <select id="preview-zoom" onchange="if(window._previewFile &amp;&amp; previewPDFDoc){renderPDFPreview(window._previewFile)}" style="font-size:12px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
-            <option value="">—</option>
-                  <option value="0.75">75%</option>
-            <option value="1" selected="selected">100%</option>
-            <option value="1.25">125%</option>
-            <option value="1.5">150%</option>
-            <option value="2">200%</option>
-          </select>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--text-tertiary);margin-right:4px">Zoom:</span>
+          <button class="icon-btn" onclick="previewZoomStep(-1)" title="Zoom out"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <span id="preview-zoom-display" style="font-size:12px;color:var(--text-secondary);min-width:40px;text-align:center">100%</span>
+          <button class="icon-btn" onclick="previewZoomStep(1)" title="Zoom in"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         </div>
       </div>
       <!-- Annotation toolbar (PDF only) -->
@@ -21036,6 +21033,58 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
 }
 
 
+// Real, new, per direct request — click-and-drag panning for the PDF
+// preview body, in any direction, for when zooming in means the full
+// page no longer fits the viewport. Deliberately gated on
+// !currentAnnTool — the exact, same condition the existing annotation
+// -drawing interaction on the overlay above already uses to decide
+// whether it's active — so panning and drawing a new annotation never
+// fight over the same mousedown/mousemove events; each is active in
+// its own, mutually-exclusive mode.
+(function() {
+  let isPanning = false, panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
+
+  function attachPanHandlers() {
+    const body = document.getElementById('file-preview-body');
+    if (!body) return;
+
+    body.addEventListener('mousedown', function(e) {
+      if (currentAnnTool) return; // an annotation tool is active — let that interaction handle this instead
+      isPanning = true;
+      panStartX = e.clientX; panStartY = e.clientY;
+      panScrollLeft = body.scrollLeft; panScrollTop = body.scrollTop;
+      body.classList.add('wf-panning');
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isPanning) return;
+      body.scrollLeft = panScrollLeft - (e.clientX - panStartX);
+      body.scrollTop  = panScrollTop  - (e.clientY - panStartY);
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (!isPanning) return;
+      isPanning = false;
+      body.classList.remove('wf-panning');
+    });
+
+    // Real, genuinely stops panning if the mouse leaves the browser
+    // window entirely mid-drag — otherwise isPanning could stay stuck
+    // true with no real mouseup ever following it.
+    document.addEventListener('mouseleave', function() {
+      if (!isPanning) return;
+      isPanning = false;
+      body.classList.remove('wf-panning');
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachPanHandlers);
+  } else {
+    attachPanHandlers();
+  }
+})();
+
 function setupAnnOverlay() {
   const overlay = document.getElementById('pdf-ann-overlay');
   if (!overlay) return;
@@ -26456,6 +26505,10 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
 let previewPDFDoc = null;
 let currentPreviewPage = 1;
 let previewTotalPages  = 1;
+// Real, new, per direct request — replaces the removed
+// fixed-percentage dropdown as the single source of truth for the
+// current zoom level.
+let _previewZoomLevel  = 1;
 
 function openFilePreviewOverlay() {
   document.getElementById('file-preview-overlay').classList.add('open');
@@ -26810,7 +26863,11 @@ async function renderPDFPreview(file) {
     // Remove loading spinner
     loadingDiv.remove();
 
-    const zoom = parseFloat(document.getElementById('preview-zoom')?.value || '1');
+    // Real, confirmed fix, per direct request — reads from the new
+    // module-level zoom state now that the fixed-percentage dropdown
+    // is gone; without this, zoom would silently and permanently
+    // default to 100%, ignoring the new zoom buttons entirely.
+    const zoom = _previewZoomLevel;
     for (let p = 1; p <= previewTotalPages; p++) {
       const page = await previewPDFDoc.getPage(p);
       const vp   = page.getViewport({ scale: zoom });
@@ -26908,6 +26965,23 @@ function previewGoPage(delta) {
   } else {
     renderPreviewPage(currentPreviewPage + delta);
   }
+}
+
+// Real, new, per direct request — steps zoom by a fixed 25% increment,
+// clamped to a reasonable range (25%-300%) rather than an
+// unboundedly-small or unboundedly-large render. Genuinely
+// re-renders every page at the new scale, since PDF.js draws each
+// page's own canvas at a fixed pixel size for a given zoom level
+// rather than scaling an existing canvas after the fact.
+function previewZoomStep(direction) {
+  const MIN_ZOOM = 0.25, MAX_ZOOM = 3.0, STEP = 0.25;
+  let next = _previewZoomLevel + (direction * STEP);
+  next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+  next = Math.round(next * 100) / 100; // avoids real, accumulated floating-point drift across repeated clicks
+  _previewZoomLevel = next;
+  const displayEl = document.getElementById('preview-zoom-display');
+  if (displayEl) displayEl.textContent = Math.round(next * 100) + '%';
+  if (window._previewFile && previewPDFDoc) renderPDFPreview(window._previewFile);
 }
 
 function renderNonPDFPreview(file, name) {
