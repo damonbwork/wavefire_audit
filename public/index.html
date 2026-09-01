@@ -365,6 +365,7 @@
     display: flex; flex-direction: column;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     overflow: hidden;
+    position: relative;
   }
   #file-preview-header {
     display: flex; align-items: center; gap: 10px;
@@ -3059,6 +3060,16 @@
                 <button id="sd-col-toolbar-delete" class="icon-btn" title="Remove column" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarDeleteColumn()">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
+                <!-- Real, new, per direct request — resets an existing
+                     column's own explicitly-saved width back to the
+                     current default. A code change to the default
+                     alone can never touch a column that already has
+                     its own width saved, since that fallback only
+                     ever applies when a column's width is genuinely
+                     unset. -->
+                <button id="sd-col-toolbar-resize" class="icon-btn" title="Reset column width to default" style="width:22px;height:22px" onclick="event.stopPropagation();_sdToolbarResetColumnWidth()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg>
+                </button>
               </div>
               <!-- Shared row toolbar — same pattern as the column toolbar
                    above, anchored near the "#" header and repositioned over
@@ -5200,6 +5211,13 @@ auditor's assessment.
   <!-- File Preview Modal -->
   <div id="file-preview-overlay" class="">
     <div id="file-preview-modal">
+      <!-- Real, new, per direct request — drag this corner to resize
+           the whole modal, in either direction. -->
+      <div id="file-preview-resize-handle" title="Drag to resize" style="position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:50">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" style="position:absolute;right:2px;bottom:2px;pointer-events:none">
+          <path d="M15 3 L3 15 M15 9 L9 15 M15 15 L15 15" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
       <!-- Header -->
       <div id="file-preview-header">
         <i class="ti ti-file-type-pdf" id="file-preview-icon" style="font-size:16px;color:rgba(255,255,255,0.7);flex-shrink:0"></i>
@@ -5252,7 +5270,15 @@ auditor's assessment.
         <input type="number" id="preview-page-input" min="1" value="1" style="width:52px;padding:3px 6px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px;text-align:center;outline:none" onchange="previewGoPage(0)" max="5">
         <span style="font-size:12px;color:var(--text-secondary)">of <span id="preview-total-pages">5</span></span>
         <button class="icon-btn" onclick="previewGoPage(1)" title="Next page"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:4px">
+      </div>
+      <!-- Real, confirmed fix, per direct report — zoom now lives in
+           its own, separate, always-visible container, independent of
+           page count, rather than sharing file-preview-nav's own
+           visibility, which is genuinely, correctly hidden for a
+           single-page PDF. Zoom is useful regardless of page count;
+           it should never have shared that same condition. -->
+      <div id="file-preview-zoom-bar" style="display:none;align-items:center;justify-content:flex-end;padding:6px 14px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+        <div style="display:flex;align-items:center;gap:4px">
           <span style="font-size:11px;color:var(--text-tertiary);margin-right:4px">Zoom:</span>
           <button class="icon-btn" onclick="previewZoomStep(-1)" title="Zoom out"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
           <span id="preview-zoom-display" style="font-size:12px;color:var(--text-secondary);min-width:40px;text-align:center">100%</span>
@@ -21033,6 +21059,59 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
 }
 
 
+// Real, new, per direct request — click-and-drag resize for the whole
+// file-preview modal, from its own bottom-right corner. Reads the
+// modal's own current rendered size via getBoundingClientRect at drag
+// start, so this works correctly whether the modal is still using its
+// own original CSS-based sizing or has already been resized once
+// before in this same session. Clamped to a reasonable minimum and to
+// the actual viewport, so it can never be dragged larger than the
+// screen itself or shrunk down to something unusable.
+(function() {
+  let isResizing = false, resizeStartX = 0, resizeStartY = 0, startWidth = 0, startHeight = 0;
+
+  function attachResizeHandlers() {
+    const handle = document.getElementById('file-preview-resize-handle');
+    const modal  = document.getElementById('file-preview-modal');
+    if (!handle || !modal) return;
+
+    handle.addEventListener('mousedown', function(e) {
+      isResizing = true;
+      resizeStartX = e.clientX; resizeStartY = e.clientY;
+      const rect = modal.getBoundingClientRect();
+      startWidth = rect.width; startHeight = rect.height;
+      e.preventDefault(); // stops real, unwanted text selection while dragging
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      const MIN_W = 400, MIN_H = 300;
+      const maxW = window.innerWidth - 40, maxH = window.innerHeight - 40;
+      let newW = startWidth  + (e.clientX - resizeStartX);
+      let newH = startHeight + (e.clientY - resizeStartY);
+      newW = Math.max(MIN_W, Math.min(maxW, newW));
+      newH = Math.max(MIN_H, Math.min(maxH, newH));
+      modal.style.width  = newW + 'px';
+      modal.style.height = newH + 'px';
+      modal.style.maxWidth = 'none'; // real, existing max-width: 900px would otherwise silently cap growth past that point
+    });
+
+    document.addEventListener('mouseup', function() {
+      isResizing = false;
+    });
+
+    document.addEventListener('mouseleave', function() {
+      isResizing = false;
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachResizeHandlers);
+  } else {
+    attachResizeHandlers();
+  }
+})();
+
 // Real, new, per direct request — click-and-drag panning for the PDF
 // preview body, in any direction, for when zooming in means the full
 // page no longer fits the viewport. Deliberately gated on
@@ -24266,7 +24345,19 @@ async function analyzeWithClaude() {
   // and re-encoding the same real file content once per sample being
   // tested. Both real analyze functions below reuse this exact, same
   // shared array via closure.
-  const referenceFileDocBlocks = await _buildReferenceFileContentBlocks(referenceFilesById);
+  const { blocks: referenceFileDocBlocks, skipped: skippedReferenceFiles } = await _buildReferenceFileContentBlocks(referenceFilesById);
+  // Real, confirmed fix, per a real, live reported error — directly
+  // and clearly warns when a reference file was skipped for not being
+  // a PDF, rather than silently proceeding without it. Matches the
+  // exact, same "silence is dangerous for an audit tool" principle
+  // already used for the unsaved-sample-files warning above.
+  if (skippedReferenceFiles.length) {
+    alert(
+      `${skippedReferenceFiles.length} reference file${skippedReferenceFiles.length > 1 ? 's are' : ' is'} not a PDF and will be excluded from this Analyze run:\n\n` +
+      skippedReferenceFiles.map(n => `  • ${n}`).join('\n') +
+      `\n\nOnly PDF reference files can currently be sent to Claude for analysis.`
+    );
+  }
 
   // Build context section — workpaper-level data prepended to the user message
   const contextParts = [];
@@ -25389,11 +25480,26 @@ async function _referenceFileToBase64(fileId) {
 // exact, same shape already used for sample files.
 async function _buildReferenceFileContentBlocks(referenceFilesById) {
   const blocks = [];
+  const skipped = [];
   for (const rf of referenceFilesById.values()) {
+    // Real, confirmed fix, per a real, live reported error — the
+    // Anthropic API's own document content block type only ever
+    // accepts application/pdf, regardless of what a given reference
+    // file's own real content_type actually is. Sending a non-PDF
+    // reference file this way doesn't just fail for that one file —
+    // it gets the entire request rejected outright, blocking every
+    // sample file in the same Analyze run along with it. Skips a
+    // non-PDF reference file rather than let it break the whole
+    // request, and reports what was skipped so this never happens
+    // silently.
+    if (rf.content_type && rf.content_type !== 'application/pdf') {
+      skipped.push(rf.display_name);
+      continue;
+    }
     const b64 = await _referenceFileToBase64(rf.id);
-    if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: rf.content_type || 'application/pdf', data: b64 }, title: `Reference: ${rf.display_name}` });
+    if (b64) blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 }, title: `Reference: ${rf.display_name}` });
   }
-  return blocks;
+  return { blocks, skipped };
 }
 
 // Real, new shared helper, per the complete reference-file
@@ -26516,6 +26622,7 @@ function openFilePreviewOverlay() {
 function closeFilePreview() {
   document.getElementById('file-preview-overlay').classList.remove('open');
   document.getElementById('file-preview-nav').style.display = 'none';
+  document.getElementById('file-preview-zoom-bar').style.display = 'none';
   document.getElementById('file-preview-body').innerHTML =
     `<div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div>`;
   previewPDFDoc = null;
@@ -26790,6 +26897,7 @@ function previewStaticFile(name) {
   setPreviewIcon(name);
   openFilePreviewOverlay();
   document.getElementById('file-preview-nav').style.display = 'none';
+  document.getElementById('file-preview-zoom-bar').style.display = 'none';
   document.getElementById('file-preview-body').innerHTML = `
     <div id="file-preview-placeholder" style="color:#ccc;text-align:center;padding:40px 20px">
       <i class="ti ti-file" style="font-size:48px;margin-bottom:12px;display:block;opacity:0.5"></i>
@@ -26859,6 +26967,7 @@ async function renderPDFPreview(file) {
     const _pip = document.getElementById('preview-page-input');
     if (_pip) { _pip.value = 1; _pip.max = previewTotalPages; }
     document.getElementById('file-preview-nav').style.display = previewTotalPages > 1 ? 'flex' : 'none';
+    document.getElementById('file-preview-zoom-bar').style.display = 'flex'; // Real, confirmed fix, per direct report — zoom always shows for any PDF, never gated on page count
 
     // Remove loading spinner
     loadingDiv.remove();
@@ -26986,6 +27095,7 @@ function previewZoomStep(direction) {
 
 function renderNonPDFPreview(file, name) {
   document.getElementById('file-preview-nav').style.display = 'none';
+  document.getElementById('file-preview-zoom-bar').style.display = 'none';
   const n = name.toLowerCase();
   const body = document.getElementById('file-preview-body');
 
@@ -27175,8 +27285,13 @@ async function parseDocxBookmarks(fileId, ref, idx) {
       totalPages: null,
     };
 
+    // Real, confirmed fix, per direct request — the exact, same bug
+    // and fix already applied to the PDF path above: a backend-loaded
+    // file is a plain object mimicking a file's properties, not a
+    // genuine Blob. Constructs a real one from ab, already fetched
+    // above.
     if (!pdfObjectURLs[fileId]) {
-      pdfObjectURLs[fileId] = URL.createObjectURL(entry.file);
+      pdfObjectURLs[fileId] = URL.createObjectURL(new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
     }
 
     renderDocxPanel(fileId, ref, idx);
@@ -27248,12 +27363,19 @@ function renderDocxPanel(fileId, ref, idx) {
   panel.innerHTML = html;
 }
 
-function openDocxAtBookmark(fileId, bookmarkName) {
+async function openDocxAtBookmark(fileId, bookmarkName) {
   // Download a copy of the file — browsers can't instruct Word to navigate to a bookmark
   // but the user can use Ctrl+G > Bookmark in Word after opening
   const cache = pdfBookmarkCache[fileId];
   if (!cache?.file) return;
-  const url = URL.createObjectURL(cache.file);
+  // Real, confirmed fix, per direct request — the exact, same bug and
+  // fix already applied above: cache.file may be a backend-loaded
+  // file, a plain object mimicking a file's properties rather than a
+  // genuine Blob. Fetches the real bytes first — works correctly for
+  // both a real File and the lazy-backend wrapper alike, since both
+  // expose this same method — then constructs a real Blob from them.
+  const ab = await cache.file.arrayBuffer();
+  const url = URL.createObjectURL(new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
   const a   = document.createElement('a');
   a.href     = url;
   a.download = cache.fileName;
@@ -27308,9 +27430,12 @@ async function parseXlsxNamedRanges(fileId, ref, idx) {
       fileName: entry.name,
     };
 
-    // Create object URL for download-to-open approach
+    // Real, confirmed fix, per direct request — the exact, same bug
+    // and fix already applied elsewhere: a backend-loaded file is a
+    // plain object mimicking a file's properties, not a genuine Blob.
+    // Constructs a real one from ab, already fetched above.
     if (!pdfObjectURLs[fileId]) {
-      pdfObjectURLs[fileId] = URL.createObjectURL(entry.file);
+      pdfObjectURLs[fileId] = URL.createObjectURL(new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     }
 
     renderXlsxPanel(fileId, ref, idx);
@@ -27401,6 +27526,7 @@ function openXlsxAtRange(fileId, rangeName, sheet, range) {
   if (!overlay || !body) return;
   if (title) title.textContent = name + (rangeName ? ' — ' + rangeName : '');
   document.getElementById('file-preview-nav').style.display = 'none';
+  document.getElementById('file-preview-zoom-bar').style.display = 'none';
   body.innerHTML = `<div style="color:#94a3b8;text-align:center;padding:20px;font-size:13px"><i class="ti ti-loader-2" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.5"></i>Loading spreadsheet…</div>`;
   overlay.style.display = 'flex';
   _updateFileNavButtons();
@@ -27641,8 +27767,18 @@ async function toggleBookmarks(fileId, idx, ref) {
     };
 
     // Create and store object URL for this file
+    // Real, confirmed fix, per a real, live, reported error —
+    // URL.createObjectURL requires a genuine Blob/File instance, but
+    // a file loaded from the backend (rather than freshly uploaded)
+    // is a plain object that only mimics a file's properties, not an
+    // actual Blob. This threw for any backend-loaded PDF regardless
+    // of bookmark content, preventing execution from ever reaching
+    // the already-correct "No bookmarks or destinations found"
+    // message below. Constructs a real Blob from the arrayBuffer
+    // already fetched above, which works correctly for both a fresh
+    // upload and a backend-loaded file alike.
     if (!pdfObjectURLs[fileId]) {
-      pdfObjectURLs[fileId] = URL.createObjectURL(entry.file);
+      pdfObjectURLs[fileId] = URL.createObjectURL(new Blob([arrayBuffer], { type: 'application/pdf' }));
     }
 
     renderBookmarkPanel(fileId, ref, idx);
@@ -29653,6 +29789,23 @@ function _sdToolbarDeleteColumn() {
   var colId = ref && _sdSelectedColumn[ref];
   if (!ref || !colId) return;
   removeSampleDataColumn(ref, colId); // clears _sdSelectedColumn itself on delete, then re-renders
+}
+
+// Real, new, per direct request — resets the currently-selected
+// column's own explicitly-saved width back to the current default.
+// Matches the exact, same established pattern as its sibling above
+// for resolving which column is actually selected before acting on
+// it.
+function _sdToolbarResetColumnWidth() {
+  var ref = getWPRef ? getWPRef() : null;
+  var colId = ref && _sdSelectedColumn[ref];
+  if (!ref || !colId) return;
+  var data = _daSampleDataFor(ref);
+  var col = data.columns.find(function(c){ return c.id === colId; });
+  if (!col) return;
+  col.width = SD_DEFAULT_COL_WIDTH;
+  renderSampleDataGrid(ref);
+  saveSampleDataGrid(ref);
 }
 
 // Click-elsewhere-to-deselect: a single document-level listener (registered
