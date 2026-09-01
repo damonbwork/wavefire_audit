@@ -4739,11 +4739,7 @@ auditor's assessment.
            innerHTML on every load; a checkbox placed there would lose
            its own checked state the moment results render. Checked by
            default, matching the request. -->
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
-        <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);cursor:pointer">
-          <input type="checkbox" id="guidance-use-web-search" checked style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
-          Search external sources for guidance on improving the test.
-        </label>
+      <div style="display:flex;align-items:center;justify-content:flex-end;padding:12px 20px;border-top:0.5px solid var(--border-light);flex-shrink:0">
         <button class="btn-s" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="_regenerateGuidance()">
           <i class="ti ti-refresh"></i> Regenerate
         </button>
@@ -5689,6 +5685,18 @@ auditor's assessment.
             <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdetails" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Details <span style="font-size:9px;color:var(--text-tertiary);font-weight:400">(description, additional info, pass &amp; fail criteria)</span></span></label>
           </div>
         </div>
+      </div>
+      <!-- Real, new, per direct request — moved here from the
+           Guidance modal, since this is a genuinely different concern
+           from "which data to include" above: whether Guidance should
+           also consult outside sources, whenever it's later run, not
+           whether Analyze itself gains new capability here. Checked
+           by default, matching established behavior. -->
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light)">
+        <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);cursor:pointer">
+          <input type="checkbox" id="aopt-guidance-web-search" checked style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" onchange="_guidanceWebSearchPref = this.checked">
+          Search external sources for guidance on improving the test.
+        </label>
       </div>
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
         <button class="btn-s" onclick="document.getElementById('analysis-options-overlay').style.display='none'">Cancel</button>
@@ -8547,7 +8555,21 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   const pages    = pdfDoc.getPages();
   const font     = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const form     = pdfDoc.getForm();
+  // Real, new, per direct request — pdfDoc.getForm() specifically
+  // flagged by direct research as a real, known failure point for
+  // PDFs exported from third-party tools (Jira exports among them),
+  // which can genuinely carry an existing, malformed AcroForm
+  // structure this call chokes on — a real, different cause than
+  // anything in this function's own logic. Wrapped with its own
+  // specific error context so this is now genuinely unmistakable in
+  // the console, rather than folded into one generic catch-all that
+  // could hide which exact step actually failed.
+  let form;
+  try {
+    form = pdfDoc.getForm();
+  } catch (formErr) {
+    throw new Error(`[_formFieldAnnotationsForFileFromResults] pdfDoc.getForm() failed for "${fileName}" — this PDF likely has an existing, malformed form structure: ${formErr.message}`);
+  }
 
   const TICK_LABELS = { pass:'PASS', pass_exception:'EXC', fail:'FAIL', error:'N/A' };
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
@@ -8571,17 +8593,31 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   // the PDF viewer, not by pdf-lib at creation time).
   function placeField(page, name, text, opts) {
     const { x, y, width, height, size, textColor, bg } = opts;
-    const field = form.createTextField(name);
-    field.setText(text);
-    field.enableReadOnly();
-    field.setFontSize(size);
-    field.addToPage(page, {
-      x, y, width, height,
-      font: font,
-      textColor: textColor,
-      backgroundColor: bg || rgb(1, 1, 1),
-      borderWidth: 0,
-    });
+    // Real, new, per direct request — names exactly which field and
+    // which specific step genuinely failed, rather than one generic
+    // message that could hide which of several real possible causes
+    // (a duplicate field name, an invalid appearance, or something
+    // else entirely) actually happened.
+    let field;
+    try {
+      field = form.createTextField(name);
+      field.setText(text);
+      field.enableReadOnly();
+      field.setFontSize(size);
+    } catch (fieldErr) {
+      throw new Error(`[placeField] Could not create/configure field "${name}" (text: "${text.slice(0, 40)}"): ${fieldErr.message}`);
+    }
+    try {
+      field.addToPage(page, {
+        x, y, width, height,
+        font: font,
+        textColor: textColor,
+        backgroundColor: bg || rgb(1, 1, 1),
+        borderWidth: 0,
+      });
+    } catch (addErr) {
+      throw new Error(`[placeField] field.addToPage() failed for "${name}" (text: "${text.slice(0, 40)}"): ${addErr.message}`);
+    }
   }
 
   var anyPlaced = false;
@@ -32783,6 +32819,12 @@ function selectWorkpaperCategory(categoryName) {
 let _guidanceTimerInterval = null; // real, tracks the active elapsed-time counter, so it can be correctly cleared from every, real exit path
 let _guidanceStartTime = null; // real, lifted to module scope, per explicit request, so _loadGuidance can correctly compute the real, final elapsed time, not just the ticking interval callback
 
+// Real, new, per direct request — set from the checkbox on the
+// pre-Analyze modal, read whenever Guidance actually runs (which may
+// be well after Analyze finishes, sometimes much later). Defaults to
+// true, matching that checkbox's own checked-by-default state.
+let _guidanceWebSearchPref = true;
+
 function openGuidanceModal(title) {
   const ref = currentAttrWPRef;
   if (!ref) return;
@@ -32868,7 +32910,12 @@ async function _loadGuidance(ref) {
     // regardless of it. Defaults to true if the element somehow
     // doesn't exist, matching the established checked-by-default
     // behavior.
-    const useWebSearch = document.getElementById('guidance-use-web-search')?.checked !== false;
+    // Real, confirmed fix, per direct request — the checkbox this
+    // used to read has moved to the pre-Analyze modal and no longer
+    // exists here; reading it directly would have silently and always
+    // defaulted to "search on" regardless of what was actually chosen
+    // there. Reads from the new, persistent preference instead.
+    const useWebSearch = _guidanceWebSearchPref !== false;
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/guidance', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ knownRiskTitles, linkedRiskTitles, useWebSearch }),
