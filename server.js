@@ -241,7 +241,7 @@ function hashSessionToken(rawToken) {
 // genuinely expires if this much real time passes with no real,
 // actual activity, even if the absolute maximum hasn't been reached.
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 real hours — the real, absolute maximum
-const IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 real hours — the confirmed, real idle/inactivity timeout
+const IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 real hours — the confirmed, real idle/inactivity timeout
 
 // Issues a real, new session for a given user — generates a genuinely
 // random, unguessable token, stores only its fast hash (never the raw
@@ -5033,6 +5033,84 @@ app.get('/api/admin/users', async (req, res) => {
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
+});
+
+// Real, new, per the confirmed admin file inventory design — a single,
+// combined view of workpaper files and sample files together, since both
+// already live in the exact, same underlying table with the exact, same
+// schema. Tenant-scoped, per the design doc's own confirmed decision — an
+// admin at one tenant should never see another tenant's files, even here.
+// Joins workpapers for the related audit, since sample_files itself only
+// carries the workpaper reference directly, not the audit name. Paginates
+// server-side, per the design doc's own scale consideration, rather than
+// loading every row into the browser at once.
+app.get('/api/admin/file-inventory', async (req, res) => {
+  if (!pool) return res.json({ rows: [], total: 0 });
+  try {
+    const page     = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize, 10) || 50));
+    const offset   = (page - 1) * pageSize;
+
+    const conditions = ['sf.tenant_id = $1'];
+    const params = [req.currentTenantId];
+
+    if (req.query.category) {
+      params.push(req.query.category);
+      conditions.push(`sf.file_category = $${params.length}`);
+    }
+    if (req.query.audit) {
+      params.push(`%${req.query.audit}%`);
+      conditions.push(`w.audit_name ILIKE $${params.length}`);
+    }
+    if (req.query.workpaper) {
+      params.push(`%${req.query.workpaper}%`);
+      conditions.push(`sf.ref ILIKE $${params.length}`);
+    }
+    if (req.query.uploader) {
+      params.push(`%${req.query.uploader}%`);
+      conditions.push(`sf.uploaded_by ILIKE $${params.length}`);
+    }
+    if (req.query.search) {
+      params.push(`%${req.query.search}%`);
+      conditions.push(`sf.filename ILIKE $${params.length}`);
+    }
+    if (req.query.dateFrom) {
+      params.push(req.query.dateFrom);
+      conditions.push(`sf.date_created >= $${params.length}`);
+    }
+    if (req.query.dateTo) {
+      params.push(req.query.dateTo);
+      conditions.push(`sf.date_created <= $${params.length}::date + interval '1 day'`);
+    }
+    // Real, matches the design doc's own recommendation — everything
+    // shows by default, including archived, since an admin auditing
+    // storage usage likely wants to see everything that actually exists.
+    // showArchived=false is the one, real, explicit way to hide them.
+    if (req.query.showArchived === 'false') {
+      conditions.push(`sf.archived = false`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) AS total FROM sample_files sf LEFT JOIN workpapers w ON w.tenant_id = sf.tenant_id AND w.ref = sf.ref WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countRows[0]?.total || '0', 10);
+
+    params.push(pageSize, offset);
+    const { rows } = await pool.query(
+      `SELECT sf.file_id, sf.filename, sf.file_category, sf.content_type, sf.size_bytes,
+              sf.uploaded_by, sf.archived, sf.annotated_from, sf.date_created, sf.date_updated,
+              sf.ref AS workpaper_ref, w.audit_name
+       FROM sample_files sf
+       LEFT JOIN workpapers w ON w.tenant_id = sf.tenant_id AND w.ref = sf.ref
+       WHERE ${whereClause}
+       ORDER BY sf.date_created DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json({ rows, total, page, pageSize });
+  } catch(err) { return fail(res, err, 'GET /api/admin/file-inventory:'); }
 });
 
 // Non-admin users only — specifically for the M-Template workpaper
