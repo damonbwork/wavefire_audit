@@ -280,7 +280,7 @@ async function getUserFromSessionToken(rawToken) {
     const tokenHash = hashSessionToken(rawToken);
     const { rows } = await pool.query(
       `SELECT u.user_id, u.tenant_id, u.email, u.login_id, u.first_name, u.last_name,
-              u.role, u.is_superadmin, u.is_active, u.xlsx_export_prefs,
+              u.role, u.is_superadmin, u.is_active, u.xlsx_export_prefs, u.annotation_type_prefs,
               s.session_id, s.last_activity_at, s.current_tenant_id
        FROM sessions s
        JOIN users u ON u.user_id = s.user_id
@@ -1616,6 +1616,24 @@ async function ensureXlsxExportPrefsColumn() {
   }
 }
 ensureXlsxExportPrefsColumn();
+
+// Real, new, per direct request — the confirmed annotation-type
+// selection design, matching the exact, same established pattern
+// already proven for xlsx_export_prefs: a real, standalone migration,
+// a real JSONB column, and a preference tied to the actual person's
+// account, not just the current browser, so it correctly becomes the
+// default the next time this modal opens for them, on any real device
+// they sign into.
+async function ensureAnnotationTypePrefsColumn() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS annotation_type_prefs JSONB DEFAULT NULL`);
+    console.log('DB: users.annotation_type_prefs column confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone annotation_type_prefs check FAILED:', err.message, err.code);
+  }
+}
+ensureAnnotationTypePrefsColumn();
 
 // Real, new, standalone migration, per the confirmed root-cause fix —
 // genuinely persists the audit-level roll-up of linked financial
@@ -4913,6 +4931,24 @@ app.post('/api/auth/xlsx-export-prefs', async (req, res) => {
     );
     res.json({ ok: true, prefs });
   } catch(err) { return fail(res, err, 'POST /api/auth/xlsx-export-prefs:'); }
+});
+
+// Real, new, per direct request — the confirmed annotation-type
+// selection design, matching the exact, same established pattern as
+// its sibling above — persists which of the four annotation types are
+// checked, tied to the real, actual person's account.
+app.post('/api/auth/annotation-type-prefs', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const user = req.currentUser;
+  const { bi, ff, sn, mn } = req.body;
+  try {
+    const prefs = { bi: !!bi, ff: !!ff, sn: !!sn, mn: !!mn };
+    await pool.query(
+      'UPDATE users SET annotation_type_prefs=$1 WHERE user_id=$2',
+      [JSON.stringify(prefs), user.user_id]
+    );
+    res.json({ ok: true, prefs });
+  } catch(err) { return fail(res, err, 'POST /api/auth/annotation-type-prefs:'); }
 });
 
 // Real, new route, per explicit request — records every, real, actual
