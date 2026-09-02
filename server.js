@@ -544,6 +544,18 @@ async function initDB() {
     }
     await _ensurePrimaryKey('company_context', ['tenant_id', 'id']);
     await _ensurePrimaryKey('controls', ['tenant_id', 'id']);
+    // Real, confirmed fix, per a real, live reported error —
+    // assessment_entities was genuinely missing zip, the natural
+    // fourth part of the address group already established by
+    // address/city/state, on any live table created before this fix.
+    // Adding it to the base CREATE TABLE statement above only helps a
+    // fresh deployment; this handles an existing one.
+    try {
+      await pool.query(`ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS zip TEXT DEFAULT ''`);
+      console.log('DB: assessment_entities.zip column confirmed ready (standalone check)');
+    } catch (zipErr) {
+      console.error('DB: could not add assessment_entities.zip column:', zipErr.message);
+    }
     await pool.query(`
       -- ── Tenants (scaffold for future multi-tenancy) ────────────────────────
       -- The master tenant table — every other table's tenant_id column is a
@@ -1130,6 +1142,7 @@ async function initDB() {
         address              TEXT DEFAULT '',
         city                 TEXT DEFAULT '',
         state                TEXT DEFAULT '',
+        zip                  TEXT DEFAULT '',
         poc                  TEXT DEFAULT '',
         sub                  TEXT DEFAULT '',
         description          TEXT DEFAULT '',
