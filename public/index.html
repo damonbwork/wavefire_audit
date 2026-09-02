@@ -25268,7 +25268,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
               analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: outcome.results, fields: [], commentary: '' };
               updateResultRow(rowEl, 'done', null, null);
             } else {
-              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: attributes.map(a => ({ title: a.title, result: 'error', note: 'Analysis failed.' })), fields: [] };
+              // Real, confirmed fix, per a real, live reported issue —
+              // outcome.error genuinely holds the real, specific
+              // reason this file's own analysis failed, but it was
+              // being discarded and replaced with a generic
+              // "Analysis failed." placeholder before ever reaching
+              // anyone — the exact, same "specific reason gets
+              // swallowed" pattern already fixed multiple times this
+              // session for other mechanisms. Surfaces it directly.
+              const failNote = outcome.error ? `Analysis failed: ${outcome.error}` : 'Analysis failed.';
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: attributes.map(a => ({ title: a.title, result: 'error', note: failNote })), fields: [] };
               failedEntries.push({ entry: row, row: rowEl, fi });
               const retryName = `_retry_${Date.now()}_${fi}`;
               window[retryName] = async () => {
