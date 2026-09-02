@@ -241,7 +241,7 @@ function hashSessionToken(rawToken) {
 // genuinely expires if this much real time passes with no real,
 // actual activity, even if the absolute maximum hasn't been reached.
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 real hours — the real, absolute maximum
-const IDLE_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 real hours — the confirmed, real idle/inactivity timeout
+const IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 real hours — the confirmed, real idle/inactivity timeout
 
 // Issues a real, new session for a given user — generates a genuinely
 // random, unguessable token, stores only its fast hash (never the raw
@@ -500,6 +500,61 @@ async function initDB() {
       console.log('DB: workpaper_types columns corrected — now purely administrative categorization');
     } catch (colDropErr) {
       console.error('DB: could not drop obsolete workpaper_types columns:', colDropErr.message);
+    }
+    // Real, confirmed fix, per a real, live reported error —
+    // CREATE TABLE IF NOT EXISTS is a genuine no-op on a table that
+    // already exists on a given live database, so if a table like
+    // company_context or controls was created here before its own
+    // PRIMARY KEY clause was added to this schema, that constraint
+    // never retroactively applies — leaving every INSERT ... ON
+    // CONFLICT against it broken, on every single run, until fixed
+    // directly. Positioned early, before the giant batch below that
+    // creates and seeds these same tables, matching the exact, same
+    // lesson learned earlier this session about migration ordering —
+    // a fix buried deep inside a large batch can silently never run
+    // if something earlier in that same batch fails first.
+    async function _ensurePrimaryKey(tableName, keyCols) {
+      try {
+        const { rows } = await pool.query(`
+          SELECT array_agg(a.attname::text ORDER BY a.attname::text) AS cols
+          FROM pg_constraint c
+          JOIN unnest(c.conkey) AS k(attnum) ON true
+          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+          WHERE c.conrelid = $1::regclass AND c.contype = 'p'
+          GROUP BY c.conname
+        `, [tableName]);
+        const existing = rows[0]?.cols;
+        const alreadyCorrect = Array.isArray(existing) &&
+          JSON.stringify([...existing].sort()) === JSON.stringify([...keyCols].sort());
+        if (alreadyCorrect) return;
+        if (rows.length) {
+          // A real, different primary key already exists — this
+          // table predates the current schema. Correct it the same
+          // way the workpapers fix above does.
+          const { rows: pkRows } = await pool.query(`SELECT conname FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'p'`, [tableName]);
+          for (const { conname } of pkRows) {
+            await pool.query(`ALTER TABLE ${tableName} DROP CONSTRAINT "${conname}"`);
+          }
+        }
+        await pool.query(`ALTER TABLE ${tableName} ADD PRIMARY KEY (${keyCols.join(', ')})`);
+        console.log(`DB: ${tableName} primary key corrected to (${keyCols.join(', ')})`);
+      } catch (pkErr) {
+        console.error(`DB: could not verify/fix ${tableName} primary key:`, pkErr.message);
+      }
+    }
+    await _ensurePrimaryKey('company_context', ['tenant_id', 'id']);
+    await _ensurePrimaryKey('controls', ['tenant_id', 'id']);
+    // Real, confirmed fix, per a real, live reported error —
+    // assessment_entities was genuinely missing zip, the natural
+    // fourth part of the address group already established by
+    // address/city/state, on any live table created before this fix.
+    // Adding it to the base CREATE TABLE statement above only helps a
+    // fresh deployment; this handles an existing one.
+    try {
+      await pool.query(`ALTER TABLE assessment_entities ADD COLUMN IF NOT EXISTS zip TEXT DEFAULT ''`);
+      console.log('DB: assessment_entities.zip column confirmed ready (standalone check)');
+    } catch (zipErr) {
+      console.error('DB: could not add assessment_entities.zip column:', zipErr.message);
     }
     await pool.query(`
       -- ── Tenants (scaffold for future multi-tenancy) ────────────────────────
@@ -1087,6 +1142,7 @@ async function initDB() {
         address              TEXT DEFAULT '',
         city                 TEXT DEFAULT '',
         state                TEXT DEFAULT '',
+        zip                  TEXT DEFAULT '',
         poc                  TEXT DEFAULT '',
         sub                  TEXT DEFAULT '',
         description          TEXT DEFAULT '',
@@ -1137,13 +1193,26 @@ async function initDB() {
       // symptom. Checked directly against pg_constraint rather than
       // assumed, so this is a no-op on a table that's already correct.
       try {
+        // Real, confirmed fix, per a real, live reported error — the
+        // exact, same bug class already fixed once for a different
+        // function: att.attname is a Postgres name type, not plain
+        // text, and array_agg over it produces name[] — a less-common
+        // array type the pg driver has genuinely had gaps reliably
+        // parsing, sometimes returning the raw, unparsed array
+        // literal as a string instead of a real array. Casting
+        // explicitly to text here means this always comes back as a
+        // reliably-parsed text[].
         const { rows: auditConstraintRows } = await pool.query(`
-          SELECT con.conname, array_agg(att.attname ORDER BY att.attnum) AS cols
+          SELECT con.conname, array_agg(att.attname::text ORDER BY att.attnum) AS cols
           FROM pg_constraint con
           JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
           WHERE con.conrelid = 'audits'::regclass AND con.contype IN ('p','u')
           GROUP BY con.conname
         `);
+        // Real, genuine JS-level safety net too, regardless of the
+        // SQL cast above — never assumes the driver's own parsed
+        // shape.
+        auditConstraintRows.forEach(r => { if (!Array.isArray(r.cols)) r.cols = []; });
         const hasCorrectConstraint = auditConstraintRows.some(r =>
           r.cols.length === 2 && r.cols.includes('tenant_id') && r.cols.includes('name')
         );
@@ -1173,13 +1242,26 @@ async function initDB() {
       // this schema (UNIQUE(tenant_id, email) instead of a plain global
       // UNIQUE(email)), nothing would ever correct it without this.
       try {
+        // Real, confirmed fix, per a real, live reported error — the
+        // exact, same bug class already fixed above: att.attname is a
+        // Postgres name type, not plain text, and array_agg over it
+        // produces name[] — a less-common array type the pg driver
+        // has genuinely had gaps reliably parsing. Casting explicitly
+        // to text here means this always comes back as a
+        // reliably-parsed text[].
         const { rows: userConstraintRows } = await pool.query(`
-          SELECT con.conname, con.contype, array_agg(att.attname ORDER BY att.attnum) AS cols
+          SELECT con.conname, con.contype, array_agg(att.attname::text ORDER BY att.attnum) AS cols
           FROM pg_constraint con
           JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
           WHERE con.conrelid = 'users'::regclass AND con.contype = 'u'
           GROUP BY con.conname, con.contype
         `);
+        // Real, genuine JS-level safety net too, regardless of the
+        // SQL cast above — a non-array value here would fail
+        // .length/.includes just as much as .sort/.join elsewhere,
+        // just less obviously (returning undefined rather than
+        // throwing immediately).
+        userConstraintRows.forEach(r => { if (!Array.isArray(r.cols)) r.cols = []; });
         const hasGlobalEmailUnique = userConstraintRows.some(r => r.cols.length === 1 && r.cols[0] === 'email');
         const oldTenantScopedEmail = userConstraintRows.find(r => r.cols.length === 2 && r.cols.includes('email') && r.cols.includes('tenant_id'));
         if (!hasGlobalEmailUnique && oldTenantScopedEmail) {
@@ -1282,14 +1364,25 @@ async function initDB() {
         `);
         let alreadyCorrect = false;
         for (const { conname } of pkRows) {
+          // Real, confirmed fix, per a real, live reported error — the
+          // exact, same bug class already fixed twice now: a.attname
+          // is a Postgres name type, not plain text, and array_agg
+          // over it produces name[] — a less-common array type the pg
+          // driver has genuinely had gaps reliably parsing. Casting
+          // explicitly to text here means this always comes back as a
+          // reliably-parsed text[].
           const { rows: colCheck } = await pool.query(`
-            SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+            SELECT array_agg(a.attname::text ORDER BY a.attname::text) AS cols
             FROM pg_constraint c
             JOIN unnest(c.conkey) AS k(attnum) ON true
             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
             WHERE c.conname = $1 AND c.conrelid = 'workpapers'::regclass
           `, [conname]);
-          const cols = (colCheck[0]?.cols || []).sort();
+          // Real, genuine JS-level safety net too, regardless of the
+          // SQL cast above — never assumes the driver's own parsed
+          // shape.
+          const rawCols = colCheck[0]?.cols;
+          const cols = (Array.isArray(rawCols) ? rawCols : []).sort();
           if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
             alreadyCorrect = true;
           } else {
@@ -3737,15 +3830,27 @@ app.get('/api/diagnose-tenant-columns', async (req, res) => {
 app.get('/api/diagnose-workpaper-constraint', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   try {
+    // Real, confirmed fix, per a real, live reported error — the
+    // exact, same bug class already fixed elsewhere: a.attname is a
+    // Postgres name type, not plain text, and array_agg over it
+    // produces name[] — a less-common array type the pg driver has
+    // genuinely had gaps reliably parsing. Casting explicitly to text
+    // here means this always comes back as a reliably-parsed text[].
     const { rows: constraints } = await pool.query(`
       SELECT c.conname, c.contype,
-             array_agg(a.attname ORDER BY a.attname) AS cols
+             array_agg(a.attname::text ORDER BY a.attname::text) AS cols
       FROM pg_constraint c
       JOIN unnest(c.conkey) AS k(attnum) ON true
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
       WHERE c.conrelid = 'workpapers'::regclass
       GROUP BY c.conname, c.contype
     `);
+    // Real, genuine JS-level safety net too, regardless of the SQL
+    // cast above — spreading a non-array string silently splits it
+    // into individual characters rather than throwing, which would
+    // have made this diagnostic route's own output silently wrong
+    // rather than obviously broken.
+    constraints.forEach(c => { if (!Array.isArray(c.cols)) c.cols = []; });
     const primaryKey = constraints.find(c => c.contype === 'p');
     const isCorrect = primaryKey && JSON.stringify([...primaryKey.cols].sort()) === JSON.stringify(['ref', 'tenant_id'].sort());
     // Real, direct check for existing, real duplicate (tenant_id, ref)
@@ -3794,14 +3899,24 @@ async function _applyWorkpaperConstraintFix() {
   let alreadyCorrect = false;
   const actions = [];
   for (const { conname } of pkRows) {
+    // Real, confirmed fix, per a real, live reported error — the
+    // exact, same bug class already fixed elsewhere in this same
+    // file: a.attname is a Postgres name type, not plain text, and
+    // array_agg over it produces name[] — a less-common array type
+    // the pg driver has genuinely had gaps reliably parsing. Casting
+    // explicitly to text here means this always comes back as a
+    // reliably-parsed text[].
     const { rows: colCheck } = await pool.query(`
-      SELECT array_agg(a.attname ORDER BY a.attname) AS cols
+      SELECT array_agg(a.attname::text ORDER BY a.attname::text) AS cols
       FROM pg_constraint c
       JOIN unnest(c.conkey) AS k(attnum) ON true
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
       WHERE c.conname = $1 AND c.conrelid = 'workpapers'::regclass
     `, [conname]);
-    const cols = (colCheck[0]?.cols || []).sort();
+    // Real, genuine JS-level safety net too, regardless of the SQL
+    // cast above — never assumes the driver's own parsed shape.
+    const rawCols = colCheck[0]?.cols;
+    const cols = (Array.isArray(rawCols) ? rawCols : []).sort();
     if (JSON.stringify(cols) === JSON.stringify(['ref', 'tenant_id'].sort())) {
       alreadyCorrect = true;
     } else {
@@ -4918,6 +5033,84 @@ app.get('/api/admin/users', async (req, res) => {
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
+});
+
+// Real, new, per the confirmed admin file inventory design — a single,
+// combined view of workpaper files and sample files together, since both
+// already live in the exact, same underlying table with the exact, same
+// schema. Tenant-scoped, per the design doc's own confirmed decision — an
+// admin at one tenant should never see another tenant's files, even here.
+// Joins workpapers for the related audit, since sample_files itself only
+// carries the workpaper reference directly, not the audit name. Paginates
+// server-side, per the design doc's own scale consideration, rather than
+// loading every row into the browser at once.
+app.get('/api/admin/file-inventory', async (req, res) => {
+  if (!pool) return res.json({ rows: [], total: 0 });
+  try {
+    const page     = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize, 10) || 50));
+    const offset   = (page - 1) * pageSize;
+
+    const conditions = ['sf.tenant_id = $1'];
+    const params = [req.currentTenantId];
+
+    if (req.query.category) {
+      params.push(req.query.category);
+      conditions.push(`sf.file_category = $${params.length}`);
+    }
+    if (req.query.audit) {
+      params.push(`%${req.query.audit}%`);
+      conditions.push(`w.audit_name ILIKE $${params.length}`);
+    }
+    if (req.query.workpaper) {
+      params.push(`%${req.query.workpaper}%`);
+      conditions.push(`sf.ref ILIKE $${params.length}`);
+    }
+    if (req.query.uploader) {
+      params.push(`%${req.query.uploader}%`);
+      conditions.push(`sf.uploaded_by ILIKE $${params.length}`);
+    }
+    if (req.query.search) {
+      params.push(`%${req.query.search}%`);
+      conditions.push(`sf.filename ILIKE $${params.length}`);
+    }
+    if (req.query.dateFrom) {
+      params.push(req.query.dateFrom);
+      conditions.push(`sf.date_created >= $${params.length}`);
+    }
+    if (req.query.dateTo) {
+      params.push(req.query.dateTo);
+      conditions.push(`sf.date_created <= $${params.length}::date + interval '1 day'`);
+    }
+    // Real, matches the design doc's own recommendation — everything
+    // shows by default, including archived, since an admin auditing
+    // storage usage likely wants to see everything that actually exists.
+    // showArchived=false is the one, real, explicit way to hide them.
+    if (req.query.showArchived === 'false') {
+      conditions.push(`sf.archived = false`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) AS total FROM sample_files sf LEFT JOIN workpapers w ON w.tenant_id = sf.tenant_id AND w.ref = sf.ref WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countRows[0]?.total || '0', 10);
+
+    params.push(pageSize, offset);
+    const { rows } = await pool.query(
+      `SELECT sf.file_id, sf.filename, sf.file_category, sf.content_type, sf.size_bytes,
+              sf.uploaded_by, sf.archived, sf.annotated_from, sf.date_created, sf.date_updated,
+              sf.ref AS workpaper_ref, w.audit_name
+       FROM sample_files sf
+       LEFT JOIN workpapers w ON w.tenant_id = sf.tenant_id AND w.ref = sf.ref
+       WHERE ${whereClause}
+       ORDER BY sf.date_created DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json({ rows, total, page, pageSize });
+  } catch(err) { return fail(res, err, 'GET /api/admin/file-inventory:'); }
 });
 
 // Non-admin users only — specifically for the M-Template workpaper
