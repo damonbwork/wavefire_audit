@@ -1071,6 +1071,12 @@
           <span>Security</span>
         </button>
 
+        <button class="adm-nav-btn" id="adm-btn-file-inventory" onclick="showAdminSection('file-inventory')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
+          <i class="ti ti-files" style="font-size:15px;flex-shrink:0"></i>
+          <span>File Inventory</span>
+        </button>
+
         <div style="flex:1"></div>
         <div style="padding:14px 16px;font-size:10px;color:var(--text-tertiary);line-height:1.5;border-top:0.5px solid var(--border-light)">
           Manage users, roles, and tenant access. Admin-only.
@@ -1194,6 +1200,68 @@
                   <tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">Click "View Log" to load the real, actual security error log.</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Inventory — a real, single, combined view of both
+             workpaper files and sample files together, per the confirmed
+             design. file_category is a column and a filter here, not a
+             page split — both categories already live in the exact, same
+             underlying table with the exact, same schema, so splitting
+             them into two separate pages would have been organizational
+             duplication, not something the data itself required. -->
+        <div id="adm-section-file-inventory" class="adm-section" style="display:none;height:100%;flex-direction:column">
+          <div style="margin-bottom:16px">
+            <div style="font-size:18px;font-weight:700;color:var(--text-primary)">File Inventory</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">Every workpaper file and sample file across this tenant, in one place.</div>
+          </div>
+
+          <!-- Filters -->
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-md)">
+            <input type="text" id="adm-fi-search" placeholder="Search filename…" oninput="_adminFileInventoryDebouncedReload()" style="flex:1;min-width:160px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
+            <select id="adm-fi-category" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
+              <option value="">All categories</option>
+              <option value="workpaper">Workpaper files</option>
+              <option value="sample">Sample files</option>
+            </select>
+            <input type="text" id="adm-fi-audit" placeholder="Audit…" oninput="_adminFileInventoryDebouncedReload()" style="width:140px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
+            <input type="text" id="adm-fi-workpaper" placeholder="Workpaper ref…" oninput="_adminFileInventoryDebouncedReload()" style="width:140px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
+            <input type="text" id="adm-fi-uploader" placeholder="Uploaded by…" oninput="_adminFileInventoryDebouncedReload()" style="width:130px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
+            <input type="date" id="adm-fi-date-from" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="From date">
+            <input type="date" id="adm-fi-date-to" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="To date">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap">
+              <input type="checkbox" id="adm-fi-show-archived" onchange="_adminFileInventoryReloadFromFilterChange()" style="cursor:pointer">
+              Show archived
+            </label>
+          </div>
+
+          <div style="flex:1;overflow-y:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead><tr style="background:var(--bg-secondary);position:sticky;top:0">
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Filename</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Category</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Audit</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Workpaper</th>
+                <th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Size</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Uploaded By</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Created</th>
+                <th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Updated</th>
+                <th style="padding:8px 10px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Archived</th>
+                <th style="padding:8px 10px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Download</th>
+              </tr></thead>
+              <tbody id="adm-fi-tbody">
+                <tr><td colspan="10" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--text-secondary)">
+            <span id="adm-fi-count"></span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button class="btn-s" id="adm-fi-prev" onclick="_adminFileInventoryPage(-1)" style="font-size:11px;padding:4px 10px">Previous</button>
+              <span id="adm-fi-page-label" style="font-size:12px;color:var(--text-tertiary)"></span>
+              <button class="btn-s" id="adm-fi-next" onclick="_adminFileInventoryPage(1)" style="font-size:11px;padding:4px 10px">Next</button>
             </div>
           </div>
         </div>
@@ -5647,7 +5715,7 @@ auditor's assessment.
   </div>
 
   <div id="analysis-options-overlay" style="display: none; position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.45); z-index: 11000; align-items: center; justify-content: center;">
-    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(640px,95vw);min-height:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(820px,95vw);min-height:680px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 48px rgba(0,0,0,0.22);display:flex;flex-direction:column">
       <div style="background:var(--wf-navy);color:#fff;padding:14px 20px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
         <div style="font-size:14px;font-weight:600"><i class="ti ti-sparkles" style="margin-right:8px"></i>Analyze &amp; Create Workpaper</div>
         <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">&#x00D7;</button>
@@ -8509,7 +8577,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
     const a        = document.createElement('a');
     const baseName = (entry.name||'document').replace(/\.pdf$/i,'');
     a.href         = url;
-    a.download     = baseName + '_annotated_inline.pdf';
+    a.download     = baseName + '_annotated_bi.pdf';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 
@@ -8534,7 +8602,7 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 // viewer having ever been opened for this file. Returns the annotated PDF's
 // bytes, or null if this file has no relevant results at all (a file with
 // nothing to mark up is skipped, not included blank).
-// Real, new, per direct request — produces the "_annotated3" variant.
+// Real, new, per direct request — produces the "_annotated_ff" variant.
 // A sibling to _burnAnnotationsForFileFromResults above, reusing its
 // exact, same proven matching and positioning logic (identical
 // source-file verification, identical paragraph-fraction-based y
@@ -8571,8 +8639,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     throw new Error(`[_formFieldAnnotationsForFileFromResults] pdfDoc.getForm() failed for "${fileName}" — this PDF likely has an existing, malformed form structure: ${formErr.message}`);
   }
 
-  const TICK_LABELS = { pass:'PASS', pass_exception:'EXC', fail:'FAIL', error:'N/A' };
-  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
 
   function pdfText(s) {
     return String(s || '')
@@ -8590,17 +8657,17 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   // the text via a simple estimate (form fields don't expose the same
   // widthOfTextAtSize-based precise measurement the drawn version
   // uses, since the field's own text layout is handled internally by
-  // the PDF viewer, not by pdf-lib at creation time).
+  // the PDF viewer, not by pdf-lib at creation time). Multiline
+  // support is enabled per direct research confirming
+  // enableMultiline() is a real, documented method — verified
+  // directly rather than assumed, given this exact library's own
+  // history of causing real, confirmed issues earlier this session.
   function placeField(page, name, text, opts) {
-    const { x, y, width, height, size, textColor, bg } = opts;
-    // Real, new, per direct request — names exactly which field and
-    // which specific step genuinely failed, rather than one generic
-    // message that could hide which of several real possible causes
-    // (a duplicate field name, an invalid appearance, or something
-    // else entirely) actually happened.
+    const { x, y, width, height, size, textColor, bg, multiline } = opts;
     let field;
     try {
       field = form.createTextField(name);
+      if (multiline) field.enableMultiline();
       field.setText(text);
       field.enableReadOnly();
       field.setFontSize(size);
@@ -8644,25 +8711,49 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
       var ptH = page.getSize().height;
 
       var result = match.result || 'error';
-      var label = TICK_LABELS[result] || 'N/A';
-      var col = TICK_COLS[result] || TICK_COLS.error;
-      if (result === 'pass_exception' || result === 'fail') exNum++;
+      var isPass = (result === 'pass');
+      var isException = (result === 'pass_exception' || result === 'fail');
+      if (isException) exNum++;
 
       var paraNum = Math.max(1, match.paragraph || (ai + 1));
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
       var pdfY = ptH * (1 - paraFrac);
 
-      var boxW = 34, boxH = 14;
-      var uid = fieldSeq++;
-      placeField(page, 'wf_tick_' + uid, pdfText(label), { x: 10, y: pdfY - boxH, width: boxW, height: boxH, size: 9, textColor: col });
-
-      var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var attrTag = '[' + attrNum + ']' + (exNum && (result==='fail'||result==='pass_exception') ? ' (Exception E' + exNum + ')' : '');
-      placeField(page, 'wf_attrnum_' + uid, pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH, width: 180, height: boxH, size: 8, textColor: rgb(0.15,0.15,0.15) });
-
-      if (match.note) {
-        placeField(page, 'wf_note_' + uid, pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 14, width: 280, height: 14, size: 7, textColor: rgb(0.35,0.35,0.35) });
+      // Real, confirmed redesign, per direct request — the check/X
+      // symbol is drawn geometrically, straight onto the page, the
+      // exact, same proven approach already used in the burn-in
+      // mechanism — this part isn't a form field at all, just a
+      // visual indicator sitting beside the real field below.
+      var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
+      var symX = 12, symY = pdfY - 6;
+      if (isPass) {
+        page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
+        page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
+      } else {
+        page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
+        page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
       }
+
+      // Real, confirmed redesign — one single field now, replacing the
+      // three separate ones this used to create (wf_tick_, wf_attrnum_,
+      // wf_note_). The attribute number and, when present, exception or
+      // note detail, live together in one field's own text, joined by a
+      // real newline — its own intrinsic background is already the one
+      // shared box everything needed here now sits inside, rather than
+      // three separate fields each with their own.
+      var attrNum = attr.attrRef || attr.num || String(ai + 1);
+      var lines = [pdfText('[' + attrNum + ']')];
+      if (isException) {
+        lines.push(pdfText('Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '')));
+      } else if (match.note) {
+        lines.push(pdfText(String(match.note).slice(0, 90)));
+      }
+      var uid = fieldSeq++;
+      var fieldH = lines.length > 1 ? 28 : 14;
+      placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
+        x: symX + 16, y: pdfY - fieldH + 8, width: 280, height: fieldH, size: 8,
+        textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+      });
       anyPlaced = true;
     });
   });
@@ -8678,8 +8769,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   const font     = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  const TICK_LABELS = { pass:'PASS', pass_exception:'EXC', fail:'FAIL', error:'N/A' };
-  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
 
   function pdfText(s) {
     return String(s || '')
@@ -8713,28 +8803,57 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     return lines;
   }
 
-  // Draws a solid white background sized to the actual text (measured with
-  // pdf-lib's real widthOfTextAtSize/heightAtSize, not a fixed guess) before
-  // drawing the text on top — this is what keeps annotation text legible
-  // over busy PDF page content instead of floating directly on it.
-  function drawTextWithBg(page, text, opts) {
-    const { x, y, font: useFont, size, color, maxWidth, padX = 3, padY = 2 } = opts;
-    const lines = wrapLines(text, useFont, size, maxWidth);
-    const lineH = useFont.heightAtSize(size) * 1.15;
-    const widest = Math.max(...lines.map(function(l){ return useFont.widthOfTextAtSize(l, size); }));
-    const bgH = lines.length * lineH;
-    // Real, confirmed change, per direct request — fully solid white
-    // (opacity 1, not 0.88), matching the explicit "solid white color"
-    // wording. Applies consistently to every field using this shared
-    // helper (attribute number, pass/fail, description, exception),
-    // not just one of them.
+  // Real, confirmed redesign, per direct request — draws a symbol
+  // (check or X, geometrically, not a unicode glyph — the same,
+  // proven, reliable approach already used for the hybrid mechanism's
+  // own small circles, rather than trusting a specific font to
+  // support these exact characters), the user-assigned attribute
+  // number beside it as one combined unit, and — only when a mark is
+  // genuinely part of an exception, or carries a general note — that
+  // text below, all inside one single, shared white background sized
+  // to fit whatever this specific mark actually needs. One box per
+  // mark, never a separate box per piece of text within it.
+  function drawTickMark(page, opts) {
+    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const numText = pdfText('[' + attrNum + ']');
+    const numW = font.widthOfTextAtSize(numText, 9);
+    const symSize = 10; // the symbol's own real, drawn footprint, in points
+
+    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
+    const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
+    const topRowH = 16;
+    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + 4 : 0);
+    const totalW = Math.max(symSize + 6 + numW + 8, detailLines.length ? 260 : 0);
+
+    // One, single, shared background — the only layer behind
+    // everything this mark needs, regardless of whether it's a plain
+    // pass/fail or carries additional exception/note text.
     page.drawRectangle({
-      x: x - padX, y: y - bgH + lineH - padY,
-      width: widest + padX * 2, height: bgH + padY * 2,
+      x: x - 3, y: y - totalH + topRowH - 3,
+      width: totalW + 6, height: totalH + 6,
       color: rgb(1, 1, 1), opacity: 1,
     });
-    lines.forEach(function(line, li){
-      page.drawText(line, { x: x, y: y - li * lineH, font: useFont, size: size, color: color });
+
+    // The symbol itself, drawn geometrically.
+    const symX = x + 2, symY = y - topRowH / 2;
+    if (pass) {
+      page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
+      page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
+    } else {
+      page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
+      page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
+    }
+
+    // The user-assigned attribute number, right beside the symbol —
+    // one combined unit, replacing the separate "[attribute number]"
+    // label this used to be.
+    page.drawText(numText, { x: x + symSize + 6, y: symY - 3, font: font, size: 9, color: rgb(0.15,0.15,0.15) });
+
+    // Exception or note detail, only when present, sharing this same
+    // background rather than needing one of its own.
+    detailLines.forEach(function(line, li) {
+      page.drawText(line, { x: x, y: y - topRowH - li * lineH, font: detailFont || fontReg, size: 7, color: rgb(0.35,0.35,0.35) });
     });
   }
 
@@ -8774,39 +8893,23 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var ptH = page.getSize().height;
 
       var result = match.result || 'error';
-      var label = TICK_LABELS[result] || 'N/A';
-      var col = TICK_COLS[result] || TICK_COLS.error;
-      if (result === 'pass_exception' || result === 'fail') exNum++;
+      var isPass = (result === 'pass');
+      var isException = (result === 'pass_exception' || result === 'fail');
+      if (isException) exNum++;
 
       var paraNum = Math.max(1, match.paragraph || (ai + 1));
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
       var pdfY = ptH * (1 - paraFrac);
 
-      // Real, confirmed simplification, per direct request — this used
-      // to also draw a separate, translucent colored accent box here,
-      // stacked behind the solid white background drawTextWithBg draws
-      // below, creating multiple layers in Adobe for what should read
-      // as one label. Removed entirely: the pass/fail text itself is
-      // already colored (green/red/etc, via the color passed to
-      // drawTextWithBg just below), which already provides clear
-      // visual distinction without a second colored box behind it —
-      // the solid white background is now the only layer.
-      var boxW = 34, boxH = 14;
-      drawTextWithBg(page, pdfText(label), { x: 13, y: pdfY - boxH + 4, font: font, size: 9, color: col });
-
-      // Attribute number in brackets, on the SAME line as the tick label but
-      // with real spacing (a separate drawText call at its own x-offset,
-      // not concatenated into one string) so it never visually runs into
-      // the label the way "(PASS)" + "6" did before this fix.
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var attrTag = '[' + attrNum + ']' + (exNum && (result==='fail'||result==='pass_exception') ? ' (Exception E' + exNum + ')' : '');
-      drawTextWithBg(page, pdfText(attrTag), { x: 10 + boxW + 8, y: pdfY - boxH + 4, font: font, size: 8, color: rgb(0.15,0.15,0.15) });
-
-      // Explanation on its own line below the tick+number line, not sharing
-      // horizontal space with either.
-      if (match.note) {
-        drawTextWithBg(page, pdfText(String(match.note).slice(0, 90)), { x: 10, y: pdfY - boxH - 10, font: fontReg, size: 7, color: rgb(0.35,0.35,0.35), maxWidth: 260 });
+      var detailText = null;
+      if (isException) {
+        detailText = 'Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '');
+      } else if (match.note) {
+        detailText = String(match.note).slice(0, 90);
       }
+
+      drawTickMark(page, { x: 13, y: pdfY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
       anyPlaced = true;
     });
   });
@@ -8853,7 +8956,7 @@ async function downloadAllAnnotatedPDFs() {
       const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes);
       if (!outBytes) continue; // no relevant results for this specific file — skip rather than include an unmarked copy
       const baseName = (entry.name || 'document').replace(/\.pdf$/i, '');
-      zip.file(baseName + '_annotated_inline.pdf', outBytes);
+      zip.file(baseName + '_annotated_bi.pdf', outBytes);
       annotatedCount++;
     }
 
@@ -8930,7 +9033,7 @@ function _isPristineCopyFile(f) {
 // real, new code (e.g. the pre-Analyze cleanup step) genuinely,
 // consistently identify the same set of files.
 function _isAnnotatedFile(f) {
-  return !!(f._annotatedFrom || /_annotated_inline(_\d{8}_\d{4})?\.pdf$/i.test(f.name || ''));
+  return !!(f._annotatedFrom || /_annotated_(bi|ff|sn|mn)(_\d{8}_\d{4})?\.pdf$/i.test(f.name || ''));
 }
 
 async function _makePristineFileSystemCopyBeforeAnalyze(ref, onProgress) {
@@ -9095,12 +9198,12 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   if (!bucketArr || !bucketArr.length) return;
 
   // Only genuine originals — never re-annotate an already-"_copy",
-  // already-"_annotated_inline", or already-"_annotated_comments"
+  // already-"_annotated_bi", or already-"_annotated_sn"
   // entry. Uses the same shared, filename-aware _isPristineCopyFile
   // detector already proven correct for surviving a page reload, plus
   // an equivalent, explicit check for this mechanism's own real
   // naming convention.
-  const looksAcrobatAnnotatedByName = (name) => /_annotated_comments\.pdf$/i.test(name || '');
+  const looksAcrobatAnnotatedByName = (name) => /_annotated_sn\.pdf$/i.test(name || '');
   const originalEntries = bucketArr.filter(f =>
     f.file && !f._annotatedFrom && !_isPristineCopyFile(f) && !looksAcrobatAnnotatedByName(f.name)
   );
@@ -9111,7 +9214,19 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
     pdfAnnotateLib = await loadPdfAnnotateLib();
   } catch (err) {
     console.error('[AcrobatAnnotate] Could not load pdfAnnotate:', err);
-    return; // fail quietly — this is an additive convenience, not the primary Analyze outcome
+    // Real, confirmed fix, per direct troubleshooting — this
+    // previously failed silently here, with zero indication to
+    // anyone that anything went wrong, meaning this entire mechanism
+    // could quietly stop producing any output at all with nothing
+    // ever surfacing that fact. Matches the exact, same "surface
+    // failures directly" pattern already proven for every other
+    // mechanism this session.
+    alert(
+      `Could not create the Acrobat-comment annotated copy: the required library failed to load.\n\n` +
+      `Reason: ${err.message}\n\n` +
+      `The underlying Analyze results are unaffected. Check your network connection or try re-running Analyze.`
+    );
+    return;
   }
 
   // Real, global exception numbering — computed ONCE, across every file
@@ -9146,7 +9261,7 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const acrobatName = baseName + '_annotated_comments.pdf';
+      const acrobatName = baseName + '_annotated_sn.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === acrobatName && f._annotatedFrom === origEntry.name);
 
       // Same real, established pattern as the burn-in mechanism: delete
@@ -9203,8 +9318,15 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
         continue; // skip this file, try the next one
       }
 
-      const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
-      const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 234, g: 88, b: 12 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
+      // Real, confirmed redesign, per the confirmed tick-mark design —
+      // a sticky note's own icon color already naturally serves as
+      // the visual indicator; no separate symbol needs drawing here
+      // the way burn-in and form-field required. Collapsed to the
+      // same two colors used consistently across every mechanism now
+      // — green for pass, red for fail or exception alike — rather
+      // than this mechanism's own prior, third orange color for
+      // exceptions specifically.
+      const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 220, g: 38, b: 38 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
 
       // Find this file's real index in wpResults, needed to look up the
       // correct entries in the shared, global exMap above.
@@ -9256,9 +9378,8 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
         const rectY2 = Math.max(iconSize, pdfY);
 
         const attrNum = attr.attrRef || attr.num || String(ai + 1);
-        const label = TICK_LABELS[result] || 'N/A';
         const exTag = exRef ? ' [' + exRef + ']' : ''; // the real, tracked exception number on the tick itself, per explicit request
-        const contents = '[' + attrNum + ']' + exTag + ' ' + label + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+        const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
         try {
           factory.createTextAnnotation({
@@ -9354,7 +9475,7 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
   const bucketArr = inMemoryFiles[ref]?.sample;
   if (!bucketArr || !bucketArr.length) return;
 
-  const looksTickCommentByName = (name) => /_annotated4_comments\.pdf$/i.test(name || '');
+  const looksTickCommentByName = (name) => /_annotated_mn\.pdf$/i.test(name || '');
   const originalEntries = bucketArr.filter(f =>
     f.file && !f._annotatedFrom && !_isPristineCopyFile(f) && !looksTickCommentByName(f.name)
   );
@@ -9366,7 +9487,16 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
     pdfAnnotateLib = await loadPdfAnnotateLib();
   } catch (err) {
     console.error('[TickComment] Could not load required libraries:', err);
-    return; // fail quietly — this is an additive convenience, not the primary Analyze outcome
+    // Real, confirmed fix, per direct troubleshooting — the exact,
+    // same gap as its sibling mechanism above: this previously failed
+    // silently here, with zero indication to anyone that anything
+    // went wrong.
+    alert(
+      `Could not create the tick-mark-and-comment annotated copy: a required library failed to load.\n\n` +
+      `Reason: ${err.message}\n\n` +
+      `The underlying Analyze results are unaffected. Check your network connection or try re-running Analyze.`
+    );
+    return;
   }
 
   // Identical global exception numbering to the existing comment
@@ -9392,7 +9522,7 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const tickCommentName = baseName + '_annotated4_comments.pdf';
+      const tickCommentName = baseName + '_annotated_mn.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === tickCommentName && f._annotatedFrom === origEntry.name);
 
       if (existingIdx >= 0) {
@@ -9637,7 +9767,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const annName  = baseName + '_annotated_inline.pdf';
+      const annName  = baseName + '_annotated_bi.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
 
       // Never overwrite annotations the user has since manually edited
@@ -9780,7 +9910,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   }
 }
 
-// Real, new, per direct request — produces the "_annotated3" variant,
+// Real, new, per direct request — produces the "_annotated_ff" variant,
 // a sibling to _autoBurnAnnotatedFilesAfterAnalyze above, replicating
 // its exact, same proven wiring pattern (delete any stale prior copy
 // -> preserve the pristine original's bytes first, written to storage
@@ -9813,7 +9943,7 @@ async function _autoFormFieldFilesAfterAnalyze(ref) {
   for (const origEntry of originalEntries) {
     try {
       const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
-      const annName  = baseName + '_annotated3.pdf';
+      const annName  = baseName + '_annotated_ff.pdf';
       const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
       if (existingIdx >= 0 && bucketArr[existingIdx]._autoGenerated === false) continue;
 
@@ -9868,11 +9998,20 @@ async function _autoFormFieldFilesAfterAnalyze(ref) {
       annEntry.updatedBy   = 'Wavefire';
       annEntry.updatedOn   = nowStr;
       annEntry._autoGenerated = true;
-      await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
-      if (!annEntry.fileId) annotationSaveFailures.push(annName);
+      // Real, new, per direct request — the upload's own return value
+      // now carries the real, specific reason, rather than just
+      // silently checking fileId afterward with no way to know why
+      // it's genuinely missing.
+      const persistReason = await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
+      if (!annEntry.fileId) annotationSaveFailures.push({ name: annName, reason: persistReason || 'Unknown reason — save did not return an error, but no file ID was set.' });
     } catch (err) {
       console.error('[AutoFormField] Failed to annotate', origEntry.name, err);
-      annotationSaveFailures.push(origEntry.name);
+      // Real, new, per direct request — surfaces the real, specific
+      // error message directly here, the exact spot that would carry
+      // a pdf-lib or placeField error from earlier hardening this
+      // session, rather than depending entirely on console access
+      // that hasn't reliably worked across several attempts.
+      annotationSaveFailures.push({ name: origEntry.name, reason: err.message || String(err) });
     }
   }
 
@@ -9880,8 +10019,8 @@ async function _autoFormFieldFilesAfterAnalyze(ref) {
   if (annotationSaveFailures.length) {
     alert(
       `${annotationSaveFailures.length} form-field annotated file${annotationSaveFailures.length > 1 ? 's' : ''} could not be saved to the server:\n\n` +
-      annotationSaveFailures.map(n => `  • ${n}`).join('\n') +
-      `\n\nThe underlying Analyze results are unaffected, but ${annotationSaveFailures.length > 1 ? 'these copies are' : 'this copy is'} not yet durably saved. Check the browser console for the specific reason, or try re-running Analyze.`
+      annotationSaveFailures.map(f => `  • ${f.name}\n    Reason: ${f.reason}`).join('\n\n') +
+      `\n\nThe underlying Analyze results are unaffected, but ${annotationSaveFailures.length > 1 ? 'these copies are' : 'this copy is'} not yet durably saved.`
     );
   }
 }
@@ -10035,14 +10174,14 @@ async function saveAnnotatedPDF() {
     }
 
     // Determine annotated filename — MUST match the exact convention
-    // _autoBurnAnnotatedFilesAfterAnalyze uses ("<basename>_annotated_inline.pdf",
+    // _autoBurnAnnotatedFilesAfterAnalyze uses ("<basename>_annotated_bi.pdf",
     // no timestamp), so that saving from the viewer updates the SAME
     // annotated entry Analyze already created, rather than spawning a
     // second, differently-named "annotated" copy of the same original.
-    const origName = entry.name.replace(/_annotated_inline\.pdf$/i, '').replace(/\.pdf$/i, '');
-    const annName  = entry.name.match(/_annotated_inline\.pdf$/i)
+    const origName = entry.name.replace(/_annotated_bi\.pdf$/i, '').replace(/\.pdf$/i, '');
+    const annName  = entry.name.match(/_annotated_bi\.pdf$/i)
       ? entry.name
-      : `${origName}_annotated_inline.pdf`;
+      : `${origName}_annotated_bi.pdf`;
 
     const now     = new Date();
     const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
@@ -14394,6 +14533,7 @@ function showAdminSection(section) {
   if (section === 'users')   renderAdminUsers();
   if (section === 'tenants') renderAdminTenants();
   if (section === 'security') renderAdminSecurity();
+  if (section === 'file-inventory') renderAdminFileInventory();
 
   // Per explicit instruction: Admin uses a real, genuinely separate URL
   // tree — never audit=/wp= parameters, never routed through the
@@ -14794,6 +14934,128 @@ async function populateAuditOwnerDropdown(selectedOwnerName) {
     const match = users.find(function(u){ return labelFor(u) === selectedOwnerName; });
     if (match) sel.value = idFor(match);
   }
+}
+
+// Real, new, per the confirmed admin file inventory design — module-level
+// pagination state for this one, specific view.
+let _adminFileInventoryPageNum = 1;
+let _adminFileInventoryTotal   = 0;
+const _ADMIN_FI_PAGE_SIZE = 50;
+
+// Real, called when the section first becomes visible — resets to page 1
+// so switching away and back doesn't leave someone stranded on a stale
+// page number from a previous filter set.
+function renderAdminFileInventory() {
+  _adminFileInventoryPageNum = 1;
+  _adminFileInventoryReload();
+}
+
+// Real, the actual fetch-and-render logic — reads every filter directly
+// from the DOM, builds the query string, fetches, and renders the table.
+// Single source of truth for both a fresh filter change and a page
+// navigation, so both paths stay genuinely consistent with each other.
+async function _adminFileInventoryReload() {
+  const tbody = document.getElementById('adm-fi-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="10" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">Loading…</td></tr>`;
+
+  const params = new URLSearchParams();
+  params.set('page', _adminFileInventoryPageNum);
+  params.set('pageSize', _ADMIN_FI_PAGE_SIZE);
+  const category = document.getElementById('adm-fi-category')?.value;
+  if (category) params.set('category', category);
+  const audit = document.getElementById('adm-fi-audit')?.value.trim();
+  if (audit) params.set('audit', audit);
+  const workpaper = document.getElementById('adm-fi-workpaper')?.value.trim();
+  if (workpaper) params.set('workpaper', workpaper);
+  const uploader = document.getElementById('adm-fi-uploader')?.value.trim();
+  if (uploader) params.set('uploader', uploader);
+  const search = document.getElementById('adm-fi-search')?.value.trim();
+  if (search) params.set('search', search);
+  const dateFrom = document.getElementById('adm-fi-date-from')?.value;
+  if (dateFrom) params.set('dateFrom', dateFrom);
+  const dateTo = document.getElementById('adm-fi-date-to')?.value;
+  if (dateTo) params.set('dateTo', dateTo);
+  const showArchived = document.getElementById('adm-fi-show-archived')?.checked;
+  if (!showArchived) params.set('showArchived', 'false');
+
+  try {
+    const res = await fetch('/api/admin/file-inventory?' + params.toString());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    _adminFileInventoryTotal = data.total || 0;
+
+    if (!data.rows || !data.rows.length) {
+      tbody.innerHTML = `<tr><td colspan="10" style="padding:16px;text-align:center;color:var(--text-tertiary);font-style:italic">No files match the current filters.</td></tr>`;
+    } else {
+      tbody.innerHTML = data.rows.map(function(f) {
+        const categoryLabel = f.file_category === 'workpaper' ? 'Workpaper' : 'Sample';
+        const created = f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+        const updated = f.date_updated ? new Date(f.date_updated).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+        return `<tr style="border-bottom:0.5px solid var(--border-light)">
+          <td style="padding:7px 10px">${escAttr(f.filename)}</td>
+          <td style="padding:7px 10px">${categoryLabel}</td>
+          <td style="padding:7px 10px">${escAttr(f.audit_name || '')}</td>
+          <td style="padding:7px 10px">${escAttr(f.workpaper_ref || '')}</td>
+          <td style="padding:7px 10px;text-align:right">${formatFileSize(f.size_bytes || 0)}</td>
+          <td style="padding:7px 10px">${escAttr(f.uploaded_by || '')}</td>
+          <td style="padding:7px 10px">${created}</td>
+          <td style="padding:7px 10px">${updated}</td>
+          <td style="padding:7px 10px;text-align:center">${f.archived ? '<i class="ti ti-check" style="color:var(--text-tertiary)"></i>' : ''}</td>
+          <td style="padding:7px 10px;text-align:center">
+            <a href="/api/sample-files/${encodeURIComponent(f.workpaper_ref || '')}/${encodeURIComponent(f.file_id)}/download" title="Download" style="color:var(--wf-navy)">
+              <i class="ti ti-download" style="font-size:15px"></i>
+            </a>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    const countEl = document.getElementById('adm-fi-count');
+    if (countEl) countEl.textContent = _adminFileInventoryTotal + ' file' + (_adminFileInventoryTotal !== 1 ? 's' : '');
+    const totalPages = Math.max(1, Math.ceil(_adminFileInventoryTotal / _ADMIN_FI_PAGE_SIZE));
+    const pageLabelEl = document.getElementById('adm-fi-page-label');
+    if (pageLabelEl) pageLabelEl.textContent = 'Page ' + _adminFileInventoryPageNum + ' of ' + totalPages;
+    const prevBtn = document.getElementById('adm-fi-prev');
+    if (prevBtn) prevBtn.disabled = _adminFileInventoryPageNum <= 1;
+    const nextBtn = document.getElementById('adm-fi-next');
+    if (nextBtn) nextBtn.disabled = _adminFileInventoryPageNum >= totalPages;
+  } catch (err) {
+    console.error('[AdminFileInventory] Could not load file inventory:', err);
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:16px;text-align:center;color:#be123c">Could not load the file inventory: ${escAttr(err.message)}</td></tr>`;
+  }
+}
+
+// Real, debounced wrapper for text-input filters, matching the exact,
+// same established pattern already proven for the reference-file
+// suggestion feature — avoids a fresh request on every single keystroke.
+let _adminFileInventoryDebounceTimer = null;
+function _adminFileInventoryDebouncedReload() {
+  clearTimeout(_adminFileInventoryDebounceTimer);
+  _adminFileInventoryDebounceTimer = setTimeout(function() {
+    _adminFileInventoryPageNum = 1; // a genuinely new filter means starting back at page 1
+    _adminFileInventoryReload();
+  }, 400);
+}
+
+// Real, page navigation — clamped so it can never go below page 1 or
+// past the real, actual last page.
+function _adminFileInventoryPage(direction) {
+  const totalPages = Math.max(1, Math.ceil(_adminFileInventoryTotal / _ADMIN_FI_PAGE_SIZE));
+  const next = _adminFileInventoryPageNum + direction;
+  if (next < 1 || next > totalPages) return;
+  _adminFileInventoryPageNum = next;
+  _adminFileInventoryReload();
+}
+
+// Real, confirmed fix, caught by direct review — every immediate
+// (non-debounced) filter change needs to reset the page number too, the
+// same way the debounced text-filter wrapper already does, or changing a
+// filter while on page 3 could leave someone stranded there even if the
+// new results only span one page.
+function _adminFileInventoryReloadFromFilterChange() {
+  _adminFileInventoryPageNum = 1;
+  _adminFileInventoryReload();
 }
 
 async function renderAdminUsers() {
@@ -24893,7 +25155,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // failure, since annotation is a convenience on top of the actual results.
   _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
 
-  // Real, new, per direct request — the "_annotated3" form-field
+  // Real, new, per direct request — the "_annotated_ff" form-field
   // variant, independent and parallel to the burn-in mechanism above,
   // the exact, same fire-and-forget pattern.
   _autoFormFieldFilesAfterAnalyze(ref).catch(err => console.error('[AutoFormField] Unexpected failure:', err));
@@ -26651,7 +26913,7 @@ async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, ex
       // Fuzzy match — strip _annotated suffix and compare basenames
       const base = fileName.replace(/\.pdf$/i, '').toLowerCase();
       sfEntry = sampleFiles.find(f => {
-        const fb = f.name.replace(/_annotated_inline\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
+        const fb = f.name.replace(/_annotated_(bi|ff|sn|mn)\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
         return fb === base;
       });
       if (sfEntry) console.log('[Annotate] Fuzzy matched:', sfEntry.name);
@@ -28651,6 +28913,13 @@ function _scheduleUnsavedFileSafetyCheck(ref, bucket, entry) {
 // real "sample" file from a real "workpaper" file within the same,
 // real, existing backend table/route.
 async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategory) {
+  // Real, new, per direct request — captured here so it can be
+  // returned once this function actually finishes, letting a caller
+  // surface the real, specific reason directly (e.g., in an alert)
+  // rather than depending entirely on console access to see it. A
+  // safe, non-breaking addition — no existing caller currently uses
+  // this function's own return value at all.
+  let errorReason = null;
   try {
     const formData = new FormData();
     formData.append('file', entry.file, entry.name);
@@ -28674,6 +28943,7 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     const saved = await res.json();
     entry.fileId = saved.file_id; // links this in-memory entry to its durable backend record
   } catch(e) {
+    errorReason = e.message;
     console.error('[_persistSampleFileToBackend] Could not save', entry.name, 'to durable storage:', e.message);
     // Deliberately NOT shown as a blocking alert — the file is already
     // usable for the rest of this session via the in-memory entry above;
@@ -28700,6 +28970,11 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     // correctly turning green on a real success.
     refreshFileList(ref, fileCategory === 'workpaper' ? 'workpaper' : 'sample');
   }
+  // Real, new, per direct request — returned after finally, since
+  // that always runs first. Gives callers the real, specific reason
+  // (or null on success), rather than no way to know what actually
+  // happened beyond checking entry.fileId afterward.
+  return errorReason;
 }
 
 // A File/Blob-like stand-in for a sample file whose metadata has been
