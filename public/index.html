@@ -5766,6 +5766,59 @@ auditor's assessment.
           Search external sources for guidance on improving the test.
         </label>
       </div>
+      <!-- Real, new, per direct request — the confirmed annotation-type
+           selection design. This wrapper's own :hover keeps the popup
+           open while the mouse moves from the header down into the
+           table itself, since the table holds real, interactive
+           checkboxes, not just static text — a plain hover on the
+           header alone would dismiss it the instant the mouse left it
+           to reach a checkbox. -->
+      <div class="wf-ann-type-hover-wrap" style="padding:12px 20px;border-top:0.5px solid var(--border-light);position:relative">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:default">
+          <i class="ti ti-files" style="font-size:14px"></i>
+          Annotation types to create
+          <i class="ti ti-info-circle" style="font-size:13px;color:var(--text-tertiary)"></i>
+        </div>
+        <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:20px;right:20px;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:var(--bg-secondary)">
+              <th style="width:26px;padding:8px 6px"></th>
+              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
+              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Acrobat Characteristics</th>
+              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Suffix</th>
+            </tr></thead>
+            <tbody>
+              <tr style="border-top:0.5px solid var(--border-light)">
+                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-ff" style="cursor:pointer"></td>
+                <td style="padding:8px 8px;font-weight:600">Form-field copy</td>
+                <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
+                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
+              </tr>
+              <tr style="border-top:0.5px solid var(--border-light)">
+                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-sn" checked style="cursor:pointer"></td>
+                <td style="padding:8px 8px;font-weight:600">Sticky Note</td>
+                <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
+                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
+              </tr>
+              <tr style="border-top:0.5px solid var(--border-light)">
+                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-mn" style="cursor:pointer"></td>
+                <td style="padding:8px 8px;font-weight:600">Hybrid</td>
+                <td style="padding:8px 8px;color:var(--text-secondary)">A small, plain circle that is flattened page content, plus a genuine Sticky Note beside it holding the actual text.</td>
+                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_mn</td>
+              </tr>
+              <tr style="border-top:0.5px solid var(--border-light)">
+                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-bi" checked style="cursor:pointer"></td>
+                <td style="padding:8px 8px;font-weight:600">Burned-in inline copy</td>
+                <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
+                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <style>
+        .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
+      </style>
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
         <button class="btn-s" onclick="document.getElementById('analysis-options-overlay').style.display='none'">Cancel</button>
         <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="runAnalysisWithOptions()"><i class="ti ti-sparkles"></i>Run Analysis</button>
@@ -8664,15 +8717,20 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   // history of causing real, confirmed issues earlier this session.
   function placeField(page, name, text, opts) {
     const { x, y, width, height, size, textColor, bg, multiline } = opts;
+    // Real, confirmed fix, per a real, live reported error — "No /DA
+    // (default appearance) entry found" — addToPage() is what
+    // actually establishes a brand-new field's own default appearance
+    // in the first place (passing font/size/color to it); calling
+    // setFontSize() before that ever ran meant it was trying to
+    // update an appearance entry that genuinely didn't exist yet.
+    // addToPage() now happens immediately after createTextField(),
+    // before anything else that could depend on the field already
+    // having one.
     let field;
     try {
       field = form.createTextField(name);
-      if (multiline) field.enableMultiline();
-      field.setText(text);
-      field.enableReadOnly();
-      field.setFontSize(size);
-    } catch (fieldErr) {
-      throw new Error(`[placeField] Could not create/configure field "${name}" (text: "${text.slice(0, 40)}"): ${fieldErr.message}`);
+    } catch (createErr) {
+      throw new Error(`[placeField] form.createTextField() failed for "${name}": ${createErr.message}`);
     }
     try {
       field.addToPage(page, {
@@ -8684,6 +8742,32 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
       });
     } catch (addErr) {
       throw new Error(`[placeField] field.addToPage() failed for "${name}" (text: "${text.slice(0, 40)}"): ${addErr.message}`);
+    }
+    // Real, new, per direct troubleshooting — each remaining step gets
+    // its own granular trace, so if this reordering isn't the
+    // complete fix, the very next error names the exact, specific
+    // step that failed, not a bundle of several folded into one.
+    if (multiline) {
+      try {
+        field.enableMultiline();
+      } catch (mlErr) {
+        throw new Error(`[placeField] field.enableMultiline() failed for "${name}": ${mlErr.message}`);
+      }
+    }
+    try {
+      field.setText(text);
+    } catch (textErr) {
+      throw new Error(`[placeField] field.setText() failed for "${name}" (text: "${text.slice(0, 40)}"): ${textErr.message}`);
+    }
+    try {
+      field.enableReadOnly();
+    } catch (roErr) {
+      throw new Error(`[placeField] field.enableReadOnly() failed for "${name}": ${roErr.message}`);
+    }
+    try {
+      field.setFontSize(size);
+    } catch (fsErr) {
+      throw new Error(`[placeField] field.setFontSize() failed for "${name}": ${fsErr.message}`);
     }
   }
 
@@ -9145,7 +9229,12 @@ async function _drawTickMarksOnlyForFileFromResults(PDFLib, fileBytes, fileName,
   const pdfDoc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages  = pdfDoc.getPages();
 
-  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.92,0.35,0.05), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  // Real, confirmed redesign, per the confirmed tick-mark design —
+  // collapsed to the same two colors used consistently across every
+  // other mechanism now — green for pass, red for fail or exception
+  // alike — rather than this function's own prior, third orange color
+  // for exceptions specifically.
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
 
   var anyPlaced = false;
   wpResults.forEach(function(fileResult){
@@ -9516,7 +9605,15 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
   });
 
   const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
-  const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 234, g: 88, b: 12 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
+  // Real, confirmed redesign, per the confirmed tick-mark design —
+  // collapsed to the same two-color scheme used consistently across
+  // every other mechanism now — green for pass, red for fail or
+  // exception alike — rather than this function's own prior, third
+  // orange color for exceptions specifically. TICK_LABELS itself
+  // stays, since it's still genuinely needed below for the separate
+  // "Testwork Summary" text-block feature — a document-level overview
+  // distinct from the per-attribute tick marks this redesign targets.
+  const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 220, g: 38, b: 38 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
   const TICK_SYMS = { pass: '\u2713', pass_exception: '\u26A0', fail: '\u2717', error: '\u2013' };
 
   for (const origEntry of originalEntries) {
@@ -9600,14 +9697,15 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
         const rectY2 = Math.max(iconSize, pdfY);
 
         const attrNum = attr.attrRef || attr.num || String(ai + 1);
-        const label = TICK_LABELS[result] || 'N/A';
         const exTag = exRef ? ' [' + exRef + ']' : '';
-        // Real, per direct request — every piece of information lives
-        // here, in the comment, since nothing is drawn as visible text
-        // on the page for this variant: the attribute number, the
-        // pass/fail/exception label, the exception reference where
-        // applicable, and the test description/note.
-        const contents = '[' + attrNum + ']' + exTag + ' ' + label + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+        // Real, confirmed redesign, per the confirmed tick-mark design
+        // — genuinely drops the PASS/FAIL/EXCEPTION text label,
+        // matching the exact, same fix already proven correct for the
+        // standalone sticky-note mechanism. The drawn circle from Step
+        // 1 already communicates pass/fail via its own color, and
+        // this comment's own icon color does too — nothing here needs
+        // to spell it out in words a second and third time.
+        const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
         try {
           factory.createTextAnnotation({
@@ -22529,12 +22627,60 @@ function positionAuditTooltip(e) {
 ══════════════════════════════════════ */
 function openAnalysisOptionsDialog() {
   document.getElementById('analysis-options-overlay').style.display = 'flex';
+  // Real, new, per direct request — the confirmed annotation-type
+  // selection design, matching the exact, same established pattern
+  // already proven for xlsx_export_prefs. Only overrides the static
+  // HTML defaults when a real saved preference genuinely exists — a
+  // brand-new person with nothing saved yet correctly keeps the
+  // static initial default already in the HTML (burn-in and sticky
+  // note checked).
+  const savedAnnPrefs = (_currentDisplayUser && _currentDisplayUser.annotation_type_prefs) || null;
+  if (savedAnnPrefs) {
+    const biEl = document.getElementById('aopt-ann-bi'); if (biEl) biEl.checked = !!savedAnnPrefs.bi;
+    const ffEl = document.getElementById('aopt-ann-ff'); if (ffEl) ffEl.checked = !!savedAnnPrefs.ff;
+    const snEl = document.getElementById('aopt-ann-sn'); if (snEl) snEl.checked = !!savedAnnPrefs.sn;
+    const mnEl = document.getElementById('aopt-ann-mn'); if (mnEl) mnEl.checked = !!savedAnnPrefs.mn;
+  }
 }
 
 // Store selected options for use in the API call
 let _analysisOptions = {};
 
 function runAnalysisWithOptions() {
+  // Real, new, per direct request — a real, direct safeguard, checked
+  // at the earliest possible point: results from an in-progress run
+  // live in one, shared variable used across the entire page, not one
+  // scoped per run, so a second, simultaneous run wouldn't fail
+  // cleanly — it would silently corrupt or overwrite the first run's
+  // still-in-progress results, with nothing telling anyone it
+  // happened.
+  if (_analysisInProgress) {
+    alert('An analysis is already running. Please wait for it to finish, or cancel it, before starting a new one.');
+    document.getElementById('analysis-options-overlay').style.display = 'none';
+    return;
+  }
+  _analysisInProgress = true;
+
+  // Real, new, per direct request — the confirmed annotation-type
+  // selection design. Reads all four checkboxes into module-level
+  // state the four generation functions below will check, and saves
+  // this exact selection as the person's own new standing preference
+  // — fire-and-forget, matching the exact, same established pattern
+  // already proven for xlsx_export_prefs — so it becomes their
+  // default the next time this modal opens, on any real device they
+  // sign into.
+  _annotationTypeSelection = {
+    bi: document.getElementById('aopt-ann-bi')?.checked,
+    ff: document.getElementById('aopt-ann-ff')?.checked,
+    sn: document.getElementById('aopt-ann-sn')?.checked,
+    mn: document.getElementById('aopt-ann-mn')?.checked,
+  };
+  if (_currentDisplayUser) _currentDisplayUser.annotation_type_prefs = _annotationTypeSelection;
+  fetch('/api/auth/annotation-type-prefs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_annotationTypeSelection),
+  }).catch(e => console.error('[runAnalysisWithOptions] Could not save annotation-type preference:', e.message));
+
   _analysisOptions = {
     // Knowledge Base
     kbCompany:  document.getElementById('aopt-kb-company')?.checked,
@@ -22555,8 +22701,44 @@ function runAnalysisWithOptions() {
     failure:       document.getElementById('aopt-attrdetails')?.checked,
   };
   document.getElementById('analysis-options-overlay').style.display = 'none';
+
+  // Real, new, per direct request — opened synchronously, right here in
+  // the direct click handler, since browsers strictly require
+  // window.open to be called this way or popup-blockers will silently
+  // block it; opening it later, from inside an async callback once
+  // Analyze has actually started, would not reliably work.
+  try {
+    _analysisStatusWindow = window.open('', 'wf_analysis_status', 'width=420,height=240');
+    if (_analysisStatusWindow) {
+      _analysisStatusWindow.document.open();
+      _analysisStatusWindow.document.write(`<!DOCTYPE html><html><head><title>Test Status</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0; padding:20px; background:#f8fafc; color:#1e293b; }
+          h1 { font-size:14px; font-weight:700; margin:0 0 14px 0; }
+          #status-text { font-size:13px; color:#475569; margin-bottom:14px; min-height:18px; }
+          #status-track { width:100%; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; }
+          #status-bar { height:100%; width:0%; background:#0f2b46; transition:width 0.2s ease; }
+        </style></head><body>
+        <h1>Analyze — Test Status</h1>
+        <div id="status-text">Preparing analysis\u2026</div>
+        <div id="status-track"><div id="status-bar"></div></div>
+        </body></html>`);
+      _analysisStatusWindow.document.close();
+    }
+  } catch (e) {
+    console.error('[Analyze] Could not open the separate status window:', e.message);
+    _analysisStatusWindow = null; // Analyze itself still proceeds normally either way
+  }
+
   analyzeWithClaude().catch(function(err) {
     console.error('[Analyze] Unhandled error:', err);
+    // Real, new, per direct request — the fourth and final of four
+    // real exit paths that all need to correctly reset this flag —
+    // arguably the most important one to get right, since missing
+    // exactly this path is the scenario that would silently and
+    // permanently lock the app out of ever running Analyze again
+    // after an unexpected crash.
+    _analysisInProgress = false;
     const _as = document.getElementById('analysis-status');
     if (_as) _as.textContent = 'Analysis error: ' + (err.message || String(err));
     // Re-show close button
@@ -24528,6 +24710,7 @@ async function analyzeWithClaude() {
   document.getElementById('analysis-overlay').style.display = 'flex';
   const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Testing ${sampleRows.length} sample${sampleRows.length !== 1 ? 's' : ''}…`;
   const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
+  _mirrorAnalysisStatus('Preparing analysis…', 0);
   const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
   const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
   const _annSt = document.getElementById('analysis-ann-status'); if(_annSt) { _annSt.style.display='none'; _annSt.innerHTML=''; }
@@ -24548,6 +24731,7 @@ async function analyzeWithClaude() {
     _cancelBtn._origOnclick = _cancelBtn.onclick;
     _cancelBtn.onclick = () => {
       _cancelled = true;
+      _analysisInProgress = false;
       if (_timeoutHandle) clearTimeout(_timeoutHandle);
       // Offer log download
       const overlay = document.getElementById('analysis-overlay');
@@ -24559,8 +24743,10 @@ async function analyzeWithClaude() {
   _timeoutHandle = setTimeout(() => {
     if (!_cancelled) {
       _cancelled = true;
+      _analysisInProgress = false;
       const _as3 = document.getElementById('analysis-status');
       if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
+      _mirrorAnalysisStatus(`Timed out after ${TIMEOUT_MS/1000}s.`, null);
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
       const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
       const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
@@ -24585,6 +24771,9 @@ async function analyzeWithClaude() {
     if (_cancelled) return;
     if (pct !== null) { const _pb2 = document.getElementById('analysis-progress-bar'); if(_pb2) _pb2.style.width = pct + '%'; }
     const _as2 = document.getElementById('analysis-status'); if(_as2) _as2.textContent = statusText;
+    // Real, new, per direct request — mirrors this same, real update
+    // into the separate status window, if one is genuinely open.
+    _mirrorAnalysisStatus(statusText, pct);
   }
 
   // Track failed entries for retry
@@ -25153,17 +25342,29 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // runs in the background and doesn't block the rest of this function from
   // showing results; a failure here is logged, not surfaced as an Analyze
   // failure, since annotation is a convenience on top of the actual results.
-  _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
+  // Real, new, per direct request — the confirmed annotation-type
+  // selection design. Each of the four calls below is now conditional
+  // on its own corresponding checkbox, rather than always firing
+  // unconditionally — none of the four mechanisms' own internal logic
+  // needed to change for this, only whether each one gets invoked at
+  // all for a given run.
+  if (_annotationTypeSelection.bi) {
+    _autoBurnAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotate] Unexpected failure:', err));
+  }
 
   // Real, new, per direct request — the "_annotated_ff" form-field
   // variant, independent and parallel to the burn-in mechanism above,
   // the exact, same fire-and-forget pattern.
-  _autoFormFieldFilesAfterAnalyze(ref).catch(err => console.error('[AutoFormField] Unexpected failure:', err));
+  if (_annotationTypeSelection.ff) {
+    _autoFormFieldFilesAfterAnalyze(ref).catch(err => console.error('[AutoFormField] Unexpected failure:', err));
+  }
 
   // Real, new, per direct request — the "annotated4_comments" variant,
   // independent and parallel to the mechanisms above, the exact, same
   // fire-and-forget pattern.
-  _autoTickCommentFilesAfterAnalyze(ref).catch(err => console.error('[TickComment] Unexpected failure:', err));
+  if (_annotationTypeSelection.mn) {
+    _autoTickCommentFilesAfterAnalyze(ref).catch(err => console.error('[TickComment] Unexpected failure:', err));
+  }
 
   // Genuinely new, third mechanism — real, native Acrobat-editable
   // annotations via pdfAnnotate, additive alongside the existing burn-in
@@ -25171,7 +25372,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // mechanism should be replaced or touched. Same fire-and-forget
   // pattern: doesn't block the rest of Analyze, and a failure here is
   // logged, not surfaced as an Analyze failure.
-  _makeAcrobatAnnotatedCopyAfterAnalyze(ref).catch(err => console.error('[AcrobatAnnotate] Unexpected failure:', err));
+  if (_annotationTypeSelection.sn) {
+    _makeAcrobatAnnotatedCopyAfterAnalyze(ref).catch(err => console.error('[AcrobatAnnotate] Unexpected failure:', err));
+  }
 
   // Real, new, per the memory/guidance plan — the exact, same
   // fire-and-forget pattern as the two calls just above: classifies
@@ -25232,6 +25435,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   const _at2 = document.getElementById('analysis-title'); if(_at2) _at2.textContent = errorCount > 0
     ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}`
     : 'Analysis complete';
+  // Real, new, per direct request — the third of four real exit paths
+  // that all need to correctly reset this flag.
+  _analysisInProgress = false;
+  // Real, new, per direct request — the final, real completion message,
+  // so the status window shows something real and current rather than
+  // being left on a stale, in-progress message indefinitely once
+  // Analyze has genuinely finished.
+  _mirrorAnalysisStatus(errorCount > 0 ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}` : 'Analysis complete', 100);
 
   const _exBtn = document.getElementById('export-xlsx-btn'); if(_exBtn){_exBtn.style.display='inline-flex';_exBtn.style.background='#1e40af';_exBtn.style.color='#fff';_exBtn.style.borderColor='#1e40af';}
   const _attachBtn = document.getElementById('attach-xlsx-btn');
@@ -28857,19 +29068,15 @@ async function _addFilesToStore(files, bucket, ref) {
     // correctly were — object storage for the real, actual bytes,
     // Postgres for the real, actual metadata, correctly, distinctly
     // scoped via the new fileCategory field.
-    await _persistSampleFileToBackend(ref, entry, uploaderName, bucket === 'workpaper' ? 'workpaper' : 'sample');
-    // Real, new, per direct request — a rare, cheap safety net, not
-    // the primary mechanism. The upload above already, genuinely
-    // waits for the real save to finish, however long that takes, and
-    // updates the display the instant it resolves — a large file
-    // taking real time to save is already handled correctly by that
-    // alone. This exists specifically for the rarer case where that
-    // live update itself somehow doesn't reach the screen — a
-    // navigation mid-upload, some other timing edge case — leaving a
-    // file showing unsaved when it's genuinely fine. Only ever does
-    // real work if the entry is still actually missing its fileId by
-    // the time it fires.
-    _scheduleUnsavedFileSafetyCheck(ref, bucket, entry);
+    const persistReason = await _persistSampleFileToBackend(ref, entry, uploaderName, bucket === 'workpaper' ? 'workpaper' : 'sample');
+    // Real, new, per direct request — passed through to the safety net
+    // below, rather than alerting immediately here. A brief, transient
+    // failure deserves a chance to self-correct via that check's own
+    // retry before anyone is alarmed about it — but if it's still
+    // genuinely missing 30 seconds later, that final warning can now
+    // say why the original attempt failed, not just that the file
+    // still isn't there.
+    _scheduleUnsavedFileSafetyCheck(ref, bucket, entry, persistReason);
   }));
   refreshFileList(ref, bucket);
 }
@@ -28881,7 +29088,7 @@ async function _addFilesToStore(files, bucket, ref) {
 // there now, rather than trusting the in-memory state — the real
 // state on the server is always the actual source of truth here, not
 // whatever this specific browser tab currently believes.
-function _scheduleUnsavedFileSafetyCheck(ref, bucket, entry) {
+function _scheduleUnsavedFileSafetyCheck(ref, bucket, entry, initialErrorReason) {
   setTimeout(async () => {
     if (entry.fileId) return; // already, genuinely, correctly, resolved, — the, real, normal, case, nothing, to, do
     try {
@@ -28900,6 +29107,24 @@ function _scheduleUnsavedFileSafetyCheck(ref, bucket, entry) {
       if (match && match.file_id) {
         entry.fileId = match.file_id;
         refreshFileList(ref, bucket);
+      } else {
+        // Real, confirmed fix, per a real, live reported issue — the
+        // file is genuinely, still missing 30 seconds after the
+        // original upload attempt, confirmed directly against the
+        // server rather than trusted from in-memory state alone. This
+        // was previously a quiet console warning only — a deliberate,
+        // explicitly temporary choice made earlier, pending proof it
+        // was reliable enough to stay quiet. Given confirmed, live
+        // upload failures since then, that condition has genuinely
+        // been met, and this now needs to be visible rather than
+        // silently leaving someone unaware their file was never
+        // actually saved.
+        console.error('[SafetyCheck] File genuinely still missing from the server 30s after upload:', entry.name, initialErrorReason);
+        alert(
+          `"${entry.name}" could not be durably saved to the server.\n\n` +
+          (initialErrorReason ? `Reason: ${initialErrorReason}\n\n` : '') +
+          `It's still usable for the rest of this session, but will be lost if you close this tab. Try re-uploading it, or check your network connection.`
+        );
       }
     } catch(e) { /* a failed safety check should never surface as an error — the storage dot simply stays whatever it already, honestly was */ }
   }, 30000);
@@ -33104,6 +33329,52 @@ let _guidanceStartTime = null; // real, lifted to module scope, per explicit req
 // pre-Analyze modal, read whenever Guidance actually runs (which may
 // be well after Analyze finishes, sometimes much later). Defaults to
 // true, matching that checkbox's own checked-by-default state.
+// Real, new, per direct request — a reference to the separate status
+// window opened alongside Analyze, if one is currently open. null when
+// none is open, or once the person has closed it themselves.
+// Real, new, per direct request — genuinely tracks whether an Analyze
+// run is currently in progress, across the entire page. Set true the
+// moment a run starts, reset false on every single way a run can end —
+// completes normally, times out, is cancelled, or throws an unhandled
+// error — since missing even one of those paths would permanently lock
+// the app out of ever running Analyze again after that specific kind of
+// ending. The actual, real safeguard against a second run corrupting a
+// first one's still-in-progress results, which live in one, shared
+// variable used across the whole page, not one scoped per run.
+// Real, new, per direct request — the confirmed annotation-type
+// selection design. Set from the checkboxes in runAnalysisWithOptions,
+// read by each of the four generation functions below to decide
+// whether to run at all. Defaults match the static HTML defaults
+// (burn-in and sticky note), for the unlikely edge case where
+// generation could somehow run before runAnalysisWithOptions ever has.
+let _annotationTypeSelection = { bi: true, ff: false, sn: true, mn: false };
+
+let _analysisInProgress = false;
+
+let _analysisStatusWindow = null;
+
+// Real, new, per direct request — safely mirrors status text into the
+// separate window, if one is genuinely open right now. Checks .closed
+// first, since the person could close that window manually at any point
+// during a run — writing into a closed window's own document would
+// throw, and every one of Analyze's real progress-update call sites
+// would otherwise need its own duplicate check.
+function _mirrorAnalysisStatus(text, pct) {
+  if (!_analysisStatusWindow || _analysisStatusWindow.closed) return;
+  try {
+    const statusEl = _analysisStatusWindow.document.getElementById('status-text');
+    if (statusEl) statusEl.textContent = text;
+    if (pct !== null && pct !== undefined) {
+      const barEl = _analysisStatusWindow.document.getElementById('status-bar');
+      if (barEl) barEl.style.width = pct + '%';
+    }
+  } catch (e) {
+    // Genuinely nothing to do here — the window may be mid-navigation
+    // or otherwise briefly unwritable; the next update will simply try
+    // again rather than needing this one to succeed.
+  }
+}
+
 let _guidanceWebSearchPref = true;
 
 function openGuidanceModal(title) {
