@@ -5773,48 +5773,55 @@ auditor's assessment.
            checkboxes, not just static text — a plain hover on the
            header alone would dismiss it the instant the mouse left it
            to reach a checkbox. -->
-      <div class="wf-ann-type-hover-wrap" style="padding:12px 20px;border-top:0.5px solid var(--border-light);position:relative">
-        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:default">
-          <i class="ti ti-files" style="font-size:14px"></i>
-          Annotation types to create
-          <i class="ti ti-info-circle" style="font-size:13px;color:var(--text-tertiary)"></i>
+      <div style="padding:12px 20px;border-top:0.5px solid var(--border-light)">
+        <!-- Real, rebuilt, per direct correction — the checkboxes
+             themselves are now always visible on this modal, matching
+             the same style as the other data-input checkboxes above,
+             rather than hidden inside a hover. The hover is now purely
+             informational — over this header specifically, showing
+             only the explanatory grid from the design document, no
+             checkboxes inside it. -->
+        <div class="wf-ann-type-hover-wrap" style="position:relative;display:inline-block;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:0.4px;color:var(--text-tertiary);cursor:default;text-transform:uppercase">
+            SAMPLE FILE ANNOTATION TYPE(S)
+            <i class="ti ti-info-circle" style="font-size:13px;color:var(--text-tertiary)"></i>
+          </div>
+          <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:0;width:520px;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="background:var(--bg-secondary)">
+                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
+                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Acrobat Characteristics</th>
+                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Suffix</th>
+              </tr></thead>
+              <tbody>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Form-field copy</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Sticky Note</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Hybrid</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">A small, plain circle that is flattened page content, plus a genuine Sticky Note beside it holding the actual text.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_mn</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Burned-in inline copy</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:20px;right:20px;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:11px">
-            <thead><tr style="background:var(--bg-secondary)">
-              <th style="width:26px;padding:8px 6px"></th>
-              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
-              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Acrobat Characteristics</th>
-              <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Suffix</th>
-            </tr></thead>
-            <tbody>
-              <tr style="border-top:0.5px solid var(--border-light)">
-                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-ff" style="cursor:pointer"></td>
-                <td style="padding:8px 8px;font-weight:600">Form-field copy</td>
-                <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
-                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
-              </tr>
-              <tr style="border-top:0.5px solid var(--border-light)">
-                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-sn" checked style="cursor:pointer"></td>
-                <td style="padding:8px 8px;font-weight:600">Sticky Note</td>
-                <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
-                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
-              </tr>
-              <tr style="border-top:0.5px solid var(--border-light)">
-                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-mn" style="cursor:pointer"></td>
-                <td style="padding:8px 8px;font-weight:600">Hybrid</td>
-                <td style="padding:8px 8px;color:var(--text-secondary)">A small, plain circle that is flattened page content, plus a genuine Sticky Note beside it holding the actual text.</td>
-                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_mn</td>
-              </tr>
-              <tr style="border-top:0.5px solid var(--border-light)">
-                <td style="padding:8px 6px;text-align:center"><input type="checkbox" id="aopt-ann-bi" checked style="cursor:pointer"></td>
-                <td style="padding:8px 8px;font-weight:600">Burned-in inline copy</td>
-                <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
-                <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline copy</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field copy</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-mn" class="analysis-opt-cb"><span class="analysis-opt-label">Hybrid</span></label>
       </div>
       <style>
         .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
