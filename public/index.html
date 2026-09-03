@@ -9282,8 +9282,19 @@ async function _drawTickMarksOnlyForFileFromResults(PDFLib, fileBytes, fileName,
     });
   });
 
-  if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
-  return pdfDoc.save();
+  if (!anyPlaced) return null;
+  // Real, confirmed fix, per a real, live reported error — "The file
+  // is damaged and could not be repaired" when opening in Acrobat.
+  // pdf-lib's default save() produces a fully-rewritten PDF with
+  // compressed cross-reference streams (object streams).
+  // pdfAnnotateLib's AnnotationFactory uses an incremental-update
+  // approach and expects a traditional, uncompressed xref table —
+  // the format the original PDF already has. When pdfAnnotateLib
+  // receives pdf-lib's compressed output, it fails to parse the xref
+  // correctly, silently producing corrupted bytes that Acrobat
+  // correctly rejects. useObjectStreams: false forces a traditional
+  // xref table without changing any drawn content at all.
+  return pdfDoc.save({ useObjectStreams: false });
 }
 
 async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
