@@ -9424,79 +9424,72 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
       // exceptions specifically.
       const TICK_COLORS = { pass: { r: 22, g: 163, b: 74 }, pass_exception: { r: 220, g: 38, b: 38 }, fail: { r: 220, g: 38, b: 38 }, error: { r: 107, g: 114, b: 128 } };
 
-      // Find this file's real index in wpResults, needed to look up the
-      // correct entries in the shared, global exMap above.
-      const fi = wpResults.indexOf(wpResults.find(r => r.fileName === origEntry.name));
-
       let anyPlaced = false;
-      const summaryLines = ['Testwork Summary', '-'.repeat(40)]; // same real design as placeLegendOverlay's own summary table
-      attributes.forEach(function(attr, ai) {
-        const fileResult = wpResults[fi] || {};
-        let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
-        if (!match) {
-          const al = attr.title.toLowerCase();
-          match = (fileResult.results || []).find(r =>
-            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-          );
-        }
-        if (!match) return;
-        // Identical sourceFile matching rules to the existing, proven
-        // burn-in function — kept word-for-word consistent rather than
-        // re-derived, since drift between the two mechanisms here would
-        // mean annotations landing on different files for the same
-        // underlying result.
-        if (match.sourceFile) {
-          const normSource = match.sourceFile.trim().toLowerCase();
-          const normFile = origEntry.name.trim().toLowerCase();
-          if (normSource !== normFile) return;
-        }
+      const summaryLines = ['Testwork Summary', '-'.repeat(40)];
+      // Real, confirmed fix, per direct investigation — the previous
+      // code tried to pre-look up the correct wpResults entry by
+      // matching r.fileName against origEntry.name, but fileName is
+      // allFileNamesJoined — a joined string of ALL file names in this
+      // run, not just this one file — so that find always returned
+      // undefined, fi was always -1, wpResults[-1] was always
+      // undefined, anyPlaced stayed false, and nothing was ever
+      // written for either mechanism. Replaced with the exact, same
+      // correct pattern the burn-in mechanism already uses: iterate
+      // over all of wpResults, and let sourceFile matching happen
+      // inside, the same way it already does elsewhere.
+      wpResults.forEach(function(fileResult, fi) {
+        attributes.forEach(function(attr, ai) {
+          let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
+          if (!match) {
+            const al = attr.title.toLowerCase();
+            match = (fileResult.results || []).find(r =>
+              r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+            );
+          }
+          if (!match) return;
+          if (match.sourceFile) {
+            const normSource = match.sourceFile.trim().toLowerCase();
+            const normFile = origEntry.name.trim().toLowerCase();
+            if (normSource !== normFile) return;
+          }
 
-        const pgIdx = Math.max(0, (match.page || 1) - 1);
-        if (pgIdx >= realPageHeights.length) return; // page doesn't exist in this file — matches the burn-in function's own real bounds check
-        const realPageHeight = realPageHeights[pgIdx];
+          const pgIdx = Math.max(0, (match.page || 1) - 1);
+          if (pgIdx >= realPageHeights.length) return;
+          const realPageHeight = realPageHeights[pgIdx];
 
-        const result = match.result || 'error';
-        const exRef = exMap[`${fi}-${ai}`] || ''; // the real, shared exception number — e.g. "E3" — empty string for a genuine pass with no exception
+          const result = match.result || 'error';
+          const exRef = exMap[`${fi}-${ai}`] || '';
 
-        const paraNum = Math.max(1, match.paragraph || (ai + 1));
-        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-        // Real, correct y-position — a direct, faithful port of the
-        // burn-in function's own proven math (pdfY = pageHeight * (1 -
-        // paraFrac)), genuinely computed from this file's real page
-        // height, not a placeholder.
-        const pdfY = realPageHeight * (1 - paraFrac);
-        // A small, fixed-size icon rect — Text annotations display as a
-        // small icon regardless of rect size, per the PDF spec (rect
-        // only matters for where the icon sits, not how large it
-        // renders), so this can genuinely stay small and consistent.
-        const iconSize = 20;
-        const rectY1 = Math.max(0, pdfY - iconSize);
-        const rectY2 = Math.max(iconSize, pdfY);
+          const paraNum = Math.max(1, match.paragraph || (ai + 1));
+          const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+          const pdfY = realPageHeight * (1 - paraFrac);
+          const iconSize = 20;
+          const rectY1 = Math.max(0, pdfY - iconSize);
+          const rectY2 = Math.max(iconSize, pdfY);
 
-        const attrNum = attr.attrRef || attr.num || String(ai + 1);
-        const exTag = exRef ? ' [' + exRef + ']' : ''; // the real, tracked exception number on the tick itself, per explicit request
-        const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+          const attrNum = attr.attrRef || attr.num || String(ai + 1);
+          const exTag = exRef ? ' [' + exRef + ']' : '';
+          const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
-        try {
-          factory.createTextAnnotation({
-            page: pgIdx,
-            rect: [10, rectY1, 10 + iconSize, rectY2],
-            contents: contents,
-            author: 'Wavefire',
-            color: TICK_COLORS[result] || TICK_COLORS.error,
-            open: false, // collapsed by default — a small icon, not an already-open box, matching the small-tickmark request
-          });
-          anyPlaced = true;
-        } catch (annErr) {
-          console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
-        }
+          try {
+            factory.createTextAnnotation({
+              page: pgIdx,
+              rect: [10, rectY1, 10 + iconSize, rectY2],
+              contents: contents,
+              author: 'Wavefire',
+              color: TICK_COLORS[result] || TICK_COLORS.error,
+              open: false,
+            });
+            anyPlaced = true;
+          } catch (annErr) {
+            console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+          }
 
-        // Build this attribute's line for the real summary table below —
-        // same real design as placeLegendOverlay's own Testwork Summary.
-        const tickSym = TICK_SYMS[result] || '-';
-        const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
-        summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
-        if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+          const tickSym = TICK_SYMS[result] || '-';
+          const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
+          summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
+          if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+        });
       });
 
       if (!anyPlaced) continue; // nothing relevant to this file — skip it entirely, matching the burn-in mechanism's own real behavior
@@ -9670,68 +9663,67 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
         continue;
       }
 
-      const fi = wpResults.indexOf(wpResults.find(r => r.fileName === origEntry.name));
+      // Real, confirmed fix, per direct investigation — the exact,
+      // same broken pattern as the sticky-note mechanism above: the
+      // old fi lookup always returned -1, wpResults[-1] was always
+      // undefined, anyPlaced stayed false, nothing was ever written.
+      // Replaced with the same correct pattern: iterate over all of
+      // wpResults and let sourceFile matching happen inside.
       let anyPlaced = false;
       const summaryLines = ['Testwork Summary', '-'.repeat(40)];
-      attributes.forEach(function(attr, ai) {
-        const fileResult = wpResults[fi] || {};
-        let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
-        if (!match) {
-          const al = attr.title.toLowerCase();
-          match = (fileResult.results || []).find(r =>
-            r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-          );
-        }
-        if (!match) return;
-        if (match.sourceFile) {
-          const normSource = match.sourceFile.trim().toLowerCase();
-          const normFile = origEntry.name.trim().toLowerCase();
-          if (normSource !== normFile) return;
-        }
+      wpResults.forEach(function(fileResult, fi) {
+        attributes.forEach(function(attr, ai) {
+          let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
+          if (!match) {
+            const al = attr.title.toLowerCase();
+            match = (fileResult.results || []).find(r =>
+              r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+            );
+          }
+          if (!match) return;
+          if (match.sourceFile) {
+            const normSource = match.sourceFile.trim().toLowerCase();
+            const normFile = origEntry.name.trim().toLowerCase();
+            if (normSource !== normFile) return;
+          }
 
-        const pgIdx = Math.max(0, (match.page || 1) - 1);
-        if (pgIdx >= realPageHeights.length) return;
-        const realPageHeight = realPageHeights[pgIdx];
+          const pgIdx = Math.max(0, (match.page || 1) - 1);
+          if (pgIdx >= realPageHeights.length) return;
+          const realPageHeight = realPageHeights[pgIdx];
 
-        const result = match.result || 'error';
-        const exRef = exMap[`${fi}-${ai}`] || '';
+          const result = match.result || 'error';
+          const exRef = exMap[`${fi}-${ai}`] || '';
 
-        const paraNum = Math.max(1, match.paragraph || (ai + 1));
-        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-        const pdfY = realPageHeight * (1 - paraFrac);
-        const iconSize = 20;
-        const rectY1 = Math.max(0, pdfY - iconSize);
-        const rectY2 = Math.max(iconSize, pdfY);
+          const paraNum = Math.max(1, match.paragraph || (ai + 1));
+          const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+          const pdfY = realPageHeight * (1 - paraFrac);
+          const iconSize = 20;
+          const rectY1 = Math.max(0, pdfY - iconSize);
+          const rectY2 = Math.max(iconSize, pdfY);
 
-        const attrNum = attr.attrRef || attr.num || String(ai + 1);
-        const exTag = exRef ? ' [' + exRef + ']' : '';
-        // Real, confirmed redesign, per the confirmed tick-mark design
-        // — genuinely drops the PASS/FAIL/EXCEPTION text label,
-        // matching the exact, same fix already proven correct for the
-        // standalone sticky-note mechanism. The drawn circle from Step
-        // 1 already communicates pass/fail via its own color, and
-        // this comment's own icon color does too — nothing here needs
-        // to spell it out in words a second and third time.
-        const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
+          const attrNum = attr.attrRef || attr.num || String(ai + 1);
+          const exTag = exRef ? ' [' + exRef + ']' : '';
+          const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
-        try {
-          factory.createTextAnnotation({
-            page: pgIdx,
-            rect: [24, rectY1, 24 + iconSize, rectY2], // offset from x=10 so this comment icon doesn't sit directly on top of the small tick circle drawn in Step 1
-            contents: contents,
-            author: 'Wavefire',
-            color: TICK_COLORS[result] || TICK_COLORS.error,
-            open: false,
-          });
-          anyPlaced = true;
-        } catch (annErr) {
-          console.error('[TickComment] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
-        }
+          try {
+            factory.createTextAnnotation({
+              page: pgIdx,
+              rect: [24, rectY1, 24 + iconSize, rectY2],
+              contents: contents,
+              author: 'Wavefire',
+              color: TICK_COLORS[result] || TICK_COLORS.error,
+              open: false,
+            });
+            anyPlaced = true;
+          } catch (annErr) {
+            console.error('[TickComment] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+          }
 
-        const tickSym = TICK_SYMS[result] || '-';
-        const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
-        summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
-        if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+          const tickSym = TICK_SYMS[result] || '-';
+          const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
+          summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
+          if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+        });
       });
 
       if (!anyPlaced) continue;
