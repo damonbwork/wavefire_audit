@@ -5810,8 +5810,8 @@ auditor's assessment.
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
                 </tr>
                 <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Burned-in inline copy (grouped)</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">Same flattened page content as Burned-in inline copy, but each mark is drawn as a single Form XObject instead of separate pieces, so Acrobat's Edit PDF tool selects and moves the whole mark as one object.</td>
+                  <td style="padding:8px 8px;font-weight:600">Movable stamp copy</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">Each mark is a real Stamp annotation, using this same visual mark as its appearance, rather than flattened page content — click-selectable and freely movable in Acrobat as one object, without entering Edit PDF.</td>
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi2</td>
                 </tr>
               </tbody>
@@ -5821,7 +5821,7 @@ auditor's assessment.
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline copy</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field copy</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note</span></label>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Burned-in inline copy (grouped)</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Movable stamp copy</span></label>
       </div>
       <style>
         .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
@@ -8914,8 +8914,23 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
     const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
     const topRowH = 16;
-    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + 4 : 0);
-    const totalW = Math.max(symSize + 6 + numW + 8, detailLines.length ? 260 : 0);
+    // Real, confirmed fix, per direct report — a flat 4pt gap left no
+    // room for the detail text's own ascender height at size 7, so its
+    // first line's glyphs visually reached back up into the symbol/
+    // number row above it. HEADER_CLEARANCE pushes that first line down
+    // by a real amount instead, and PAD_BELOW_LINES keeps its original
+    // small pad below the last line.
+    const HEADER_CLEARANCE = 6;
+    const PAD_BELOW_LINES = 4;
+    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + HEADER_CLEARANCE + PAD_BELOW_LINES : 0);
+    // Real, confirmed fix, per direct report — this used to force a flat
+    // 260pt-wide box for ANY detail text, regardless of how short it
+    // actually was. Sized to the widest line actually rendered instead
+    // (wrapLines already caps every line at 260pt, so this can only ever
+    // come out narrower, never wider).
+    const detailLineWidths = detailLines.map(l => (detailFont || fontReg).widthOfTextAtSize(l, 7));
+    const maxDetailW = detailLineWidths.length ? Math.max.apply(null, detailLineWidths) : 0;
+    const totalW = Math.max(symSize + 6 + numW + 8, maxDetailW);
 
     // One, single, shared background — the only layer behind
     // everything this mark needs, regardless of whether it's a plain
@@ -8951,7 +8966,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     // Exception or note detail, only when present, sharing this same
     // background rather than needing one of its own.
     detailLines.forEach(function(line, li) {
-      page.drawText(line, { x: x, y: y - topRowH - li * lineH, font: detailFont || fontReg, size: 7, color: rgb(0.35,0.35,0.35) });
+      page.drawText(line, { x: x, y: y - topRowH - HEADER_CLEARANCE - li * lineH, font: detailFont || fontReg, size: 7, color: rgb(0.35,0.35,0.35) });
     });
   }
 
@@ -9046,7 +9061,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
       var geomLineH = fontReg.heightAtSize(7) * 1.15;
       var geomTopRowH = 16;
-      var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
+      var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
       var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
@@ -9058,17 +9073,22 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   return pdfDoc.save();
 }
 
-// Real, new, per direct request — a second burn-in variant ("_annotated_bi2")
-// where each tick mark is rendered as its own tiny, single-page PDFDocument
-// and embedded into the real page as a Form XObject (via embedPages +
-// drawPage), instead of the loose, separate rectangle/line/text operators
-// _burnAnnotationsForFileFromResults above draws directly onto the page.
-// Acrobat's Edit PDF tool sees and selects the whole mark — background,
-// symbol, number, and note together — as one single object a user can move
-// as a unit, rather than several independent objects that each have to be
-// selected on their own.
+// Real, confirmed redesign, per direct report — the original "_annotated_bi2"
+// approach (rendering each mark into its own tiny page, embedding that as a
+// Form XObject, and drawPage-ing it onto the real page) still isn't
+// individually selectable in Acrobat: a Form XObject invoked from the page's
+// own content stream is still just page content, and burned-in page content
+// — grouped into one XObject or not — is never independently selectable the
+// way a genuine PDF Annotation is. Each mark is now registered as a real
+// Stamp annotation (a proper /Annots entry) instead, using that exact same
+// rendered content as its appearance stream (/AP /N). An annotation is
+// Acrobat's own native "one discrete, selectable, movable object" primitive
+// — the same object family Widget and Sticky Note annotations belong to —
+// so this is the same fix in kind as switching from "_annotated_bi" to a
+// genuine annotation-based mechanism, just with this mark's own drawn
+// appearance instead of Acrobat's built-in comment icon.
 async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes) {
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const { PDFDocument, rgb, StandardFonts, PDFName } = PDFLib;
   const pdfDoc  = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages   = pdfDoc.getPages();
   const font    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -9119,8 +9139,23 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
     const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
     const topRowH = 16;
-    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + 4 : 0);
-    const totalW = Math.max(symSize + 6 + numW + 8, detailLines.length ? 260 : 0);
+    // Real, confirmed fix, per direct report — a flat 4pt gap left no
+    // room for the detail text's own ascender height at size 7, so its
+    // first line's glyphs visually reached back up into the symbol/
+    // number row above it. HEADER_CLEARANCE pushes that first line down
+    // by a real amount instead, and PAD_BELOW_LINES keeps its original
+    // small pad below the last line.
+    const HEADER_CLEARANCE = 6;
+    const PAD_BELOW_LINES = 4;
+    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + HEADER_CLEARANCE + PAD_BELOW_LINES : 0);
+    // Real, confirmed fix, per direct report — this used to force a flat
+    // 260pt-wide box for ANY detail text, regardless of how short it
+    // actually was. Sized to the widest line actually rendered instead
+    // (wrapLines already caps every line at 260pt, so this can only ever
+    // come out narrower, never wider).
+    const detailLineWidths = detailLines.map(l => (detailFont || fontReg).widthOfTextAtSize(l, 7));
+    const maxDetailW = detailLineWidths.length ? Math.max.apply(null, detailLineWidths) : 0;
+    const totalW = Math.max(symSize + 6 + numW + 8, maxDetailW);
 
     const tmpDoc = await PDFDocument.create();
     const tmpFontBold = await tmpDoc.embedFont(StandardFonts.HelveticaBold);
@@ -9147,11 +9182,48 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     tmpPage.drawText(numText, { x: lx + symSize + 6, y: symY - 3, font: tmpFontBold, size: 9, color: rgb(0.15,0.15,0.15) });
 
     detailLines.forEach(function(line, li) {
-      tmpPage.drawText(line, { x: lx, y: ly - topRowH - li * lineH, font: tmpFontReg, size: 7, color: rgb(0.35,0.35,0.35) });
+      tmpPage.drawText(line, { x: lx, y: ly - topRowH - HEADER_CLEARANCE - li * lineH, font: tmpFontReg, size: 7, color: rgb(0.35,0.35,0.35) });
     });
 
     const [embedded] = await pdfDoc.embedPages([tmpPage]);
-    destPage.drawPage(embedded, { x: x - 3, y: y - totalH - 3, width: totalW + 6, height: totalH + 6 });
+
+    // Real, confirmed redesign, per direct report — registers this same
+    // rendered content as a real Stamp annotation's appearance stream
+    // instead of drawing it into the real page's own content stream.
+    // embedded.ref is the Form XObject pdf-lib just created for the
+    // rendered mark; pointed to directly from this annotation's /AP /N,
+    // its BBox already matches this Rect exactly (both are the tiny
+    // page's own full [0,0,totalW+6,totalH+6] bounds), so it renders at
+    // 1:1 scale with no distortion.
+    const { context } = pdfDoc;
+    const rectX0 = x - 3, rectY0 = y - totalH - 3;
+    const rectX1 = rectX0 + totalW + 6, rectY1 = rectY0 + totalH + 6;
+
+    const annotDict = context.obj({
+      Type: 'Annot',
+      Subtype: 'Stamp',
+      Rect: [rectX0, rectY0, rectX1, rectY1],
+      F: 4, // Print flag set; Hidden and Locked flags both left off, so it stays visible and freely movable
+      Border: [0, 0, 0],
+      AP: { N: embedded.ref },
+      Contents: pdfText(detailText || (pass ? 'Pass' : 'Fail')),
+      T: 'Wavefire',
+      Name: 'WavefireTickMark',
+      CA: 1,
+    });
+    const annotRef = context.register(annotDict);
+
+    // Real, new, per direct request — appends to this page's real
+    // /Annots array (creating it if this is the first annotation this
+    // mechanism has added to this particular page) rather than
+    // overwriting whatever annotations the page may already carry.
+    const annotsKey = PDFName.of('Annots');
+    const existingAnnots = destPage.node.lookup(annotsKey);
+    if (existingAnnots) {
+      existingAnnots.push(annotRef);
+    } else {
+      destPage.node.set(annotsKey, context.obj([annotRef]));
+    }
   }
 
   // Real, new, per direct request — same non-overlap tracking as the
@@ -9225,7 +9297,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
       const geomLineH = fontReg.heightAtSize(7) * 1.15;
       const geomTopRowH = 16;
-      const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
+      const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
       const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
@@ -25063,7 +25135,13 @@ async function analyzeWithClaude() {
   // ── Cancellation ─────────────────────────────────────────────────
   let _cancelled = false;
   let _timeoutHandle = null;
-  const TIMEOUT_MS = 120000; // 2 minute hard timeout
+  // Real, confirmed fix, per direct report — a flat, unextendable 2-minute
+  // cap was too short for a large sample-file count or large individual
+  // PDFs, and canceled the whole run outright with no way to keep going.
+  // TIMEOUT_MS is now a check-in interval, not a hard stop: when it
+  // elapses, the user is asked whether to keep waiting or cancel, rather
+  // than the analysis being killed unconditionally.
+  const TIMEOUT_MS = 120000; // 2 minute check-in interval
 
   // Open modal — guarded access only
   document.getElementById('analysis-overlay').style.display = 'flex';
@@ -25097,19 +25175,39 @@ async function analyzeWithClaude() {
     };
   }
 
-  // Hard timeout
-  _timeoutHandle = setTimeout(() => {
-    if (!_cancelled) {
+  // Real, confirmed fix, per direct report — replaces the old unconditional
+  // hard-cancel with a repeating check-in: every TIMEOUT_MS with no
+  // completion, the user is asked whether to keep waiting (common for a
+  // large number of sample files, or large individual PDFs) or stop now.
+  // Choosing to keep waiting simply reschedules the same check-in again,
+  // so a long-running analysis can keep going indefinitely as long as the
+  // user keeps confirming it should.
+  let _elapsedMs = 0;
+  function _scheduleTimeoutCheckIn() {
+    _timeoutHandle = setTimeout(() => {
+      if (_cancelled) return;
+      _elapsedMs += TIMEOUT_MS;
+      const keepWaiting = confirm(
+        `Analysis has been running for ${Math.round(_elapsedMs / 1000)}s without finishing.\n\n` +
+        `This can happen with a large number of sample files, or large individual PDFs.\n\n` +
+        `Click OK to keep waiting, or Cancel to stop the analysis now.`
+      );
+      if (_cancelled) return; // could have finished or been cancelled while the confirm() dialog was open
+      if (keepWaiting) {
+        _scheduleTimeoutCheckIn();
+        return;
+      }
       _cancelled = true;
       _analysisInProgress = false;
       const _as3 = document.getElementById('analysis-status');
-      if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
+      if (_as3) _as3.textContent = `Cancelled after ${Math.round(_elapsedMs / 1000)}s. Download log for debugging.`;
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
       const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
       const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
       const _tab2 = document.getElementById('analysis-test-analysis-btn'); if(_tab2) _tab2.style.display = 'none';
-    }
-  }, TIMEOUT_MS);
+    }, TIMEOUT_MS);
+  }
+  _scheduleTimeoutCheckIn();
 
   analysisResults = [];
   let processed = 0;
