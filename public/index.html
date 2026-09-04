@@ -8911,7 +8911,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10; // the symbol's own real, drawn footprint, in points
 
-    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
+    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 200) : [];
     const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
     const topRowH = 16;
     // Real, confirmed fix, per direct report — a flat 4pt gap left no
@@ -9049,16 +9049,26 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
       var detailText = null;
+      // Real, confirmed fix, per direct report — a flat 90-character cap
+      // silently cut off longer AI-generated explanations with no
+      // indication anything was missing. Raised well past what a real
+      // exception note or comment realistically runs, with a visible
+      // "..." only on the rare case it's still hit — the box itself
+      // already grows to fit however many lines this produces (totalH
+      // scales with detailLines.length), so there's no separate height
+      // cap needing to move in step with this one.
+      var _noteRaw = match.note ? String(match.note) : '';
+      var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
       if (isException) {
-        detailText = 'Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '');
-      } else if (match.note) {
-        detailText = String(match.note).slice(0, 90);
+        detailText = 'Exception E' + exNum + (_noteText ? ': ' + _noteText : '');
+      } else if (_noteText) {
+        detailText = _noteText;
       }
 
       // Same geometry math drawTickMark itself uses internally — computed
       // here first only to know this mark's real footprint before
       // deciding its final, non-overlapping y.
-      var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
+      var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
       var geomLineH = fontReg.heightAtSize(7) * 1.15;
       var geomTopRowH = 16;
       var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
@@ -9088,7 +9098,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 // genuine annotation-based mechanism, just with this mark's own drawn
 // appearance instead of Acrobat's built-in comment icon.
 async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes) {
-  const { PDFDocument, rgb, StandardFonts, PDFName } = PDFLib;
+  const { PDFDocument, rgb, StandardFonts, PDFName, PDFDict, PDFString, PDFNumber } = PDFLib;
   const pdfDoc  = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages   = pdfDoc.getPages();
   const font    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -9136,7 +9146,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10;
 
-    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
+    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 200) : [];
     const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
     const topRowH = 16;
     // Real, confirmed fix, per direct report — a flat 4pt gap left no
@@ -9195,22 +9205,35 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     // its BBox already matches this Rect exactly (both are the tiny
     // page's own full [0,0,totalW+6,totalH+6] bounds), so it renders at
     // 1:1 scale with no distortion.
+    // Real, confirmed fix, per direct report of a repeated "expected a
+    // string object" error — context.obj()'s literal-conversion helper
+    // was handed bare JS strings for Contents/T/Name/Type/Subtype and
+    // guessed wrong about which real PDF type each needed to become.
+    // Every value here is now built with pdf-lib's own explicit, typed
+    // constructors instead, leaving nothing for it to guess at: PDFName
+    // for the name-typed fields (Type, Subtype, Name), PDFString for
+    // the literal-text fields (Contents, T), PDFNumber for numbers, and
+    // context.obj([...]) only for the plain numeric arrays (Rect,
+    // Border) — the one literal-conversion usage pdf-lib's own internals
+    // rely on for BBox/Matrix arrays, so it's a safe pattern here too.
     const { context } = pdfDoc;
     const rectX0 = x - 3, rectY0 = y - totalH - 3;
     const rectX1 = rectX0 + totalW + 6, rectY1 = rectY0 + totalH + 6;
 
-    const annotDict = context.obj({
-      Type: 'Annot',
-      Subtype: 'Stamp',
-      Rect: [rectX0, rectY0, rectX1, rectY1],
-      F: 4, // Print flag set; Hidden and Locked flags both left off, so it stays visible and freely movable
-      Border: [0, 0, 0],
-      AP: { N: embedded.ref },
-      Contents: pdfText(detailText || (pass ? 'Pass' : 'Fail')),
-      T: 'Wavefire',
-      Name: 'WavefireTickMark',
-      CA: 1,
-    });
+    const apDict = PDFDict.withContext(context);
+    apDict.set(PDFName.of('N'), embedded.ref);
+
+    const annotDict = PDFDict.withContext(context);
+    annotDict.set(PDFName.of('Type'), PDFName.of('Annot'));
+    annotDict.set(PDFName.of('Subtype'), PDFName.of('Stamp'));
+    annotDict.set(PDFName.of('Rect'), context.obj([rectX0, rectY0, rectX1, rectY1]));
+    annotDict.set(PDFName.of('F'), PDFNumber.of(4)); // Print flag set; Hidden and Locked flags both left off, so it stays visible and freely movable
+    annotDict.set(PDFName.of('Border'), context.obj([0, 0, 0]));
+    annotDict.set(PDFName.of('AP'), apDict);
+    annotDict.set(PDFName.of('Contents'), PDFString.of(pdfText(detailText || (pass ? 'Pass' : 'Fail'))));
+    annotDict.set(PDFName.of('T'), PDFString.of('Wavefire'));
+    annotDict.set(PDFName.of('Name'), PDFName.of('WavefireTickMark'));
+    annotDict.set(PDFName.of('CA'), PDFNumber.of(1));
     const annotRef = context.register(annotDict);
 
     // Real, new, per direct request — appends to this page's real
@@ -9285,16 +9308,22 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
 
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
       let detailText = null;
+      // Real, confirmed fix, per direct report — same raised cap as the
+      // plain "_annotated_bi" mechanism above, so a longer AI-generated
+      // explanation isn't silently cut off. The box already grows to fit
+      // however many lines this produces.
+      const _noteRaw = match.note ? String(match.note) : '';
+      const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
       if (isException) {
-        detailText = 'Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '');
-      } else if (match.note) {
-        detailText = String(match.note).slice(0, 90);
+        detailText = 'Exception E' + exNum + (_noteText ? ': ' + _noteText : '');
+      } else if (_noteText) {
+        detailText = _noteText;
       }
 
       // Same geometry math drawGroupedTickMark itself uses internally —
       // computed here first only to know this mark's real footprint
       // before deciding its final, non-overlapping y.
-      const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
+      const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
       const geomLineH = fontReg.heightAtSize(7) * 1.15;
       const geomTopRowH = 16;
       const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
