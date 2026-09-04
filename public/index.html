@@ -8919,9 +8919,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 
     // One, single, shared background — the only layer behind
     // everything this mark needs, regardless of whether it's a plain
-    // pass/fail or carries additional exception/note text.
+    // pass/fail or carries additional exception/note text. Real,
+    // confirmed fix, per direct report — the prior "y - totalH +
+    // topRowH - 3" formula canceled out topRowH, leaving the rect's TOP
+    // edge fixed at a constant y + topRowH + 3 no matter how tall the
+    // mark actually was, so it always covered a large, empty strip of
+    // page content above the symbol while barely reaching the symbol's
+    // own lowest point below — both the oversized box and the symbol
+    // poking past its edge traced back to this one formula.
     page.drawRectangle({
-      x: x - 3, y: y - totalH + topRowH - 3,
+      x: x - 3, y: y - totalH - 3,
       width: totalW + 6, height: totalH + 6,
       color: rgb(1, 1, 1), opacity: 1,
     });
@@ -8956,12 +8963,14 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   // y alone is enough to mean an overlap on the page — no need to also
   // compare x/width ranges.
   var placedBoxesByPage = {};
-  function reserveNonOverlappingY(pgIdx, initialY, totalH, topRowH) {
+  function reserveNonOverlappingY(pgIdx, initialY, totalH) {
     var GAP = 4;
     var arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
     var y = initialY;
-    var top = y + topRowH + 3;
-    var bottom = y - totalH + topRowH - 3;
+    // Matches the real background rect's own bounds: top = y + 3, bottom
+    // = y - totalH - 3 (see the fixed formula in drawTickMark above).
+    var top = y + 3;
+    var bottom = y - totalH - 3;
     var guard = 0;
     var moved = true;
     while (moved && guard++ < 500) {
@@ -9038,7 +9047,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var geomLineH = fontReg.heightAtSize(7) * 1.15;
       var geomTopRowH = 16;
       var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
-      var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH, geomTopRowH);
+      var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
       anyPlaced = true;
@@ -9120,9 +9129,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
 
     // Local coordinates inside the mark's own tiny page — its background
     // rectangle always starts at (0,0), the same real footprint the
-    // un-grouped mechanism draws at (x-3, y-totalH+topRowH-3) on the real
-    // page, just re-based here to this tiny page's own origin.
-    const lx = 3, ly = totalH - topRowH + 3;
+    // un-grouped mechanism draws at (x-3, y-totalH-3) on the real page,
+    // just re-based here to this tiny page's own origin.
+    const lx = 3, ly = totalH + 3;
 
     tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 6, height: totalH + 6, color: rgb(1,1,1), opacity: 1 });
 
@@ -9142,7 +9151,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     });
 
     const [embedded] = await pdfDoc.embedPages([tmpPage]);
-    destPage.drawPage(embedded, { x: x - 3, y: y - totalH + topRowH - 3, width: totalW + 6, height: totalH + 6 });
+    destPage.drawPage(embedded, { x: x - 3, y: y - totalH - 3, width: totalW + 6, height: totalH + 6 });
   }
 
   // Real, new, per direct request — same non-overlap tracking as the
@@ -9150,12 +9159,14 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   // together (or at the same computed y) get pushed down clear of one
   // another instead of drawing on top of each other.
   const placedBoxesByPage = {};
-  function reserveNonOverlappingY(pgIdx, initialY, totalH, topRowH) {
+  function reserveNonOverlappingY(pgIdx, initialY, totalH) {
     const GAP = 4;
     const arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
     let y = initialY;
-    let top = y + topRowH + 3;
-    let bottom = y - totalH + topRowH - 3;
+    // Matches the real background rect's own bounds: top = y + 3, bottom
+    // = y - totalH - 3 (see the fixed formula in drawGroupedTickMark above).
+    let top = y + 3;
+    let bottom = y - totalH - 3;
     let guard = 0;
     let moved = true;
     while (moved && guard++ < 500) {
@@ -9215,7 +9226,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const geomLineH = fontReg.heightAtSize(7) * 1.15;
       const geomTopRowH = 16;
       const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
-      const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH, geomTopRowH);
+      const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
       anyPlaced = true;
@@ -23078,34 +23089,6 @@ function runAnalysisWithOptions() {
   };
   document.getElementById('analysis-options-overlay').style.display = 'none';
 
-  // Real, new, per direct request — opened synchronously, right here in
-  // the direct click handler, since browsers strictly require
-  // window.open to be called this way or popup-blockers will silently
-  // block it; opening it later, from inside an async callback once
-  // Analyze has actually started, would not reliably work.
-  try {
-    _analysisStatusWindow = window.open('', 'wf_analysis_status', 'width=420,height=240');
-    if (_analysisStatusWindow) {
-      _analysisStatusWindow.document.open();
-      _analysisStatusWindow.document.write(`<!DOCTYPE html><html><head><title>Test Status</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0; padding:20px; background:#f8fafc; color:#1e293b; }
-          h1 { font-size:14px; font-weight:700; margin:0 0 14px 0; }
-          #status-text { font-size:13px; color:#475569; margin-bottom:14px; min-height:18px; }
-          #status-track { width:100%; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; }
-          #status-bar { height:100%; width:0%; background:#0f2b46; transition:width 0.2s ease; }
-        </style></head><body>
-        <h1>Analyze — Test Status</h1>
-        <div id="status-text">Preparing analysis\u2026</div>
-        <div id="status-track"><div id="status-bar"></div></div>
-        </body></html>`);
-      _analysisStatusWindow.document.close();
-    }
-  } catch (e) {
-    console.error('[Analyze] Could not open the separate status window:', e.message);
-    _analysisStatusWindow = null; // Analyze itself still proceeds normally either way
-  }
-
   analyzeWithClaude().catch(function(err) {
     console.error('[Analyze] Unhandled error:', err);
     // Real, new, per direct request — the fourth and final of four
@@ -25086,7 +25069,6 @@ async function analyzeWithClaude() {
   document.getElementById('analysis-overlay').style.display = 'flex';
   const _at1 = document.getElementById('analysis-title'); if(_at1) _at1.textContent = `Testing ${sampleRows.length} sample${sampleRows.length !== 1 ? 's' : ''}…`;
   const _as1 = document.getElementById('analysis-status'); if(_as1) _as1.textContent = 'Preparing analysis…';
-  _mirrorAnalysisStatus('Preparing analysis…', 0);
   const _pb = document.getElementById('analysis-progress-bar'); if(_pb) _pb.style.width = '0%';
   const _rl = document.getElementById('analysis-results-list'); if(_rl) _rl.innerHTML = '';
   const _annSt = document.getElementById('analysis-ann-status'); if(_annSt) { _annSt.style.display='none'; _annSt.innerHTML=''; }
@@ -25122,7 +25104,6 @@ async function analyzeWithClaude() {
       _analysisInProgress = false;
       const _as3 = document.getElementById('analysis-status');
       if (_as3) _as3.textContent = `Timed out after ${TIMEOUT_MS/1000}s. Download log for debugging.`;
-      _mirrorAnalysisStatus(`Timed out after ${TIMEOUT_MS/1000}s.`, null);
       const _eb2 = document.getElementById('export-xlsx-btn'); if(_eb2) _eb2.style.display = 'none';
       const _ab2 = document.getElementById('attach-xlsx-btn'); if(_ab2) _ab2.style.display = 'none';
       const _gb2 = document.getElementById('dl-guidance-btn'); if(_gb2) _gb2.style.display = 'none';
@@ -25147,9 +25128,6 @@ async function analyzeWithClaude() {
     if (_cancelled) return;
     if (pct !== null) { const _pb2 = document.getElementById('analysis-progress-bar'); if(_pb2) _pb2.style.width = pct + '%'; }
     const _as2 = document.getElementById('analysis-status'); if(_as2) _as2.textContent = statusText;
-    // Real, new, per direct request — mirrors this same, real update
-    // into the separate status window, if one is genuinely open.
-    _mirrorAnalysisStatus(statusText, pct);
   }
 
   // Track failed entries for retry
@@ -25824,11 +25802,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // Real, new, per direct request — the third of four real exit paths
   // that all need to correctly reset this flag.
   _analysisInProgress = false;
-  // Real, new, per direct request — the final, real completion message,
-  // so the status window shows something real and current rather than
-  // being left on a stale, in-progress message indefinitely once
-  // Analyze has genuinely finished.
-  _mirrorAnalysisStatus(errorCount > 0 ? `Analysis complete with ${errorCount} error${errorCount !== 1 ? 's' : ''}` : 'Analysis complete', 100);
 
   const _exBtn = document.getElementById('export-xlsx-btn'); if(_exBtn){_exBtn.style.display='inline-flex';_exBtn.style.background='#1e40af';_exBtn.style.color='#fff';_exBtn.style.borderColor='#1e40af';}
   const _attachBtn = document.getElementById('attach-xlsx-btn');
@@ -33736,30 +33709,6 @@ let _guidanceStartTime = null; // real, lifted to module scope, per explicit req
 let _annotationTypeSelection = { bi: true, ff: false, sn: true, bi2: false };
 
 let _analysisInProgress = false;
-
-let _analysisStatusWindow = null;
-
-// Real, new, per direct request — safely mirrors status text into the
-// separate window, if one is genuinely open right now. Checks .closed
-// first, since the person could close that window manually at any point
-// during a run — writing into a closed window's own document would
-// throw, and every one of Analyze's real progress-update call sites
-// would otherwise need its own duplicate check.
-function _mirrorAnalysisStatus(text, pct) {
-  if (!_analysisStatusWindow || _analysisStatusWindow.closed) return;
-  try {
-    const statusEl = _analysisStatusWindow.document.getElementById('status-text');
-    if (statusEl) statusEl.textContent = text;
-    if (pct !== null && pct !== undefined) {
-      const barEl = _analysisStatusWindow.document.getElementById('status-bar');
-      if (barEl) barEl.style.width = pct + '%';
-    }
-  } catch (e) {
-    // Genuinely nothing to do here — the window may be mid-navigation
-    // or otherwise briefly unwritable; the next update will simply try
-    // again rather than needing this one to succeed.
-  }
-}
 
 let _guidanceWebSearchPref = true;
 
