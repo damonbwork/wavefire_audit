@@ -5786,7 +5786,7 @@ auditor's assessment.
             SAMPLE FILE ANNOTATION TYPE(S)
             <i class="ti ti-info-circle" style="font-size:13px;color:var(--text-tertiary)"></i>
           </div>
-          <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:0;width:520px;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10;overflow:hidden">
+          <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:0;width:720px;max-width:90vw;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10">
             <table style="width:100%;border-collapse:collapse;font-size:11px">
               <thead><tr style="background:var(--bg-secondary)">
                 <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
@@ -5805,14 +5805,14 @@ auditor's assessment.
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
                 </tr>
                 <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Hybrid</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">A small, plain circle that is flattened page content, plus a genuine Sticky Note beside it holding the actual text.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_mn</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
                   <td style="padding:8px 8px;font-weight:600">Burned-in inline copy</td>
                   <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Burned-in inline copy (grouped)</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">Same flattened page content as Burned-in inline copy, but each mark is drawn as a single Form XObject instead of separate pieces, so Acrobat's Edit PDF tool selects and moves the whole mark as one object.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi2</td>
                 </tr>
               </tbody>
             </table>
@@ -5821,7 +5821,7 @@ auditor's assessment.
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline copy</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field copy</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note</span></label>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-mn" class="analysis-opt-cb"><span class="analysis-opt-label">Hybrid</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Burned-in inline copy (grouped)</span></label>
       </div>
       <style>
         .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
@@ -9009,6 +9009,146 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   return pdfDoc.save();
 }
 
+// Real, new, per direct request — a second burn-in variant ("_annotated_bi2")
+// where each tick mark is rendered as its own tiny, single-page PDFDocument
+// and embedded into the real page as a Form XObject (via embedPages +
+// drawPage), instead of the loose, separate rectangle/line/text operators
+// _burnAnnotationsForFileFromResults above draws directly onto the page.
+// Acrobat's Edit PDF tool sees and selects the whole mark — background,
+// symbol, number, and note together — as one single object a user can move
+// as a unit, rather than several independent objects that each have to be
+// selected on their own.
+async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes) {
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc  = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const pages   = pdfDoc.getPages();
+  const font    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+
+  function pdfText(s) {
+    return String(s || '')
+      .replace(/[─━┄┅┈┉╌╍]/g, '-').replace(/[│┃┆┇┊┋╎╏]/g, '|')
+      .replace(/[┌┍┎┏┐┑┒┓└┕┖┗┘┙┚┛├┤┬┴┼╋╬]/g, '+')
+      .replace(/[✓✔]/g, '(PASS)').replace(/[✗✘]/g, '(FAIL)').replace(/[⚠⚡]/g, '(!)')
+      .replace(/[–—]/g, '-').replace(/['']/g, "'").replace(/[""]/g, '"')
+      .replace(/[…]/g, '...').replace(/[•·]/g, '*')
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
+  }
+
+  function wrapLines(text, useFont, size, maxWidth) {
+    if (!maxWidth) return [text];
+    const words = text.split(' ');
+    const lines = [];
+    let cur = '';
+    words.forEach(function(w){
+      const trial = cur ? cur + ' ' + w : w;
+      if (useFont.widthOfTextAtSize(trial, size) > maxWidth && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = trial;
+      }
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // Renders one tick mark into its own standalone single-page PDFDocument,
+  // sized exactly to that mark's own footprint, then embeds that page into
+  // the real document as a Form XObject and stamps it onto the real page —
+  // the one structural difference from drawTickMark above, which draws
+  // these same pieces directly and separately onto the real page.
+  async function drawGroupedTickMark(destPage, opts) {
+    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const numText = pdfText('[' + attrNum + ']');
+    const numW = font.widthOfTextAtSize(numText, 9);
+    const symSize = 10;
+
+    const detailLines = detailText ? wrapLines(pdfText(detailText), detailFont || fontReg, 7, 260) : [];
+    const lineH = (detailFont || fontReg).heightAtSize(7) * 1.15;
+    const topRowH = 16;
+    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + 4 : 0);
+    const totalW = Math.max(symSize + 6 + numW + 8, detailLines.length ? 260 : 0);
+
+    const tmpDoc = await PDFDocument.create();
+    const tmpFontBold = await tmpDoc.embedFont(StandardFonts.HelveticaBold);
+    const tmpFontReg  = await tmpDoc.embedFont(StandardFonts.Helvetica);
+    const tmpPage = tmpDoc.addPage([totalW + 6, totalH + 6]);
+
+    // Local coordinates inside the mark's own tiny page — its background
+    // rectangle always starts at (0,0), the same real footprint the
+    // un-grouped mechanism draws at (x-3, y-totalH+topRowH-3) on the real
+    // page, just re-based here to this tiny page's own origin.
+    const lx = 3, ly = totalH - topRowH + 3;
+
+    tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 6, height: totalH + 6, color: rgb(1,1,1), opacity: 1 });
+
+    const symX = lx + 2, symY = ly - topRowH / 2;
+    if (pass) {
+      tmpPage.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
+      tmpPage.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
+    } else {
+      tmpPage.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
+      tmpPage.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
+    }
+
+    tmpPage.drawText(numText, { x: lx + symSize + 6, y: symY - 3, font: tmpFontBold, size: 9, color: rgb(0.15,0.15,0.15) });
+
+    detailLines.forEach(function(line, li) {
+      tmpPage.drawText(line, { x: lx, y: ly - topRowH - li * lineH, font: tmpFontReg, size: 7, color: rgb(0.35,0.35,0.35) });
+    });
+
+    const [embedded] = await pdfDoc.embedPages([tmpPage]);
+    destPage.drawPage(embedded, { x: x - 3, y: y - totalH + topRowH - 3, width: totalW + 6, height: totalH + 6 });
+  }
+
+  let anyPlaced = false;
+  let exNum = 0;
+  for (const fileResult of wpResults) {
+    for (let ai = 0; ai < attributes.length; ai++) {
+      const attr = attributes[ai];
+      const match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!match) continue;
+      if (match.sourceFile) {
+        const normSource = match.sourceFile.trim().toLowerCase();
+        const normFile    = fileName.trim().toLowerCase();
+        if (normSource !== normFile) continue;
+      }
+
+      const pgIdx = Math.max(0, (match.page || 1) - 1);
+      if (pgIdx >= pages.length) continue;
+      const page = pages[pgIdx];
+      const ptH = page.getSize().height;
+
+      const result = match.result || 'error';
+      const isPass = (result === 'pass');
+      const isException = (result === 'pass_exception' || result === 'fail');
+      if (isException) exNum++;
+
+      const paraNum = Math.max(1, match.paragraph || (ai + 1));
+      const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+      const pdfY = ptH * (1 - paraFrac);
+
+      const attrNum = attr.attrRef || attr.num || String(ai + 1);
+      let detailText = null;
+      if (isException) {
+        detailText = 'Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '');
+      } else if (match.note) {
+        detailText = String(match.note).slice(0, 90);
+      }
+
+      await drawGroupedTickMark(page, { x: 13, y: pdfY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
+      anyPlaced = true;
+    }
+  }
+
+  if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
+  return pdfDoc.save();
+}
+
 // Bulk export: burns tick marks into every attached sample file relevant to
 // this workpaper's most recent analysis and packages them all into one zip
 // download. Unlike the single-file "Download with Annotations" button in
@@ -9653,6 +9793,25 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
       const tickedBytes = await _drawTickMarksOnlyForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
       if (!tickedBytes) continue; // nothing relevant to this file — skip it entirely
 
+      // ── TEMPORARY DIAGNOSTIC — per direct troubleshooting, isolates
+      // whether Step 1 (pdf-lib alone) already produces a corrupted PDF,
+      // before pdfAnnotateLib ever touches it. Downloads Step 1's raw
+      // output directly, bypassing every later step. REMOVE once the
+      // actual source of the corruption is confirmed. ──
+      try {
+        const diagBlob = new Blob([tickedBytes], { type: 'application/pdf' });
+        const diagUrl = URL.createObjectURL(diagBlob);
+        const diagLink = document.createElement('a');
+        diagLink.href = diagUrl;
+        diagLink.download = (origEntry.name || 'document').replace(/\.pdf$/i, '') + '_STEP1_ONLY_DIAGNOSTIC.pdf';
+        document.body.appendChild(diagLink);
+        diagLink.click();
+        document.body.removeChild(diagLink);
+        setTimeout(() => URL.revokeObjectURL(diagUrl), 5000);
+      } catch (diagErr) {
+        console.error('[TickComment][DIAGNOSTIC] Could not download Step 1 output:', diagErr.message);
+      }
+
       let realPageHeights = [];
       try {
         const dimsDoc = await PDFLib.PDFDocument.load(pristineBytes, { ignoreEncryption: true });
@@ -10009,6 +10168,136 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
   // direct-warning principle already applied to manual uploads to
   // this mechanism too, rather than leaving a genuine save failure
   // here silently logged to the console only.
+  if (annotationSaveFailures.length) {
+    alert(
+      `${annotationSaveFailures.length} annotated file${annotationSaveFailures.length > 1 ? 's' : ''} could not be saved to the server:\n\n` +
+      annotationSaveFailures.map(n => `  • ${n}`).join('\n') +
+      `\n\nThe underlying Analyze results are unaffected, but ${annotationSaveFailures.length > 1 ? 'these copies are' : 'this copy is'} not yet durably saved. Check the browser console for the specific reason, or try re-running Analyze.`
+    );
+  }
+}
+
+// Real, new, per direct request — produces the "_annotated_bi2" variant, a
+// sibling to _autoBurnAnnotatedFilesAfterAnalyze above, replicating its
+// exact, same proven wiring pattern (delete any stale prior copy -> preserve
+// the pristine original's bytes first, written to storage on their own ->
+// mark up that same copy -> persist the marked-up version over it), the one
+// difference being it calls _burnAnnotationsForFileFromResultsGrouped so
+// each tick mark lands as one grouped Form XObject a user can select and
+// move as a single object in Acrobat, rather than several loose ones.
+async function _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref) {
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const bucketArr = inMemoryFiles[ref]?.sample;
+  if (!bucketArr || !bucketArr.length) return;
+
+  const annotationSaveFailures = [];
+
+  const originalEntries = bucketArr.filter(f => f.file && !f._annotatedFrom && !_isPristineCopyFile(f));
+  if (!originalEntries.length) return;
+
+  let PDFLib;
+  try {
+    PDFLib = await loadPdfLib();
+  } catch (err) {
+    console.error('[AutoAnnotateGrouped] Could not load pdf-lib:', err);
+    return;
+  }
+
+  for (const origEntry of originalEntries) {
+    try {
+      const baseName = (origEntry.name || 'document').replace(/\.pdf$/i, '');
+      const annName  = baseName + '_annotated_bi2.pdf';
+      const existingIdx = bucketArr.findIndex(f => f.name === annName && f._annotatedFrom === origEntry.name);
+
+      if (existingIdx >= 0 && bucketArr[existingIdx]._autoGenerated === false) {
+        continue;
+      }
+
+      if (existingIdx >= 0) {
+        const staleEntry = bucketArr[existingIdx];
+        if (staleEntry.fileId) {
+          try {
+            await fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(staleEntry.fileId), { method: 'DELETE' });
+          } catch (delErr) {
+            console.error('[AutoAnnotateGrouped] Could not delete stale annotated copy for', origEntry.name, ':', delErr.message);
+          }
+        }
+        bucketArr.splice(existingIdx, 1);
+      }
+
+      const pristineBytes = await origEntry.file.arrayBuffer();
+      const pristineCopyFile = new File([pristineBytes], annName, { type: 'application/pdf' });
+      const now0    = new Date();
+      const nowStr0 = now0.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                    + ' at ' + now0.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+      const annEntry = {
+        file: pristineCopyFile,
+        name: annName,
+        size: formatFileSize(pristineCopyFile.size),
+        type: 'application/pdf',
+        uploadedBy: 'Wavefire',
+        uploadedOn: nowStr0,
+        _annotatedFrom: origEntry.name,
+        _autoGenerated: true,
+      };
+      bucketArr.push(annEntry);
+      refreshFileList(ref, 'sample');
+      await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
+
+      const outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      if (!outBytes) {
+        if (annEntry.fileId) {
+          fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
+        }
+        const idx = bucketArr.indexOf(annEntry);
+        if (idx >= 0) bucketArr.splice(idx, 1);
+        continue;
+      }
+
+      const resultAnnotations = [];
+      wpResults.forEach(fileResult => {
+        attributes.forEach((attr, ai) => {
+          const match = (fileResult.results || []).find(r => r.title === attr.title);
+          if (!match) return;
+          if (match.sourceFile) {
+            const normSrc = match.sourceFile.trim().toLowerCase();
+            const normFile = origEntry.name.trim().toLowerCase();
+            if (normSrc !== normFile) return;
+          }
+          resultAnnotations.push({
+            type: 'result',
+            result: match.result || 'error',
+            attrRef: attr.attrRef || attr.num || String(ai + 1),
+            title: attr.title,
+            note: match.note || '',
+            page: match.page || 1,
+            paragraph: match.paragraph || (ai + 1),
+          });
+        });
+      });
+
+      const now     = new Date();
+      const nowStr  = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+                    + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+      const annotatedFile = new File([outBytes], annName, { type: 'application/pdf' });
+
+      annEntry.file        = annotatedFile;
+      annEntry.size        = formatFileSize(annotatedFile.size);
+      annEntry.updatedBy   = 'Wavefire';
+      annEntry.updatedOn   = nowStr;
+      annEntry._annotations   = resultAnnotations;
+      annEntry._autoGenerated = true;
+      await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
+      if (!annEntry.fileId) annotationSaveFailures.push(annName);
+    } catch (err) {
+      console.error('[AutoAnnotateGrouped] Failed to annotate', origEntry.name, err);
+      annotationSaveFailures.push(origEntry.name);
+    }
+  }
+
+  refreshFileList(ref, 'sample');
   if (annotationSaveFailures.length) {
     alert(
       `${annotationSaveFailures.length} annotated file${annotationSaveFailures.length > 1 ? 's' : ''} could not be saved to the server:\n\n` +
@@ -22649,7 +22938,7 @@ function openAnalysisOptionsDialog() {
     const biEl = document.getElementById('aopt-ann-bi'); if (biEl) biEl.checked = !!savedAnnPrefs.bi;
     const ffEl = document.getElementById('aopt-ann-ff'); if (ffEl) ffEl.checked = !!savedAnnPrefs.ff;
     const snEl = document.getElementById('aopt-ann-sn'); if (snEl) snEl.checked = !!savedAnnPrefs.sn;
-    const mnEl = document.getElementById('aopt-ann-mn'); if (mnEl) mnEl.checked = !!savedAnnPrefs.mn;
+    const bi2El = document.getElementById('aopt-ann-bi2'); if (bi2El) bi2El.checked = !!savedAnnPrefs.bi2;
   }
 }
 
@@ -22683,7 +22972,7 @@ function runAnalysisWithOptions() {
     bi: document.getElementById('aopt-ann-bi')?.checked,
     ff: document.getElementById('aopt-ann-ff')?.checked,
     sn: document.getElementById('aopt-ann-sn')?.checked,
-    mn: document.getElementById('aopt-ann-mn')?.checked,
+    bi2: document.getElementById('aopt-ann-bi2')?.checked,
   };
   if (_currentDisplayUser) _currentDisplayUser.annotation_type_prefs = _annotationTypeSelection;
   fetch('/api/auth/annotation-type-prefs', {
@@ -25378,13 +25667,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     _autoFormFieldFilesAfterAnalyze(ref).catch(err => console.error('[AutoFormField] Unexpected failure:', err));
   }
 
-  // Real, new, per direct request — the "annotated4_comments" variant,
-  // independent and parallel to the mechanisms above, the exact, same
-  // fire-and-forget pattern.
-  if (_annotationTypeSelection.mn) {
-    _autoTickCommentFilesAfterAnalyze(ref).catch(err => console.error('[TickComment] Unexpected failure:', err));
-  }
-
   // Genuinely new, third mechanism — real, native Acrobat-editable
   // annotations via pdfAnnotate, additive alongside the existing burn-in
   // mechanism above, per explicit confirmation neither existing
@@ -25393,6 +25675,14 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // logged, not surfaced as an Analyze failure.
   if (_annotationTypeSelection.sn) {
     _makeAcrobatAnnotatedCopyAfterAnalyze(ref).catch(err => console.error('[AcrobatAnnotate] Unexpected failure:', err));
+  }
+
+  // Real, new, per direct request — the "_annotated_bi2" variant,
+  // independent and parallel to the mechanisms above, the exact, same
+  // fire-and-forget pattern. Each mark is grouped into a single Form
+  // XObject so it can be selected and moved as one object in Acrobat.
+  if (_annotationTypeSelection.bi2) {
+    _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref).catch(err => console.error('[AutoAnnotateGrouped] Unexpected failure:', err));
   }
 
   // Real, new, per the memory/guidance plan — the exact, same
@@ -33366,7 +33656,7 @@ let _guidanceStartTime = null; // real, lifted to module scope, per explicit req
 // whether to run at all. Defaults match the static HTML defaults
 // (burn-in and sticky note), for the unlikely edge case where
 // generation could somehow run before runAnalysisWithOptions ever has.
-let _annotationTypeSelection = { bi: true, ff: false, sn: true, mn: false };
+let _annotationTypeSelection = { bi: true, ff: false, sn: true, bi2: false };
 
 let _analysisInProgress = false;
 
