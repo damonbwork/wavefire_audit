@@ -8921,8 +8921,23 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     // by a real amount instead, and PAD_BELOW_LINES keeps its original
     // small pad below the last line.
     const HEADER_CLEARANCE = 6;
-    const PAD_BELOW_LINES = 4;
-    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + HEADER_CLEARANCE + PAD_BELOW_LINES : 0);
+    // Real, confirmed fix, per direct report with a screenshot showing
+    // the background covering roughly double the space its own text
+    // actually needed — the old "detailLines.length * lineH" term
+    // reserved a FULL extra line-height the box never used: the drawn
+    // lines only span from the first baseline down through (n-1) more
+    // line-heights to the last baseline, not n full line-heights: the
+    // "last line's own height" was being counted twice, once implicitly
+    // via HEADER_CLEARANCE positioning the first baseline, and again via
+    // the nth line-height slot. BOTTOM_PAD is a small, real pad below
+    // the last line's descender — not a whole extra line.
+    const BOTTOM_PAD = 3;
+    const totalH = detailLines.length
+      ? topRowH + HEADER_CLEARANCE + (detailLines.length - 1) * lineH + BOTTOM_PAD
+      // No detail text: the symbol's own lowest real point (the "X" for
+      // a fail mark) sits a few points short of topRowH itself, so the
+      // box can hug it more tightly than the full topRowH allocation.
+      : topRowH - 4;
     // Real, confirmed fix, per direct report — this used to force a flat
     // 260pt-wide box for ANY detail text, regardless of how short it
     // actually was. Sized to the widest line actually rendered instead
@@ -8941,10 +8956,11 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     // mark actually was, so it always covered a large, empty strip of
     // page content above the symbol while barely reaching the symbol's
     // own lowest point below — both the oversized box and the symbol
-    // poking past its edge traced back to this one formula.
+    // poking past its edge traced back to this one formula. Outer pad
+    // also tightened from 3pt to 2pt per side, per the same report.
     page.drawRectangle({
-      x: x - 3, y: y - totalH - 3,
-      width: totalW + 6, height: totalH + 6,
+      x: x - 2, y: y - totalH - 2,
+      width: totalW + 4, height: totalH + 4,
       color: rgb(1, 1, 1), opacity: 1,
     });
 
@@ -8982,10 +8998,10 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     var GAP = 4;
     var arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
     var y = initialY;
-    // Matches the real background rect's own bounds: top = y + 3, bottom
-    // = y - totalH - 3 (see the fixed formula in drawTickMark above).
-    var top = y + 3;
-    var bottom = y - totalH - 3;
+    // Matches the real background rect's own bounds: top = y + 2, bottom
+    // = y - totalH - 2 (see the fixed formula in drawTickMark above).
+    var top = y + 2;
+    var bottom = y - totalH - 2;
     var guard = 0;
     var moved = true;
     while (moved && guard++ < 500) {
@@ -9071,7 +9087,9 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
       var geomLineH = fontReg.heightAtSize(7) * 1.15;
       var geomTopRowH = 16;
-      var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
+      var geomTotalH = geomDetailLines.length
+        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+        : geomTopRowH - 4;
       var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
@@ -9155,9 +9173,18 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     // number row above it. HEADER_CLEARANCE pushes that first line down
     // by a real amount instead, and PAD_BELOW_LINES keeps its original
     // small pad below the last line.
+    // Real, confirmed fix, per direct report with a screenshot showing
+    // the background covering roughly double the space its own text
+    // actually needed — the old "detailLines.length * lineH" term
+    // reserved a FULL extra line-height the box never used: the drawn
+    // lines only span from the first baseline down through (n-1) more
+    // line-heights to the last baseline, not n full line-heights. See
+    // the matching fix and full explanation in drawTickMark above.
     const HEADER_CLEARANCE = 6;
-    const PAD_BELOW_LINES = 4;
-    const totalH = topRowH + (detailLines.length ? detailLines.length * lineH + HEADER_CLEARANCE + PAD_BELOW_LINES : 0);
+    const BOTTOM_PAD = 3;
+    const totalH = detailLines.length
+      ? topRowH + HEADER_CLEARANCE + (detailLines.length - 1) * lineH + BOTTOM_PAD
+      : topRowH - 4;
     // Real, confirmed fix, per direct report — this used to force a flat
     // 260pt-wide box for ANY detail text, regardless of how short it
     // actually was. Sized to the widest line actually rendered instead
@@ -9170,15 +9197,16 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     const tmpDoc = await PDFDocument.create();
     const tmpFontBold = await tmpDoc.embedFont(StandardFonts.HelveticaBold);
     const tmpFontReg  = await tmpDoc.embedFont(StandardFonts.Helvetica);
-    const tmpPage = tmpDoc.addPage([totalW + 6, totalH + 6]);
+    const tmpPage = tmpDoc.addPage([totalW + 4, totalH + 4]);
 
     // Local coordinates inside the mark's own tiny page — its background
     // rectangle always starts at (0,0), the same real footprint the
-    // un-grouped mechanism draws at (x-3, y-totalH-3) on the real page,
-    // just re-based here to this tiny page's own origin.
-    const lx = 3, ly = totalH + 3;
+    // un-grouped mechanism draws at (x-2, y-totalH-2) on the real page
+    // (outer pad tightened from 3pt to 2pt per the same report), just
+    // re-based here to this tiny page's own origin.
+    const lx = 2, ly = totalH + 2;
 
-    tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 6, height: totalH + 6, color: rgb(1,1,1), opacity: 1 });
+    tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 4, height: totalH + 4, color: rgb(1,1,1), opacity: 1 });
 
     const symX = lx + 2, symY = ly - topRowH / 2;
     if (pass) {
@@ -9217,8 +9245,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     // Border) — the one literal-conversion usage pdf-lib's own internals
     // rely on for BBox/Matrix arrays, so it's a safe pattern here too.
     const { context } = pdfDoc;
-    const rectX0 = x - 3, rectY0 = y - totalH - 3;
-    const rectX1 = rectX0 + totalW + 6, rectY1 = rectY0 + totalH + 6;
+    const rectX0 = x - 2, rectY0 = y - totalH - 2;
+    const rectX1 = rectX0 + totalW + 4, rectY1 = rectY0 + totalH + 4;
 
     const apDict = PDFDict.withContext(context);
     apDict.set(PDFName.of('N'), embedded.ref);
@@ -9258,10 +9286,10 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     const GAP = 4;
     const arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
     let y = initialY;
-    // Matches the real background rect's own bounds: top = y + 3, bottom
-    // = y - totalH - 3 (see the fixed formula in drawGroupedTickMark above).
-    let top = y + 3;
-    let bottom = y - totalH - 3;
+    // Matches the real background rect's own bounds: top = y + 2, bottom
+    // = y - totalH - 2 (see the fixed formula in drawGroupedTickMark above).
+    let top = y + 2;
+    let bottom = y - totalH - 2;
     let guard = 0;
     let moved = true;
     while (moved && guard++ < 500) {
@@ -9326,7 +9354,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
       const geomLineH = fontReg.heightAtSize(7) * 1.15;
       const geomTopRowH = 16;
-      const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 10 : 0);
+      const geomTotalH = geomDetailLines.length
+        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+        : geomTopRowH - 4;
       const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
       await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
