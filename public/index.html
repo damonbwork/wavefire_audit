@@ -8948,6 +8948,37 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     });
   }
 
+  // Real, new, per direct request — tracks each page's already-occupied
+  // vertical space so marks placed close together (or at the same
+  // computed y, when two attributes share a paragraph number) get pushed
+  // down clear of one another instead of drawing on top of each other.
+  // All marks share the same left edge (x is always 13), so an overlap in
+  // y alone is enough to mean an overlap on the page — no need to also
+  // compare x/width ranges.
+  var placedBoxesByPage = {};
+  function reserveNonOverlappingY(pgIdx, initialY, totalH, topRowH) {
+    var GAP = 4;
+    var arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
+    var y = initialY;
+    var top = y + topRowH + 3;
+    var bottom = y - totalH + topRowH - 3;
+    var guard = 0;
+    var moved = true;
+    while (moved && guard++ < 500) {
+      moved = false;
+      for (var i = 0; i < arr.length; i++) {
+        var b = arr[i];
+        if (top > b.bottom - GAP && bottom < b.top + GAP) {
+          var shift = top - (b.bottom - GAP);
+          y -= shift; top -= shift; bottom -= shift;
+          moved = true;
+        }
+      }
+    }
+    arr.push({ top: top, bottom: bottom });
+    return y;
+  }
+
   var anyPlaced = false;
   var exNum = 0;
   wpResults.forEach(function(fileResult){
@@ -9000,7 +9031,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
         detailText = String(match.note).slice(0, 90);
       }
 
-      drawTickMark(page, { x: 13, y: pdfY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
+      // Same geometry math drawTickMark itself uses internally — computed
+      // here first only to know this mark's real footprint before
+      // deciding its final, non-overlapping y.
+      var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
+      var geomLineH = fontReg.heightAtSize(7) * 1.15;
+      var geomTopRowH = 16;
+      var geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
+      var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH, geomTopRowH);
+
+      drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
       anyPlaced = true;
     });
   });
@@ -9105,6 +9145,34 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     destPage.drawPage(embedded, { x: x - 3, y: y - totalH + topRowH - 3, width: totalW + 6, height: totalH + 6 });
   }
 
+  // Real, new, per direct request — same non-overlap tracking as the
+  // plain "_annotated_bi" mechanism above, so grouped marks placed close
+  // together (or at the same computed y) get pushed down clear of one
+  // another instead of drawing on top of each other.
+  const placedBoxesByPage = {};
+  function reserveNonOverlappingY(pgIdx, initialY, totalH, topRowH) {
+    const GAP = 4;
+    const arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
+    let y = initialY;
+    let top = y + topRowH + 3;
+    let bottom = y - totalH + topRowH - 3;
+    let guard = 0;
+    let moved = true;
+    while (moved && guard++ < 500) {
+      moved = false;
+      for (let i = 0; i < arr.length; i++) {
+        const b = arr[i];
+        if (top > b.bottom - GAP && bottom < b.top + GAP) {
+          const shift = top - (b.bottom - GAP);
+          y -= shift; top -= shift; bottom -= shift;
+          moved = true;
+        }
+      }
+    }
+    arr.push({ top: top, bottom: bottom });
+    return y;
+  }
+
   let anyPlaced = false;
   let exNum = 0;
   for (const fileResult of wpResults) {
@@ -9140,7 +9208,16 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
         detailText = String(match.note).slice(0, 90);
       }
 
-      await drawGroupedTickMark(page, { x: 13, y: pdfY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
+      // Same geometry math drawGroupedTickMark itself uses internally —
+      // computed here first only to know this mark's real footprint
+      // before deciding its final, non-overlapping y.
+      const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 260) : [];
+      const geomLineH = fontReg.heightAtSize(7) * 1.15;
+      const geomTopRowH = 16;
+      const geomTotalH = geomTopRowH + (geomDetailLines.length ? geomDetailLines.length * geomLineH + 4 : 0);
+      const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH, geomTopRowH);
+
+      await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
       anyPlaced = true;
     }
   }
