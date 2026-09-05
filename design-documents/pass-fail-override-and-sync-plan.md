@@ -33,11 +33,32 @@ exists and needs to change carefully, not be replaced wholesale.
   corresponding entry here, or vice versa.
 - **Four separate mechanisms burn or attach annotations to sample files**,
   each independently reading `_wpAnalysisResults` and drawing or attaching
-  something based on it: the burned-in inline copy, the form-field copy, the
-  Acrobat-comment copy, and the tick-mark-plus-comment copy. All four
-  currently draw or write text like "PASS" / "FAIL" / "EXC" as the visible
-  label — none of them currently draw a plain checkmark or X, and none
-  support more than one mark per attribute per file.
+  something based on it: the burned-in inline copy (`bi`), the form-field
+  copy (`ff`), the Acrobat Sticky Note copy (`sn`), and the movable stamp
+  copy (`bi2`) — a real PDF Stamp annotation, added since this plan was
+  first written, replacing an earlier "tick-mark-plus-comment" mechanism
+  (`mn`) that has since been removed entirely. See
+  [annotation-types-selection-and-naming-design.md](annotation-types-selection-and-naming-design.md)
+  for the current, up-to-date roster of all four.
+- **Correction, since this plan was first written: the "plain symbol, one
+  combined unit, single shared background" rendering described in Part 3
+  below is already built, for `bi`, `bi2`, and `ff`.** All three now draw a
+  geometric check/X, combine it with the attribute number as one unit, and
+  share a single white background with any exception/note text — no
+  "PASS"/"FAIL"/"EXC" text label anywhere. `sn` uses `✓ ⚠ ✗ –` as its
+  comment's own text content, which is symbol-first in spirit even though
+  it's not a drawn shape. **What has NOT been built yet**, and is still the
+  real, open part of Part 3: the schema is still exactly one result object
+  per attribute per file — "more than one mark per attribute per sample"
+  has not happened.
+- **A real, current bug worth fixing before Part 4 is built: exception
+  numbering ("Exception E1", "E2", ...) is not consistent across
+  mechanisms.** `sn` and the xlsx export both compute a single, global
+  counter across every file in the run. `bi`, `bi2`, and `ff` each reset
+  their own counter to 0 per file, since each is invoked once per file in
+  a loop. The same finding can end up numbered differently depending on
+  which annotated copy (or the xlsx export) someone is looking at — see
+  the note under Part 4 below.
 
 ## Part 1 — A real, persistent, overridable pass/fail field
 
@@ -98,6 +119,15 @@ per the exact instructions given:
 
 ## Part 3 — Tick marks as plain visual symbols, and more than one per sample
 
+**Status: the rendering half of this part is already done; the schema half
+is not.** When this plan was first written, all four mechanisms drew a
+text label ("PASS"/"FAIL"/"EXC") as the primary visual. That's no longer
+true — `bi`, `bi2`, and `ff` all draw a plain geometric check/X combined
+with the attribute number as one unit, sharing a single background with
+any note/exception text; `sn` uses `✓ ⚠ ✗ –` as its comment's own content.
+The remaining, genuinely open piece of this part is the schema change
+described next — it has not been started.
+
 This is a genuine, structural change to the AI's own output schema, not just
 a rendering tweak. Today the schema returns exactly one result per attribute
 per file. Supporting "more than one checkmark or X for a single attribute in
@@ -109,13 +139,12 @@ result for that sample derived from all of its own marks together (any fail
 mark present means the attribute fails for that sample, matching the
 exception-implies-fail invariant above).
 
-The rendering side needs the same treatment: what gets drawn or attached
-should be a plain green check or red X — no "PASS"/"FAIL"/"EXC" text — and
-this needs to happen consistently across all four existing annotation
-mechanisms, since right now every one of them draws or writes a text label
-as the primary visual, not a symbol. This touches real, working code in four
-separate places and needs to be done in all four consistently, not just the
-one most recently worked on.
+Once the schema itself changes, the existing per-mark rendering already
+built for `bi`/`bi2`/`ff` needs only to be called once per mark instead of
+once per attribute — the drawing logic itself (symbol, combined attribute
+number, shared background) shouldn't need to change, just how many times
+it's invoked per attribute per file. `sn`'s comment-per-mark logic would
+need the same treatment.
 
 **A direct refinement worth capturing here: the symbol and the attribute
 number become one combined, compact unit, not two separate elements.**
@@ -175,31 +204,39 @@ original version of this section claimed WaveFire has no reliable way to
 detect whether a person already manually changed an annotation, and
 proposed a fingerprint-based fallback for all four annotation mechanisms
 uniformly. That was an overstatement for three of the four. The honest,
-corrected picture, mechanism by mechanism:
+corrected picture, mechanism by mechanism (updated to the current, actual
+four mechanisms — see the "Current state" correction above for how this
+roster changed since the plan was first written):
 
-- **The burned-in inline copy** is genuinely unreadable in this sense —
-  once drawn, it's flattened pixels and vector shapes on the page, with no
-  structured data behind it to read back. The fingerprint approach
+- **The burned-in inline copy (`bi`)** is genuinely unreadable in this
+  sense — once drawn, it's flattened pixels and vector shapes on the page,
+  with no structured data behind it to read back. The fingerprint approach
   described below is the right, honest fallback specifically for this one
   mechanism.
-- **The two comment-based copies** (the Acrobat-comment copy and the
-  tick-mark-plus-comment copy) use real PDF comment objects, which carry
-  their own actual text content as structured, directly-readable data — not
-  a picture of text. If a person edits a comment's own text in a tool like
-  Acrobat, that edit is sitting in the file's own structure, reachable the
-  same way it was originally written. WaveFire can genuinely read a
-  comment's current text and directly compare it, word for word, against
-  what it originally wrote there — a precise content comparison, not a
-  guess.
-- **The form-field copy** is the same story — a form field's value is a
-  real, addressable piece of data, not a drawing, and reading its current
-  text back out programmatically is straightforward.
+- **The Acrobat Sticky Note copy (`sn`)** uses real PDF comment objects,
+  which carry their own actual text content as structured, directly-
+  readable data — not a picture of text. If a person edits a comment's own
+  text in a tool like Acrobat, that edit is sitting in the file's own
+  structure, reachable the same way it was originally written. WaveFire can
+  genuinely read a comment's current text and directly compare it, word for
+  word, against what it originally wrote there — a precise content
+  comparison, not a guess.
+- **The form-field copy (`ff`)** is the same story — a form field's value
+  is a real, addressable piece of data, not a drawing, and reading its
+  current text back out programmatically is straightforward.
+- **The movable stamp copy (`bi2`)** — added since this plan was first
+  written, so not covered by the original three-way breakdown — belongs in
+  this same "directly readable" group, not with `bi`. Its Stamp annotation
+  sets a genuine `/Contents` entry (a real `PDFString`, not a picture of
+  text) alongside its drawn appearance, so its current text can be read
+  back and compared exactly the same way `sn`'s and `ff`'s can.
 
-So for three of the four mechanisms, detecting "has someone already changed
-this specific result" can be a genuine, direct comparison of actual content
-— what does this field or comment say right now, versus what did WaveFire
-itself last write there — not an approximation. Only the burned-in copy
-needs the less precise, fingerprint-based fallback described next.
+So for three of the four mechanisms — `sn`, `ff`, and `bi2` — detecting
+"has someone already changed this specific result" can be a genuine,
+direct comparison of actual content — what does this field, comment, or
+annotation say right now, versus what did WaveFire itself last write there
+— not an approximation. Only the burned-in copy (`bi`) needs the less
+precise, fingerprint-based fallback described next.
 
 **The fallback, for the one mechanism that genuinely needs it:** WaveFire
 can remember the exact state of a file at the moment it last wrote to it (a
@@ -213,6 +250,26 @@ someone touched this since" specifically for the burned-in copy, not a
 precise "did a human specifically edit the tick mark" detector — while the
 warning (or lack of one) for the other three mechanisms can be based on
 genuinely knowing what changed, not just that something did.
+
+**A real prerequisite this part depends on, discovered while reviewing
+this plan against the current code: exception numbering is not yet
+consistent across mechanisms.** `sn` and the xlsx export both compute
+their "Exception E1, E2, ..." numbering as a single running counter across
+every file in the entire Analyze run. `bi`, `bi2`, and `ff` each reset
+their own counter to 0 every time they're invoked — which happens once per
+sample file — so the same finding can carry a different E-number depending
+on which annotated copy someone has open, or whether they're looking at
+the xlsx export instead. This matters directly for Part 4: "find every
+annotated file generated from this sample and update the mark for this
+attribute" needs a reliable way to identify "this specific finding" across
+mechanisms, and an E-number that means something different in each file
+isn't that. Two ways to resolve it: make the numbering global everywhere
+(matching what `sn`/xlsx already do), or — likely more robust regardless —
+have Part 1's new persistent table key each result by
+`(workpaper, attribute index, sample)` rather than by E-number at all, so
+sync doesn't depend on the numbering being consistent in the first place.
+Either way, this is worth deciding and fixing before Part 4 is built, not
+after.
 
 ## Open questions worth deciding before building
 
@@ -239,10 +296,17 @@ genuinely knowing what changed, not just that something did.
    they're tightly related — the array-of-marks schema change and the
    exception-implies-fail invariant need to land together to stay
    consistent.
-3. The rendering change across all four annotation mechanisms — plain
-   symbols, potentially more than one per attribute per file.
-4. The override UI itself, writing to the new table from Part 1.
-5. The sync mechanism last, since it depends on every earlier piece already
-   working — the persistent override field, the new mark-array schema, and
-   the updated rendering all need to exist before "find the corresponding
-   annotation and update it" is even meaningful to build.
+3. **Normalize exception numbering to be consistent across all four
+   mechanisms** (or, as discussed above, key Part 1's table by attribute +
+   sample instead of by E-number, making this step unnecessary). Cheap to
+   do now, and a real prerequisite for step 5 below.
+4. The rendering change across all four annotation mechanisms — most of
+   this is already done (see the Part 3 status note above); what remains
+   is drawing potentially more than one mark per attribute per file, once
+   step 2's schema change lands.
+5. The override UI itself, writing to the new table from Part 1.
+6. The sync mechanism last, since it depends on every earlier piece already
+   working — the persistent override field, the new mark-array schema, the
+   updated rendering, and consistent exception numbering all need to exist
+   before "find the corresponding annotation and update it" is even
+   meaningful to build.

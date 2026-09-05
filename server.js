@@ -1771,6 +1771,48 @@ async function ensureAttributeCurrentEmbeddingsTable() {
 }
 ensureAttributeCurrentEmbeddingsTable();
 
+// Real, new table, per the pass-fail-override-and-sync plan — one row per
+// (attribute, sample) holding the AI's own most recent Analyze
+// determination alongside a separate, protected override a person can set.
+// Analyze's own bulk-write endpoint below only ever touches the ai_*
+// columns — override_result/override_note/exception_text/overridden_by/
+// overridden_at are written exclusively by the (not-yet-built) override
+// endpoint, so a later Analyze re-run can never silently clobber someone's
+// override. attribute_index/sample_row_index are plain integer positions,
+// matching the exact convention already used by attribute_current_embeddings
+// and reference_file_scopes, not stable UUIDs.
+async function ensureAttributeSampleResultsTable() {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attribute_sample_results (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id         TEXT NOT NULL,
+        workpaper_ref     TEXT NOT NULL,
+        attribute_index   INTEGER NOT NULL,
+        sample_row_index  INTEGER NOT NULL,
+        ai_result         TEXT DEFAULT NULL,
+        ai_marks          JSONB DEFAULT '[]',
+        ai_note           TEXT DEFAULT '',
+        ai_updated_at     TIMESTAMPTZ DEFAULT NULL,
+        override_result   TEXT DEFAULT NULL,
+        override_note     TEXT DEFAULT NULL,
+        exception_text    TEXT DEFAULT NULL,
+        overridden_by     TEXT DEFAULT NULL,
+        overridden_at     TIMESTAMPTZ DEFAULT NULL,
+        created_at        TIMESTAMPTZ DEFAULT NOW(),
+        updated_at        TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (tenant_id, workpaper_ref, attribute_index, sample_row_index)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_attr_sample_results_wp ON attribute_sample_results (tenant_id, workpaper_ref)`);
+    console.log('DB: attribute_sample_results table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: standalone attribute_sample_results table check FAILED:', err.message, err.code);
+  }
+}
+ensureAttributeSampleResultsTable();
+
 // Real, new, safety migration, per explicit request — genuinely
 // ensures every, real, edit-history row is tied to a real, existing
 // workpaper under the correct tenant at the database level itself,
@@ -5774,6 +5816,85 @@ app.get('/api/workpapers/:ref/access-check', async (req, res) => {
     const wp = await _resolveWorkpaper(req.currentTenantId, req.params.ref);
     res.json({ hasAccess: !!wp });
   } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/access-check:'); }
+});
+
+// Real, new, per the pass-fail-override-and-sync plan — writes the AI's
+// own determination for every (attribute, sample) pair from a just-
+// finished Analyze run, in one request. Upserts on the table's own
+// (tenant_id, workpaper_ref, attribute_index, sample_row_index) unique
+// constraint. Deliberately only ever touches the ai_* columns — never
+// override_result/override_note/exception_text/overridden_by/
+// overridden_at — so a later Analyze re-run can never silently clobber a
+// person's own override, even though this endpoint runs unconditionally
+// on every Analyze completion.
+app.post('/api/workpapers/:ref/attribute-sample-results/bulk', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const rows = Array.isArray(req.body?.results) ? req.body.results : [];
+  if (!rows.length) return res.json({ ok: true, saved: 0 });
+  try {
+    let saved = 0;
+    for (const r of rows) {
+      const attributeIndex = Number(r.attributeIndex);
+      const sampleRowIndex = Number(r.sampleRowIndex);
+      if (!Number.isInteger(attributeIndex) || !Number.isInteger(sampleRowIndex)) continue;
+      await pool.query(
+        `INSERT INTO attribute_sample_results
+           (tenant_id, workpaper_ref, attribute_index, sample_row_index, ai_result, ai_marks, ai_note, ai_updated_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+         ON CONFLICT (tenant_id, workpaper_ref, attribute_index, sample_row_index)
+         DO UPDATE SET ai_result=$5, ai_marks=$6, ai_note=$7, ai_updated_at=NOW(), updated_at=NOW()`,
+        [req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex,
+         r.result || null, JSON.stringify(r.marks || []), r.note || '']
+      );
+      saved++;
+    }
+    res.json({ ok: true, saved });
+  } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/attribute-sample-results/bulk:'); }
+});
+
+// Real, new, per the same plan — reads every persisted (attribute,
+// sample) row for a workpaper, AI determination and any override
+// together, for a future override UI to merge and display.
+app.get('/api/workpapers/:ref/attribute-sample-results', async (req, res) => {
+  if (!pool) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT attribute_index, sample_row_index, ai_result, ai_marks, ai_note, ai_updated_at,
+              override_result, override_note, exception_text, overridden_by, overridden_at
+       FROM attribute_sample_results WHERE tenant_id=$1 AND workpaper_ref=$2`,
+      [req.currentTenantId, req.params.ref]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/attribute-sample-results:'); }
+});
+
+// Real, new, per the same plan — sets a person's own override for one
+// specific (attribute, sample) result. Built now as the "read/write
+// plumbing" foundation the plan calls for, even though no UI calls this
+// yet — that's the override UI, a later, separate step. Requires the row
+// to already exist (an AI determination from at least one Analyze run),
+// since overriding a result that was never actually produced isn't a
+// meaningful action.
+app.post('/api/workpapers/:ref/attribute-sample-results/override', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const attributeIndex = Number(req.body?.attributeIndex);
+  const sampleRowIndex = Number(req.body?.sampleRowIndex);
+  if (!Number.isInteger(attributeIndex) || !Number.isInteger(sampleRowIndex)) {
+    return res.status(400).json({ error: 'attributeIndex and sampleRowIndex are required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `UPDATE attribute_sample_results
+       SET override_result=$1, override_note=$2, exception_text=$3,
+           overridden_by=$4, overridden_at=NOW(), updated_at=NOW()
+       WHERE tenant_id=$5 AND workpaper_ref=$6 AND attribute_index=$7 AND sample_row_index=$8
+       RETURNING id`,
+      [req.body?.overrideResult || null, req.body?.overrideNote || null, req.body?.exceptionText || null,
+       req.currentUser?.login_id || '', req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No AI determination exists yet for this attribute/sample — run Analyze first' });
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/attribute-sample-results/override:'); }
 });
 
 app.get('/api/workpapers', async (req, res) => {

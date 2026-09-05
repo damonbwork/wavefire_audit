@@ -8778,10 +8778,33 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     }
   }
 
+  // Real, confirmed fix, per direct report — same global, run-wide
+  // exception numbering as the burn-in mechanism, instead of a local
+  // counter that reset to 0 on every file. See the full explanation in
+  // _burnAnnotationsForFileFromResults above. pass_exception is retired:
+  // only 'fail' counts as an exception now.
+  var exNumGlobal = 0;
+  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
+  wpResults.forEach(function(fileResult, fi) {
+    attributes.forEach(function(attr, ai) {
+      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!m) {
+        var al = attr.title.toLowerCase();
+        m = (fileResult.results || []).find(function(r){
+          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
+        });
+      }
+      if (m && m.result === 'fail') {
+        exNumGlobal++;
+        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
+      }
+    });
+  });
+
   var anyPlaced = false;
-  var exNum = 0;
   var fieldSeq = 0; // Genuinely guarantees unique field names even if two entries would otherwise collide.
-  wpResults.forEach(function(fileResult){
+  wpResults.forEach(function(fileResult, fi){
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
@@ -8803,8 +8826,8 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
 
       var result = match.result || 'error';
       var isPass = (result === 'pass');
-      var isException = (result === 'pass_exception' || result === 'fail');
-      if (isException) exNum++;
+      var isException = (result === 'fail');
+      var exLabel = exMap[fi + '-' + ai] || null;
 
       var paraNum = Math.max(1, match.paragraph || (ai + 1));
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
@@ -8835,7 +8858,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
       var lines = [pdfText('[' + attrNum + ']')];
       if (isException) {
-        lines.push(pdfText('Exception E' + exNum + (match.note ? ': ' + String(match.note).slice(0, 90) : '')));
+        lines.push(pdfText('Exception ' + (exLabel || '?') + (match.note ? ': ' + String(match.note).slice(0, 90) : '')));
       } else if (match.note) {
         lines.push(pdfText(String(match.note).slice(0, 90)));
       }
@@ -9019,9 +9042,37 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     return y;
   }
 
+  // Real, confirmed fix, per direct report — exception numbering is now
+  // computed ONCE, globally, across every file in this Analyze run,
+  // using the exact same algorithm already proven correct in the
+  // Acrobat Sticky Note mechanism's own exMap (see
+  // _makeAcrobatAnnotatedCopyAfterAnalyze) and in exportToXlsx.
+  // Previously this function's own local "exNum" counter reset to 0 on
+  // every call (once per file), so the same real exception could show a
+  // different E-number depending on which annotated copy — or the xlsx
+  // export — someone had open. pass_exception is retired: only 'fail'
+  // counts as an exception now.
+  var exNumGlobal = 0;
+  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
+  wpResults.forEach(function(fileResult, fi) {
+    attributes.forEach(function(attr, ai) {
+      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!m) {
+        var al = attr.title.toLowerCase();
+        m = (fileResult.results || []).find(function(r){
+          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
+        });
+      }
+      if (m && m.result === 'fail') {
+        exNumGlobal++;
+        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
+      }
+    });
+  });
+
   var anyPlaced = false;
-  var exNum = 0;
-  wpResults.forEach(function(fileResult){
+  wpResults.forEach(function(fileResult, fi){
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
@@ -9056,8 +9107,8 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 
       var result = match.result || 'error';
       var isPass = (result === 'pass');
-      var isException = (result === 'pass_exception' || result === 'fail');
-      if (isException) exNum++;
+      var isException = (result === 'fail');
+      var exLabel = exMap[fi + '-' + ai] || null;
 
       var paraNum = Math.max(1, match.paragraph || (ai + 1));
       var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
@@ -9076,7 +9127,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       var _noteRaw = match.note ? String(match.note) : '';
       var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
       if (isException) {
-        detailText = 'Exception E' + exNum + (_noteText ? ': ' + _noteText : '');
+        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
       } else if (_noteText) {
         detailText = _noteText;
       }
@@ -9307,9 +9358,34 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     return y;
   }
 
+  // Real, confirmed fix, per direct report — same global, run-wide
+  // exception numbering as the plain "_annotated_bi" mechanism above,
+  // instead of a local counter that reset to 0 on every file. See the
+  // full explanation there. pass_exception is retired: only 'fail'
+  // counts as an exception now.
+  let exNumGlobal = 0;
+  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
+  wpResults.forEach(function(fileResult, fi) {
+    attributes.forEach(function(attr, ai) {
+      let m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
+      if (!m) {
+        const al = attr.title.toLowerCase();
+        m = (fileResult.results || []).find(function(r){
+          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
+        });
+      }
+      if (m && m.result === 'fail') {
+        exNumGlobal++;
+        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
+      }
+    });
+  });
+
   let anyPlaced = false;
-  let exNum = 0;
+  let fi = -1;
   for (const fileResult of wpResults) {
+    fi++;
     for (let ai = 0; ai < attributes.length; ai++) {
       const attr = attributes[ai];
       const match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
@@ -9327,8 +9403,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
 
       const result = match.result || 'error';
       const isPass = (result === 'pass');
-      const isException = (result === 'pass_exception' || result === 'fail');
-      if (isException) exNum++;
+      const isException = (result === 'fail');
+      const exLabel = exMap[fi + '-' + ai] || null;
 
       const paraNum = Math.max(1, match.paragraph || (ai + 1));
       const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
@@ -9343,7 +9419,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const _noteRaw = match.note ? String(match.note) : '';
       const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
       if (isException) {
-        detailText = 'Exception E' + exNum + (_noteText ? ': ' + _noteText : '');
+        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
       } else if (_noteText) {
         detailText = _noteText;
       }
@@ -21722,7 +21798,160 @@ function syncWPFsToAudit(ref, fsSet) {
 document.addEventListener('DOMContentLoaded', setupAnnOverlay);
 setTimeout(setupAnnOverlay, 800);
 
-function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName) {
+// Real, new, per the pass-fail-override-and-sync plan (Step 5) — a
+// small per-ref cache of the persisted attribute_sample_results rows
+// (the AI's own determination plus any person's override, keyed by
+// attribute_index + sample_row_index), so the tick-placement code below
+// doesn't refetch on every single file open. Invalidated (see the
+// post-Analyze bulk-save call) whenever a fresh Analyze run makes the
+// cached AI-side data stale.
+let _attrSampleResultsCache = {};
+
+async function _loadAttrSampleResults(ref) {
+  if (_attrSampleResultsCache[ref]) return _attrSampleResultsCache[ref];
+  try {
+    const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results');
+    const rows = res.ok ? await res.json() : [];
+    _attrSampleResultsCache[ref] = Array.isArray(rows) ? rows : [];
+  } catch (err) {
+    console.error('[Override] Could not load attribute_sample_results:', err.message);
+    _attrSampleResultsCache[ref] = [];
+  }
+  return _attrSampleResultsCache[ref];
+}
+
+function _findOverrideFor(ref, attributeIndex, sampleRowIndex) {
+  const rows = _attrSampleResultsCache[ref] || [];
+  return rows.find(r => r.attribute_index === attributeIndex && r.sample_row_index === sampleRowIndex) || null;
+}
+
+// Builds and shows the small override popup for one tick, anchored near
+// it. Reuses the same cream/navy panel look as the legend overlay
+// (placeLegendOverlay above) and the pass/fail toggle-button styling
+// already used in the manual annotation toolbar (search placeTickMark).
+function _openOverridePopup(overlay, tickEl, opts) {
+  const { ref, ai, fi, label, aiResult, aiNote, row } = opts;
+  overlay.querySelector('.ann-override-popup')?.remove();
+
+  const popup = document.createElement('div');
+  popup.className = 'ann-item ann-override-popup';
+  const left = (parseInt(tickEl.style.left) || 0) + 30;
+  const top  = Math.max(0, (parseInt(tickEl.style.top) || 0) - 10);
+  popup.style.cssText = 'position:absolute;left:' + left + 'px;top:' + top + 'px;z-index:60;' +
+    'pointer-events:all !important;background:rgba(252,252,238,0.98);' +
+    'border:1.5px solid rgba(180,170,100,0.7);border-radius:6px;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,0.25);width:260px;font-family:inherit;font-size:11px';
+
+  let selected = row?.override_result || aiResult;
+
+  function render() {
+    const hasOverride = !!row?.override_result;
+    popup.innerHTML = `
+      <div style="background:#39618b;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+        <span>Override — ${escHtml(label)}</span>
+        <span style="cursor:pointer;font-weight:400;opacity:0.8" id="ovr-close">✕</span>
+      </div>
+      <div style="padding:8px 10px;color:#1e293b">
+        <div style="color:#64748b;font-size:10px;margin-bottom:6px">
+          AI determination: <strong>${aiResult === 'fail' ? 'Fail' : 'Pass'}</strong>${aiNote ? ' — ' + escHtml(aiNote) : ''}
+        </div>
+        ${hasOverride ? `<div style="color:#92400e;font-size:10px;margin-bottom:6px">
+          Overridden by ${escHtml(row.overridden_by || '')} on ${row.overridden_at ? new Date(row.overridden_at).toLocaleDateString() : ''}
+        </div>` : ''}
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button id="ovr-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+          <button id="ovr-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+        </div>
+        <textarea id="ovr-note" placeholder="Override note / exception text" style="width:100%;min-height:44px;
+          box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+          ${hasOverride ? '<button id="ovr-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
+          <button id="ovr-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
+          <button id="ovr-save" style="padding:4px 10px;border-radius:4px;cursor:pointer;border:none;background:#1e40af;color:#fff;font-size:10px;font-weight:600">Save</button>
+        </div>
+      </div>`;
+
+    popup.querySelector('#ovr-close').onclick = () => popup.remove();
+    popup.querySelector('#ovr-cancel').onclick = () => popup.remove();
+    popup.querySelector('#ovr-pass').onclick = () => { selected = 'pass'; render(); };
+    popup.querySelector('#ovr-fail').onclick = () => { selected = 'fail'; render(); };
+    const clearBtn = popup.querySelector('#ovr-clear');
+    if (clearBtn) clearBtn.onclick = () => _saveOverride(ref, ai, fi, null, null, popup, tickEl, aiResult);
+    popup.querySelector('#ovr-save').onclick = () => {
+      const note = popup.querySelector('#ovr-note').value;
+      _saveOverride(ref, ai, fi, selected, note, popup, tickEl, aiResult);
+    };
+  }
+
+  render();
+  popup.addEventListener('mousedown', ev => ev.stopPropagation());
+  overlay.appendChild(popup);
+}
+
+// Real, confirmed simplification, per direct design decision — rather
+// than re-running the whole tick-placement pass (which would need every
+// one of its own closure variables re-threaded through here), this
+// updates the ONE tick element the popup was opened for directly: its
+// own symbol/color/background reflect the just-saved override, and a
+// small corner badge is added/removed to mark it as overridden. Every
+// other tick on the page is untouched, since nothing else changed.
+async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult) {
+  const TICK_SYMS = { pass:'✓', fail:'✗', error:'–' };
+  const TICK_COLS = { pass:'#16a34a', fail:'#dc2626', error:'#6b7280' };
+  const TICK_BG   = { pass:'rgba(22,163,74,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
+  try {
+    await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        attributeIndex: ai, sampleRowIndex: fi,
+        overrideResult: overrideResult || null,
+        overrideNote: overrideNote || null,
+        exceptionText: overrideNote || null,
+      }),
+    });
+    // Updates the cached row in place rather than refetching the whole
+    // workpaper's rows just to reflect this one save.
+    const rows = _attrSampleResultsCache[ref] || (_attrSampleResultsCache[ref] = []);
+    let row = rows.find(r => r.attribute_index === ai && r.sample_row_index === fi);
+    if (!row) { row = { attribute_index: ai, sample_row_index: fi }; rows.push(row); }
+    row.override_result = overrideResult || null;
+    row.override_note   = overrideNote || null;
+    row.overridden_at   = overrideResult ? new Date().toISOString() : null;
+    row.overridden_by   = overrideResult ? (_currentDisplayUser?.login_id || _currentDisplayUser?.name || '') : null;
+
+    // Real, confirmed fix — clearing an override must revert the tick to
+    // the AI's OWN result, not just strip the badge and leave whatever
+    // color/symbol the override last set.
+    const effective = overrideResult || aiResult;
+    tickEl.textContent  = TICK_SYMS[effective] || TICK_SYMS.error;
+    tickEl.style.color  = TICK_COLS[effective] || TICK_COLS.error;
+    tickEl.style.background = TICK_BG[effective] || TICK_BG.error;
+    tickEl.style.borderColor = TICK_COLS[effective] || TICK_COLS.error;
+    if (overrideResult) tickEl.dataset.overridden = '1';
+    else delete tickEl.dataset.overridden;
+    tickEl.querySelector('.ann-override-badge')?.remove();
+    if (tickEl.dataset.overridden) {
+      const badge = document.createElement('span');
+      badge.className = 'ann-override-badge';
+      badge.textContent = 'OVR';
+      badge.style.cssText = 'position:absolute;top:-8px;right:-6px;font-size:7px;font-weight:700;' +
+        'background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px';
+      tickEl.style.position = 'absolute'; // already set, kept explicit so the badge's own absolute position anchors correctly
+      tickEl.appendChild(badge);
+    }
+  } catch (err) {
+    console.error('[Override] Could not save override:', err.message);
+    alert('Could not save the override — check your network connection and try again.');
+  }
+  popup.remove();
+}
+
+function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
   console.log('[IAnn] START fi=', fi, 'attrs=', attributes.length, 'results=', fileResult?.results?.length);
   const overlay = document.getElementById('pdf-ann-overlay');
   console.log('[IAnn] overlay=', overlay, 'overlay pointerEvents=', overlay?.style?.pointerEvents);
@@ -21767,7 +21996,15 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
       if (_normSrc !== _normCur) return;
     }
 
-    const result = match.result || 'error';
+    const aiResult = match.result || 'error';
+    // Real, new, per the pass-fail-override-and-sync plan (Step 5) — a
+    // person's override, when one exists for this exact (attribute,
+    // sample) pair, wins visually over the AI's own result. The AI's own
+    // determination is never discarded — _findOverrideFor's row still
+    // carries it, and the override popup always shows it — this only
+    // decides which one the tick itself displays.
+    const overrideRow = ref ? _findOverrideFor(ref, ai, fi) : null;
+    const result = overrideRow?.override_result || aiResult;
     const sym    = TICK_SYMS[result] || '–';
     const col    = TICK_COLS[result] || '#6b7280';
     const bg     = TICK_BG[result]  || 'rgba(107,114,128,0.1)';
@@ -21797,8 +22034,44 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
       'pointer-events:all !important;' +
       'box-shadow:0 2px 6px rgba(0,0,0,0.18)';
     tickEl.textContent = sym;
+    if (overrideRow?.override_result) {
+      const badge = document.createElement('span');
+      badge.className = 'ann-override-badge';
+      badge.textContent = 'OVR';
+      badge.style.cssText = 'position:absolute;top:-8px;right:-6px;font-size:7px;font-weight:700;' +
+        'background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px';
+      tickEl.appendChild(badge);
+    }
     overlay.appendChild(tickEl);
     console.log('[IAnn] Tick placed at', tickX, tickY, 'sym=', sym, 'result=', result, 'el in DOM=', overlay.contains(tickEl));
+
+    // Real, new, per the pass-fail-override-and-sync plan (Step 5) — a
+    // small, non-draggable button beside the tick that opens the
+    // override popup. Deliberately its own separate element rather than
+    // reusing the tick's own click, since the tick already has its own
+    // mousedown-drag behavior (below) that a plain click would collide
+    // with.
+    if (ref) {
+      const overrideBtn = document.createElement('div');
+      overrideBtn.className = 'ann-item ann-auto ann-override-btn';
+      overrideBtn.textContent = '⋯';
+      overrideBtn.title = 'Override this result';
+      overrideBtn.style.cssText =
+        'position:absolute;left:' + (tickX + 34) + 'px;top:' + tickY + 'px;' +
+        'font-size:12px;font-weight:700;color:#475569;background:#fff;' +
+        'border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:1px 5px;cursor:pointer;' +
+        'user-select:none;z-index:55;pointer-events:all !important;box-shadow:0 1px 3px rgba(0,0,0,0.15)';
+      overrideBtn.addEventListener('mousedown', ev => ev.stopPropagation());
+      overrideBtn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        _openOverridePopup(overlay, tickEl, {
+          ref, ai, fi, label,
+          aiResult, aiNote: match.note || '',
+          row: overrideRow,
+        });
+      });
+      overlay.appendChild(overrideBtn);
+    }
 
     const annIdxTick = pdfAnnotations.length;
     pdfAnnotations.push({ type:'tick', tickType:result, symbol:sym, x:tickX, y:tickY, text:label, el:tickEl, auto:true });
@@ -25457,13 +25730,16 @@ async function analyzeWithClaude() {
   // ── Build systemPrompt once, and a per-row userText builder — each row
   // needs its own prompt naming that row's specific sample data, which a
   // single shared prompt (the old file-based design) couldn't express ──
-  const locationInstructions = `For each result also include the location where you found the supporting evidence:
-- "sourceFile": the exact title of the specific attached document (from the list of document titles given below) where you found the evidence for THIS attribute — every document you were given has its own title; use that exact title, not a paraphrase or a guess
+  // Real, confirmed redesign, per the pass-fail-override-and-sync plan —
+  // location is now per-MARK, not per-attribute, since one attribute can
+  // carry more than one mark (each with its own evidence location).
+  const locationInstructions = `Each mark needs its own location for where you found the supporting evidence:
+- "sourceFile": the exact title of the specific attached document (from the list of document titles given below) where you found the evidence for THIS mark — every document you were given has its own title; use that exact title, not a paraphrase or a guess
 - "page": the page number (integer, 1-based) within that document where the evidence was found
 - "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
 - "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
 Be as precise as possible — these coordinates are used to place tick marks directly on the correct document.
-Different attributes for the SAME sample can have evidence in DIFFERENT documents — report the actual document each one was found in, not just whichever document you looked at first.`;
+Different marks — whether for the same attribute or different ones — can point to evidence in DIFFERENT documents; report the actual document each one was found in, not just whichever document you looked at first.`;
 
   const systemPrompt = `You are an internal audit assistant evaluating a specific sample against test attributes.
 You will be given one or more source documents (the complete set of attached sample files, each with its own
@@ -25474,11 +25750,32 @@ one, not just the first matching-looking content you encounter. Evidence for dif
 sample may be spread across different documents — check all of them, not just one.
 For each test attribute, evaluate this specific sample and respond ONLY with valid JSON — no markdown, no explanation.
 CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.
+
+Each attribute's own "marks" array can hold one or more marks — most attributes will need only one, but use more
+than one when the same attribute has genuinely distinct pieces of evidence worth marking separately (e.g. two
+different clauses, on two different pages, that both bear on the same attribute). Each mark is either "pass" or
+"fail" — there is no third state.
+
+Determining pass vs. fail for each mark, in order of how these interact:
+- Weigh the attribute's title, its additional information, and its explicit pass/fail criteria TOGETHER as one
+  combined picture — never treat the pass/fail criteria as the only input that matters, ignoring the title's own
+  intent or the additional context provided.
+- A genuine control failure, or a genuine inconsistency between the sample data given to you and what the source
+  documents actually show, is a "fail" — and when you write a "fail", you MUST also write real exception text in
+  that mark's own "note" describing specifically what failed and why. An exception and a fail always go together;
+  never write exception-sounding text on a "pass" mark, and never mark something "fail" without real exception
+  text explaining it.
+- A minor deviation from ideal practice that does NOT rise to an actual control failure is NOT an exception —
+  keep the mark "pass" and put the observation in "note" as a plain, non-exception comment instead.
+- Sample data given to you that you genuinely cannot locate anywhere in the source documents — not contradicted,
+  simply absent or unfindable — should also be marked "fail" with exception text explaining what could not be
+  located, since untestable data is not the same as data that passed.
 ${locationInstructions}
-For each result also include:
-- "note": one concise sentence (max 80 chars) — the brief finding, written for a workpaper.
-- "reasoning": your own explanation of how you reached this conclusion for THIS attribute — what you looked for, what you found (or didn't), and why that supports the pass/fail/exception result. Write this as your own account of the evaluation process, not a restatement of the note. A few sentences is fine; there's no strict length cap, but stay focused on this one attribute's reasoning specifically.
-Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","reasoning":"<your explanation of how you evaluated this attribute>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}]}`;
+For each mark also include:
+- "note": one concise sentence (max 80 chars) — for a "fail" mark, this IS the exception text; for a "pass" mark, an optional plain observation, not an exception.
+For each attribute also include:
+- "reasoning": your own explanation of how you reached this conclusion for THIS attribute — what you looked for, what you found (or didn't), and why that supports the mark(s) you gave it. Write this as your own account of the evaluation process, not a restatement of the note. A few sentences is fine; there's no strict length cap, but stay focused on this one attribute's reasoning specifically.
+Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}]}`;
 
   // Builds the row-specific portion of the prompt: a human-readable
   // description of exactly which sample this pass is testing, built from
@@ -25751,6 +26048,43 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
         }
       }
 
+      // Real, new, per the pass-fail-override-and-sync plan — normalizes
+      // every attribute result to carry BOTH a real "marks" array AND
+      // the old flat fields (result/note/page/section/paragraph/
+      // sourceFile) every existing consumer still reads directly (bi,
+      // bi2, ff, sn, the xlsx export, the live viewer, the exception
+      // memo — roughly 15 call sites). This keeps the data model multi-
+      // mark-ready without requiring any of those consumers to change
+      // yet — actually rendering more than one mark per attribute is a
+      // separate, later step. The flat fields are taken from the first
+      // "fail" mark if one exists (so a failing attribute's flat view
+      // always shows ITS OWN exception, not an unrelated pass mark's
+      // note), otherwise the first mark.
+      (parsed.results || []).forEach(r => {
+        if (!Array.isArray(r.marks) || !r.marks.length) {
+          // Old-shape or malformed model output — synthesize a single-
+          // element marks array from whatever flat fields are present,
+          // so every consumer downstream sees the same normalized shape
+          // regardless of what the model actually returned.
+          r.marks = [{
+            result: r.result === 'fail' ? 'fail' : 'pass',
+            note: r.note || '',
+            sourceFile: r.sourceFile || '',
+            page: r.page || 1,
+            section: r.section || '',
+            paragraph: r.paragraph || 0,
+          }];
+        }
+        const failMark = r.marks.find(m => m.result === 'fail');
+        const rep = failMark || r.marks[0];
+        r.result     = failMark ? 'fail' : 'pass';
+        r.note       = rep.note || '';
+        r.sourceFile = rep.sourceFile || '';
+        r.page       = rep.page || 1;
+        r.section    = rep.section || '';
+        r.paragraph  = rep.paragraph || 0;
+      });
+
       if (!parsed.results?.length) throw new Error('No results in response');
       return { ok: true, results: parsed.results, commentary: '' };
     } catch(err) {
@@ -25829,16 +26163,20 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
     setProgress(Math.round((processed / totalFiles) * 80), `Simulating analysis of ${sf.name}…`);
     await new Promise(r => setTimeout(r, 400)); // brief delay for UX
 
-    // Mock: vary results based on file name patterns
+    // Mock: vary results based on file name patterns. Real, confirmed
+    // fix, per the pass-fail-override-and-sync plan — pass_exception is
+    // retired everywhere, including this demo/mock path, and every mock
+    // result carries a "marks" array too, so it's shaped identically to
+    // a real, normalized Analyze result rather than an old, flat-only one.
     const mockResults = attributes.map((a, i) => {
       const roll = (sf.name.charCodeAt(i % sf.name.length) + i) % 10;
-      const result = roll < 6 ? 'pass' : roll < 8 ? 'pass_exception' : 'fail';
+      const result = roll < 8 ? 'pass' : 'fail';
       const notes = {
-        pass:           'Document evidences compliance with this attribute.',
-        pass_exception: 'Attribute met with minor documentation gap noted.',
-        fail:           'Required evidence not found in document.',
+        pass: 'Document evidences compliance with this attribute.',
+        fail: 'Required evidence not found in document.',
       };
-      return { title: a.title, result, note: notes[result] };
+      const note = notes[result];
+      return { title: a.title, result, note, marks: [{ result, note, page: 1, section: '', paragraph: i + 1 }] };
     });
 
     analysisResults.push({ fileName: sf.name, results: mockResults });
@@ -25905,6 +26243,46 @@ Format: {"results":[{"title":"<exact attribute title as provided>","result":"pas
   // suggestion reads. A failure here is logged, not surfaced as an
   // Analyze failure — this is a background signal, never a blocker.
   _classifyAndLogAttributeOutcomes(ref, attributes, analysisResults).catch(err => console.error('[OutcomeLogging] Unexpected failure:', err));
+
+  // Real, new, per the pass-fail-override-and-sync plan — persists the
+  // AI's own determination for every (attribute, sample) pair from this
+  // run into the new attribute_sample_results table, so a later override
+  // has something to attach to and is kept separate from whatever the
+  // next Analyze run determines. Fire-and-forget, the exact, same
+  // pattern as the annotation mechanisms above — a failure here doesn't
+  // block or fail the Analyze run itself.
+  (async () => {
+    try {
+      const payload = [];
+      analysisResults.forEach((fileResult, sampleRowIndex) => {
+        attributes.forEach((attr, attributeIndex) => {
+          const match = (fileResult.results || []).find(r => r.title === attr.title);
+          if (!match) return;
+          payload.push({
+            attributeIndex,
+            sampleRowIndex,
+            result: match.result || 'pass',
+            marks: match.marks || [],
+            note: match.note || '',
+          });
+        });
+      });
+      if (payload.length) {
+        await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/bulk', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ results: payload }),
+        });
+        // Real, new, per the pass-fail-override-and-sync plan (Step 5) —
+        // invalidates this workpaper's cached attribute_sample_results
+        // (see placeInteractiveAnnotations/_loadAttrSampleResults) so the
+        // next file opened after this run fetches fresh AI-side data
+        // instead of showing whatever a prior Analyze run last produced.
+        delete _attrSampleResultsCache[ref];
+      }
+    } catch (err) {
+      console.error('[AttributeSampleResults] Could not persist AI determinations:', err.message);
+    }
+  })();
 
   setProgress(100, errorCount > 0
     ? `Analysis complete — ${successCount} succeeded, ${errorCount} failed. See details below.`
@@ -26261,11 +26639,16 @@ async function downloadTestGuidance() {
   lines.push('SECTION 1 — SYSTEM PROMPT (sent as the "system" parameter)');
   lines.push(HR);
   lines.push('');
-  const locationInstructions = `For each result also include the location where you found the supporting evidence:
+  // Real, confirmed fix — kept in sync with the actual, real systemPrompt
+  // template (search for "each mark needs its own location") after the
+  // pass-fail-override-and-sync plan's schema change: marks (pass/fail
+  // only, no pass_exception) replace a single flat result per attribute.
+  const locationInstructions = `Each mark needs its own location for where you found the supporting evidence:
 - "page": the page number (integer, 1-based) where the evidence was found
 - "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
 - "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
-Be as precise as possible — these coordinates are used to place tick marks directly on the document.`;
+Be as precise as possible — these coordinates are used to place tick marks directly on the document.
+A "fail" mark must carry real exception text in its own "note"; a minor, non-failing deviation goes in "note" on a "pass" mark instead.`;
 
   if (sampleFields.length) {
     lines.push(`You are an internal audit assistant evaluating sample files against test attributes and extracting specific fields.`);
@@ -26273,13 +26656,13 @@ Be as precise as possible — these coordinates are used to place tick marks dir
     lines.push(`Respond ONLY with valid JSON — no markdown, no explanation.`);
     lines.push(`CRITICAL: The "title" field in results must match the attribute title EXACTLY as given.`);
     lines.push(locationInstructions);
-    lines.push(`Format: {"results":[{"title":"<exact attribute title>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`);
+    lines.push(`Format: {"results":[{"title":"<exact attribute title>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}],"fields":[{"name":"<exact field name as given>","value":"<extracted value or empty if not found>"}]}`);
   } else {
     lines.push(`You are an internal audit assistant evaluating sample files against test attributes.`);
     lines.push(`For each test attribute, evaluate the provided document and respond ONLY with valid JSON — no markdown, no explanation.`);
     lines.push(`CRITICAL: The "title" field in your response must match the attribute title EXACTLY as given — do not modify, expand, or append to it.`);
     lines.push(locationInstructions);
-    lines.push(`Format: {"results":[{"title":"<exact attribute title as provided>","result":"pass"|"pass_exception"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}`);
+    lines.push(`Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","page":1,"section":"<section heading or empty>","paragraph":2}]}]}`);
   }
   lines.push('');
 
@@ -27935,7 +28318,7 @@ async function previewMemFile(ref, bucket, idx) {
               relevantResults.forEach(fileResult => {
                 const fi = wpResults.indexOf(fileResult);
                 placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
-                placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi, name);
+                placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi, name, ref);
               });
               // Real, confirmed fix, per direct feedback — this is a
               // genuinely separate, independently-timed path from the
@@ -27951,8 +28334,17 @@ async function previewMemFile(ref, bucket, idx) {
               setTimeout(_tryPlace, 150);
             }
           };
-          // Try on next two frames (after RAF in renderPDFPreview sets overlay height)
-          requestAnimationFrame(() => requestAnimationFrame(_tryPlace));
+          // Real, new, per the pass-fail-override-and-sync plan (Step 5)
+          // — loads (or reuses the cached) attribute_sample_results for
+          // this workpaper BEFORE ticks are placed, so
+          // placeInteractiveAnnotations can look up any existing
+          // override the first time it draws each tick, rather than
+          // drawing AI-only ticks and only reflecting overrides after a
+          // second pass.
+          _loadAttrSampleResults(ref).then(() => {
+            // Try on next two frames (after RAF in renderPDFPreview sets overlay height)
+            requestAnimationFrame(() => requestAnimationFrame(_tryPlace));
+          });
         } else {
           console.log('[Viewer] No relevant analysis results for', name, '— sample results available:', wpResults.map(r=>r.sampleDesc || r.fileName));
         }
