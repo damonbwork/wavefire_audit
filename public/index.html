@@ -3353,6 +3353,13 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-list-details"></i>Test attributes</div>
             <span id="attr-bulk-delete-slot"></span>
+            <!-- Real, new, per the pass-fail-override-and-sync plan's
+                 Test-Attributes-grid follow-up — selects which sample's
+                 results the Result column below shows and overrides,
+                 since one attribute can have a different pass/fail per
+                 sample and multi-sample workpapers are the normal case. -->
+            <select id="attr-result-sample-picker" onchange="_onAttrResultSampleChange()" title="Which sample's results the Result column shows"
+              style="font-size:10px;padding:2px 6px;border-radius:5px;border:0.5px solid var(--border-light);background:var(--bg-primary);max-width:200px;flex-shrink:0"></select>
             <button id="attr-guidance-btn" onclick="openGuidanceModal()" title="Get AI-powered suggestions for this workpaper's attributes and risks" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/></svg> Guidance
             </button>
@@ -3372,6 +3379,7 @@
               <div class="attr-col-hdr-cell" data-col="title" style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
               <div class="attr-col-hdr-cell" data-col="desc" style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
               <div class="attr-col-hdr-cell" data-col="addl" style="flex:1.5;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
+              <div class="attr-col-hdr-cell" data-col="result" style="width:90px;min-width:90px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Result</div>
               <div class="attr-col-hdr-cell attr-criteria-col" data-col="success" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default" onmouseenter="document.getElementById('criteria-tooltip').style.display='block'" onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
                 Success Criteria
                 <div id="criteria-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 6px);width:280px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;text-transform:none;letter-spacing:normal;pointer-events:none">
@@ -21825,6 +21833,28 @@ function _findOverrideFor(ref, attributeIndex, sampleRowIndex) {
   return rows.find(r => r.attribute_index === attributeIndex && r.sample_row_index === sampleRowIndex) || null;
 }
 
+// Real, new, per the Test-Attributes-grid follow-up — which sample's
+// results the grid's Result column currently shows, persisted per
+// workpaper ref the same way _selectedAttrRowIdx already is.
+let _attrResultSampleIdx = {};
+
+// A direct port of the _describeSampleRow closure inside analyzeWithClaude
+// (private to that function, not reachable here) — builds the same
+// human-readable "Column: value, Column: value" label from a sample
+// data grid row's populated cells, using _daSampleDataFor(ref).columns
+// instead of that closure's local sdGrid.
+function _describeSampleGridRow(ref, row) {
+  const grid = _daSampleDataFor(ref);
+  const parts = [];
+  (grid?.columns || []).forEach(col => {
+    const v = row.cells && row.cells[col.id];
+    if (v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim().toLowerCase() !== 'not found') {
+      parts.push(`${col.title || '(untitled column)'}: ${v}`);
+    }
+  });
+  return parts.join(', ');
+}
+
 // Builds and shows the small override popup for one tick, anchored near
 // it. Reuses the same cream/navy panel look as the legend overlay
 // (placeLegendOverlay above) and the pass/fail toggle-button styling
@@ -21893,17 +21923,12 @@ function _openOverridePopup(overlay, tickEl, opts) {
   overlay.appendChild(popup);
 }
 
-// Real, confirmed simplification, per direct design decision — rather
-// than re-running the whole tick-placement pass (which would need every
-// one of its own closure variables re-threaded through here), this
-// updates the ONE tick element the popup was opened for directly: its
-// own symbol/color/background reflect the just-saved override, and a
-// small corner badge is added/removed to mark it as overridden. Every
-// other tick on the page is untouched, since nothing else changed.
-async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult) {
-  const TICK_SYMS = { pass:'✓', fail:'✗', error:'–' };
-  const TICK_COLS = { pass:'#16a34a', fail:'#dc2626', error:'#6b7280' };
-  const TICK_BG   = { pass:'rgba(22,163,74,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
+// Real, confirmed refactor, per the Test-Attributes-grid follow-up —
+// split out of what used to be _saveOverride's own body, so both the PDF
+// tick popup and the Test Attributes grid's popup can share the same
+// network call + cache update without duplicating either. Returns the
+// updated cached row, or null if the save failed (already alerted).
+async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
   try {
     await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -21923,7 +21948,27 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
     row.override_note   = overrideNote || null;
     row.overridden_at   = overrideResult ? new Date().toISOString() : null;
     row.overridden_by   = overrideResult ? (_currentDisplayUser?.login_id || _currentDisplayUser?.name || '') : null;
+    return row;
+  } catch (err) {
+    console.error('[Override] Could not save override:', err.message);
+    alert('Could not save the override — check your network connection and try again.');
+    return null;
+  }
+}
 
+// Real, confirmed simplification, per direct design decision — rather
+// than re-running the whole tick-placement pass (which would need every
+// one of its own closure variables re-threaded through here), this
+// updates the ONE tick element the popup was opened for directly: its
+// own symbol/color/background reflect the just-saved override, and a
+// small corner badge is added/removed to mark it as overridden. Every
+// other tick on the page is untouched, since nothing else changed.
+async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult) {
+  const TICK_SYMS = { pass:'✓', fail:'✗', error:'–' };
+  const TICK_COLS = { pass:'#16a34a', fail:'#dc2626', error:'#6b7280' };
+  const TICK_BG   = { pass:'rgba(22,163,74,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
+  const row = await _postOverride(ref, ai, fi, overrideResult, overrideNote);
+  if (row) {
     // Real, confirmed fix — clearing an override must revert the tick to
     // the AI's OWN result, not just strip the badge and leave whatever
     // color/symbol the override last set.
@@ -21944,9 +21989,104 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
       tickEl.style.position = 'absolute'; // already set, kept explicit so the badge's own absolute position anchors correctly
       tickEl.appendChild(badge);
     }
-  } catch (err) {
-    console.error('[Override] Could not save override:', err.message);
-    alert('Could not save the override — check your network connection and try again.');
+  }
+  popup.remove();
+}
+
+// Real, new, per the Test-Attributes-grid follow-up — the grid's own
+// popup for overriding one (attribute, sample) cell, positioned relative
+// to the viewport (the grid has no absolute-positioned "overlay"
+// container the way the PDF preview pane does), rather than reusing
+// _openOverridePopup's overlay-relative positioning. Same visual content.
+function _openAttrOverridePopup(btnEl, opts) {
+  const { ref, ai, fi, label, aiResult, aiNote, row } = opts;
+  document.querySelectorAll('.ann-attr-override-popup').forEach(el => el.remove());
+
+  const rect = btnEl.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'ann-attr-override-popup';
+  popup.style.cssText = 'position:fixed;left:' + Math.max(8, rect.left - 200) + 'px;top:' + (rect.bottom + 6) + 'px;' +
+    'z-index:9999;background:rgba(252,252,238,0.98);' +
+    'border:1.5px solid rgba(180,170,100,0.7);border-radius:6px;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,0.25);width:260px;font-family:inherit;font-size:11px';
+
+  let selected = row?.override_result || aiResult;
+
+  function render() {
+    const hasOverride = !!row?.override_result;
+    popup.innerHTML = `
+      <div style="background:#39618b;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+        <span>Override — ${escHtml(label)}</span>
+        <span style="cursor:pointer;font-weight:400;opacity:0.8" id="ovr2-close">✕</span>
+      </div>
+      <div style="padding:8px 10px;color:#1e293b">
+        <div style="color:#64748b;font-size:10px;margin-bottom:6px">
+          AI determination: <strong>${aiResult === 'fail' ? 'Fail' : 'Pass'}</strong>${aiNote ? ' — ' + escHtml(aiNote) : ''}
+        </div>
+        ${hasOverride ? `<div style="color:#92400e;font-size:10px;margin-bottom:6px">
+          Overridden by ${escHtml(row.overridden_by || '')} on ${row.overridden_at ? new Date(row.overridden_at).toLocaleDateString() : ''}
+        </div>` : ''}
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button id="ovr2-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+          <button id="ovr2-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+        </div>
+        <textarea id="ovr2-note" placeholder="Override note / exception text" style="width:100%;min-height:44px;
+          box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+          ${hasOverride ? '<button id="ovr2-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
+          <button id="ovr2-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
+          <button id="ovr2-save" style="padding:4px 10px;border-radius:4px;cursor:pointer;border:none;background:#1e40af;color:#fff;font-size:10px;font-weight:600">Save</button>
+        </div>
+      </div>`;
+
+    popup.querySelector('#ovr2-close').onclick = () => popup.remove();
+    popup.querySelector('#ovr2-cancel').onclick = () => popup.remove();
+    popup.querySelector('#ovr2-pass').onclick = () => { selected = 'pass'; render(); };
+    popup.querySelector('#ovr2-fail').onclick = () => { selected = 'fail'; render(); };
+    const clearBtn = popup.querySelector('#ovr2-clear');
+    if (clearBtn) clearBtn.onclick = () => _saveAttrGridOverride(ref, ai, fi, null, null, popup, btnEl, aiResult);
+    popup.querySelector('#ovr2-save').onclick = () => {
+      const note = popup.querySelector('#ovr2-note').value;
+      _saveAttrGridOverride(ref, ai, fi, selected, note, popup, btnEl, aiResult);
+    };
+  }
+
+  render();
+  popup.addEventListener('mousedown', ev => ev.stopPropagation());
+  document.body.appendChild(popup);
+}
+
+// Real, new — the grid analog of _saveOverride: same _postOverride call,
+// but updates the small result cell (icon + badge) beside the override
+// button rather than a PDF tick.
+async function _saveAttrGridOverride(ref, ai, fi, overrideResult, overrideNote, popup, btnEl, aiResult) {
+  const SYMS = { pass:'✓', fail:'✗' };
+  const COLS = { pass:'#16a34a', fail:'#dc2626' };
+  const row = await _postOverride(ref, ai, fi, overrideResult, overrideNote);
+  if (row) {
+    const cell = btnEl.closest('.attr-result-cell');
+    if (cell) {
+      const effective = overrideResult || aiResult;
+      const iconEl = cell.querySelector('.attr-result-icon');
+      if (iconEl) {
+        iconEl.textContent = SYMS[effective] || '–';
+        iconEl.style.color = COLS[effective] || '#6b7280';
+      }
+      cell.querySelector('.attr-result-badge')?.remove();
+      if (overrideResult) {
+        const badge = document.createElement('span');
+        badge.className = 'attr-result-badge';
+        badge.textContent = 'OVR';
+        badge.style.cssText = 'font-size:7px;font-weight:700;background:#1e40af;color:#fff;' +
+          'border-radius:3px;padding:0 3px;letter-spacing:0.3px;margin-left:3px';
+        cell.appendChild(badge);
+      }
+    }
   }
   popup.remove();
 }
@@ -33498,7 +33638,32 @@ function renderTestAttributes(ref) {
   if (hasCriteriaData) _attrCriteriaVisible = true;
 
   const selectedIdx = _selectedAttrRowIdx[ref];
-  let html = rows.map((a, i) => makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '', rows.length, i === selectedIdx)).join('');
+
+  // Real, new, per the pass-fail-override-and-sync plan's Test-
+  // Attributes-grid follow-up — syncs the sample picker (which sample's
+  // results the Result column shows), ensures the persisted
+  // attribute_sample_results cache is loaded, and computes each row's
+  // real attributeIndex (position in the FILTERED, title-only array —
+  // NOT this raw array's own index — matching the exact convention the
+  // bulk-save endpoint and the PDF-viewer overlay both already use).
+  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  _syncAttrResultSamplePicker(ref, sampleRows);
+  const sampleRowIndex = sampleRows.length ? (_attrResultSampleIdx[ref] || 0) : null;
+
+  if (!_attrSampleResultsCache[ref]) {
+    _loadAttrSampleResults(ref).then(() => {
+      // Only re-render if still looking at the same workpaper — avoids a
+      // stale fetch clobbering a render for whatever the user has since
+      // navigated to.
+      if (currentAttrWPRef === ref) renderTestAttributes(ref);
+    });
+  }
+
+  let filteredIdx = 0;
+  let html = rows.map((a, i) => {
+    const attributeIndex = (a.title || '').trim() ? filteredIdx++ : null;
+    return makeAttrRowHtml(i, a.num, a.attrRef || '', a.title, a.desc, a.additionalInfo || '', rows.length, i === selectedIdx, ref, attributeIndex, sampleRowIndex);
+  }).join('');
   // No auto blank row — user must click "Add attribute" to add a new row
   if (rows.length === 0) {
     html = `<div style="padding:14px 16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No attributes yet — click "Add attribute" to begin.</div>`;
@@ -33514,6 +33679,50 @@ function renderTestAttributes(ref) {
 
   // Auto-resize all description textareas to fit their content
   setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
+}
+
+// Real, new, per the Test-Attributes-grid follow-up — (re)populates the
+// sample picker's options from this workpaper's own sample data rows,
+// preserving the persisted selection (_attrResultSampleIdx) when it's
+// still a valid index, clamping it back to 0 otherwise (e.g. a sample
+// row was deleted since it was last selected).
+function _syncAttrResultSamplePicker(ref, sampleRows) {
+  const picker = document.getElementById('attr-result-sample-picker');
+  if (!picker) return;
+  if (!sampleRows.length) {
+    picker.innerHTML = '<option>No samples yet</option>';
+    picker.disabled = true;
+    return;
+  }
+  picker.disabled = false;
+  let idx = _attrResultSampleIdx[ref] || 0;
+  if (idx >= sampleRows.length) idx = 0;
+  _attrResultSampleIdx[ref] = idx;
+  picker.innerHTML = sampleRows.map((row, i) => {
+    const label = _describeSampleGridRow(ref, row) || ('Sample ' + (i + 1));
+    return `<option value="${i}"${i === idx ? ' selected' : ''}>${escHtml(label.length > 40 ? label.slice(0, 40) + '…' : label)}</option>`;
+  }).join('');
+}
+
+function _onAttrResultSampleChange() {
+  const picker = document.getElementById('attr-result-sample-picker');
+  if (!picker || !currentAttrWPRef) return;
+  _attrResultSampleIdx[currentAttrWPRef] = parseInt(picker.value, 10) || 0;
+  renderTestAttributes(currentAttrWPRef);
+}
+
+// Real, new, per the Test-Attributes-grid follow-up — opens the override
+// popup for one grid cell. Re-reads the cached row fresh at click time
+// (rather than trusting whatever was baked in when the cell last
+// rendered), since the cache can have changed since then.
+function _onAttrResultBtnClick(btnEl, ref, ai, fi, label) {
+  const row = _findOverrideFor(ref, ai, fi);
+  _openAttrOverridePopup(btnEl, {
+    ref, ai, fi, label,
+    aiResult: row?.ai_result || 'error',
+    aiNote: row?.ai_note || '',
+    row,
+  });
 }
 
 // Tracks which attribute row (by index) is currently selected, per
@@ -33793,10 +34002,33 @@ function _hideAttrRefFileHover() {
   if (existing) existing.remove();
 }
 
-function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRows, isSelected) {
+function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRows, isSelected, ref, attributeIndex, sampleRowIndex) {
   const base   = (idx * 4) + 1;
   const rowNum = idx + 1; // always sequential, not user-editable
   const selectedStyle = isSelected ? 'background:#dbeafe' : '';
+
+  // Real, new, per the pass-fail-override-and-sync plan's Test-
+  // Attributes-grid follow-up. attributeIndex is null for a blank-titled
+  // row (Analyze skips those — there's nothing to show), and
+  // sampleRowIndex is null when the workpaper has no sample rows yet —
+  // either case just shows a muted placeholder, no control.
+  let resultCellInner = '<span style="color:var(--text-tertiary);font-size:12px">—</span>';
+  if (ref && attributeIndex !== null && sampleRowIndex !== null) {
+    const resRow = _findOverrideFor(ref, attributeIndex, sampleRowIndex);
+    const effective = resRow?.override_result || resRow?.ai_result;
+    const SYMS = { pass:'✓', fail:'✗' };
+    const COLS = { pass:'#16a34a', fail:'#dc2626' };
+    const sym = effective ? (SYMS[effective] || '–') : '…';
+    const col = effective ? (COLS[effective] || '#6b7280') : '#94a3b8';
+    const badge = resRow?.override_result
+      ? '<span class="attr-result-badge" style="font-size:7px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px;margin-left:3px">OVR</span>'
+      : '';
+    const resultLabel = attrRef || num || String(attributeIndex + 1);
+    resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}` +
+      `<button type="button" class="icon-btn attr-result-override-btn" title="Override this result" tabindex="-1" ` +
+      `onclick="event.stopPropagation();_onAttrResultBtnClick(this, '${ref}', ${attributeIndex}, ${sampleRowIndex}, '${escAttr(resultLabel)}')" ` +
+      `style="width:16px;height:16px;font-size:10px;padding:0;line-height:1;margin-left:2px">&#x22EF;</button>`;
+  }
   // Arrows only render for the SELECTED row — clicking the row number cell
   // selects it (or deselects if already selected); up/down move the
   // attribute in wpTestAttributes and trigger a full re-render + renumber +
@@ -33836,6 +34068,9 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
       <textarea class="attr-input attr-additional" maxlength="5000" placeholder="Additional information…"
         tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;cursor:default">${escAttr(additionalInfo)}</textarea>
+    </div>
+    <div class="attr-cell attr-result-cell" data-col="result" style="flex-shrink:0;width:90px;padding:6px 10px;display:flex;align-items:center;justify-content:center">
+      ${resultCellInner}
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
       <textarea class="attr-input attr-success" maxlength="2500" placeholder="Success criteria…"
