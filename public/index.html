@@ -33655,14 +33655,65 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
 
   function isDirty() { return Object.keys(pending).length > 0; }
 
+  // Real, new, per direct request — returns whether it actually closed,
+  // so the new file links below can respect the same discard-warning
+  // gate before navigating away, rather than silently abandoning
+  // pending changes.
   function closeModal() {
-    if (isDirty() && !confirm('You have unsaved override changes. Discard them?')) return;
+    if (isDirty() && !confirm('You have unsaved override changes. Discard them?')) return false;
     overlay.remove();
+    return true;
   }
 
   function rowLabel(row, i) {
     const desc = _describeSampleGridRow(ref, row);
     return 'Sample ' + (i + 1) + (desc ? ' — ' + desc : '');
+  }
+
+  // Real, new, per direct request — finds this attribute's own result
+  // record for sample row `fi`, the exact same matching (including the
+  // fuzzy title fallback) placeInteractiveAnnotations already uses, so
+  // "which file/page has the mark" agrees with what the PDF viewer's own
+  // overlay placement would find.
+  function findMatchForSample(fi) {
+    const fileResult = _wpAnalysisResults[ref]?.[fi];
+    if (!fileResult) return null;
+    let m = (fileResult.results || []).find(r => r.title === attrTitle);
+    if (!m) {
+      const al = attrTitle.toLowerCase();
+      m = (fileResult.results || []).find(r =>
+        r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+      );
+    }
+    return m || null;
+  }
+
+  // Real, new, per direct request — one link per annotated copy that
+  // currently exists for this sample's original file (labeled by its
+  // own suffix), or a single "Original file" link when none exist yet.
+  // Never links to both the original AND its annotated copies at once —
+  // once annotated copies exist, those are the ones actually showing
+  // the mark.
+  const SUFFIX_LABELS = [
+    [/_annotated_bi2\.pdf$/i, 'Movable stamp'],
+    [/_annotated_bi\.pdf$/i, 'Burned-in'],
+    [/_annotated_ff\.pdf$/i, 'Form-field'],
+    [/_annotated_sn\.pdf$/i, 'Sticky Note'],
+  ];
+  function buildFileLinksHtml(match) {
+    if (!match || !match.sourceFile) return '';
+    const bucketArr = inMemoryFiles[ref]?.sample || [];
+    const copies = bucketArr.filter(f => f._annotatedFrom === match.sourceFile);
+    const links = copies.length
+      ? copies.map(f => {
+          const found = SUFFIX_LABELS.find(([re]) => re.test(f.name));
+          return { label: found ? found[1] : f.name, filename: f.name, isOriginal: false };
+        })
+      : [{ label: 'Original file', filename: match.sourceFile, isOriginal: true }];
+    return links.map(l =>
+      `<a href="#" class="attr-modal-file-link" data-filename="${escAttr(l.filename)}" data-page="${match.page || 1}" data-original="${l.isOriginal ? '1' : '0'}" ` +
+      `style="font-size:10px;color:#1e40af;text-decoration:underline;margin-right:12px;white-space:nowrap">${escHtml(l.label)}</a>`
+    ).join('');
   }
 
   function renderRow(row, fi) {
@@ -33695,6 +33746,27 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       renderList();
     };
     rowEl.appendChild(header);
+
+    // Real, new, per direct request — links to the actual sample
+    // file(s) this mark lives in, visible whether or not the row is
+    // expanded (navigational, not part of override editing).
+    const match = findMatchForSample(fi);
+    const linksHtml = buildFileLinksHtml(match);
+    if (linksHtml) {
+      const linksEl = document.createElement('div');
+      linksEl.style.cssText = 'padding:0 14px 8px 38px;display:flex;flex-wrap:wrap';
+      linksEl.innerHTML = linksHtml;
+      linksEl.querySelectorAll('.attr-modal-file-link').forEach(a => {
+        a.onclick = ev => {
+          ev.preventDefault();
+          // Respects the same discard-warning gate Cancel uses — won't
+          // navigate away and silently lose a pending override change.
+          if (!closeModal()) return;
+          _openSampleFileAtMark(ref, a.dataset.filename, Number(a.dataset.page) || 1, a.dataset.original === '1', attributeIndex);
+        };
+      });
+      rowEl.appendChild(linksEl);
+    }
 
     if (isExpanded) {
       const body = document.createElement('div');
@@ -33778,6 +33850,39 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
 
   document.body.appendChild(overlay);
   renderList();
+}
+
+// Real, new, per direct request — opens the file a results-modal link
+// points at and navigates to the reported mark. Two real cases:
+//   - The ORIGINAL file: its name matches match.sourceFile exactly, so
+//     the existing live-overlay tick system (placeInteractiveAnnotations,
+//     driven by _currentAnnotationAttrIndex) already finds and scrolls to
+//     the precise paragraph-level tick once previewMemFile finishes
+//     placing overlays — reused as-is, nothing new to build there.
+//   - An ANNOTATED COPY: its filename never matches sourceFile, so that
+//     live-overlay system won't place/find anything on it — but the
+//     mark is already burned/stamped directly into that copy's own page
+//     content, so page-level scrolling (the same pageH math
+//     placeInteractiveAnnotations itself uses) is all that's needed.
+async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex) {
+  const idx = (inMemoryFiles[ref]?.sample || []).findIndex(f => f.name === filename);
+  if (idx < 0) {
+    alert('That file could not be found among the attached sample files — it may have been removed or renamed.');
+    return;
+  }
+  if (isOriginal) {
+    _currentAnnotationAttrIndex = attributeIndex;
+    await previewMemFile(ref, 'sample', idx);
+    return;
+  }
+  await previewMemFile(ref, 'sample', idx);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const body = document.getElementById('file-preview-body');
+    if (!body) return;
+    const pageCount = Math.max(1, previewTotalPages || 1);
+    const pageH = body.scrollHeight / pageCount;
+    body.scrollTo({ top: Math.max(0, (page - 1) * pageH), behavior: 'smooth' });
+  }));
 }
 
 // Tracks which attribute row (by index) is currently selected, per
