@@ -12190,7 +12190,20 @@ async function _saveWorkpaperToDB(w) {
     var scopeFsAccts    = [...(wpFsAccounts[w.ref]||[])];
     var testAttrs       = wpTestAttributes[w.ref] || [];
     var sampleFlds      = wpSampleFields[w.ref] || [];
-    var excpts          = Object.values(wpExceptions).filter(function(e){ return e && e.wpRef===w.ref; });
+    // Real, confirmed fix — wpExceptions is keyed by ref, and
+    // wpExceptions[someRef] is ALREADY that workpaper's own array of
+    // exceptions (see renderExceptions, addException, the post-analyze
+    // auto-populate block, etc. — none of them ever set a `.wpRef` field
+    // on an individual exception). The previous
+    // Object.values(wpExceptions).filter(e => e.wpRef === w.ref) treated
+    // wpExceptions as if it were a flat list of exception objects each
+    // carrying their own wpRef — Object.values() actually returns the
+    // per-ref ARRAYS themselves, which have no such property, so this
+    // filter matched nothing, ever. excpts was silently [] on every
+    // single save, overwriting the real, correct exceptions already in
+    // Postgres with an empty list — the actual cause of exceptions
+    // appearing to "disappear," on any save, not specifically a deploy.
+    var excpts          = wpExceptions[w.ref] || [];
     const res = await fetch('/api/workpapers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -12482,9 +12495,21 @@ async function _loadWorkpapersFromDB() {
         if (Array.isArray(row.test_attributes)  && row.test_attributes.length)  { wpTestAttributes[row.ref] = row.test_attributes; }
         if (Array.isArray(row.sample_fields)    && row.sample_fields.length)    { wpSampleFields[row.ref]   = row.sample_fields; }
         if (row.sample_data && Array.isArray(row.sample_data.columns))         { wpSampleData[row.ref]     = row.sample_data; }
-        if (Array.isArray(row.exceptions)       && row.exceptions.length)       {
-          row.exceptions.forEach(function(ex){ if (ex && ex.id) wpExceptions[ex.id] = ex; });
-        }
+        // Real, confirmed fix — wpExceptions is keyed by workpaper ref,
+        // exactly like every sibling map on the lines above
+        // (wpTestAttributes[row.ref] = ..., wpSampleFields[row.ref] =
+        // ..., etc.) — wpExceptions[row.ref] IS the array of this
+        // workpaper's own exceptions. The previous
+        // row.exceptions.forEach(ex => wpExceptions[ex.id] = ex) instead
+        // tried to key by each individual exception's own `.id` field,
+        // which no exception object has ever had (see addException /
+        // the post-analyze auto-populate block — they use `num`/`ref`,
+        // never `id`), so this line never actually populated
+        // wpExceptions at all: every exception genuinely saved to
+        // Postgres (once the save-side bug above is also fixed) was
+        // silently discarded on load, on every single page load —
+        // exactly matching "exceptions keep disappearing."
+        if (Array.isArray(row.exceptions) && row.exceptions.length) { wpExceptions[row.ref] = row.exceptions; }
         if (!existing) { target.ref = row.ref; target.files = []; target.sampleFiles = []; target.entities = []; WORKPAPERS.push(target); }
       });
     }
