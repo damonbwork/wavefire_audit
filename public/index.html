@@ -3379,7 +3379,7 @@
               <div class="attr-col-hdr-cell" data-col="title" style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
               <div class="attr-col-hdr-cell" data-col="desc" style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
               <div class="attr-col-hdr-cell" data-col="addl" style="flex:1.5;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
-              <div class="attr-col-hdr-cell" data-col="result" style="width:90px;min-width:90px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Result</div>
+              <div class="attr-col-hdr-cell" data-col="result" style="width:130px;min-width:130px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Result</div>
               <div class="attr-col-hdr-cell attr-criteria-col" data-col="success" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default" onmouseenter="document.getElementById('criteria-tooltip').style.display='block'" onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
                 Success Criteria
                 <div id="criteria-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 6px);width:280px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;text-transform:none;letter-spacing:normal;pointer-events:none">
@@ -5803,33 +5803,33 @@ auditor's assessment.
               </tr></thead>
               <tbody>
                 <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Form-field copy</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Sticky Note</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Burned-in inline copy</td>
+                  <td style="padding:8px 8px;font-weight:600">Burned-in inline annotations (bi)</td>
                   <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
                 </tr>
                 <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Movable stamp copy</td>
+                  <td style="padding:8px 8px;font-weight:600">Movable stamp copy (bi2)</td>
                   <td style="padding:8px 8px;color:var(--text-secondary)">Each mark is a real Stamp annotation, using this same visual mark as its appearance, rather than flattened page content — click-selectable and freely movable in Acrobat as one object, without entering Edit PDF.</td>
                   <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi2</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Form-field annotations (ff)</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
+                </tr>
+                <tr style="border-top:0.5px solid var(--border-light)">
+                  <td style="padding:8px 8px;font-weight:600">Sticky Note annotations (sn)</td>
+                  <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
+                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline copy</span></label>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field copy</span></label>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note</span></label>
-        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Movable stamp copy</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline annotations (bi)</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Movable stamp copy (bi2)</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field annotations (ff)</span></label>
+        <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note annotations (sn)</span></label>
       </div>
       <style>
         .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
@@ -30853,6 +30853,16 @@ async function loadSampleDataFromDB(ref) {
   _sdPasteUndoStack[ref] = [];
   renderSampleDataGrid(ref);
   _sdUpdatePasteUndoButton(ref);
+  // Real, confirmed fix, per direct report — renderTestAttributes runs
+  // BEFORE this function (index.html:7236 vs 7255, both fired on
+  // workpaper open without awaiting), so its Result column always saw
+  // an empty wpSampleData[ref] and rendered every row as the "no
+  // samples yet" placeholder — nothing ever re-rendered it once the
+  // real sample rows actually arrived. Re-render here, now that they
+  // have, but only if this is still the workpaper currently showing its
+  // attributes (avoids a stale, slow load clobbering a render for
+  // whatever the user has since navigated to).
+  if (currentAttrWPRef === ref) renderTestAttributes(ref);
 }
 
 // ── Sample Data grid as the source for Analyze & Create Workpaper ────────────
@@ -34024,7 +34034,22 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
       ? '<span class="attr-result-badge" style="font-size:7px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px;margin-left:3px">OVR</span>'
       : '';
     const resultLabel = attrRef || num || String(attributeIndex + 1);
-    resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}` +
+
+    // Real, new, per direct request — a "5/7"-style aggregate showing
+    // how many samples passed out of how many have actually been tested
+    // for this attribute, across every sample row, not just the one
+    // currently selected in the picker. Only counts effective results
+    // (override, if set, else the AI's own) — a sample this attribute
+    // hasn't been tested against yet (no ai_result at all) doesn't count
+    // toward the total, since "not yet tested" isn't the same as "failed."
+    const allRowsForAttr = (_attrSampleResultsCache[ref] || []).filter(r => r.attribute_index === attributeIndex && (r.override_result || r.ai_result));
+    const passCount  = allRowsForAttr.filter(r => (r.override_result || r.ai_result) === 'pass').length;
+    const totalCount = allRowsForAttr.length;
+    const aggregateHtml = totalCount
+      ? `<span class="attr-result-aggregate" title="${passCount} of ${totalCount} sample${totalCount !== 1 ? 's' : ''} passed" style="font-size:10px;color:var(--text-tertiary);margin-left:4px;white-space:nowrap">${passCount}/${totalCount}</span>`
+      : '';
+
+    resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}${aggregateHtml}` +
       `<button type="button" class="icon-btn attr-result-override-btn" title="Override this result" tabindex="-1" ` +
       `onclick="event.stopPropagation();_onAttrResultBtnClick(this, '${ref}', ${attributeIndex}, ${sampleRowIndex}, '${escAttr(resultLabel)}')" ` +
       `style="width:16px;height:16px;font-size:10px;padding:0;line-height:1;margin-left:2px">&#x22EF;</button>`;
@@ -34069,7 +34094,7 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
         tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;cursor:default">${escAttr(additionalInfo)}</textarea>
     </div>
-    <div class="attr-cell attr-result-cell" data-col="result" style="flex-shrink:0;width:90px;padding:6px 10px;display:flex;align-items:center;justify-content:center">
+    <div class="attr-cell attr-result-cell" data-col="result" style="flex-shrink:0;width:130px;padding:6px 10px;display:flex;align-items:center;justify-content:center">
       ${resultCellInner}
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
