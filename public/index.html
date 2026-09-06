@@ -11480,7 +11480,7 @@ function renderAnalysisResultsGrid(ref) {
   const cellStyle     = 'padding:6px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;border-bottom:0.5px solid var(--border-light)';
 
   const headRow = `<div style="display:flex;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0">
-    <div style="${headCellStyle}width:180px">Sample File</div>
+    <div style="${headCellStyle}width:180px">Sample</div>
     ${sdColumns.map(c => `<div style="${headCellStyle}width:120px" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
     ${attributes.map((a, ai) => `<div style="${headCellStyle}width:64px;text-align:center" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
   </div>`;
@@ -11506,11 +11506,19 @@ function renderAnalysisResultsGrid(ref) {
       const color  = TICK_COLOR[result] || '#9ca3af';
       const exRow  = exceptions.find(e => e.attributeIndex === ai && e.sampleRowIndex === fi);
       const refTag = exRow?.ref ? `<div style="font-size:9px;color:var(--text-tertiary)">[${escHtml(exRow.ref)}]</div>` : '';
-      return `<div style="${cellStyle}width:64px;text-align:center;font-weight:700;color:${color}">${tick}${refTag}</div>`;
+      // Each sample row is tested against every attached sample file
+      // together (see analyzeOneFileFast's own comment on this), so
+      // fileResult.fileName is deliberately the joined list of every
+      // file made available as context — NOT which file evidenced this
+      // particular attribute. That's on the mark itself instead, so the
+      // tooltip (not the row label) is where it belongs.
+      const evidenceTitle = match?.sourceFile ? `Evidenced by: ${match.sourceFile}` : '';
+      return `<div style="${cellStyle}width:64px;text-align:center;font-weight:700;color:${color}" title="${escHtml(evidenceTitle)}">${tick}${refTag}</div>`;
     }).join('');
 
+    const sampleLabel = fileResult.sampleDesc || `Sample ${fi + 1}`;
     return `<div style="display:flex">
-      <div style="${cellStyle}width:180px;font-weight:600" title="${escHtml(fileResult.fileName || '')}">${escHtml(fileResult.fileName || '')}</div>
+      <div style="${cellStyle}width:180px;font-weight:600" title="${escHtml(sampleLabel)}">${escHtml(sampleLabel)}</div>
       ${fieldCells}
       ${tickCells}
     </div>`;
