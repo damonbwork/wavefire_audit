@@ -27762,14 +27762,19 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   // from that function's own scope.
   if (wp && wp.includeTestSummaryTabInXlsx) {
     const TICK_LABEL_SUMMARY = { pass: '✓  Pass', pass_exception: '⚠  Pass with Exception', fail: '✗  Fail', error: '–  Error / Not evaluated' };
-    const summaryRows = [['Sample File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
+    const summaryRows = [['Sample', 'File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
     for (const fileResult of analysisResultsForRef) {
       for (const r of (fileResult.results || [])) {
         const attrMatch = attributes.find(a => a.title === r.title) ||
           attributes.find(a => a.title.toLowerCase().includes((r.title||'').toLowerCase()) || (r.title||'').toLowerCase().includes(a.title.toLowerCase()));
         const attrRef = attrMatch?.attrRef || attrMatch?.num || '';
+        // "Sample" is the row being tested; "File" is the specific file
+        // that evidenced this attribute (r.sourceFile) — fileResult's own
+        // fileName is the joined list of every file the whole row was
+        // tested against, not this attribute's actual source.
         summaryRows.push([
-          fileResult.fileName,
+          fileResult.sampleDesc || '',
+          r.sourceFile || '',
           attrRef,
           r.title,
           TICK_LABEL_SUMMARY[r.result] || r.result,
@@ -27781,7 +27786,7 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
       }
     }
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-    wsSummary['!cols'] = [{ wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
+    wsSummary['!cols'] = [{ wch: 26 }, { wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Test Summary');
   }
 
@@ -27912,7 +27917,7 @@ async function exportToXlsx(attachOnly = false) {
   // combined Attr# + Title (one occurrence) for the attributes. No blank
   // spacer row before this one — it follows Description directly.
   const rowSampleFile = wsData.length;
-  wsData.push(['Sample File', ...sdColumnsForExport.map(c => c.title || '(untitled column)'), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)]);
+  wsData.push(['Sample', ...sdColumnsForExport.map(c => c.title || '(untitled column)'), ...attributes.map(a => `${a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')}${a.title}`)]);
 
   // Grid rows
   const rowDataStart = wsData.length;
@@ -27936,7 +27941,12 @@ async function exportToXlsx(attachOnly = false) {
       const exRef = exMap[`${fi}-${ai}`] ? ` [${exMap[`${fi}-${ai}`]}]` : '';
       attrCells.push(tick + exRef);
     });
-    wsData.push([fileResult.fileName, ...fieldCells, ...attrCells]);
+    // Each sample row is tested against every attached sample file
+    // together, so fileResult.fileName is the joined list of every file
+    // made available as context, not "the file for this row" — label
+    // the row by the sample itself instead (matches the live Testwork
+    // Grid's own fix for the same underlying issue).
+    wsData.push([fileResult.sampleDesc || `Sample ${fi + 1}`, ...fieldCells, ...attrCells]);
   });
   const rowDataEnd = wsData.length - 1;
 
@@ -27965,7 +27975,7 @@ async function exportToXlsx(attachOnly = false) {
       if (!hasExceptions) {
         rowExceptions = wsData.length;
         wsData.push(['EXCEPTIONS']);
-        wsData.push(['Ref', 'File', 'Attribute', 'Finding']);
+        wsData.push(['Ref', 'Sample', 'File', 'Attribute', 'Finding']);
         hasExceptions = true;
       }
       let match = fileResult.results.find(r => r.title === attr.title);
@@ -27976,7 +27986,11 @@ async function exportToXlsx(attachOnly = false) {
           r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
         );
       }
-      wsData.push([exMap[key], fileResult.fileName, attr.title, match?.note || '']);
+      // "Sample" is the row being tested; "File" is the specific file that
+      // evidenced this particular attribute (match.sourceFile) — not
+      // fileResult.fileName, which is the joined list of every file the
+      // whole row was tested against.
+      wsData.push([exMap[key], fileResult.sampleDesc || `Sample ${fi + 1}`, match?.sourceFile || '', attr.title, match?.note || '']);
     });
   });
 
@@ -28020,14 +28034,18 @@ async function exportToXlsx(attachOnly = false) {
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
 
   // ── Detailed Notes sheet ──
-  const noteRows = [['Sample File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
+  const noteRows = [['Sample', 'File', 'Attr #', 'Attribute', 'Result', 'Notes', 'Sample File Page #', 'Sample File Section', 'Paragraph #']];
   for (const fileResult of analysisResults) {
     for (const r of fileResult.results) {
       const attrMatch = attributes.find(a => a.title === r.title) ||
         attributes.find(a => a.title.toLowerCase().includes((r.title||'').toLowerCase()) || (r.title||'').toLowerCase().includes(a.title.toLowerCase()));
       const attrRef = attrMatch?.attrRef || attrMatch?.num || '';
+      // "Sample" is the row being tested; "File" is the specific file that
+      // evidenced this attribute (r.sourceFile), not fileResult.fileName —
+      // the joined list of every file the whole row was tested against.
       noteRows.push([
-        fileResult.fileName,
+        fileResult.sampleDesc || '',
+        r.sourceFile || '',
         attrRef,
         r.title,
         TICK_LABEL[r.result] || r.result,
@@ -28039,7 +28057,7 @@ async function exportToXlsx(attachOnly = false) {
     }
   }
   const wsNotes = XLSX.utils.aoa_to_sheet(noteRows);
-  wsNotes['!cols'] = [{ wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
+  wsNotes['!cols'] = [{ wch: 26 }, { wch: 36 }, { wch: 8 }, { wch: 26 }, { wch: 22 }, { wch: 55 }, { wch: 16 }, { wch: 30 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsNotes, 'Detailed Notes');
 
   // ── Metadata sheet ──
