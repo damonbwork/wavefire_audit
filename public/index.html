@@ -3379,7 +3379,7 @@
               <div class="attr-col-hdr-cell" data-col="title" style="width:180px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Title<span class="attr-col-resize" onmousedown="startAttrColResize(event,'title')"></span></div>
               <div class="attr-col-hdr-cell" data-col="desc" style="flex:2;min-width:100px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Description<span class="attr-col-resize" onmousedown="startAttrColResize(event,'desc')"></span></div>
               <div class="attr-col-hdr-cell" data-col="addl" style="flex:1.5;min-width:80px;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Additional Information</div>
-              <div class="attr-col-hdr-cell" data-col="result" style="width:130px;min-width:130px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Result</div>
+              <div class="attr-col-hdr-cell" data-col="result" style="width:130px;min-width:130px;flex-shrink:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Pass/Fail Result</div>
               <div class="attr-col-hdr-cell attr-criteria-col" data-col="success" style="display:none;width:160px;min-width:80px;flex-shrink:0;position:relative;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px;cursor:default" onmouseenter="document.getElementById('criteria-tooltip').style.display='block'" onmouseleave="document.getElementById('criteria-tooltip').style.display='none'">
                 Success Criteria
                 <div id="criteria-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 6px);width:280px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;text-transform:none;letter-spacing:normal;pointer-events:none">
@@ -21993,104 +21993,6 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
   popup.remove();
 }
 
-// Real, new, per the Test-Attributes-grid follow-up — the grid's own
-// popup for overriding one (attribute, sample) cell, positioned relative
-// to the viewport (the grid has no absolute-positioned "overlay"
-// container the way the PDF preview pane does), rather than reusing
-// _openOverridePopup's overlay-relative positioning. Same visual content.
-function _openAttrOverridePopup(btnEl, opts) {
-  const { ref, ai, fi, label, aiResult, aiNote, row } = opts;
-  document.querySelectorAll('.ann-attr-override-popup').forEach(el => el.remove());
-
-  const rect = btnEl.getBoundingClientRect();
-  const popup = document.createElement('div');
-  popup.className = 'ann-attr-override-popup';
-  popup.style.cssText = 'position:fixed;left:' + Math.max(8, rect.left - 200) + 'px;top:' + (rect.bottom + 6) + 'px;' +
-    'z-index:9999;background:rgba(252,252,238,0.98);' +
-    'border:1.5px solid rgba(180,170,100,0.7);border-radius:6px;' +
-    'box-shadow:0 4px 16px rgba(0,0,0,0.25);width:260px;font-family:inherit;font-size:11px';
-
-  let selected = row?.override_result || aiResult;
-
-  function render() {
-    const hasOverride = !!row?.override_result;
-    popup.innerHTML = `
-      <div style="background:#39618b;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
-        <span>Override — ${escHtml(label)}</span>
-        <span style="cursor:pointer;font-weight:400;opacity:0.8" id="ovr2-close">✕</span>
-      </div>
-      <div style="padding:8px 10px;color:#1e293b">
-        <div style="color:#64748b;font-size:10px;margin-bottom:6px">
-          AI determination: <strong>${aiResult === 'fail' ? 'Fail' : 'Pass'}</strong>${aiNote ? ' — ' + escHtml(aiNote) : ''}
-        </div>
-        ${hasOverride ? `<div style="color:#92400e;font-size:10px;margin-bottom:6px">
-          Overridden by ${escHtml(row.overridden_by || '')} on ${row.overridden_at ? new Date(row.overridden_at).toLocaleDateString() : ''}
-        </div>` : ''}
-        <div style="display:flex;gap:6px;margin-bottom:8px">
-          <button id="ovr2-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
-            border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
-            background:${selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
-          <button id="ovr2-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
-            border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
-            background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
-        </div>
-        <textarea id="ovr2-note" placeholder="Override note / exception text" style="width:100%;min-height:44px;
-          box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
-        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
-          ${hasOverride ? '<button id="ovr2-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
-          <button id="ovr2-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
-          <button id="ovr2-save" style="padding:4px 10px;border-radius:4px;cursor:pointer;border:none;background:#1e40af;color:#fff;font-size:10px;font-weight:600">Save</button>
-        </div>
-      </div>`;
-
-    popup.querySelector('#ovr2-close').onclick = () => popup.remove();
-    popup.querySelector('#ovr2-cancel').onclick = () => popup.remove();
-    popup.querySelector('#ovr2-pass').onclick = () => { selected = 'pass'; render(); };
-    popup.querySelector('#ovr2-fail').onclick = () => { selected = 'fail'; render(); };
-    const clearBtn = popup.querySelector('#ovr2-clear');
-    if (clearBtn) clearBtn.onclick = () => _saveAttrGridOverride(ref, ai, fi, null, null, popup, btnEl, aiResult);
-    popup.querySelector('#ovr2-save').onclick = () => {
-      const note = popup.querySelector('#ovr2-note').value;
-      _saveAttrGridOverride(ref, ai, fi, selected, note, popup, btnEl, aiResult);
-    };
-  }
-
-  render();
-  popup.addEventListener('mousedown', ev => ev.stopPropagation());
-  document.body.appendChild(popup);
-}
-
-// Real, new — the grid analog of _saveOverride: same _postOverride call,
-// but updates the small result cell (icon + badge) beside the override
-// button rather than a PDF tick.
-async function _saveAttrGridOverride(ref, ai, fi, overrideResult, overrideNote, popup, btnEl, aiResult) {
-  const SYMS = { pass:'✓', fail:'✗' };
-  const COLS = { pass:'#16a34a', fail:'#dc2626' };
-  const row = await _postOverride(ref, ai, fi, overrideResult, overrideNote);
-  if (row) {
-    const cell = btnEl.closest('.attr-result-cell');
-    if (cell) {
-      const effective = overrideResult || aiResult;
-      const iconEl = cell.querySelector('.attr-result-icon');
-      if (iconEl) {
-        iconEl.textContent = SYMS[effective] || '–';
-        iconEl.style.color = COLS[effective] || '#6b7280';
-      }
-      cell.querySelector('.attr-result-badge')?.remove();
-      if (overrideResult) {
-        const badge = document.createElement('span');
-        badge.className = 'attr-result-badge';
-        badge.textContent = 'OVR';
-        badge.style.cssText = 'font-size:7px;font-weight:700;background:#1e40af;color:#fff;' +
-          'border-radius:3px;padding:0 3px;letter-spacing:0.3px;margin-left:3px';
-        cell.appendChild(badge);
-      }
-    }
-  }
-  popup.remove();
-}
-
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
   console.log('[IAnn] START fi=', fi, 'attrs=', attributes.length, 'results=', fileResult?.results?.length);
   const overlay = document.getElementById('pdf-ann-overlay');
@@ -33721,18 +33623,161 @@ function _onAttrResultSampleChange() {
   renderTestAttributes(currentAttrWPRef);
 }
 
-// Real, new, per the Test-Attributes-grid follow-up — opens the override
-// popup for one grid cell. Re-reads the cached row fresh at click time
-// (rather than trusting whatever was baked in when the cell last
-// rendered), since the cache can have changed since then.
-function _onAttrResultBtnClick(btnEl, ref, ai, fi, label) {
-  const row = _findOverrideFor(ref, ai, fi);
-  _openAttrOverridePopup(btnEl, {
-    ref, ai, fi, label,
-    aiResult: row?.ai_result || 'error',
-    aiNote: row?.ai_note || '',
-    row,
-  });
+// Real, confirmed redesign, per direct request — replaces the old
+// per-button popup (_openAttrOverridePopup/_saveAttrGridOverride, which
+// saved immediately on every click) with a single modal listing every
+// sample's result for this one attribute, letting the user expand any
+// number of rows, stage changes locally, and commit them all together
+// with OK — or discard everything with Cancel (warning if anything was
+// actually changed). Nothing is written to the server or the cache
+// until OK is clicked.
+function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
+  document.querySelectorAll('.attr-results-modal-overlay').forEach(el => el.remove());
+
+  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  const SYMS = { pass: '✓', fail: '✗' };
+  const COLS = { pass: '#16a34a', fail: '#dc2626' };
+
+  // Local, uncommitted working state: sampleRowIndex -> { result, note }.
+  // Nothing here touches _attrSampleResultsCache or the server until OK.
+  const pending = {};
+  const expanded = new Set();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'attr-results-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10010;' +
+    'display:flex;align-items:center;justify-content:center';
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(520px,95vw);' +
+    'max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
+  overlay.appendChild(modal);
+
+  function isDirty() { return Object.keys(pending).length > 0; }
+
+  function closeModal() {
+    if (isDirty() && !confirm('You have unsaved override changes. Discard them?')) return;
+    overlay.remove();
+  }
+
+  function rowLabel(row, i) {
+    const desc = _describeSampleGridRow(ref, row);
+    return 'Sample ' + (i + 1) + (desc ? ' — ' + desc : '');
+  }
+
+  function renderRow(row, fi) {
+    const saved = _findOverrideFor(ref, attributeIndex, fi);
+    const savedEffective = saved?.override_result || saved?.ai_result;
+    const change = pending[fi];
+    const effective = change ? change.result : savedEffective;
+    const isExpanded = expanded.has(fi);
+    const isPending = !!change;
+
+    const sym = effective ? (SYMS[effective] || '–') : '…';
+    const col = effective ? (COLS[effective] || '#6b7280') : '#94a3b8';
+    const statusBadge = isPending
+      ? '<span style="font-size:9px;font-weight:700;background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">PENDING</span>'
+      : (saved?.override_result ? '<span style="font-size:9px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">OVR</span>' : '');
+
+    const rowEl = document.createElement('div');
+    rowEl.style.cssText = 'border-bottom:0.5px solid var(--border-light)';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none';
+    header.innerHTML = `
+      <span style="font-size:15px;font-weight:900;color:${col};width:16px;text-align:center">${sym}</span>
+      <span style="flex:1;font-size:12px;color:#1e293b">${escHtml(rowLabel(row, fi))}</span>
+      ${statusBadge}
+      <span style="font-size:10px;color:var(--text-tertiary)">${isExpanded ? '▲' : '▼'}</span>
+    `;
+    header.onclick = () => {
+      if (isExpanded) expanded.delete(fi); else expanded.add(fi);
+      renderList();
+    };
+    rowEl.appendChild(header);
+
+    if (isExpanded) {
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:0 14px 12px 38px';
+      const selected = effective;
+      const noteVal = change ? change.note : (saved?.override_note || '');
+      body.innerHTML = `
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <button class="attr-modal-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+          <button class="attr-modal-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
+            border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
+            background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+        </div>
+        <textarea class="attr-modal-note" placeholder="Explanation (recorded as a user override)" style="width:100%;min-height:44px;
+          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(noteVal)}</textarea>
+      `;
+      const setPending = (result, note) => {
+        // Only actually pending if it genuinely differs from the saved
+        // state — flipping back to the original value un-stages it,
+        // rather than leaving a no-op "change" queued.
+        if (result === savedEffective && note === (saved?.override_note || '')) {
+          delete pending[fi];
+        } else {
+          pending[fi] = { result, note };
+        }
+        renderList();
+      };
+      body.querySelector('.attr-modal-pass').onclick = () => setPending('pass', noteVal);
+      body.querySelector('.attr-modal-fail').onclick = () => setPending('fail', noteVal);
+      body.querySelector('.attr-modal-note').addEventListener('change', ev => setPending(selected || savedEffective || 'pass', ev.target.value));
+      rowEl.appendChild(body);
+    }
+
+    return rowEl;
+  }
+
+  function renderList() {
+    const listEl = modal.querySelector('.attr-results-modal-list');
+    const okBtn = modal.querySelector('.attr-results-modal-ok');
+    if (!listEl) return;
+    const scrollTop = listEl.scrollTop;
+    listEl.innerHTML = '';
+    if (!sampleRows.length) {
+      listEl.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);font-size:12px;font-style:italic">No sample rows yet.</div>';
+    } else {
+      sampleRows.forEach((row, fi) => listEl.appendChild(renderRow(row, fi)));
+    }
+    listEl.scrollTop = scrollTop;
+    if (okBtn) okBtn.textContent = isDirty() ? `OK (${Object.keys(pending).length} change${Object.keys(pending).length !== 1 ? 's' : ''})` : 'OK';
+  }
+
+  modal.innerHTML = `
+    <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
+      <div style="font-size:14px;font-weight:600">${escHtml(attrRefLabel)}. ${escHtml(attrTitle)}</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">Results across all samples</div>
+    </div>
+    <div class="attr-results-modal-list" style="overflow-y:auto;flex:1;padding:4px 0;min-height:80px"></div>
+    <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
+      <button class="btn-s attr-results-modal-cancel">Cancel</button>
+      <button class="btn-p attr-results-modal-ok">OK</button>
+    </div>
+  `;
+  modal.querySelector('.attr-results-modal-cancel').onclick = closeModal;
+  modal.querySelector('.attr-results-modal-ok').onclick = async () => {
+    const okBtn = modal.querySelector('.attr-results-modal-ok');
+    const entries = Object.entries(pending);
+    if (entries.length) {
+      okBtn.disabled = true;
+      okBtn.textContent = 'Saving…';
+      await Promise.all(entries.map(([fi, change]) =>
+        _postOverride(ref, attributeIndex, Number(fi), change.result, change.note)
+      ));
+    }
+    overlay.remove();
+    if (currentAttrWPRef === ref) renderTestAttributes(ref);
+  };
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) closeModal(); });
+
+  document.body.appendChild(overlay);
+  renderList();
 }
 
 // Tracks which attribute row (by index) is currently selected, per
@@ -34023,6 +34068,7 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
   // sampleRowIndex is null when the workpaper has no sample rows yet —
   // either case just shows a muted placeholder, no control.
   let resultCellInner = '<span style="color:var(--text-tertiary);font-size:12px">—</span>';
+  let resultCellClick = '';
   if (ref && attributeIndex !== null && sampleRowIndex !== null) {
     const resRow = _findOverrideFor(ref, attributeIndex, sampleRowIndex);
     const effective = resRow?.override_result || resRow?.ai_result;
@@ -34049,10 +34095,12 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
       ? `<span class="attr-result-aggregate" title="${passCount} of ${totalCount} sample${totalCount !== 1 ? 's' : ''} passed" style="font-size:10px;color:var(--text-tertiary);margin-left:4px;white-space:nowrap">${passCount}/${totalCount}</span>`
       : '';
 
-    resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}${aggregateHtml}` +
-      `<button type="button" class="icon-btn attr-result-override-btn" title="Override this result" tabindex="-1" ` +
-      `onclick="event.stopPropagation();_onAttrResultBtnClick(this, '${ref}', ${attributeIndex}, ${sampleRowIndex}, '${escAttr(resultLabel)}')" ` +
-      `style="width:16px;height:16px;font-size:10px;padding:0;line-height:1;margin-left:2px">&#x22EF;</button>`;
+    // Real, confirmed redesign, per direct request — the cell itself is
+    // now the click target (no separate button); it opens a modal
+    // listing every sample's result for this attribute, rather than a
+    // popup for just the one sample the picker happens to have selected.
+    resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}${aggregateHtml}`;
+    resultCellClick = `_openAttrResultsModal('${ref}', ${attributeIndex}, '${escAttr(resultLabel)}', '${escAttr(title)}')`;
   }
   // Arrows only render for the SELECTED row — clicking the row number cell
   // selects it (or deselects if already selected); up/down move the
@@ -34094,7 +34142,8 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
         tabindex="${base+3}" oninput="saveAttrRow(${idx});autoResizeTA(this)" onblur="saveAttrRow(${idx}, true)" onkeydown="_attrHandleCellKeydown(event,${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;cursor:default">${escAttr(additionalInfo)}</textarea>
     </div>
-    <div class="attr-cell attr-result-cell" data-col="result" style="flex-shrink:0;width:130px;padding:6px 10px;display:flex;align-items:center;justify-content:center">
+    <div class="attr-cell attr-result-cell" data-col="result" ${resultCellClick ? `onclick="event.stopPropagation();${resultCellClick}"` : ''}
+      style="flex-shrink:0;width:130px;padding:6px 10px;display:flex;align-items:center;justify-content:center;${resultCellClick ? 'cursor:pointer' : ''}">
       ${resultCellInner}
     </div>
     <div class="attr-cell attr-criteria-col" data-col="success" style="display:none;flex-shrink:0;width:160px;padding:6px 12px">
