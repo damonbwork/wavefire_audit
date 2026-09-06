@@ -11496,23 +11496,26 @@ function renderAnalysisResultsGrid(ref) {
   // Real CSS grid, one shared column template for the header AND every
   // row, so cells line up into genuine, fixed columns (a vertical rule
   // between every column, not just a loose flex row) — the same
-  // technique the Exceptions grid above already uses. Sample column
-  // fixed width, one 120px column per Sample Data field, one narrower
-  // 70px column per test attribute (ticks only need to fit a symbol +
-  // a short [ref] tag). A slightly heavier left border marks the
-  // boundary between Sample Data columns and Attribute columns.
-  const SAMPLE_COL_W = 180, FIELD_COL_W = 120, ATTR_COL_W = 70;
-  const gridTemplate = `${SAMPLE_COL_W}px ${sdColumns.map(() => `${FIELD_COL_W}px`).join(' ')} ${attributes.map(() => `${ATTR_COL_W}px`).join(' ')}`.trim();
-  const totalWidth = SAMPLE_COL_W + sdColumns.length * FIELD_COL_W + attributes.length * ATTR_COL_W;
+  // technique the Exceptions grid above already uses. Sample # column
+  // narrow (just a row number, matching the Sample Data grid's own "#"
+  // column), one 120px column per Sample Data field, one narrower 70px
+  // column per test attribute (ticks only need to fit a symbol + a short
+  // [ref] tag), then a wider Sample File(s) column at the far right. A
+  // slightly heavier left border marks the boundary between Sample Data
+  // columns and Attribute columns.
+  const SAMPLE_NUM_COL_W = 70, FIELD_COL_W = 120, ATTR_COL_W = 70, FILES_COL_W = 220;
+  const gridTemplate = `${SAMPLE_NUM_COL_W}px ${sdColumns.map(() => `${FIELD_COL_W}px`).join(' ')} ${attributes.map(() => `${ATTR_COL_W}px`).join(' ')} ${FILES_COL_W}px`.trim();
+  const totalWidth = SAMPLE_NUM_COL_W + sdColumns.length * FIELD_COL_W + attributes.length * ATTR_COL_W + FILES_COL_W;
 
   const headCellStyle = 'padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:0.5px solid var(--border-light)';
   const cellStyle     = 'padding:6px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:0.5px solid var(--border-light);border-bottom:0.5px solid var(--border-light)';
   const firstAttrBorder = (sdColumns.length || 1) ? 'border-left:1.5px solid var(--border);' : '';
 
   const headRow = `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);position:sticky;top:0;z-index:1">
-    <div style="${headCellStyle}">Sample</div>
+    <div style="${headCellStyle}text-align:center">Sample #</div>
     ${sdColumns.map(c => `<div style="${headCellStyle}" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
     ${attributes.map((a, ai) => `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
+    <div style="${headCellStyle}">Sample File(s)</div>
   </div>`;
 
   const bodyRows = wpResults.map((fileResult, fi) => {
@@ -11547,11 +11550,22 @@ function renderAnalysisResultsGrid(ref) {
       return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra}" title="${escHtml(evidenceTitle)}">${tick}${refTag}</div>`;
     }).join('');
 
+    // The specific file(s) that actually evidenced this sample's marks —
+    // the unique set of match.sourceFile values across its attributes,
+    // NOT fileResult.fileName (the joined list of every attached file
+    // every row is tested against together; see the earlier fixes for
+    // why that's never the right thing to show as "this row's file").
+    // Falls back to that joined list only when no mark reports a
+    // sourceFile at all (an older/legacy result).
+    const evidenceFiles = [...new Set((fileResult.results || []).map(r => r.sourceFile).filter(Boolean))];
+    const filesLabel = evidenceFiles.length ? evidenceFiles.join(', ') : (fileResult.fileName || '');
+
     const sampleLabel = fileResult.sampleDesc || `Sample ${fi + 1}`;
     return `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px">
-      <div style="${cellStyle}font-weight:600" title="${escHtml(sampleLabel)}">${escHtml(sampleLabel)}</div>
+      <div style="${cellStyle}text-align:center;font-weight:600" title="${escHtml(sampleLabel)}">${fi + 1}</div>
       ${fieldCells}
       ${tickCells}
+      <div style="${cellStyle}" title="${escHtml(filesLabel)}">${escHtml(filesLabel)}</div>
     </div>`;
   }).join('');
 
