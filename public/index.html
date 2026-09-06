@@ -11476,20 +11476,33 @@ function renderAnalysisResultsGrid(ref) {
   const TICK       = { pass: '✓', fail: '✗' };
   const TICK_COLOR = { pass: '#16a34a', fail: '#dc2626' };
 
-  const headCellStyle = 'padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0';
-  const cellStyle     = 'padding:6px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;border-bottom:0.5px solid var(--border-light)';
+  // Real CSS grid, one shared column template for the header AND every
+  // row, so cells line up into genuine, fixed columns (a vertical rule
+  // between every column, not just a loose flex row) — the same
+  // technique the Exceptions grid above already uses. Sample column
+  // fixed width, one 120px column per Sample Data field, one narrower
+  // 70px column per test attribute (ticks only need to fit a symbol +
+  // a short [ref] tag). A slightly heavier left border marks the
+  // boundary between Sample Data columns and Attribute columns.
+  const SAMPLE_COL_W = 180, FIELD_COL_W = 120, ATTR_COL_W = 70;
+  const gridTemplate = `${SAMPLE_COL_W}px ${sdColumns.map(() => `${FIELD_COL_W}px`).join(' ')} ${attributes.map(() => `${ATTR_COL_W}px`).join(' ')}`.trim();
+  const totalWidth = SAMPLE_COL_W + sdColumns.length * FIELD_COL_W + attributes.length * ATTR_COL_W;
 
-  const headRow = `<div style="display:flex;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0">
-    <div style="${headCellStyle}width:180px">Sample</div>
-    ${sdColumns.map(c => `<div style="${headCellStyle}width:120px" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
-    ${attributes.map((a, ai) => `<div style="${headCellStyle}width:64px;text-align:center" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
+  const headCellStyle = 'padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:0.5px solid var(--border-light)';
+  const cellStyle     = 'padding:6px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:0.5px solid var(--border-light);border-bottom:0.5px solid var(--border-light)';
+  const firstAttrBorder = (sdColumns.length || 1) ? 'border-left:1.5px solid var(--border);' : '';
+
+  const headRow = `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);position:sticky;top:0;z-index:1">
+    <div style="${headCellStyle}">Sample</div>
+    ${sdColumns.map(c => `<div style="${headCellStyle}" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
+    ${attributes.map((a, ai) => `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
   </div>`;
 
   const bodyRows = wpResults.map((fileResult, fi) => {
     const sampleCells = fileResult.sampleRowCells || {};
     const fieldCells = sdColumns.map(col => {
       const v = sampleCells[col.id];
-      return `<div style="${cellStyle}width:120px" title="${escHtml((v !== undefined && v !== null) ? String(v) : '')}">${escHtml((v !== undefined && v !== null) ? String(v) : '')}</div>`;
+      return `<div style="${cellStyle}" title="${escHtml((v !== undefined && v !== null) ? String(v) : '')}">${escHtml((v !== undefined && v !== null) ? String(v) : '')}</div>`;
     }).join('');
 
     const tickCells = attributes.map((attr, ai) => {
@@ -11513,12 +11526,13 @@ function renderAnalysisResultsGrid(ref) {
       // particular attribute. That's on the mark itself instead, so the
       // tooltip (not the row label) is where it belongs.
       const evidenceTitle = match?.sourceFile ? `Evidenced by: ${match.sourceFile}` : '';
-      return `<div style="${cellStyle}width:64px;text-align:center;font-weight:700;color:${color}" title="${escHtml(evidenceTitle)}">${tick}${refTag}</div>`;
+      const borderExtra = ai === 0 ? firstAttrBorder : '';
+      return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra}" title="${escHtml(evidenceTitle)}">${tick}${refTag}</div>`;
     }).join('');
 
     const sampleLabel = fileResult.sampleDesc || `Sample ${fi + 1}`;
-    return `<div style="display:flex">
-      <div style="${cellStyle}width:180px;font-weight:600" title="${escHtml(sampleLabel)}">${escHtml(sampleLabel)}</div>
+    return `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px">
+      <div style="${cellStyle}font-weight:600" title="${escHtml(sampleLabel)}">${escHtml(sampleLabel)}</div>
       ${fieldCells}
       ${tickCells}
     </div>`;
