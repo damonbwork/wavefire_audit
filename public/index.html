@@ -34091,14 +34091,17 @@ function makeAttrRowHtml(idx, num, attrRef, title, desc, additionalInfo, totalRo
     const allRowsForAttr = (_attrSampleResultsCache[ref] || []).filter(r => r.attribute_index === attributeIndex && (r.override_result || r.ai_result));
     const passCount  = allRowsForAttr.filter(r => (r.override_result || r.ai_result) === 'pass').length;
     const totalCount = allRowsForAttr.length;
+    // Real, confirmed redesign, per direct request — the "X/Y" aggregate
+    // is itself styled as the visible link into the results modal (blue,
+    // underlined), rather than being plain muted text with the click
+    // target implied only by the whole cell being clickable.
     const aggregateHtml = totalCount
-      ? `<span class="attr-result-aggregate" title="${passCount} of ${totalCount} sample${totalCount !== 1 ? 's' : ''} passed" style="font-size:10px;color:var(--text-tertiary);margin-left:4px;white-space:nowrap">${passCount}/${totalCount}</span>`
+      ? `<span class="attr-result-aggregate" title="${passCount} of ${totalCount} sample${totalCount !== 1 ? 's' : ''} passed — click to view/override" style="font-size:11px;color:#1e40af;text-decoration:underline;margin-left:5px;white-space:nowrap;font-weight:600">${passCount}/${totalCount}</span>`
       : '';
 
-    // Real, confirmed redesign, per direct request — the cell itself is
-    // now the click target (no separate button); it opens a modal
-    // listing every sample's result for this attribute, rather than a
-    // popup for just the one sample the picker happens to have selected.
+    // The cell itself is still the full click target (no separate
+    // button) — this just makes the "X/Y" text visually read as the
+    // link, since the plain check/X symbol alone didn't look clickable.
     resultCellInner = `<span class="attr-result-icon" style="font-size:15px;font-weight:900;color:${col}">${sym}</span>${badge}${aggregateHtml}`;
     resultCellClick = `_openAttrResultsModal('${ref}', ${attributeIndex}, '${escAttr(resultLabel)}', '${escAttr(title)}')`;
   }
