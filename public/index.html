@@ -28162,116 +28162,100 @@ async function exportToXlsx(attachOnly = false) {
 }
 
 async function annotateSampleFilesWithTicks(ref, analysisResults, attributes, exMap) {
-  console.log('[Annotate] START ref=', ref, 'files=', analysisResults.length, 'attrs=', attributes.length);
+  console.log('[Annotate] START ref=', ref, 'rows=', analysisResults.length, 'attrs=', attributes.length);
 
   if (!analysisResults.length) { console.log('[Annotate] No results, exit'); return; }
   if (!ref) { console.log('[Annotate] No ref, exit'); return; }
 
-  const TICK  = { pass: 'P', pass_exception: 'PE', fail: 'F', error: '-' };
-  const COLOR = {
-    pass:           { r:0.09, g:0.47, b:0.24 },
-    pass_exception: { r:0.93, g:0.35, b:0.00 },
-    fail:           { r:0.75, g:0.07, b:0.22 },
-    error:          { r:0.40, g:0.40, b:0.40 },
-  };
-
-  let PDFLib;
-  try {
-    PDFLib = await loadPdfLib();
-    console.log('[Annotate] pdf-lib loaded OK');
-  } catch(e) {
-    console.error('[Annotate] pdf-lib FAILED:', e.message);
-    throw new Error('pdf-lib unavailable: ' + e.message);
-  }
-
   ensureFileStore(ref);
 
-  for (let fi = 0; fi < analysisResults.length; fi++) {
-    const fileResult = analysisResults[fi];
-    const fileName   = fileResult.fileName;
-    console.log(`[Annotate] Processing file ${fi+1}/${analysisResults.length}: "${fileName}"`);
+  // Real, confirmed fix — two compounding bugs previously made this
+  // function do nothing, ever:
+  //  1) It looped analysisResults as if each entry were one sample FILE,
+  //     but each entry is actually one sample ROW tested against every
+  //     attached file together — fileResult.fileName is the joined list
+  //     of ALL of them (e.g. "A.pdf, B.pdf, C.pdf"), not a real filename.
+  //     Looking that joined string up in the sample file store never
+  //     matched anything real, so every row was silently skipped.
+  //  2) Even for a row that did get past that, it then built `new
+  //     File([annBlob], ...)` — annBlob was never defined anywhere in
+  //     this function, so every iteration threw a ReferenceError caught
+  //     by the try/catch and only ever logged to the console.
+  // The actual per-mark evidence file lives on match.sourceFile instead
+  // (set by the normalization step after each analyze call). So: iterate
+  // the real, distinct original sample files actually attached (skip
+  // already-annotated bi/bi2/ff/sn derivative copies — those carry their
+  // marks burned directly into their own page content already), and for
+  // each one collect just the marks — across every row/attribute — whose
+  // sourceFile points at it. This also matches what _restoreAnnotationsToOverlay
+  // already assumes on the read side: it reconstructs a fileResult scoped
+  // to whichever one file is currently open, with no per-mark sourceFile
+  // filtering of its own (it doesn't pass currentFileName to
+  // placeInteractiveAnnotations at all) — so the marks stored against a
+  // given file need to already be just that file's own, not every row's.
+  const sampleFiles = (inMemoryFiles[ref]?.sample || []).filter(f => !f._annotatedFrom);
+  console.log('[Annotate] Real sample files in store:', sampleFiles.map(f => f.name));
 
-    if (!fileName.toLowerCase().endsWith('.pdf')) {
-      console.log('[Annotate] Skipping non-PDF:', fileName);
-      continue;
-    }
+  const normalize = (n) => (n || '').trim().replace(/\.pdf$/i, '').toLowerCase();
 
-    // Look up in sample files — match by original filename
-    const sampleFiles = inMemoryFiles[ref]?.sample || [];
-    console.log('[Annotate] Sample files in store:', sampleFiles.map(f => f.name));
-
-    const annName = fileName; // keep original filename — no renaming
-    let sfEntry = sampleFiles.find(f => f.name === fileName);
-    if (!sfEntry) {
-      // Fuzzy match — strip _annotated suffix and compare basenames
-      const base = fileName.replace(/\.pdf$/i, '').toLowerCase();
-      sfEntry = sampleFiles.find(f => {
-        const fb = f.name.replace(/_annotated_(bi|ff|sn|mn)\.pdf$/i, '').replace(/\.pdf$/i, '').toLowerCase();
-        return fb === base;
-      });
-      if (sfEntry) console.log('[Annotate] Fuzzy matched:', sfEntry.name);
-    }
-
-    if (!sfEntry?.file) {
-      console.warn('[Annotate] Could not find file in sample store:', fileName);
-      continue;
-    }
+  for (const sfEntry of sampleFiles) {
+    const fileName = sfEntry.name;
+    if (!fileName.toLowerCase().endsWith('.pdf')) { console.log('[Annotate] Skipping non-PDF:', fileName); continue; }
+    if (!sfEntry?.file) continue;
 
     try {
-      console.log('[Annotate] Creating annotated entry with overlay annotations');
-      // Update the existing entry in-place with annotations — no file rename, no new entry
-      const annFile = new File([annBlob], fileName, { type: 'application/pdf' });
-      const nowStr   = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-
-      // Store logical annotation metadata (page, paragraph) — resolved to pixels at render time
-      // by placeInteractiveAnnotations / placeLegendOverlay using the actual canvas dimensions.
-      const serializedAnnotations = attributes.map((attr, ai) => {
-        const match = fileResult.results.find(r => r.title === attr.title) ||
-          (() => { const al = attr.title.toLowerCase(); return fileResult.results.find(r => r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())); })();
-        return {
-          type: 'result',
-          attrRef: attr.attrRef || attr.num || String(ai + 1),
-          title: attr.title,
-          result: match?.result || 'error',
-          note: match?.note || '',
-          page: match?.page || 1,
-          paragraph: match?.paragraph || (ai + 1),
-          symbol: { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' }[match?.result || 'error'] || '–',
-          exRef: exMap[`${fi}-${ai}`] || '',
-        };
+      const serializedAnnotations = [];
+      analysisResults.forEach((fileResult, fi) => {
+        attributes.forEach((attr, ai) => {
+          let match = (fileResult.results || []).find(r => r.title === attr.title);
+          if (!match) {
+            const al = attr.title.toLowerCase();
+            match = (fileResult.results || []).find(r =>
+              r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+            );
+          }
+          if (!match || !match.sourceFile) return;
+          if (normalize(match.sourceFile) !== normalize(fileName)) return;
+          serializedAnnotations.push({
+            type: 'result',
+            attrRef: attr.attrRef || attr.num || String(ai + 1),
+            title: attr.title,
+            result: match.result || 'error',
+            note: match.note || '',
+            page: match.page || 1,
+            paragraph: match.paragraph || (ai + 1),
+            symbol: { pass:'✓', pass_exception:'⚠', fail:'✗', error:'–' }[match.result || 'error'] || '–',
+            exRef: exMap[`${fi}-${ai}`] || '',
+          });
+        });
       });
-      // Add a marker that signals the summary legend should appear on page 1
-      serializedAnnotations.push({ type: 'legend_marker', fi });
 
-      console.log('[Annotate] Built', serializedAnnotations.length, 'annotations for entry');
+      if (!serializedAnnotations.length) {
+        console.log('[Annotate] No marks evidenced by', fileName, '— leaving its annotations untouched');
+        continue;
+      }
+      // Legend marker's `fi` is only read back by _restoreAnnotationsToOverlay
+      // to namespace a LOCAL exMap it rebuilds by position at render time
+      // (every stored annotation's own exRef string is already final and
+      // self-contained) — any consistent placeholder value works here.
+      serializedAnnotations.push({ type: 'legend_marker', fi: 0 });
 
-      // Replace the existing entry in the sample files list (same name, same position)
+      console.log('[Annotate] Built', serializedAnnotations.length, 'annotations for', fileName);
+
+      // Update the existing entry in place — no file rename, no new File
+      // object (this mechanism stores overlay metadata only; it never
+      // modifies the PDF's own bytes, unlike the bi/bi2/ff burn mechanisms).
       const sfArr = inMemoryFiles[ref].sample;
       const existingIdx = sfArr.findIndex(f => f.name === fileName);
-      const annEntry = {
-        file: annFile, name: fileName,
-        size: sfEntry.size,
-        type: 'application/pdf',
-        uploadedBy: sfEntry.uploadedBy || 'Wavefire',
-        uploadedOn: sfEntry.uploadedOn || nowStr,
-        _annotations: serializedAnnotations,
-      };
       if (existingIdx >= 0) {
-        sfArr[existingIdx] = annEntry;
-      } else {
-        sfArr.unshift(annEntry);
+        sfArr[existingIdx] = Object.assign({}, sfArr[existingIdx], { _annotations: serializedAnnotations });
       }
-      console.log('[Annotate] annEntry._annotations count:', annEntry._annotations?.length, 'name:', annEntry.name);
-      console.log('[Annotate] inMemoryFiles[ref].sample[0]._annotations:', inMemoryFiles[ref].sample[0]?._annotations?.length);
-      console.log('[Annotate] Stored in sample files. Current sample files:', sfArr.map(f => f.name));
-      // Persist to Postgres
-      _saveAnnotationsToDB(ref, annEntry.name, serializedAnnotations);
-      refreshFileList(ref, 'sample');
-
+      _saveAnnotationsToDB(ref, fileName, serializedAnnotations);
     } catch(err) {
       console.error('[Annotate] Error processing', fileName, ':', err.message, err.stack);
     }
   }
+  refreshFileList(ref, 'sample');
   console.log('[Annotate] DONE');
 }
 
