@@ -3978,6 +3978,18 @@ auditor's assessment.
           </div>
         </div><!-- /sect-card sample files -->
 
+        <!-- Section: Testwork Grid — live replica of the exported workpaper's
+             sample matrix + tickmark grid + legend, hidden until Analyze has
+             produced at least one result for this workpaper. -->
+        <div class="sect-card" id="sect-analysis-grid" style="display:none">
+          <div class="sect-hdr">
+            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Testwork Grid</div>
+          </div>
+          <div class="sect-body" style="padding:0;overflow-x:auto">
+            <div id="analysis-grid-rows"></div>
+          </div>
+        </div><!-- /sect-card analysis grid -->
+
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
           <div class="sect-hdr">
@@ -3993,11 +4005,12 @@ auditor's assessment.
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Run.Exception# — assigned automatically each time Analyze runs">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception name</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception description</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Linked files</div>
@@ -4011,8 +4024,8 @@ auditor's assessment.
             </div>
             <!-- Exception rows -->
             <div id="exceptions-rows">
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E1 - 1a: Contract</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract document found; only a ServiceNow change request (CHG0053245) is present.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4059,8 +4072,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">2</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">2</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',1,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E2 - 1b: Signed_Physician</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',1,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract signature page present; document is a change request ticket only.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4107,8 +4120,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">3</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">3</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',2,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E3 - 1c: Signed_Corp</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',2,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No DocuSign or corporate legal/VP approval evidence found in document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4155,8 +4168,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">4</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">4</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',3,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E4 - 1d: Signed_Timeline</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',3,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract signature dates available to assess 90-day grace period compliance.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4203,8 +4216,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">5</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">5</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',4,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E5 - 1e: Renewal</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',4,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract or renewal approval documentation present to evaluate 36-month renewal.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4251,8 +4264,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">6</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">6</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',5,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E6 - 2: Term</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',5,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract term information found; document is a change request, not a contract.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4299,8 +4312,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">7</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">7</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',6,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E7 - 3: Payment_Accuracy</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',6,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No payment or contract rate information found in the change request document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4347,8 +4360,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">8</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">8</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',7,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E8 - 4: Payment_Support</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',7,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No timecard or payment calculation support found; document is an IT change request.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4395,8 +4408,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">9</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">9</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',8,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E9 - 5: Payee</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',8,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No payment or payee information found in the change request document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4443,8 +4456,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">10</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">10</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',9,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E10 - 6: Payment_Entity</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',9,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No entity payment information found; document is a ServiceNow IT change request.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4491,8 +4504,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">11</div>
+    <div style="display:grid;grid-template-columns:44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">11</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',10,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E11 - 7: Payment_Auth</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',10,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No Payment to Physician/PRS form or check payment found in the document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -11236,7 +11249,7 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Exception Name', 'Exception Description', 'Linked Files', 'Exception Owner',
+    ['#', 'Ref', 'Exception Name', 'Exception Description', 'Linked Files', 'Exception Owner',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
@@ -11244,6 +11257,7 @@ async function exportExceptions() {
   list.forEach(ex => {
     wsData.push([
       ex.num,
+      ex.ref           || '',
       ex.name          || '',
       ex.desc          || '',
       (ex.linkedFiles  || []).join('; '),
@@ -11262,7 +11276,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 5 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -11360,11 +11374,12 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Run.Exception# — assigned automatically each time Analyze runs">${ex.ref ? escHtml(ex.ref) : '—'}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
         onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
@@ -11428,6 +11443,87 @@ function renderExceptions(ref) {
       </div>
     </div>`
   ).join('');
+}
+
+// Live "Testwork Grid" — replicates the exported workpaper's own test grid
+// sheet (sample matrix at left, one tickmark column per test attribute
+// immediately to the right, legend at the bottom) directly in the app,
+// right below the Analyze button. Deliberately mirrors exportToXlsx's own
+// grid-building logic (same fuzzy title matching, same TICK glyphs) so the
+// two never disagree — but does NOT write out exceptions inline the way
+// the .xlsx export's own mini "EXCEPTIONS" list does; instead each fail
+// tick just shows its Ref (e.g. "[2.3]"), which is looked up directly off
+// the matching wpExceptions[ref] entry via the same attributeIndex/
+// sampleRowIndex convention the pass-fail-override feature already uses,
+// so the two sections can never show a mismatched Ref for the same mark.
+function renderAnalysisResultsGrid(ref) {
+  const card = document.getElementById('sect-analysis-grid');
+  const container = document.getElementById('analysis-grid-rows');
+  if (!card || !container) return;
+
+  const wpResults = _wpAnalysisResults[ref] || [];
+  if (!wpResults.length) {
+    card.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+  card.style.display = '';
+
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const sdColumns  = (_daSampleDataFor(ref)?.columns || []);
+  const exceptions = wpExceptions[ref] || [];
+
+  const TICK       = { pass: '✓', fail: '✗' };
+  const TICK_COLOR = { pass: '#16a34a', fail: '#dc2626' };
+
+  const headCellStyle = 'padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);white-space:nowrap;flex-shrink:0';
+  const cellStyle     = 'padding:6px 10px;font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;border-bottom:0.5px solid var(--border-light)';
+
+  const headRow = `<div style="display:flex;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0">
+    <div style="${headCellStyle}width:180px">Sample File</div>
+    ${sdColumns.map(c => `<div style="${headCellStyle}width:120px" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
+    ${attributes.map((a, ai) => `<div style="${headCellStyle}width:64px;text-align:center" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
+  </div>`;
+
+  const bodyRows = wpResults.map((fileResult, fi) => {
+    const sampleCells = fileResult.sampleRowCells || {};
+    const fieldCells = sdColumns.map(col => {
+      const v = sampleCells[col.id];
+      return `<div style="${cellStyle}width:120px" title="${escHtml((v !== undefined && v !== null) ? String(v) : '')}">${escHtml((v !== undefined && v !== null) ? String(v) : '')}</div>`;
+    }).join('');
+
+    const tickCells = attributes.map((attr, ai) => {
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      const result = match ? match.result : null;
+      const tick   = TICK[result] || '–';
+      const color  = TICK_COLOR[result] || '#9ca3af';
+      const exRow  = exceptions.find(e => e.attributeIndex === ai && e.sampleRowIndex === fi);
+      const refTag = exRow?.ref ? `<div style="font-size:9px;color:var(--text-tertiary)">[${escHtml(exRow.ref)}]</div>` : '';
+      return `<div style="${cellStyle}width:64px;text-align:center;font-weight:700;color:${color}">${tick}${refTag}</div>`;
+    }).join('');
+
+    return `<div style="display:flex">
+      <div style="${cellStyle}width:180px;font-weight:600" title="${escHtml(fileResult.fileName || '')}">${escHtml(fileResult.fileName || '')}</div>
+      ${fieldCells}
+      ${tickCells}
+    </div>`;
+  }).join('');
+
+  const legend = `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 12px;font-size:11px;color:var(--text-secondary)">
+    <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
+    <span><span style="color:#16a34a;font-weight:700">✓</span>&nbsp;Pass</span>
+    <span><span style="color:#dc2626;font-weight:700">✗</span>&nbsp;Fail — see Ref in the Exceptions section below for detail</span>
+    <span><span style="color:#9ca3af;font-weight:700">–</span>&nbsp;Not evaluated for this sample</span>
+  </div>`;
+
+  container.innerHTML = headRow + bodyRows + legend;
 }
 
 // Renders the "Delete selected" button into the section toolbar,
@@ -26455,6 +26551,21 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
     return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
   };
 
+  // Two-part exception Ref ("run.exception-in-run", e.g. "2.3") — the first
+  // part identifies which analyze run created it (one more than the highest
+  // run number already present in this workpaper's exceptions; 1 if none
+  // yet), computed once per run here rather than per-exception. The second
+  // part is the existing per-run _exNumForAnnotation counter below, which
+  // already numbers exceptions in the order they're found across this run's
+  // files/attributes — exactly "the number of the exception in the analyze
+  // test." Exceptions created before this feature existed have no `ref`
+  // and simply show blank — there is no way to recover which run they came
+  // from after the fact.
+  const _existingRunSeqs = (wpExceptions[ref] || [])
+    .map(e => e.ref ? parseInt(String(e.ref).split('.')[0], 10) : NaN)
+    .filter(n => !isNaN(n));
+  const _runSeq = _existingRunSeqs.length ? Math.max(..._existingRunSeqs) + 1 : 1;
+
   // Build exMap AND populate exceptions simultaneously
   const _exMapForAnnotation = {};
   let _exNumForAnnotation = 0;
@@ -26487,6 +26598,9 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         if (!alreadyExists) {
           wpExceptions[ref].push({
             num:            wpExNum,
+            ref:            `${_runSeq}.${_exNumForAnnotation}`,
+            attributeIndex: ai,
+            sampleRowIndex: fi,
             name:           exName,
             desc:           exDesc,
             owner:          '',
@@ -26495,7 +26609,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
             retested:       false,
             linkedFiles:    [sampleFileName],
           });
-          logEvent(ref, `Exception #${wpExNum} auto-created from analysis: ${exName}`);
+          logEvent(ref, `Exception #${wpExNum} (Ref ${_runSeq}.${_exNumForAnnotation}) auto-created from analysis: ${exName}`);
         }
       }
     });
@@ -26503,6 +26617,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
 
   // Re-render exceptions section with the new entries
   renderExceptions(ref);
+  renderAnalysisResultsGrid(ref);
 
   // Show annotation status independently below the results list
   const _annStatusEl = document.getElementById('analysis-ann-status');
@@ -27209,10 +27324,10 @@ function _doExportWorkpaperXLSX() {
   rows.push(secHdr('EXCEPTIONS'));
   const exceptions = wpExceptions[ref] || [];
   if (exceptions.length) {
-    rows.push(colHdr('#', 'Exception Name', 'Description', 'Owner', 'Management Response', 'Resolution Date', 'Retested'));
+    rows.push(colHdr('#', 'Ref', 'Exception Name', 'Description', 'Owner', 'Management Response', 'Resolution Date', 'Retested'));
     exceptions.forEach(ex => {
-      rows.push([ex.num||'', ex.name||'', ex.desc||'', ex.owner||'', ex.mgmtResponse||'', ex.resolutionDate||'', ex.retested||'']);
-      if (ex.linkedFiles?.length) rows.push(['', 'Linked Files:', ex.linkedFiles.join(', ')]);
+      rows.push([ex.num||'', ex.ref||'', ex.name||'', ex.desc||'', ex.owner||'', ex.mgmtResponse||'', ex.resolutionDate||'', ex.retested||'']);
+      if (ex.linkedFiles?.length) rows.push(['', '', 'Linked Files:', ex.linkedFiles.join(', ')]);
     });
   } else { rows.push(['No exceptions noted']); }
   rows.push(blank());
@@ -33561,6 +33676,7 @@ function renderTestAttributes(ref) {
   const sampleRows = (_daSampleDataFor(ref)?.rows || []);
   _syncAttrResultSamplePicker(ref, sampleRows);
   const sampleRowIndex = sampleRows.length ? (_attrResultSampleIdx[ref] || 0) : null;
+  renderAnalysisResultsGrid(ref);
 
   if (!_attrSampleResultsCache[ref]) {
     _loadAttrSampleResults(ref).then(() => {
