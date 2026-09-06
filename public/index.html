@@ -11363,6 +11363,18 @@ function renderExceptions(ref) {
 
   renderExceptionsToolbar(ref);
 
+  // Real, new, per explicit design decision — deleting a file never
+  // deletes an exception that names it in linkedFiles (see promptDelete's
+  // own warning for that same decision), so a linked file can genuinely
+  // no longer be attached. Rather than silently showing a filename that
+  // no longer resolves to anything, flag it — every currently-attached
+  // name, from both the in-memory store and any static/legacy sample
+  // files list, counts as "still here."
+  const attachedFileNames = new Set([
+    ...((inMemoryFiles[ref]?.sample || []).map(f => f.name)),
+    ...((WORKPAPERS.find(w => w.ref === ref)?.sampleFiles || []).map(f => f.name || f)),
+  ]);
+
   if (!list.length) {
     container.innerHTML = '<div style="padding:18px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic" id="exceptions-empty">No exceptions recorded. Click "Add exception" to add one.</div>';
     return;
@@ -11393,7 +11405,12 @@ function renderExceptions(ref) {
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Link files
         </button>
         <div id="exc-files-${ref.replace(/[^a-z0-9]/gi,'_')}_${i}" style="display:flex;flex-direction:column;gap:2px">
-          ${(ex.linkedFiles||[]).map(f=>`<div style="font-size:10px;color:var(--text-secondary);display:flex;align-items:center;gap:3px"><i class="ti ti-file" style="font-size:10px;color:var(--wf-navy)"></i>${escHtml(f)}</div>`).join('')}
+          ${(ex.linkedFiles||[]).map(f => {
+            const missing = !attachedFileNames.has(f);
+            return missing
+              ? `<div style="font-size:10px;color:#b45309;display:flex;align-items:center;gap:3px" title="This file is no longer attached to the workpaper — it may have been deleted."><i class="ti ti-alert-triangle" style="font-size:10px;color:#b45309"></i>${escHtml(f)} <span style="font-style:italic">(missing)</span></div>`
+              : `<div style="font-size:10px;color:var(--text-secondary);display:flex;align-items:center;gap:3px"><i class="ti ti-file" style="font-size:10px;color:var(--wf-navy)"></i>${escHtml(f)}</div>`;
+          }).join('')}
         </div>
       </div>
       <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
@@ -29663,7 +29680,33 @@ let _pendingDelete = null; // { ref, bucket, idx }
 function promptDelete(ref, bucket, idx, name) {
   _pendingDelete = ref ? { ref, bucket, idx } : null;
   const msg = document.getElementById('delete-confirm-msg');
-  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${name || 'this file'}</strong>?<br><span style="font-size:12px;color:var(--text-tertiary)">This action cannot be undone.</span>`;
+  let warningHtml = '';
+
+  // Real, new, per explicit design decision — deleting a file must never
+  // silently take an exception (a documented audit finding) down with it.
+  // Only the ORIGINAL sample file is what an exception's linkedFiles
+  // entry ever actually names (see the exceptions-linked-file fix — it's
+  // always match.sourceFile, which is always the original, never an
+  // annotated bi/bi2/ff/sn copy's own name) — so deleting an annotated
+  // copy alone can never affect an exception's link, and only needs
+  // checking here for bucket 'sample' entries that aren't themselves an
+  // annotated derivative.
+  if (ref && bucket === 'sample') {
+    const entry = inMemoryFiles[ref]?.sample?.[idx];
+    if (entry && !entry._annotatedFrom) {
+      const linkedExceptions = (wpExceptions[ref] || []).filter(e => (e.linkedFiles || []).includes(entry.name));
+      if (linkedExceptions.length) {
+        const list = linkedExceptions.map(e => `<li>${escHtml((e.ref ? e.ref + ' — ' : '') + (e.name || 'Untitled exception'))}</li>`).join('');
+        warningHtml = `<div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border:1px solid #eab308;border-radius:6px;font-size:12px;color:#854d0e;text-align:left">
+          <strong>${linkedExceptions.length} exception${linkedExceptions.length !== 1 ? 's are' : ' is'} linked to this file:</strong>
+          <ul style="margin:6px 0 0 0;padding-left:18px">${list}</ul>
+          Deleting the file will <strong>not</strong> delete ${linkedExceptions.length !== 1 ? 'these exceptions' : 'this exception'} — ${linkedExceptions.length !== 1 ? 'they' : 'it'} will remain in the Exceptions section, flagged as linked to a file that's no longer attached.
+        </div>`;
+      }
+    }
+  }
+
+  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${name || 'this file'}</strong>?<br><span style="font-size:12px;color:var(--text-tertiary)">This action cannot be undone.</span>${warningHtml}`;
   document.getElementById('delete-confirm-overlay').style.display = 'flex';
 }
 
