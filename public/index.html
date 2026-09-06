@@ -26592,7 +26592,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   const _exMapForAnnotation = {};
   let _exNumForAnnotation = 0;
   analysisResults.forEach((fileResult, fi) => {
-    const sampleFileName = fileResult.fileName;
     attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
       if (!match) {
@@ -26611,10 +26610,19 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         const attrLabel = attr.attrRef || attr.num || String(ai + 1);
         const exName = `${xlsxExRef} - ${attrLabel}: ${attr.title}`;
         const exDesc = match.note || '';
+        // The specific file that actually evidenced THIS exception —
+        // fileResult.fileName is deliberately the joined list of every
+        // attached sample file (each row is tested against all of them
+        // together; see analyzeOneFileFast's own comment on this), not
+        // the one file behind this particular mark. Falls back to the
+        // sample's own description when a mark has no sourceFile (an
+        // older/legacy result), so a linked "file" is never silently
+        // wrong rather than merely generic.
+        const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
 
         // Only add if not already present (avoid duplicates on re-run)
         const alreadyExists = (wpExceptions[ref] || []).some(e =>
-          e.name === exName && e.linkedFiles?.includes(sampleFileName)
+          e.name === exName && e.linkedFiles?.includes(linkedFile)
         );
 
         if (!alreadyExists) {
@@ -26629,7 +26637,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
             mgmtResponse:   '',
             resolutionDate: '',
             retested:       false,
-            linkedFiles:    [sampleFileName],
+            linkedFiles:    [linkedFile],
           });
           logEvent(ref, `Exception #${wpExNum} (Ref ${_runSeq}.${_exNumForAnnotation}) auto-created from analysis: ${exName}`);
         }
