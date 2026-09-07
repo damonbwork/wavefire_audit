@@ -8755,6 +8755,23 @@ function _lookupExceptionRefMap(ref, wpResults, attributes) {
   return exMap;
 }
 
+// Real, new, per the delete-sync design's own Findings/Recommendations
+// annotation requirement — unlike an Exception (always tied to one
+// specific attribute+sample, looked up above), a Finding or
+// Recommendation may or may not be tied to one specific attribute, but
+// IS always tied to one sample row and, when it has a real sourceFile,
+// one real document to draw on. Returns every Finding/Recommendation
+// for `fileName` specifically (matched the exact same way a mark's own
+// sourceFile is — normalized, not case/whitespace-sensitive), across
+// every sample row, ready for a burn mechanism's own drawing loop.
+function _lookupFindingsAndRecommendationsForFile(ref, fileName) {
+  const normFile = (fileName || '').trim().toLowerCase();
+  return (wpExceptions[ref] || []).filter(e =>
+    (e.type === 'finding' || e.type === 'recommendation') &&
+    e.sourceFile && e.sourceFile.trim().toLowerCase() === normFile
+  );
+}
+
 async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
@@ -8778,6 +8795,8 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   }
 
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
 
   function pdfText(s) {
     return String(s || '')
@@ -8971,6 +8990,33 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     });
   });
 
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — same as the plain burn-in mechanism's own
+  // identical addition, using this mechanism's own field-based
+  // reserveNonOverlappingY and a plain text letter beside a real field,
+  // matching how a pass/fail mark is drawn here.
+  _lookupFindingsAndRecommendationsForFile(ref, fileName).forEach(item => {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) return;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const lines = [pdfText('[' + item.ref + ']')];
+    if (item.desc) lines.push(pdfText(String(item.desc).slice(0, 90)));
+    const fieldH = lines.length > 1 ? 28 : 14;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, fieldH);
+    const symColor = FINDREC_COLORS[item.type];
+    page.drawText(FINDREC_LETTERS[item.type], { x: 12, y: finalY - 10, font: font, size: 11, color: symColor });
+    const uid = fieldSeq++;
+    placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
+      x: 28, y: finalY - fieldH + 8, width: 280, height: fieldH, size: 8,
+      textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+    });
+    anyPlaced = true;
+  });
+
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
   return pdfDoc.save();
 }
@@ -9026,9 +9072,18 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   // text below, all inside one single, shared white background sized
   // to fit whatever this specific mark actually needs. One box per
   // mark, never a separate box per piece of text within it.
+  // Real, new, per the Findings/Recommendations annotation requirement —
+  // `kind` generalizes what used to be a bare pass/fail boolean. Finding
+  // and Recommendation markers reuse this exact same box/number/detail
+  // mechanics, just with a colored letter ("F"/"R") instead of the
+  // geometric check/X, and their own distinct colors — so they can never
+  // be mistaken for a pass/fail judgment on the page itself.
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
   function drawTickMark(page, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
-    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden, kind } = opts;
+    const effectiveKind = kind || (pass ? 'pass' : 'fail');
+    const symColor = FINDREC_COLORS[effectiveKind] || (effectiveKind === 'pass' ? TICK_COLS.pass : TICK_COLS.fail);
     // Real, new, per Part 4 — an overridden mark's own combined
     // symbol-and-number unit carries a visible "OVR" tag directly in
     // that same text, rather than a separate badge element layered on
@@ -9093,9 +9148,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       color: rgb(1, 1, 1), opacity: 1,
     });
 
-    // The symbol itself, drawn geometrically.
+    // The symbol itself. Pass/fail stay geometric (a drawn check/X, per
+    // the original design decision to avoid relying on any specific
+    // font supporting those exact characters); a Finding/Recommendation
+    // draws its own bold letter instead — that decision doesn't apply
+    // here since F/R are plain, universally-supported letters, and a
+    // letter reads unambiguously as "not a pass/fail judgment."
     const symX = x + 2, symY = y - topRowH / 2;
-    if (pass) {
+    if (FINDREC_LETTERS[effectiveKind]) {
+      page.drawText(FINDREC_LETTERS[effectiveKind], { x: symX, y: symY - 4, font: font, size: 11, color: symColor });
+    } else if (pass) {
       page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
       page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
     } else {
@@ -9248,6 +9310,31 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     });
   });
 
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — each Finding/Recommendation tied to THIS
+  // file gets its own marker, same box mechanics as a pass/fail mark,
+  // reusing the exact same drawTickMark/reserveNonOverlappingY this
+  // whole function already has in scope.
+  _lookupFindingsAndRecommendationsForFile(ref, fileName).forEach(item => {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) return;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const detailText = item.desc ? String(item.desc).slice(0, 400) : '';
+    const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+    const geomLineH = fontReg.heightAtSize(7) * 1.15;
+    const geomTopRowH = 16;
+    const geomTotalH = geomDetailLines.length
+      ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+      : geomTopRowH - 4;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+    drawTickMark(page, { x: 13, y: finalY, kind: item.type, attrNum: item.ref, detailText: detailText, detailFont: fontReg });
+    anyPlaced = true;
+  });
+
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
   return pdfDoc.save();
 }
@@ -9274,6 +9361,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
 
   function pdfText(s) {
     return String(s || '')
@@ -9309,8 +9398,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   // the one structural difference from drawTickMark above, which draws
   // these same pieces directly and separately onto the real page.
   async function drawGroupedTickMark(destPage, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
-    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden, kind } = opts;
+    const effectiveKind = kind || (pass ? 'pass' : 'fail');
+    const symColor = FINDREC_COLORS[effectiveKind] || (effectiveKind === 'pass' ? TICK_COLS.pass : TICK_COLS.fail);
     // Real, new, per Part 4 — same "OVR" tag baked directly into the
     // combined symbol-and-number text as the plain burn-in mechanism
     // uses, rather than a separate badge — see its own comment for why.
@@ -9363,7 +9453,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 4, height: totalH + 4, color: rgb(1,1,1), opacity: 1 });
 
     const symX = lx + 2, symY = ly - topRowH / 2;
-    if (pass) {
+    if (FINDREC_LETTERS[effectiveKind]) {
+      tmpPage.drawText(FINDREC_LETTERS[effectiveKind], { x: symX, y: symY - 4, font: tmpFontBold, size: 11, color: symColor });
+    } else if (pass) {
       tmpPage.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
       tmpPage.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
     } else {
@@ -9532,6 +9624,30 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
         anyPlaced = true;
       }
     }
+  }
+
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — same as the plain burn-in mechanism's own
+  // identical addition, just via this mechanism's own async
+  // drawGroupedTickMark (each becomes its own discrete Stamp annotation).
+  for (const item of _lookupFindingsAndRecommendationsForFile(ref, fileName)) {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) continue;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const detailText = item.desc ? String(item.desc).slice(0, 400) : '';
+    const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+    const geomLineH = fontReg.heightAtSize(7) * 1.15;
+    const geomTopRowH = 16;
+    const geomTotalH = geomDetailLines.length
+      ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+      : geomTopRowH - 4;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+    await drawGroupedTickMark(page, { x: 13, y: finalY, kind: item.type, attrNum: item.ref, detailText: detailText, detailFont: fontReg });
+    anyPlaced = true;
   }
 
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
@@ -10046,6 +10162,45 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
             if (mark.note) summaryLines.push('     ' + String(mark.note).slice(0, 90));
           });
         });
+      });
+
+      // Real, new, per the delete-sync design's own Findings/
+      // Recommendations annotation requirement — a Text annotation per
+      // item, sharing the exact same stackCountByPage counter as the
+      // pass/fail icons above so a Finding/Recommendation icon never
+      // lands on top of one, colored distinctly from both green (pass)
+      // and red (fail/exception) so it never reads as a pass/fail
+      // judgment.
+      const FINDREC_COLORS_SN = { finding: { r: 217, g: 140, b: 5 }, recommendation: { r: 31, g: 64, b: 176 } };
+      _lookupFindingsAndRecommendationsForFile(ref, origEntry.name).forEach(item => {
+        const pgIdx = Math.max(0, (item.page || 1) - 1);
+        if (pgIdx >= realPageHeights.length) return;
+        const realPageHeight = realPageHeights[pgIdx];
+        const paraNum = Math.max(1, item.paragraph || 1);
+        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        const pdfY = realPageHeight * (1 - paraFrac);
+        const iconSize = 20;
+        const stackIdx = stackCountByPage[pgIdx] || 0;
+        stackCountByPage[pgIdx] = stackIdx + 1;
+        const stackedY = pdfY - stackIdx * (iconSize + 4);
+        const rectY1 = Math.max(0, stackedY - iconSize);
+        const rectY2 = Math.max(iconSize, stackedY);
+        const contents = '[' + item.ref + ']' + (item.desc ? '\n' + String(item.desc).slice(0, 300) : '');
+        try {
+          factory.createTextAnnotation({
+            page: pgIdx,
+            rect: [10, rectY1, 10 + iconSize, rectY2],
+            contents: contents,
+            author: 'Wavefire',
+            color: FINDREC_COLORS_SN[item.type],
+            open: false,
+          });
+          anyPlaced = true;
+        } catch (annErr) {
+          console.error('[AcrobatAnnotate] Could not place annotation for', item.ref, 'on', origEntry.name, ':', annErr.message);
+        }
+        summaryLines.push((item.type === 'finding' ? 'F' : 'R') + '  [' + item.ref + ']');
+        if (item.desc) summaryLines.push('     ' + String(item.desc).slice(0, 90));
       });
 
       if (!anyPlaced) continue; // nothing relevant to this file — skip it entirely, matching the burn-in mechanism's own real behavior
@@ -26395,11 +26550,13 @@ that are not themselves a pass/fail judgment on one attribute:
   just to have something to report.
 Each entry in either array: {"attributeTitle": "<exact attribute title this relates to, or \"\" if it's not tied to
 one specific attribute>", "note": "<one to two concise sentences describing it>", "sourceFile": "<exact document
-title this came from, or \"\" if not tied to one specific document>"}. Neither array should ever duplicate
-something already fully captured by a mark's own pass/fail — these are for the genuinely separate observations
-described above.
+title this came from, or \"\" if not tied to one specific document>", "page": 1, "paragraph": 2}. "page" and
+"paragraph" work exactly like a mark's own (see above) — where in "sourceFile" this was noticed — and should be
+omitted (or left as 1 and 0) when "sourceFile" is itself empty, since there's nowhere to point them at. Neither
+array should ever duplicate something already fully captured by a mark's own pass/fail — these are for the
+genuinely separate observations described above.
 
-Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title, or \"\" if genuinely not found in any document>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}],"findings":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">"}],"recommendations":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">"}]}`;
+Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title, or \"\" if genuinely not found in any document>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}],"findings":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">","page":1,"paragraph":2}],"recommendations":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">","page":1,"paragraph":2}]}`;
 
   // Builds the row-specific portion of the prompt: a human-readable
   // description of exactly which sample this pass is testing, built from
@@ -26985,6 +27142,16 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
           resolutionDate: '',
           retested:       false,
           linkedFiles:    [linkedFile],
+          // Real, new, per the delete-sync design's own Findings/
+          // Recommendations annotation requirement — where on
+          // "sourceFile" this was noticed, mirroring a mark's own
+          // page/paragraph, so the four burn mechanisms have somewhere
+          // real to draw this item's own marker. Blank sourceFile means
+          // "not tied to one specific document" — nothing gets drawn
+          // for that case, matching a workpaper-level Recommendation.
+          sourceFile:     item.sourceFile || '',
+          page:           item.page || 1,
+          paragraph:      item.paragraph || 0,
         });
         logEvent(ref, `#${wpNum} (Ref ${itemRef}) auto-created from analysis as a ${type}: ${itemName}`);
       });
