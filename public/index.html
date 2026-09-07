@@ -23253,7 +23253,7 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
 }
 
 
-function placeLegendOverlay(fileResult, attributes, exMap, fi) {
+function placeLegendOverlay(fileResult, attributes, exMap, fi, ref) {
   const overlay = document.getElementById('pdf-ann-overlay');
   if (!overlay) return;
 
@@ -23273,17 +23273,33 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi) {
         r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
       );
     }
-    const result  = match?.result || 'error';
+    const aiResult = match?.result || 'error';
+    // Real, confirmed fix — this box previously always showed the AI's
+    // own raw result/note, even after an override (including the
+    // degenerate case where the AI's own attempt for this sample
+    // outright failed/aborted — the box kept showing "Analysis failed:
+    // The operation was aborted." for every attribute forever, since
+    // nothing here ever consulted the override cache the Testwork
+    // Results Matrix already checks via _findOverrideFor). Mirrors that
+    // same lookup so this box can never show something the matrix
+    // itself already contradicts.
+    const overrideRow = ref ? _findOverrideFor(ref, ai, fi) : null;
+    const result  = overrideRow?.override_result || aiResult;
     const tick    = TICK_SYMS[result] || '–';
     const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
+    const ovrTag  = overrideRow?.override_result ? ' OVR' : '';
     const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
     const pageNum = (match?.page && match.page > 0) ? '  Pg ' + match.page : '';
     const section = (match?.section || '').slice(0, 20);
     const para    = (match?.paragraph && match.paragraph > 0) ? 'P' + match.paragraph : '';
     const loc     = [section, para].filter(Boolean).join(' ');
     const locStr  = loc ? '  ' + loc : '';
-    lines.push(tick + '  ' + label + exRef + pageNum + locStr);
-    if (match?.note) lines.push('     ' + match.note.slice(0, 60));
+    lines.push(tick + '  ' + label + exRef + ovrTag + pageNum + locStr);
+    const noteText = overrideRow?.override_result
+      ? `Overridden to ${overrideRow.override_result}${overrideRow.override_note ? ' — ' + overrideRow.override_note : ''}` +
+        (aiResult !== overrideRow.override_result ? ` (AI originally: ${aiResult}${match?.note ? ' — ' + match.note : ''})` : '')
+      : match?.note;
+    if (noteText) lines.push('     ' + noteText.slice(0, 90));
   });
   const defaultText = lines.join('\n');
 
@@ -29494,7 +29510,7 @@ function _restoreAnnotationsToOverlay(annotations, overlay) {
     });
     const fileResult = { fileName, results };
     if (results.length) {
-      placeLegendOverlay(fileResult, attrs, exMapLocal, fi);
+      placeLegendOverlay(fileResult, attrs, exMapLocal, fi, _fpRef);
       placeInteractiveAnnotations(fileResult, attrs, exMapLocal, fi);
     }
     return;
@@ -29646,7 +29662,7 @@ async function previewMemFile(ref, bucket, idx) {
               // (file-filtered) tick marks on this document.
               relevantResults.forEach(fileResult => {
                 const fi = wpResults.indexOf(fileResult);
-                placeLegendOverlay(fileResult, _attrs, exMapLocal, fi);
+                placeLegendOverlay(fileResult, _attrs, exMapLocal, fi, ref);
                 placeInteractiveAnnotations(fileResult, _attrs, exMapLocal, fi, name, ref);
               });
               // Real, confirmed fix, per direct feedback — this is a
