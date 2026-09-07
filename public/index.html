@@ -22522,27 +22522,35 @@ function _syncMechanismLabel(name) {
 // automatic. `protectedFiles` (if any) are listed separately as already
 // excluded, so the person knows why fewer files than they might expect
 // are being offered for update.
-function _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles) {
+function _promptSyncOverrideToAnnotatedFiles(ref, candidates, protectedFiles) {
   return new Promise(resolve => {
     const id = 'sync-override-overlay';
     document.getElementById(id)?.remove();
+    // Real, new, per explicit request — each affected file is a real,
+    // clickable link opening it in the viewer (its current,
+    // still-unmodified annotated copy, since nothing has been rewritten
+    // yet at the point this prompt is shown), matching the same
+    // treatment _promptDeleteGridItemSync already gives its own file
+    // list. Reuses the same _openSampleFileAtMark opener; isOriginal is
+    // false since these are always annotated derivatives.
+    const fileLink = (name) => `<a href="#" onclick="event.preventDefault();_openSampleFileAtMark('${escAttr(ref)}','${escAttr(name)}',1,false,null)" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e40af;text-decoration:underline" title="Open ${escHtml(name)} to review">${escHtml(name)}</a>`;
     const rows = candidates.map(f => `
       <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px">
         <i class="ti ti-file-check" style="color:#1e40af"></i>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        ${fileLink(f.name)}
         <span style="color:var(--text-tertiary);font-size:11px">${escHtml(_syncMechanismLabel(f.name))}</span>
       </div>`).join('');
     const protectedRows = (protectedFiles || []).map(f => `
       <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;color:var(--text-tertiary)">
         <i class="ti ti-lock" style="color:#b45309"></i>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        ${fileLink(f.name)}
         <span style="font-size:11px">manually edited — left as-is</span>
       </div>`).join('');
     const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
       <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
         <div style="padding:18px 20px 10px">
           <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Update annotated files?</div>
-          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This override affects ${candidates.length} already-annotated file${candidates.length !== 1 ? 's' : ''}. Updating will redraw that attribute's mark to show the override as the real result, with the AI's original finding kept as context — not a badge added on top of the old mark.</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This override affects ${candidates.length} already-annotated file${candidates.length !== 1 ? 's' : ''}. Updating will redraw that attribute's mark to show the override as the real result, with the AI's original finding kept as context.</div>
         </div>
         <div style="padding:2px 20px 4px;max-height:220px;overflow-y:auto">${rows}${protectedRows}</div>
         <div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">
@@ -22601,7 +22609,7 @@ async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex
     return; // nothing else to do — no annotated copies exist at all
   }
 
-  const proceed = skipPrompt ? true : await _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles);
+  const proceed = skipPrompt ? true : await _promptSyncOverrideToAnnotatedFiles(ref, candidates, protectedFiles);
   if (!proceed) return;
 
   const PDFLib = await loadPdfLib();
