@@ -512,44 +512,71 @@ this a Finding and not an Exception":
   is precisely the mechanism for a person to move that bar for a
   specific attribute where the generic default doesn't fit.
 
-### Design: per-attribute Classification Guidance (the "informing" mechanism)
+### Design: reuse Additional Information, don't add a fifth field (the "informing" mechanism)
 
-Add a fourth attribute-level field, sitting alongside
-`additionalInfo`/`successCriteria`/`failureCriteria` in both the Test
-Attributes grid's data model and its UI (own toggleable column under the
-existing "Pass/Fail Criteria" show/hide button — rename that button's
-group to "Criteria & Guidance" or add a sibling toggle — same
-`attr-criteria-col`-style textarea, own `data-col="classGuidance"`):
+**Revised per explicit follow-up.** The first draft of this part proposed
+a new `classificationGuidance` field, reasoning by analogy to
+`successCriteria`/`failureCriteria`. On reflection that analogy is
+backwards: what makes Success/Failure Criteria effective isn't that
+they're *separate boxes* — it's that the prompt explicitly labels the
+text and tells the model precisely how to use it ("if all these
+conditions are met → pass," "if any of these is observed → fail
+regardless"). That explicit framing is the actual lever. A new field
+only helps if it comes with that same framing, in which case the
+framing — not the field — is what to build.
 
-- **`classificationGuidance`** (string, same shape and size limit as
-  `successCriteria`/`failureCriteria`) — free text where a person
-  writes conditional rules in plain language for *this attribute only*,
-  e.g.:
-  - "If the invoice lacks a PO number but the amount and vendor agree to
-    the contract, treat it as a Finding, not an Exception."
-  - "Approval more than 5 business days after the transaction date is a
-    Finding; more than 30 days is an Exception."
-  - "If you see evidence of a manual workaround to the standard approval
-    process, add a Recommendation even if this sample itself passes."
+**Decision: reuse `additionalInfo`, with a prompt-side change only.**
+No new field, no new UI column, no toggle, no migration. Reasons this is
+better than a new field, not just simpler:
+- **`additionalInfo` is always sent.** Success/Failure Criteria sit
+  behind a show/hide toggle and are frequently left blank; Additional
+  Information is the one field most attributes already have populated,
+  and the one a person already reaches for by habit when they have
+  something specific to say about an attribute. A new field only a
+  minority of attributes would ever fill in is weaker leverage than
+  making the field everyone already uses smarter.
+- **No workpaper migration.** Every existing attribute already carries
+  this field; nothing needs backfilling or re-entry.
+- **One box to think about, not four (effectively five, counting this
+  one).** Asking a person to first decide "is this a pass/fail nuance,
+  general context, or a classification rule?" before picking which box
+  to type it into is friction with no real payoff — the model can be
+  told to read classification rules out of the same free text a person
+  already writes their general instructions into.
 
-This rides the exact same injection pattern `_buildAttrPromptWithReferenceFiles`
-already uses for `successCriteria`/`failureCriteria` (~line 28068-28073):
-a new `if (opts.classGuidance && a.classificationGuidance)` block adding
-a labeled paragraph — `"Classification Guidance (apply this when
-deciding whether an observation for this attribute should be an
-Exception, a Finding, a Recommendation, or neither — this guidance takes
-precedence over the general rule below for this attribute specifically)"`
-— positioned in the prompt *before* the general exception/finding/
-recommendation rule so a specific, per-attribute rule reads as an
-override of the generic one, not a competing instruction the model has
-to arbitrate on its own.
+**The actual change**, in `_buildAttrPromptWithReferenceFiles`'s
+`additionalInfo` block (~line 28067) and the general exception/finding/
+recommendation rule it precedes (~line 26676 onward): extend the
+`additionalInfo` label so the model is explicitly told this field may
+also contain binding classification instructions, and that such
+instructions for a given attribute take precedence over the general rule
+below for that attribute specifically — e.g.:
 
-This is deliberately the *same* mechanism already proven for pass/fail
-(free text, attribute-scoped, shown to the model as labeled prompt text)
-rather than a new, separate structured schema — consistent with how this
-app already solves "tell the AI something specific about this
-attribute," and it costs nothing new to build beyond one more field and
-one more prompt block.
+> "Test Attribute Additional Information: `<text>` — if this text
+> includes any instruction on when a deviation for this attribute should
+> be treated as a Finding rather than an Exception, when a Recommendation
+> should be raised, or when something should not be flagged at all,
+> treat that as a binding rule for this attribute, applied ahead of the
+> general classification rule described later in these instructions."
+
+A person writes the exact same kind of sentence originally proposed for
+the dedicated field — "if the invoice lacks a PO number but the amount
+and vendor agree to the contract, treat it as a Finding, not an
+Exception" — just in the Additional Information box they already know
+about, with the prompt now telling the model such sentences are rules to
+follow, not background color to skim.
+
+The one real cost of this approach — a classification rule sitting in
+the same free-text blob as general narrative context could, in
+principle, get read as color rather than a rule — is mitigated by the
+prompt-side framing above (explicitly calling out that such statements
+are binding), not by giving the user a second field to presort their own
+sentences into. If real use later shows attributes accumulating enough
+Additional Information text that classification rules get lost in it, a
+dedicated field remains an easy incremental addition at that point — but
+nothing here is signed up for a wholesale in-place migration if we build
+it, since it uses the exact same string field created for a different
+purpose today would just be *interpreted more richly* by the prompt.
 
 **Alternative considered and not recommended as the primary mechanism:**
 a structured, deterministic keyword/phrase-trigger list (e.g., "if the
@@ -605,7 +632,7 @@ reusing infrastructure already in place:
    after a successful reclassification (or, symmetrically, after a
    Part 6 exception-deletion where the explanation effectively says "I
    don't think this was really an exception"), offer to append one plain
-   sentence to that attribute's own `classificationGuidance`, e.g.:
+   sentence to that attribute's own `additionalInfo`, e.g.:
    > "Note: per a user correction on `<date>`, '`<item name>`' was
    > reclassified from Exception to Finding — apply similar judgment to
    > comparable facts for this attribute going forward."
@@ -614,36 +641,36 @@ reusing infrastructure already in place:
    decline it before it's saved. This is what actually "modifies how
    the AI views the sample files and attribute-related information" for
    every subsequent Analyze run on this attribute — the correction
-   becomes input to the same trusted mechanism (per-attribute guidance
-   text) rather than a one-off, forgotten fix. It's deliberately a
-   plain, human-editable text field, not a structured "corrections log"
-   with its own schema — consistent with keeping this app's steering
-   mechanism singular (one guidance field per attribute) rather than
-   layering a second, competing source of truth the model would have to
-   reconcile against the first.
+   becomes input to the same field and the same now-classification-aware
+   prompt framing described above, rather than a one-off, forgotten fix.
+   It's deliberately appended to the one existing free-text field rather
+   than a structured "corrections log" with its own schema — consistent
+   with keeping this app's steering mechanism singular (one instructions
+   field per attribute) rather than layering a second, competing source
+   of truth the model would have to reconcile against the first.
 
-### Data model additions (all in `public/index.html`, no server-side schema change — rides the existing `wpTestAttributes`/`workpapers.test_attributes` JSONB column exactly as `successCriteria`/`failureCriteria` already do)
+### Data model additions (all in `public/index.html`, no server-side schema change and, per the revision above, no new attribute field at all)
 
-- `attributes[i].classificationGuidance` — string, alongside the
-  existing `additionalInfo`/`successCriteria`/`failureCriteria`, wired
-  through every place those three already are: the DOM read/write
-  helpers (~lines 13183-13185, 21939-21940, 22031-22032, 22140-22142,
-  23564, 34679-34680, 35421-35424, 35459-35460, 35519-35520,
-  35555-35560), the xlsx export/import round-trip, and
-  `_buildAttrPromptWithReferenceFiles`'s prompt assembly.
-- No new field needed on `wpExceptions[ref]` entries — reclassification
-  changes `type`/`ref`/`typeNum` on the existing row in place; every
-  other field (`sourceFile`/`page`/`paragraph`/`linkedFiles`/etc.) is
-  already generic across all three types.
+- **None** — the "informing" mechanism reuses the existing
+  `attributes[i].additionalInfo` string and every place it already flows
+  (DOM read/write helpers, xlsx export/import round-trip,
+  `_buildAttrPromptWithReferenceFiles`'s prompt assembly); the only
+  change there is the richer prompt framing described above, not a new
+  field to wire through those same call sites a second time.
+- No new field needed on `wpExceptions[ref]` entries either —
+  reclassification changes `type`/`ref`/`typeNum` on the existing row in
+  place; every other field (`sourceFile`/`page`/`paragraph`/
+  `linkedFiles`/etc.) is already generic across all three types.
 
 ### Verification (when this is built)
 
-1. Set `classificationGuidance` on one attribute ("a missing PO number
-   alone is a Finding, not an Exception"); feed the AI a synthetic
-   result that would otherwise be an Exception under the generic rule;
-   confirm the prompt text includes the guidance ahead of the generic
-   rule, and (once wired) confirm the resulting item is created as a
-   Finding.
+1. Set `additionalInfo` on one attribute to include a classification rule
+   ("a missing PO number alone is a Finding, not an Exception for this
+   attribute"); feed the AI a synthetic result that would otherwise be
+   an Exception under the generic rule; confirm the prompt text frames
+   this attribute's `additionalInfo` as a binding classification
+   instruction ahead of the general rule, and (once wired) confirm the
+   resulting item is created as a Finding.
 2. Reclassify a manually-created Exception to a Finding; confirm the row
    keeps its `num` and evidence fields, its `ref` changes from `E{n}` to
    the next `F{n}`, the optional Pass-override prompt behaves exactly
@@ -651,9 +678,9 @@ reusing infrastructure already in place:
    changes from a check/X to the Finding letter in one re-burn (not a
    stale mark plus a new one).
 3. Accept a suggested guidance-append after a reclassification; confirm
-   it lands in that attribute's `classificationGuidance` field exactly
-   as edited/accepted, and reaches the next Analyze call's prompt text
-   for that attribute.
-4. Confirm declining the guidance-append leaves `classificationGuidance`
+   the sentence lands in that attribute's `additionalInfo` exactly as
+   edited/accepted, alongside whatever text was already there, and
+   reaches the next Analyze call's prompt text for that attribute.
+4. Confirm declining the guidance-append leaves `additionalInfo`
    untouched — the correction still applies to the item just
    reclassified, it just doesn't change future runs.
