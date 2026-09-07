@@ -11679,13 +11679,28 @@ function renderAnalysisResultsGrid(ref) {
     // whenever every mark happened to have an empty sourceFile.
     const evidenceFiles = [...new Set((fileResult.results || []).map(r => r.sourceFile).filter(Boolean))];
     const filesLabel = evidenceFiles.join(', ');
+    // Real, new, per explicit request — each evidence file is its own
+    // clickable link opening that file in the viewer, reusing the exact
+    // same opener the results modal's own file links already use
+    // (_openSampleFileAtMark). sourceFile is always the ORIGINAL
+    // filename (never an annotated copy's name — see the earlier fixes
+    // establishing that convention), so isOriginal is always true here;
+    // there's no one specific mark/attribute this whole-row cell is
+    // jumping to, so page defaults to 1 and attributeIndex is null —
+    // _openSampleFileAtMark already treats a null attributeIndex as
+    // "just open it, no tick to jump to."
+    const filesHtml = evidenceFiles.length
+      ? evidenceFiles.map(f =>
+          `<a href="#" onclick="event.preventDefault();_openSampleFileAtMark('${escAttr(ref)}','${escAttr(f)}',1,true,null)" style="color:#1e40af;text-decoration:underline;margin-right:6px;white-space:nowrap" title="${escHtml(f)}">${escHtml(f)}</a>`
+        ).join('')
+      : '';
 
     const sampleLabel = fileResult.sampleDesc || `Sample ${fi + 1}`;
     return `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px">
       <div style="${cellStyle}text-align:center;font-weight:600" title="${escHtml(sampleLabel)}">${fi + 1}</div>
       ${fieldCells}
       ${tickCells}
-      <div style="${cellStyle}" title="${escHtml(filesLabel)}">${escHtml(filesLabel)}</div>
+      <div style="${cellStyle}" title="${escHtml(filesLabel)}">${filesHtml}</div>
     </div>`;
   }).join('');
 
