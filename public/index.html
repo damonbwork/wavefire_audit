@@ -8733,7 +8733,36 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 // real PDF form-field spec — constructed here from page index,
 // attribute index, and field role so two attributes on the same page
 // (or the same attribute across two files) never collide.
-async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+// Real, confirmed fix, per the pass-fail-override-and-sync plan's own
+// numbering-consistency prerequisite for Part 4 — every mechanism that
+// numbers exceptions ("E1", "E2"...) used to independently recompute its
+// own counter from scratch by walking wpResults in the same fixed order,
+// which only happened to agree with the persisted Exceptions section's
+// own Ref by coincidence (same order, nothing to dedup yet on a first
+// run) — a second run where one exception is dedup-reused (keeping its
+// original Ref) while another is genuinely new could make them disagree,
+// exactly the risk the design doc calls out. Every mechanism now looks
+// up the SAME, single, persisted Ref that wpExceptions[ref] already
+// holds for each (attribute, sample) pair — keyed by the same
+// attributeIndex/sampleRowIndex convention the override feature already
+// uses — instead of deriving its own; by construction, this can never
+// disagree with what the Exceptions section itself shows. A (attribute,
+// sample) pair with no matching exception yet (shouldn't normally
+// happen, since exceptions are always auto-created before any of these
+// mechanisms run — see the reordering above) is simply absent from the
+// map, matching the exact same "no Ref" behavior an empty exMap lookup
+// already had.
+function _lookupExceptionRefMap(ref, wpResults, attributes) {
+  const exMap = {};
+  (wpExceptions[ref] || []).forEach(ex => {
+    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+      exMap[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
+    }
+  });
+  return exMap;
+}
+
+async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages    = pdfDoc.getPages();
@@ -8834,29 +8863,35 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     }
   }
 
-  // Real, confirmed fix, per direct report — same global, run-wide
-  // exception numbering as the burn-in mechanism, instead of a local
-  // counter that reset to 0 on every file. See the full explanation in
-  // _burnAnnotationsForFileFromResults above. pass_exception is retired:
-  // only 'fail' counts as an exception now.
-  var exNumGlobal = 0;
-  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        var al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
+  var exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
+
+  // Real, new, per Part 3 — same non-overlapping-Y stacking approach the
+  // burn-in mechanism already uses (reserveNonOverlappingY there), sized
+  // for this mechanism's own field-height math instead of its geometry.
+  // Needed now that one attribute can place more than one field on the
+  // same page when it carries more than one mark.
+  var placedBoxesByPage = {};
+  function reserveNonOverlappingY(pgIdx, initialY, totalH) {
+    var GAP = 4;
+    var arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
+    var y = initialY;
+    var top = y + 2;
+    var bottom = y - totalH - 2;
+    var guard = 0, moved = true;
+    while (moved && guard++ < 500) {
+      moved = false;
+      for (var i = 0; i < arr.length; i++) {
+        var b = arr[i];
+        if (top > b.bottom - GAP && bottom < b.top + GAP) {
+          var shift = top - (b.bottom - GAP);
+          y -= shift; top -= shift; bottom -= shift;
+          moved = true;
+        }
       }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+    }
+    arr.push({ top: top, bottom: bottom });
+    return y;
+  }
 
   var anyPlaced = false;
   var fieldSeq = 0; // Genuinely guarantees unique field names even if two entries would otherwise collide.
@@ -8864,67 +8899,82 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
-      // Identical source-file verification to the existing, proven
-      // burn-in function — kept word-for-word consistent rather than
-      // re-derived, since drift between the two mechanisms here would
-      // mean annotations landing on different files for the same
-      // underlying result.
-      if (match.sourceFile) {
-        var normSource = match.sourceFile.trim().toLowerCase();
-        var normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) return;
-      }
 
-      var pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) return;
-      var page = pages[pgIdx];
-      var ptH = page.getSize().height;
-
-      var result = match.result || 'error';
-      var isPass = (result === 'pass');
-      var isException = (result === 'fail');
       var exLabel = exMap[fi + '-' + ai] || null;
-
-      var paraNum = Math.max(1, match.paragraph || (ai + 1));
-      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      var pdfY = ptH * (1 - paraFrac);
-
-      // Real, confirmed redesign, per direct request — the check/X
-      // symbol is drawn geometrically, straight onto the page, the
-      // exact, same proven approach already used in the burn-in
-      // mechanism — this part isn't a form field at all, just a
-      // visual indicator sitting beside the real field below.
-      var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
-      var symX = 12, symY = pdfY - 6;
-      if (isPass) {
-        page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
-        page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
-      } else {
-        page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
-        page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
-      }
-
-      // Real, confirmed redesign — one single field now, replacing the
-      // three separate ones this used to create (wf_tick_, wf_attrnum_,
-      // wf_note_). The attribute number and, when present, exception or
-      // note detail, live together in one field's own text, joined by a
-      // real newline — its own intrinsic background is already the one
-      // shared box everything needed here now sits inside, rather than
-      // three separate fields each with their own.
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var lines = [pdfText('[' + attrNum + ']')];
-      if (isException) {
-        lines.push(pdfText('Exception ' + (exLabel || '?') + (match.note ? ': ' + String(match.note).slice(0, 90) : '')));
-      } else if (match.note) {
-        lines.push(pdfText(String(match.note).slice(0, 90)));
-      }
-      var uid = fieldSeq++;
-      var fieldH = lines.length > 1 ? 28 : 14;
-      placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
-        x: symX + 16, y: pdfY - fieldH + 8, width: 280, height: fieldH, size: 8,
-        textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+
+      // Real, new, per Part 3 — one field per MARK, not one collapsed
+      // representative per attribute; see _burnAnnotationsForFileFromResults's
+      // own identical comment for the full rationale (match.marks already
+      // survives intact from the AI's own response).
+      var marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
+
+      marksToRender.forEach(function(mark) {
+        // Identical source-file verification to the existing, proven
+        // burn-in function — kept word-for-word consistent rather than
+        // re-derived, since drift between the two mechanisms here would
+        // mean annotations landing on different files for the same
+        // underlying result.
+        if (mark.sourceFile) {
+          var normSource = mark.sourceFile.trim().toLowerCase();
+          var normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) return;
+        }
+
+        var pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) return;
+        var page = pages[pgIdx];
+        var ptH = page.getSize().height;
+
+        var result = mark.result || 'error';
+        var isPass = (result === 'pass');
+        var isException = (result === 'fail');
+
+        var paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        var pdfY = ptH * (1 - paraFrac);
+
+        // Real, confirmed redesign — one single field now, replacing the
+        // three separate ones this used to create (wf_tick_, wf_attrnum_,
+        // wf_note_). The attribute number and, when present, exception or
+        // note detail, live together in one field's own text, joined by a
+        // real newline — its own intrinsic background is already the one
+        // shared box everything needed here now sits inside, rather than
+        // three separate fields each with their own.
+        var lines = [pdfText('[' + attrNum + ']' + (mark.overridden ? ' OVR' : ''))];
+        if (isException) {
+          lines.push(pdfText('Exception ' + (exLabel || '?') + (mark.note ? ': ' + String(mark.note).slice(0, 90) : '')));
+        } else if (mark.note) {
+          lines.push(pdfText(String(mark.note).slice(0, 90)));
+        }
+        var fieldH = lines.length > 1 ? 28 : 14;
+        var finalY = reserveNonOverlappingY(pgIdx, pdfY, fieldH);
+
+        // Real, confirmed redesign, per direct request — the check/X
+        // symbol is drawn geometrically, straight onto the page, the
+        // exact, same proven approach already used in the burn-in
+        // mechanism — this part isn't a form field at all, just a
+        // visual indicator sitting beside the real field below.
+        var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
+        var symX = 12, symY = finalY - 6;
+        if (isPass) {
+          page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
+          page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
+        } else {
+          page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
+          page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
+        }
+
+        var uid = fieldSeq++;
+        placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
+          x: symX + 16, y: finalY - fieldH + 8, width: 280, height: fieldH, size: 8,
+          textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+        });
+        anyPlaced = true;
       });
-      anyPlaced = true;
     });
   });
 
@@ -8932,7 +8982,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   return pdfDoc.save();
 }
 
-async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages    = pdfDoc.getPages();
@@ -8984,9 +9034,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   // to fit whatever this specific mark actually needs. One box per
   // mark, never a separate box per piece of text within it.
   function drawTickMark(page, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
     const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
-    const numText = pdfText('[' + attrNum + ']');
+    // Real, new, per Part 4 — an overridden mark's own combined
+    // symbol-and-number unit carries a visible "OVR" tag directly in
+    // that same text, rather than a separate badge element layered on
+    // top: this tick IS the override's own result already (the caller
+    // passes the override's pass/fail as `pass` here, not the AI's
+    // original), so OVR is context about WHY, not a cover-up of what
+    // was there before.
+    const numText = pdfText('[' + attrNum + ']' + (overridden ? ' OVR' : ''));
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10; // the symbol's own real, drawn footprint, in points
 
@@ -9098,109 +9155,103 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     return y;
   }
 
-  // Real, confirmed fix, per direct report — exception numbering is now
-  // computed ONCE, globally, across every file in this Analyze run,
-  // using the exact same algorithm already proven correct in the
-  // Acrobat Sticky Note mechanism's own exMap (see
-  // _makeAcrobatAnnotatedCopyAfterAnalyze) and in exportToXlsx.
-  // Previously this function's own local "exNum" counter reset to 0 on
-  // every call (once per file), so the same real exception could show a
-  // different E-number depending on which annotated copy — or the xlsx
-  // export — someone had open. pass_exception is retired: only 'fail'
-  // counts as an exception now.
-  var exNumGlobal = 0;
-  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        var al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
-      }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+  var exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   var anyPlaced = false;
   wpResults.forEach(function(fileResult, fi){
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
-      // Only skip drawing this attribute's tick on THIS file if we can
-      // affirmatively tell it belongs elsewhere — never skip just because
-      // a comparison failed to prove a match. Reproducing a filename
-      // exactly across a full generation is a real LLM reliability risk
-      // (whitespace, case, or minor reformatting drift is common even when
-      // explicitly instructed to copy verbatim); silently dropping a real
-      // finding because of that drift is worse than occasionally drawing a
-      // tick on a file it may not strictly belong to, so:
-      //   1. Exact match -> definitely belongs here, draw it.
-      //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
-      //   3. No sourceFile reported at all -> can't tell, draw it (matches
-      //      the live viewer's own legacy-result fallback).
-      //   4. sourceFile reported AND clearly doesn't match after normalizing
-      //      -> only skip in this case, where drift is least likely to be
-      //      the explanation.
-      if (match.sourceFile) {
-        var normSource = match.sourceFile.trim().toLowerCase();
-        var normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) {
-          console.log('[BurnPDF] Skipping tick for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + match.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
-          return;
-        }
-      }
-
-      var pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) return;
-      var page = pages[pgIdx];
-      var ptH = page.getSize().height;
-
-      var result = match.result || 'error';
-      var isPass = (result === 'pass');
-      var isException = (result === 'fail');
-      var exLabel = exMap[fi + '-' + ai] || null;
-
-      var paraNum = Math.max(1, match.paragraph || (ai + 1));
-      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      var pdfY = ptH * (1 - paraFrac);
 
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var detailText = null;
-      // Real, confirmed fix, per direct report — a flat 90-character cap
-      // silently cut off longer AI-generated explanations with no
-      // indication anything was missing. Raised well past what a real
-      // exception note or comment realistically runs, with a visible
-      // "..." only on the rare case it's still hit — the box itself
-      // already grows to fit however many lines this produces (totalH
-      // scales with detailLines.length), so there's no separate height
-      // cap needing to move in step with this one.
-      var _noteRaw = match.note ? String(match.note) : '';
-      var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
-      if (isException) {
-        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
-      } else if (_noteText) {
-        detailText = _noteText;
-      }
+      var exLabel = exMap[fi + '-' + ai] || null;
 
-      // Same geometry math drawTickMark itself uses internally — computed
-      // here first only to know this mark's real footprint before
-      // deciding its final, non-overlapping y.
-      var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
-      var geomLineH = fontReg.heightAtSize(7) * 1.15;
-      var geomTopRowH = 16;
-      var geomTotalH = geomDetailLines.length
-        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
-        : geomTopRowH - 4;
-      var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+      // Real, new, per Part 3 of the pass-fail-override-and-sync plan —
+      // draw one tick per MARK, not one collapsed representative per
+      // attribute. match.marks already survives intact from the AI's own
+      // response all the way through (analyzeOneFileFast's normalization
+      // only overwrites match's own flat result/note/page/... fields, it
+      // never deletes marks) — falls back to a single synthetic mark
+      // built from those same flat fields for any older/legacy result
+      // saved before marks existed. A sync-triggered override (see
+      // _syncOverrideToAnnotatedFiles) replaces this array with exactly
+      // one synthetic mark for the overridden attribute — the same loop
+      // below then naturally draws just that one tick, with nothing
+      // attribute-specific needed here to know an override even occurred.
+      var marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
 
-      drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
-      anyPlaced = true;
+      marksToRender.forEach(function(mark) {
+        // Only skip drawing this mark on THIS file if we can affirmatively
+        // tell it belongs elsewhere — never skip just because a comparison
+        // failed to prove a match. Reproducing a filename exactly across a
+        // full generation is a real LLM reliability risk (whitespace, case,
+        // or minor reformatting drift is common even when explicitly
+        // instructed to copy verbatim); silently dropping a real finding
+        // because of that drift is worse than occasionally drawing a tick
+        // on a file it may not strictly belong to, so:
+        //   1. Exact match -> definitely belongs here, draw it.
+        //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
+        //   3. No sourceFile reported at all -> can't tell, draw it (matches
+        //      the live viewer's own legacy-result fallback).
+        //   4. sourceFile reported AND clearly doesn't match after normalizing
+        //      -> only skip in this case, where drift is least likely to be
+        //      the explanation.
+        if (mark.sourceFile) {
+          var normSource = mark.sourceFile.trim().toLowerCase();
+          var normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) {
+            console.log('[BurnPDF] Skipping mark for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + mark.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
+            return;
+          }
+        }
+
+        var pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) return;
+        var page = pages[pgIdx];
+        var ptH = page.getSize().height;
+
+        var result = mark.result || 'error';
+        var isPass = (result === 'pass');
+        var isException = (result === 'fail');
+
+        var paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        var pdfY = ptH * (1 - paraFrac);
+
+        var detailText = null;
+        // Real, confirmed fix, per direct report — a flat 90-character cap
+        // silently cut off longer AI-generated explanations with no
+        // indication anything was missing. Raised well past what a real
+        // exception note or comment realistically runs, with a visible
+        // "..." only on the rare case it's still hit — the box itself
+        // already grows to fit however many lines this produces (totalH
+        // scales with detailLines.length), so there's no separate height
+        // cap needing to move in step with this one.
+        var _noteRaw = mark.note ? String(mark.note) : '';
+        var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
+        if (isException) {
+          detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
+        } else if (_noteText) {
+          detailText = _noteText;
+        }
+
+        // Same geometry math drawTickMark itself uses internally — computed
+        // here first only to know this mark's real footprint before
+        // deciding its final, non-overlapping y.
+        var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+        var geomLineH = fontReg.heightAtSize(7) * 1.15;
+        var geomTopRowH = 16;
+        var geomTotalH = geomDetailLines.length
+          ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+          : geomTopRowH - 4;
+        var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+
+        drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        anyPlaced = true;
+      });
     });
   });
 
@@ -9222,7 +9273,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 // so this is the same fix in kind as switching from "_annotated_bi" to a
 // genuine annotation-based mechanism, just with this mark's own drawn
 // appearance instead of Acrobat's built-in comment icon.
-async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes) {
+async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts, PDFName, PDFDict, PDFString, PDFNumber } = PDFLib;
   const pdfDoc  = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages   = pdfDoc.getPages();
@@ -9265,9 +9316,12 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   // the one structural difference from drawTickMark above, which draws
   // these same pieces directly and separately onto the real page.
   async function drawGroupedTickMark(destPage, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
     const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
-    const numText = pdfText('[' + attrNum + ']');
+    // Real, new, per Part 4 — same "OVR" tag baked directly into the
+    // combined symbol-and-number text as the plain burn-in mechanism
+    // uses, rather than a separate badge — see its own comment for why.
+    const numText = pdfText('[' + attrNum + ']' + (overridden ? ' OVR' : ''));
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10;
 
@@ -9414,29 +9468,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     return y;
   }
 
-  // Real, confirmed fix, per direct report — same global, run-wide
-  // exception numbering as the plain "_annotated_bi" mechanism above,
-  // instead of a local counter that reset to 0 on every file. See the
-  // full explanation there. pass_exception is retired: only 'fail'
-  // counts as an exception now.
-  let exNumGlobal = 0;
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      let m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        const al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
-      }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   let anyPlaced = false;
   let fi = -1;
@@ -9446,53 +9478,66 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const attr = attributes[ai];
       const match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) continue;
-      if (match.sourceFile) {
-        const normSource = match.sourceFile.trim().toLowerCase();
-        const normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) continue;
-      }
 
-      const pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) continue;
-      const page = pages[pgIdx];
-      const ptH = page.getSize().height;
-
-      const result = match.result || 'error';
-      const isPass = (result === 'pass');
-      const isException = (result === 'fail');
       const exLabel = exMap[fi + '-' + ai] || null;
-
-      const paraNum = Math.max(1, match.paragraph || (ai + 1));
-      const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      const pdfY = ptH * (1 - paraFrac);
-
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
-      let detailText = null;
-      // Real, confirmed fix, per direct report — same raised cap as the
-      // plain "_annotated_bi" mechanism above, so a longer AI-generated
-      // explanation isn't silently cut off. The box already grows to fit
-      // however many lines this produces.
-      const _noteRaw = match.note ? String(match.note) : '';
-      const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
-      if (isException) {
-        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
-      } else if (_noteText) {
-        detailText = _noteText;
+
+      // Real, new, per Part 3 — one Stamp annotation per MARK, not one
+      // collapsed representative per attribute; see
+      // _burnAnnotationsForFileFromResults's own identical comment for
+      // the full rationale.
+      const marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
+
+      for (const mark of marksToRender) {
+        if (mark.sourceFile) {
+          const normSource = mark.sourceFile.trim().toLowerCase();
+          const normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) continue;
+        }
+
+        const pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) continue;
+        const page = pages[pgIdx];
+        const ptH = page.getSize().height;
+
+        const result = mark.result || 'error';
+        const isPass = (result === 'pass');
+        const isException = (result === 'fail');
+
+        const paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        const pdfY = ptH * (1 - paraFrac);
+
+        let detailText = null;
+        // Real, confirmed fix, per direct report — same raised cap as the
+        // plain "_annotated_bi" mechanism above, so a longer AI-generated
+        // explanation isn't silently cut off. The box already grows to fit
+        // however many lines this produces.
+        const _noteRaw = mark.note ? String(mark.note) : '';
+        const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
+        if (isException) {
+          detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
+        } else if (_noteText) {
+          detailText = _noteText;
+        }
+
+        // Same geometry math drawGroupedTickMark itself uses internally —
+        // computed here first only to know this mark's real footprint
+        // before deciding its final, non-overlapping y.
+        const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+        const geomLineH = fontReg.heightAtSize(7) * 1.15;
+        const geomTopRowH = 16;
+        const geomTotalH = geomDetailLines.length
+          ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+          : geomTopRowH - 4;
+        const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+
+        await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        anyPlaced = true;
       }
-
-      // Same geometry math drawGroupedTickMark itself uses internally —
-      // computed here first only to know this mark's real footprint
-      // before deciding its final, non-overlapping y.
-      const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
-      const geomLineH = fontReg.heightAtSize(7) * 1.15;
-      const geomTopRowH = 16;
-      const geomTotalH = geomDetailLines.length
-        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
-        : geomTopRowH - 4;
-      const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
-
-      await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
-      anyPlaced = true;
     }
   }
 
@@ -9535,7 +9580,7 @@ async function downloadAllAnnotatedPDFs() {
     let annotatedCount = 0;
     for (const entry of memFiles) {
       const bytes = await entry.file.arrayBuffer();
-      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes, ref);
       if (!outBytes) continue; // no relevant results for this specific file — skip rather than include an unmarked copy
       const baseName = (entry.name || 'document').replace(/\.pdf$/i, '');
       zip.file(baseName + '_annotated_bi.pdf', outBytes);
@@ -9788,12 +9833,23 @@ async function _drawTickMarksOnlyForFileFromResults(PDFLib, fileBytes, fileName,
   return pdfDoc.save({ useObjectStreams: false });
 }
 
-async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
-  const wpResults = _wpAnalysisResults[ref];
+// Real, new, per Part 4 (override sync) — `wpResultsOverride` and
+// `originalEntriesOverride` let _syncOverrideToAnnotatedFiles re-run this
+// same mechanism scoped to just one already-annotated file's original,
+// using an "effective results" copy with the overridden attribute's marks
+// replaced, rather than needing a separate, parallel implementation. Both
+// are optional; omitting them keeps this function's normal
+// every-original-file, real-analysis-results behavior exactly as before.
+async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref, originalEntriesOverride, wpResultsOverride) {
+  const wpResults = wpResultsOverride || _wpAnalysisResults[ref];
   if (!wpResults || !wpResults.length) return;
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
   const bucketArr = inMemoryFiles[ref]?.sample;
   if (!bucketArr || !bucketArr.length) return;
+
+  if (originalEntriesOverride) {
+    return _makeAcrobatAnnotatedCopyForEntries(ref, originalEntriesOverride, wpResults, attributes, bucketArr);
+  }
 
   // Only genuine originals — never re-annotate an already-"_copy",
   // already-"_annotated_bi", or already-"_annotated_sn"
@@ -9807,6 +9863,10 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   );
   if (!originalEntries.length) return;
 
+  return _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResults, attributes, bucketArr);
+}
+
+async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResults, attributes, bucketArr) {
   let pdfAnnotateLib;
   try {
     pdfAnnotateLib = await loadPdfAnnotateLib();
@@ -9827,33 +9887,7 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
     return;
   }
 
-  // Real, global exception numbering — computed ONCE, across every file
-  // in this Analyze run, using the EXACT SAME algorithm already proven
-  // correct in exportToXlsx (see its own exMap construction). Per
-  // explicit instruction, the number shown here must be the same one
-  // that ends up in the .xlsx export — this is a faithful, independent
-  // re-computation of that identical logic (exportToXlsx builds its own
-  // exMap as a local variable, not something this function can read
-  // directly), not a separate, potentially-drifting scheme.
-  let exNumGlobal = 0;
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = (fileResult.results || []).find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = (fileResult.results || []).find(r =>
-          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        exNumGlobal++;
-        exMap[`${fi}-${ai}`] = `E${exNumGlobal}`;
-      }
-    });
-  });
-
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
   const TICK_SYMS = { pass: '\u2713', pass_exception: '\u26A0', fail: '\u2717', error: '\u2013' };
 
   for (const origEntry of originalEntries) {
@@ -9939,6 +9973,16 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
       // correct pattern the burn-in mechanism already uses: iterate
       // over all of wpResults, and let sourceFile matching happen
       // inside, the same way it already does elsewhere.
+      // Real, new, per Part 3 — this mechanism has no existing
+      // non-overlapping-Y logic (unlike bi/bi2's reserveNonOverlappingY),
+      // since it never previously needed to place more than one icon per
+      // attribute. A simple fixed per-page counter is enough here: unlike
+      // a drawn box whose real footprint varies with its own text, a
+      // sticky-note icon's real footprint is always the same fixed
+      // iconSize, so a flat offset per placement on the same page is
+      // sufficient to keep marks from stacking exactly on top of each
+      // other.
+      const stackCountByPage = {};
       wpResults.forEach(function(fileResult, fi) {
         attributes.forEach(function(attr, ai) {
           let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
@@ -9949,48 +9993,65 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
             );
           }
           if (!match) return;
-          if (match.sourceFile) {
-            const normSource = match.sourceFile.trim().toLowerCase();
-            const normFile = origEntry.name.trim().toLowerCase();
-            if (normSource !== normFile) return;
-          }
 
-          const pgIdx = Math.max(0, (match.page || 1) - 1);
-          if (pgIdx >= realPageHeights.length) return;
-          const realPageHeight = realPageHeights[pgIdx];
-
-          const result = match.result || 'error';
           const exRef = exMap[`${fi}-${ai}`] || '';
-
-          const paraNum = Math.max(1, match.paragraph || (ai + 1));
-          const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-          const pdfY = realPageHeight * (1 - paraFrac);
-          const iconSize = 20;
-          const rectY1 = Math.max(0, pdfY - iconSize);
-          const rectY2 = Math.max(iconSize, pdfY);
-
           const attrNum = attr.attrRef || attr.num || String(ai + 1);
-          const exTag = exRef ? ' [' + exRef + ']' : '';
-          const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
-          try {
-            factory.createTextAnnotation({
-              page: pgIdx,
-              rect: [10, rectY1, 10 + iconSize, rectY2],
-              contents: contents,
-              author: 'Wavefire',
-              color: TICK_COLORS[result] || TICK_COLORS.error,
-              open: false,
-            });
-            anyPlaced = true;
-          } catch (annErr) {
-            console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
-          }
+          // Real, new, per Part 3 — one comment icon per MARK, not one
+          // collapsed representative per attribute; see
+          // _burnAnnotationsForFileFromResults's own identical comment
+          // for the full rationale.
+          const marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+            result: match.result || 'error', note: match.note || '',
+            sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+          }];
 
-          const tickSym = TICK_SYMS[result] || '-';
-          const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
-          summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
-          if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+          marksToRender.forEach(function(mark) {
+            if (mark.sourceFile) {
+              const normSource = mark.sourceFile.trim().toLowerCase();
+              const normFile = origEntry.name.trim().toLowerCase();
+              if (normSource !== normFile) return;
+            }
+
+            const pgIdx = Math.max(0, (mark.page || 1) - 1);
+            if (pgIdx >= realPageHeights.length) return;
+            const realPageHeight = realPageHeights[pgIdx];
+
+            const result = mark.result || 'error';
+
+            const paraNum = Math.max(1, mark.paragraph || (ai + 1));
+            const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+            const pdfY = realPageHeight * (1 - paraFrac);
+            const iconSize = 20;
+            const stackIdx = stackCountByPage[pgIdx] || 0;
+            stackCountByPage[pgIdx] = stackIdx + 1;
+            const stackedY = pdfY - stackIdx * (iconSize + 4);
+            const rectY1 = Math.max(0, stackedY - iconSize);
+            const rectY2 = Math.max(iconSize, stackedY);
+
+            const exTag = exRef ? ' [' + exRef + ']' : '';
+            const ovrTag = mark.overridden ? ' OVR' : '';
+            const contents = '[' + attrNum + ']' + ovrTag + exTag + (mark.note ? '\n' + String(mark.note).slice(0, 300) : '');
+
+            try {
+              factory.createTextAnnotation({
+                page: pgIdx,
+                rect: [10, rectY1, 10 + iconSize, rectY2],
+                contents: contents,
+                author: 'Wavefire',
+                color: TICK_COLORS[result] || TICK_COLORS.error,
+                open: false,
+              });
+              anyPlaced = true;
+            } catch (annErr) {
+              console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+            }
+
+            const tickSym = TICK_SYMS[result] || '-';
+            const pageTag = (mark.page && mark.page > 0) ? '  Pg ' + mark.page : '';
+            summaryLines.push(tickSym + '  [' + attrNum + ']' + ovrTag + exTag + ' ' + attr.title + pageTag);
+            if (mark.note) summaryLines.push('     ' + String(mark.note).slice(0, 90));
+          });
         });
       });
 
@@ -10090,21 +10151,7 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
     return;
   }
 
-  // Identical global exception numbering to the existing comment
-  // mechanism — the exact, same algorithm, so the number shown here
-  // matches every other output for the same underlying exception.
-  let exNumGlobal = 0;
-  const exMap = {};
-  wpResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = (fileResult.results || []).find(r => r.title === attr.title);
-      if (!match) return;
-      if (match.result === 'fail' || match.result === 'pass_exception') {
-        exNumGlobal++;
-        exMap[`${fi}-${ai}`] = `E${exNumGlobal}`;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
   // Real, confirmed redesign, per the confirmed tick-mark design —
@@ -10443,7 +10490,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
       // ── Step 3: NOW mark up that same copy's bytes — genuinely
       // separate from step 2, using the pristine bytes just stored, not
       // bytes that were already marked before ever being written. ──
-      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         // No relevant results for this specific file after all — remove
         // the pristine placeholder copy rather than leave an unmarked
@@ -10597,7 +10644,7 @@ async function _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref) {
       refreshFileList(ref, 'sample');
       await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
 
-      const outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         if (annEntry.fileId) {
           fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
@@ -10726,7 +10773,7 @@ async function _autoFormFieldFilesAfterAnalyze(ref) {
       refreshFileList(ref, 'sample');
       await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
 
-      const outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         if (annEntry.fileId) {
           fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
@@ -10913,7 +10960,7 @@ async function saveAnnotatedPDF() {
         const baseEntryName = entry._annotatedFrom || entry.name;
         const baseEntry = inMemoryFiles[_fpRef]?.[_fpBucket]?.find(f => f.name === baseEntryName && f.file) || entry;
         const fileBytes = await baseEntry.file.arrayBuffer();
-        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, baseEntry.name, wpResultsForBurn, attrsForBurn);
+        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, baseEntry.name, wpResultsForBurn, attrsForBurn, _fpRef);
         if (!burnedBytes) throw new Error('No analysis results are relevant to this specific file.');
       } catch (burnErr) {
         console.error('[Save] Burn from analysis results failed:', burnErr);
@@ -22234,6 +22281,190 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
     }
   }
   popup.remove();
+
+  // Real, new, per Part 4 (override sync) — fire-and-forget, exactly the
+  // same pattern the four annotation mechanisms already use after
+  // Analyze: this offers to update any already-annotated files, but
+  // never blocks the override itself on it finishing.
+  _syncOverrideToAnnotatedFiles(ref, ai, fi, overrideResult, overrideNote).catch(err =>
+    console.error('[SyncOverride] Unexpected failure:', err)
+  );
+}
+
+// ── Part 4: keeping an override in sync with already-annotated files ──────
+//
+// SUFFIX_LABELS mirrors the exact mapping _openAttrResultsModal's own
+// file-links feature already uses — kept as a single shared source here so
+// the two can never describe the same filename suffix differently.
+const _SYNC_SUFFIX_LABELS = [
+  [/_annotated_bi2\.pdf$/i, 'Movable stamp (bi2)'],
+  [/_annotated_bi\.pdf$/i,  'Burned-in (bi)'],
+  [/_annotated_ff\.pdf$/i,  'Form-field (ff)'],
+  [/_annotated_sn\.pdf$/i,  'Sticky Note (sn)'],
+];
+function _syncMechanismLabel(name) {
+  const found = _SYNC_SUFFIX_LABELS.find(([re]) => re.test(name || ''));
+  return found ? found[1] : name;
+}
+
+// Confirmation dialog before touching any already-annotated file — never
+// automatic. `protectedFiles` (if any) are listed separately as already
+// excluded, so the person knows why fewer files than they might expect
+// are being offered for update.
+function _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles) {
+  return new Promise(resolve => {
+    const id = 'sync-override-overlay';
+    document.getElementById(id)?.remove();
+    const rows = candidates.map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px">
+        <i class="ti ti-file-check" style="color:#1e40af"></i>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        <span style="color:var(--text-tertiary);font-size:11px">${escHtml(_syncMechanismLabel(f.name))}</span>
+      </div>`).join('');
+    const protectedRows = (protectedFiles || []).map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;color:var(--text-tertiary)">
+        <i class="ti ti-lock" style="color:#b45309"></i>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        <span style="font-size:11px">manually edited — left as-is</span>
+      </div>`).join('');
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Update annotated files?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This override affects ${candidates.length} already-annotated file${candidates.length !== 1 ? 's' : ''}. Updating will redraw that attribute's mark to show the override as the real result, with the AI's original finding kept as context — not a badge added on top of the old mark.</div>
+        </div>
+        <div style="padding:2px 20px 4px;max-height:220px;overflow-y:auto">${rows}${protectedRows}</div>
+        <div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="syncov-cancel-btn">Not now</button>
+          <button class="btn-p" id="syncov-continue-btn">Update ${candidates.length} file${candidates.length !== 1 ? 's' : ''}</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('syncov-cancel-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(false); };
+    document.getElementById('syncov-continue-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(true); };
+  });
+}
+
+// Real, new — after an override is saved, offers to update every
+// already-annotated file evidencing this (attribute, sample) pair so
+// they don't keep showing the AI's stale, pre-override determination.
+// Per explicit design decision: scoped to every file this attribute's
+// OWN marks evidence for this sample (not just whichever file happens to
+// be open), and never touches a file a person has since manually edited
+// (the existing _autoGenerated === false flag Save Annotations already
+// sets — reused here rather than a separate new fingerprint system,
+// since it's an exact signal where it exists, not a probabilistic one).
+async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex, overrideResult, overrideNote) {
+  if (!overrideResult) return; // clearing an override has nothing new to burn in — the AI's own original marks are still exactly what every annotated file already shows
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[attributeIndex];
+  if (!attr) return;
+  const fileResult = wpResults[sampleRowIndex];
+  if (!fileResult) return;
+
+  let match = (fileResult.results || []).find(r => r.title === attr.title);
+  if (!match) {
+    const al = attr.title.toLowerCase();
+    match = (fileResult.results || []).find(r => r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase()));
+  }
+  if (!match) return;
+
+  const marksForAttr = (match.marks && match.marks.length) ? match.marks : [{ sourceFile: match.sourceFile || '' }];
+  const originalNames = [...new Set(marksForAttr.map(m => m.sourceFile).filter(Boolean))];
+  if (!originalNames.length) return; // nothing to trace an annotated copy back to
+
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates      = bucketArr.filter(f => originalNames.includes(f._annotatedFrom) && f._autoGenerated !== false);
+  const protectedFiles  = bucketArr.filter(f => originalNames.includes(f._annotatedFrom) && f._autoGenerated === false);
+  if (!candidates.length) {
+    if (protectedFiles.length) {
+      alert(`${protectedFiles.length} annotated file${protectedFiles.length !== 1 ? 's have' : ' has'} already been manually edited since Wavefire last wrote to ${protectedFiles.length !== 1 ? 'them' : 'it'}, so this override was not applied to ${protectedFiles.length !== 1 ? 'them' : 'it'}:\n\n` + protectedFiles.map(f => `  • ${f.name}`).join('\n'));
+    }
+    return; // nothing else to do — no annotated copies exist at all
+  }
+
+  const proceed = await _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles);
+  if (!proceed) return;
+
+  const PDFLib = await loadPdfLib();
+  const userName = _currentDisplayUser?.login_id || _currentDisplayUser?.name || 'a reviewer';
+  const aiSummary = (match.marks && match.marks.length)
+    ? match.marks.map(m => `${m.result}${m.note ? ' - ' + m.note : ''}`).join('; ')
+    : `${match.result || 'error'}${match.note ? ' - ' + match.note : ''}`;
+  const firstMark = (match.marks && match.marks[0]) || {};
+  const syntheticMark = {
+    result: overrideResult,
+    note: `[Overridden by ${userName}]${overrideNote ? ' ' + overrideNote : ''} — AI originally found: ${aiSummary}`,
+    sourceFile: firstMark.sourceFile || match.sourceFile || originalNames[0],
+    page: firstMark.page || match.page || 1,
+    paragraph: firstMark.paragraph || match.paragraph || (attributeIndex + 1),
+    overridden: true,
+  };
+
+  // A shallow "effective results" clone — only this one (attributeIndex,
+  // sampleRowIndex) attribute's marks are replaced with the single
+  // synthetic override mark; every other attribute and sample is passed
+  // through completely untouched, so re-burning only ever changes what
+  // this override actually affects.
+  const effectiveWpResults = wpResults.map((fr, fi) => {
+    if (fi !== sampleRowIndex) return fr;
+    return { ...fr, results: (fr.results || []).map(r => r.title === attr.title ? { ...r, marks: [syntheticMark] } : r) };
+  });
+
+  const nowStamp = () => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  };
+
+  const failures = [];
+  for (const derivEntry of candidates) {
+    try {
+      const origEntry = bucketArr.find(f => f.name === derivEntry._annotatedFrom && !f._annotatedFrom);
+      if (!origEntry || !origEntry.file) { failures.push(`${derivEntry.name} (original file not available)`); continue; }
+      const pristineBytes = await origEntry.file.arrayBuffer();
+
+      let outBytes = null;
+      if (/_annotated_bi2\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_bi\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_ff\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_sn\.pdf$/i.test(derivEntry.name)) {
+        // The sn mechanism operates on a whole batch of originals via
+        // _makeAcrobatAnnotatedCopyAfterAnalyze, not a single-file burn
+        // function — re-run it scoped to just this one original, via the
+        // override params it accepts specifically for this (see its own
+        // comment). It persists its own result, so nothing further is
+        // needed for this branch below.
+        await _makeAcrobatAnnotatedCopyAfterAnalyze(ref, [origEntry], effectiveWpResults);
+        continue;
+      } else {
+        continue; // unrecognized naming convention — skip rather than guess which mechanism produced it
+      }
+      if (!outBytes) { failures.push(`${derivEntry.name} (nothing left to annotate after the override)`); continue; }
+
+      const annotatedFile = new File([outBytes], derivEntry.name, { type: 'application/pdf' });
+      derivEntry.file      = annotatedFile;
+      derivEntry.size      = formatFileSize(annotatedFile.size);
+      derivEntry.updatedBy = 'Wavefire';
+      derivEntry.updatedOn = nowStamp();
+      await _persistSampleFileToBackend(ref, derivEntry, 'Wavefire');
+    } catch (err) {
+      console.error('[SyncOverride] Failed to update', derivEntry.name, ':', err.message);
+      failures.push(derivEntry.name);
+    }
+  }
+
+  refreshFileList(ref, 'sample');
+  if (failures.length) {
+    alert(`${failures.length} annotated file${failures.length !== 1 ? 's' : ''} could not be updated with this override:\n\n` +
+      failures.map(n => `  • ${n}`).join('\n') +
+      `\n\nThe override itself was saved successfully — only the annotated file${failures.length !== 1 ? 's' : ''} listed above ${failures.length !== 1 ? 'still show' : 'still shows'} the prior determination.`);
+  }
 }
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
@@ -22319,6 +22550,13 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
       'pointer-events:all !important;' +
       'box-shadow:0 2px 6px rgba(0,0,0,0.18)';
     tickEl.textContent = sym;
+    // Real, new, per Part 4 — "show both when they disagree": an
+    // override always wins for what's drawn, but the AI's own current
+    // determination stays visible on hover rather than disappearing
+    // once overridden, in case a later Analyze run changed it.
+    if (overrideRow?.override_result && overrideRow.override_result !== aiResult) {
+      tickEl.title = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult}`;
+    }
     if (overrideRow?.override_result) {
       const badge = document.createElement('span');
       badge.className = 'ann-override-badge';
@@ -26481,6 +26719,119 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   const _wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
 
+  // Real, confirmed fix, per the numbering-consistency prerequisite the
+  // pass-fail-override-and-sync plan calls out for Part 4 — this whole
+  // block (originally positioned after the four annotation-mechanism
+  // triggers below) MUST run and fully populate wpExceptions[ref] BEFORE
+  // any of bi/bi2/ff/sn fire. Each of those is invoked fire-and-forget
+  // (not awaited) — calling an async function still runs its body
+  // SYNCHRONOUSLY up to its own first `await`, so if this block ran
+  // after those calls (as it used to), each mechanism's own pre-await
+  // code could execute — and, per the fix below, look up
+  // wpExceptions[ref] for its Ref values — before this block had put
+  // anything there at all. Moving the block earlier removes that race
+  // entirely: by the time any annotation mechanism runs, every
+  // exception this run will create already exists.
+  // ── Auto-populate Exceptions section from analysis results ──────
+  if (!wpExceptions[ref]) wpExceptions[ref] = [];
+
+  // Get next available exception number in the workpaper exceptions section
+  const _getNextExNum = () => {
+    const existing = wpExceptions[ref] || [];
+    return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
+  };
+
+  // Build exMap AND populate exceptions simultaneously.
+  //
+  // Real, confirmed fix — per explicit follow-up concern: a Ref built
+  // from a counter that resets every run (the previous `E${n}` here) can
+  // collide across runs (two separate exceptions both legitimately named
+  // "E1"), and never accounted for exceptions a person adds by hand via
+  // "Add exception" (addException()), which never went through this
+  // block at all. Both problems share one fix: stop deriving Ref from
+  // anything run-scoped, and instead derive it from `num` — the
+  // exception's own position in a single, ever-increasing,
+  // workpaper-wide sequence that every exception already gets, auto-
+  // created or manual alike (see _getNextExNum below and addException's
+  // own matching fix), and which never resets. Ref is simply `E${num}`,
+  // which by construction can never collide with anything else in this
+  // workpaper.
+  //
+  // This also fixes a smaller, real drift bug that existed even before
+  // today: re-running Analyze over unchanged results used to hand out a
+  // BRAND NEW ref to an exception that already existed (since the old
+  // counter incremented on every match found, regardless of whether it
+  // was a duplicate) — ticks and the Exceptions section could disagree
+  // after a second run. Now looks up whether this exact (attribute,
+  // file) exception already exists first, and reuses its real, existing
+  // ref/num for the tick annotation if so, only minting a new one when
+  // actually creating a new exception.
+  const _exMapForAnnotation = {};
+  analysisResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
+        // Real, new, per explicit design change — the "E1"/attribute ref
+        // prefix used to be baked into the exception's own name string
+        // ("E1 - A: Ticket"). Per direct request, "E1" now lives in the
+        // Ref column and the attribute ref ("A") in its own Attribute
+        // column instead, leaving the name as just the attribute's own
+        // title — the two pieces of structured data are still available,
+        // just as real fields instead of parsed out of freeform text.
+        const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+        const exName = attr.title;
+        const exDesc = match.note || '';
+        // The specific file that actually evidenced THIS exception —
+        // fileResult.fileName is deliberately the joined list of every
+        // attached sample file (each row is tested against all of them
+        // together; see analyzeOneFileFast's own comment on this), not
+        // the one file behind this particular mark. Falls back to the
+        // sample's own description when a mark has no sourceFile (an
+        // older/legacy result), so a linked "file" is never silently
+        // wrong rather than merely generic.
+        const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
+
+        // Reuse an already-existing exception's own ref/num if this
+        // exact (attribute, file) exception was already recorded —
+        // avoids the drift described above; only a genuinely new
+        // exception mints a new number.
+        const existingEx = (wpExceptions[ref] || []).find(e =>
+          e.name === exName && e.linkedFiles?.includes(linkedFile)
+        );
+
+        let xlsxExRef;
+        if (existingEx) {
+          xlsxExRef = existingEx.ref || `E${existingEx.num}`;
+        } else {
+          const wpExNum = _getNextExNum();
+          xlsxExRef = `E${wpExNum}`;
+          wpExceptions[ref].push({
+            num:            wpExNum,
+            ref:            xlsxExRef,
+            attrRef:        attrLabel,
+            attributeIndex: ai,
+            sampleRowIndex: fi,
+            name:           exName,
+            desc:           exDesc,
+            owner:          '',
+            mgmtResponse:   '',
+            resolutionDate: '',
+            retested:       false,
+            linkedFiles:    [linkedFile],
+          });
+          logEvent(ref, `Exception #${wpExNum} (Ref ${xlsxExRef}, Attribute ${attrLabel}) auto-created from analysis: ${exName}`);
+        }
+        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
+      }
+    });
+  });
+
   // Automatically create a burned-in annotated copy of every attached sample
   // file, added alongside its original in the Attached Sample Files list —
   // runs in the background and doesn't block the rest of this function from
@@ -26689,106 +27040,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   // Update Cancel → Close
   const _closeBtn = document.getElementById('analysis-close-btn');
   if (_closeBtn) { _closeBtn.textContent = 'Close'; _closeBtn.onclick = closeAnalysis; }
-
-  // ── Auto-populate Exceptions section from analysis results ──────
-  if (!wpExceptions[ref]) wpExceptions[ref] = [];
-
-  // Get next available exception number in the workpaper exceptions section
-  const _getNextExNum = () => {
-    const existing = wpExceptions[ref] || [];
-    return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
-  };
-
-  // Build exMap AND populate exceptions simultaneously.
-  //
-  // Real, confirmed fix — per explicit follow-up concern: a Ref built
-  // from a counter that resets every run (the previous `E${n}` here) can
-  // collide across runs (two separate exceptions both legitimately named
-  // "E1"), and never accounted for exceptions a person adds by hand via
-  // "Add exception" (addException()), which never went through this
-  // block at all. Both problems share one fix: stop deriving Ref from
-  // anything run-scoped, and instead derive it from `num` — the
-  // exception's own position in a single, ever-increasing,
-  // workpaper-wide sequence that every exception already gets, auto-
-  // created or manual alike (see _getNextExNum below and addException's
-  // own matching fix), and which never resets. Ref is simply `E${num}`,
-  // which by construction can never collide with anything else in this
-  // workpaper.
-  //
-  // This also fixes a smaller, real drift bug that existed even before
-  // today: re-running Analyze over unchanged results used to hand out a
-  // BRAND NEW ref to an exception that already existed (since the old
-  // counter incremented on every match found, regardless of whether it
-  // was a duplicate) — ticks and the Exceptions section could disagree
-  // after a second run. Now looks up whether this exact (attribute,
-  // file) exception already exists first, and reuses its real, existing
-  // ref/num for the tick annotation if so, only minting a new one when
-  // actually creating a new exception.
-  const _exMapForAnnotation = {};
-  analysisResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = fileResult.results.find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = fileResult.results.find(r =>
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        // Real, new, per explicit design change — the "E1"/attribute ref
-        // prefix used to be baked into the exception's own name string
-        // ("E1 - A: Ticket"). Per direct request, "E1" now lives in the
-        // Ref column and the attribute ref ("A") in its own Attribute
-        // column instead, leaving the name as just the attribute's own
-        // title — the two pieces of structured data are still available,
-        // just as real fields instead of parsed out of freeform text.
-        const attrLabel = attr.attrRef || attr.num || String(ai + 1);
-        const exName = attr.title;
-        const exDesc = match.note || '';
-        // The specific file that actually evidenced THIS exception —
-        // fileResult.fileName is deliberately the joined list of every
-        // attached sample file (each row is tested against all of them
-        // together; see analyzeOneFileFast's own comment on this), not
-        // the one file behind this particular mark. Falls back to the
-        // sample's own description when a mark has no sourceFile (an
-        // older/legacy result), so a linked "file" is never silently
-        // wrong rather than merely generic.
-        const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
-
-        // Reuse an already-existing exception's own ref/num if this
-        // exact (attribute, file) exception was already recorded —
-        // avoids the drift described above; only a genuinely new
-        // exception mints a new number.
-        const existingEx = (wpExceptions[ref] || []).find(e =>
-          e.name === exName && e.linkedFiles?.includes(linkedFile)
-        );
-
-        let xlsxExRef;
-        if (existingEx) {
-          xlsxExRef = existingEx.ref || `E${existingEx.num}`;
-        } else {
-          const wpExNum = _getNextExNum();
-          xlsxExRef = `E${wpExNum}`;
-          wpExceptions[ref].push({
-            num:            wpExNum,
-            ref:            xlsxExRef,
-            attrRef:        attrLabel,
-            attributeIndex: ai,
-            sampleRowIndex: fi,
-            name:           exName,
-            desc:           exDesc,
-            owner:          '',
-            mgmtResponse:   '',
-            resolutionDate: '',
-            retested:       false,
-            linkedFiles:    [linkedFile],
-          });
-          logEvent(ref, `Exception #${wpExNum} (Ref ${xlsxExRef}, Attribute ${attrLabel}) auto-created from analysis: ${exName}`);
-        }
-        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
-      }
-    });
-  });
 
   // Re-render exceptions section with the new entries
   renderExceptions(ref);
@@ -28093,28 +28344,7 @@ async function exportToXlsx(attachOnly = false) {
   const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
   const TICK_LABEL = { pass: '✓  Pass', pass_exception: '⚠  Pass with Exception', fail: '✗  Fail', error: '–  Error / Not evaluated' };
 
-  // ── Collect all exceptions (pass_exception + fail) for the exceptions list ──
-  // exceptionList: [{num, file, attrTitle, note}]
-  let exNum = 0;
-  // Map: (fileIdx, attrIdx) → exception number string e.g. "E1"
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-
-  analysisResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = fileResult.results.find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = fileResult.results.find(r =>
-          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        exNum++;
-        exMap[`${fi}-${ai}`] = `E${exNum}`;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, analysisResults, attributes);
 
   // ── Results sheet data ──
   // Rows 1-4: header info
@@ -28724,18 +28954,7 @@ async function previewMemFile(ref, bucket, idx) {
         if (relevantResults.length) {
           console.log('[Viewer] Found', relevantResults.length, 'relevant result(s) for', name, '— will place overlays after PDF renders');
           const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
-          const exMapLocal = {};
-          let exNum = 0;
-          wpResults.forEach((fr, fii) => {
-            _attrs.forEach((attr, ai) => {
-              let m = fr.results.find(r => r.title === attr.title);
-              if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
-                exNum++;
-                exMapLocal[`${fii}-${ai}`] = `E${exNum}`;
-              }
-            });
-          });
-
+          const exMapLocal = _lookupExceptionRefMap(ref, wpResults, _attrs);
           // Place overlays — PDF is already rendered so try immediately, then poll as fallback
           let _placed = false;
           const _tryPlace = () => {
@@ -34311,6 +34530,19 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       await Promise.all(entries.map(([fi, change]) =>
         _postOverride(ref, attributeIndex, Number(fi), change.result, change.note)
       ));
+      // Real, new, per Part 4 (override sync) — offers to update any
+      // already-annotated files for each changed (attribute, sample)
+      // pair, the same as the live-tick popup's own _saveOverride
+      // already does. Sequential, not Promise.all, since each one can
+      // show its own confirmation dialog — running them in parallel
+      // would show several dialogs stacked on top of each other at once.
+      for (const [fi, change] of entries) {
+        try {
+          await _syncOverrideToAnnotatedFiles(ref, attributeIndex, Number(fi), change.result, change.note);
+        } catch (err) {
+          console.error('[SyncOverride] Unexpected failure:', err);
+        }
+      }
     }
     overlay.remove();
     if (currentAttrWPRef === ref) renderTestAttributes(ref);
