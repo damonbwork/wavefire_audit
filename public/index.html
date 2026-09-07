@@ -37,8 +37,20 @@
   }
   load(pdfSrc);
 })();
-</script><script src="Wavefire_files/pdf.min_3UUq.js" async=""></script>
-<link rel="stylesheet" href="Wavefire_files/tabler-icons.min_3UUq.css">
+</script>
+<!-- Real, confirmed fix — both of the lines this replaces referenced a
+     "Wavefire_files/..." path that has never existed anywhere in this
+     repo (confirmed: no such directory exists in public/) — the classic
+     naming pattern Chrome's "Save Page As → Webpage, Complete" leaves
+     behind, meaning at some point a saved-webpage copy's markup was
+     accidentally pasted in here instead of the real source. The pdf.min
+     one was harmless (a redundant, silently-404ing script tag — the
+     inline loader above already handles pdf.js correctly on its own),
+     but the tabler-icons stylesheet was the ONLY place that font/CSS was
+     ever loaded from — meaning every single icon across the entire app
+     (350+ "ti ti-*" usages) has been rendering as an empty box, with
+     nothing else to fall back to, for as long as this line existed. -->
+<link rel="stylesheet" href="https://unpkg.com/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
