@@ -34506,6 +34506,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       const selected = effective;
       const noteVal = change ? change.note : (saved?.override_note || '');
       body.innerHTML = `
+        <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">Select Pass or Fail below to override the AI's result — the current result is already selected.</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
           <button class="attr-modal-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
             border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
