@@ -5152,13 +5152,24 @@ app.get('/api/admin/file-inventory', async (req, res) => {
       params.push(`%${req.query.search}%`);
       conditions.push(`sf.filename ILIKE $${params.length}`);
     }
+    // Real, confirmed fix — re-uploading a file with a name that already
+    // exists for this workpaper+category (POST /api/sample-files/:ref's
+    // own ON CONFLICT ... DO UPDATE) correctly refreshes date_updated but
+    // deliberately leaves the ORIGINAL date_created untouched. Filtering
+    // on date_created alone therefore hid a file that was genuinely just
+    // saved moments ago, if its very first upload happened on an earlier
+    // date — exactly the reported "uploaded a file, it doesn't show up
+    // in File Inventory" case. Matching on whichever of the two is more
+    // recent (GREATEST) means a file shows up under a "recent" date
+    // filter whenever something recent actually happened to it, either
+    // its original creation or a later re-upload/update.
     if (req.query.dateFrom) {
       params.push(req.query.dateFrom);
-      conditions.push(`sf.date_created >= $${params.length}`);
+      conditions.push(`GREATEST(sf.date_created, sf.date_updated) >= $${params.length}`);
     }
     if (req.query.dateTo) {
       params.push(req.query.dateTo);
-      conditions.push(`sf.date_created <= $${params.length}::date + interval '1 day'`);
+      conditions.push(`GREATEST(sf.date_created, sf.date_updated) <= $${params.length}::date + interval '1 day'`);
     }
     // Real, matches the design doc's own recommendation — everything
     // shows by default, including archived, since an admin auditing
