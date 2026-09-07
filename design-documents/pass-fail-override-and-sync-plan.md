@@ -513,13 +513,33 @@ this a Finding and not an Exception":
   email inbox with no logging"). A Recommendation is never tied to a
   pass/fail outcome and, unlike an Exception or Finding, may not name a
   specific sample or source file at all.
-- **(Not tracked as a grid item) Observation** — A plain, non-exception
-  comment about a sample that doesn't rise to a Finding either (e.g.,
-  "invoice was legible, no issues") — captured only in a mark's own
-  `note` text, exactly as today. The bar between "Observation" and
-  "Finding" is inherently judgment-based; per-attribute guidance (below)
-  is precisely the mechanism for a person to move that bar for a
-  specific attribute where the generic default doesn't fit.
+**Not a fourth classification: "Observation" (revised per explicit
+follow-up).** An earlier draft of this doc listed "Observation" as a
+peer of the three definitions above. On reflection that's the wrong
+shape for it, and it's deliberately *not* given a formal definition
+here (no severity scale, no materiality threshold, no test against
+"degree of discrepancy from the written attribute"). Each of the three
+real classifications above answers a specific structural question
+(does it fail the attribute's own criteria; is it a sample-specific
+deviation that doesn't; is it about the control/process rather than one
+sample). "Observation" doesn't answer a question like that — it's just
+the name for "didn't clear the bar for any of the three," and it has no
+data model or UI surface of its own: it's never a grid row, never
+numbered, never annotated, and lives only as free text in a Pass mark's
+own `note` field, exactly as it already does today, unaffected by
+anything in this Part. Giving it its own formal severity/materiality
+criteria would mean defining rules for something that produces no
+artifact anyone reviews as such — and worse, it would create a second,
+*global* place setting a materiality bar that could conflict with the
+per-attribute bar a person sets in Classification Guidance (below) for
+exactly this purpose ("a missing PO number alone is a Finding, not an
+Exception" already IS a materiality judgment, made where it belongs —
+per attribute, by the person who knows that attribute, not by a fixed
+global rule). The only thing the prompt needs to do with this idea is
+name the floor exists — "if it doesn't meet the bar for Exception,
+Finding, or Recommendation for this attribute, don't flag it; a plain
+remark stays in the mark's own note" — not define where that floor
+sits.
 
 ### Design: reuse Additional Information, don't add a fifth field (the "informing" mechanism)
 
