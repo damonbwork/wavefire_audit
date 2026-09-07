@@ -30713,9 +30713,39 @@ function deleteSelectedSampleFiles(ref) {
   const listHtml = names.length <= 5
     ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(n => '<li>'+n+'</li>').join('') + '</ul>'
     : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
+
+  // Real, confirmed fix — this bulk path never had promptDelete's own
+  // exception-linkage warning at all (it goes through rcmConfirmDelete
+  // directly, a completely separate confirmation function), so deleting
+  // a file here silently gave no indication an exception was linked to
+  // it, even though the single-file delete button does warn. Reuses the
+  // exact same matching promptDelete uses (resolving an annotated
+  // copy's own name through _annotatedFrom, and matching a legacy
+  // comma-joined linkedFiles entry) so both paths agree.
+  const linkedWarnings = [..._sfSelected].map(i => {
+    const entry = list[i];
+    if (!entry) return null;
+    const nameToCheck = entry._annotatedFrom || entry.name;
+    const isLinkedTo = (lf) => lf === nameToCheck || lf.split(',').map(s => s.trim()).includes(nameToCheck);
+    const linked = (wpExceptions[ref] || []).filter(e => (e.linkedFiles || []).some(isLinkedTo));
+    return linked.length ? { file: entry.name, exceptions: linked } : null;
+  }).filter(Boolean);
+
+  let warningHtml = '';
+  if (linkedWarnings.length) {
+    const rows = linkedWarnings.map(w =>
+      `<li><strong>${escHtml(w.file)}</strong>: ${w.exceptions.map(e => escHtml((e.ref ? e.ref + ' — ' : '') + (e.name || 'Untitled exception'))).join(', ')}</li>`
+    ).join('');
+    warningHtml = `<div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border:1px solid #eab308;border-radius:6px;font-size:12px;color:#854d0e;text-align:left">
+      <strong>${linkedWarnings.length} of these file${linkedWarnings.length !== 1 ? 's are' : ' is'} linked to an exception:</strong>
+      <ul style="margin:6px 0 0 0;padding-left:18px">${rows}</ul>
+      Deleting will <strong>not</strong> delete the linked exception(s) — they'll remain in the Exceptions section, flagged as linked to a file that's no longer attached.
+    </div>`;
+  }
+
   rcmConfirmDelete(
     'Delete ' + count + ' File' + (count!==1?'s':''),
-    'Are you sure you want to delete <strong>' + count + ' file' + (count!==1?'s':'') + '</strong> from Attached Sample Files? This cannot be undone.' + listHtml,
+    'Are you sure you want to delete <strong>' + count + ' file' + (count!==1?'s':'') + '</strong> from Attached Sample Files? This cannot be undone.' + listHtml + warningHtml,
     function() {
       // Snapshot the indices to delete FIRST, then clear the real
       // selection set immediately — BEFORE the deletion loop runs, not
