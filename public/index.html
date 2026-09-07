@@ -3988,6 +3988,14 @@ auditor's assessment.
           <div class="sect-body" style="padding:0;overflow-x:auto">
             <div id="analysis-grid-rows"></div>
           </div>
+          <div style="display:flex;gap:8px;padding:12px 16px;border-top:0.5px solid var(--border-light)">
+            <button class="btn-s" style="font-size:12px;background:#1e40af;color:#fff;border-color:#1e40af" onclick="_exportAnalysisGridXlsx(getWPRef(), false)">
+              <i class="ti ti-download"></i>Create Workpaper (.xlsx)
+            </button>
+            <button class="btn-s" style="font-size:12px;background:#1e40af;color:#fff;border-color:#1e40af" onclick="_exportAnalysisGridXlsx(getWPRef(), true)">
+              <i class="ti ti-paperclip"></i>Attach to Workpaper Files
+            </button>
+          </div>
         </div><!-- /sect-card analysis grid -->
 
         <!-- Section: Exceptions -->
@@ -15864,8 +15872,13 @@ async function _adminFileInventoryReload() {
     } else {
       tbody.innerHTML = data.rows.map(function(f) {
         const categoryLabel = f.file_category === 'workpaper' ? 'Workpaper' : 'Sample';
-        const created = f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
-        const updated = f.date_updated ? new Date(f.date_updated).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+        // Matches the established "<date> at <time>" convention already
+        // used for file timestamps elsewhere (e.g. the Attached Sample
+        // Files list) rather than a date-only stamp.
+        const fmtDateTime = (d) => d ? (new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+          + ' at ' + new Date(d).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })) : '';
+        const created = fmtDateTime(f.date_created);
+        const updated = fmtDateTime(f.date_updated);
         return `<tr style="border-bottom:0.5px solid var(--border-light)">
           <td style="padding:7px 10px">${escAttr(f.filename)}</td>
           <td style="padding:7px 10px">${categoryLabel}</td>
@@ -27913,6 +27926,57 @@ async function exportMTemplateShortXlsx(ref, wp, attachOnly) {
   document.body.removeChild(link);
 }
 
+// Prompts before attaching a newly generated workpaper .xlsx when prior
+// generated versions already exist for this workpaper — lists each with
+// when it was created, and lets the user check any they'd like deleted.
+// Nothing is ever deleted without an explicit check; onProceed(deleteIdxs)
+// runs regardless, with an empty array if nothing was checked.
+function _promptPriorWorkpaperXlsxVersions(ref, versions, onProceed) {
+  const id = 'wp-xlsx-versions-overlay';
+  document.getElementById(id)?.remove();
+  const rows = versions.map(v => `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border-light);font-size:12px;cursor:pointer">
+      <input type="checkbox" data-idx="${v.idx}" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer;flex-shrink:0">
+      <i class="ti ti-file-spreadsheet" style="color:#1e40af;flex-shrink:0"></i>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.name)}</span>
+      <span style="color:var(--text-tertiary);white-space:nowrap;font-size:11px">${escHtml(v.uploadedOn || '')}</span>
+    </label>`).join('');
+  const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+    <div style="background:var(--bg-primary);border-radius:12px;width:min(480px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+      <div style="padding:18px 20px 10px">
+        <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Prior workpaper file${versions.length !== 1 ? 's' : ''} found</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This workpaper already has ${versions.length} generated test-results file${versions.length !== 1 ? 's' : ''} attached from a previous Analyze run. Check any you'd like to delete before adding the new one — leave unchecked to keep them alongside it.</div>
+      </div>
+      <div style="padding:2px 20px 4px;max-height:240px;overflow-y:auto">${rows}</div>
+      <div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn-s" id="wpxv-cancel-btn">Cancel</button>
+        <button class="btn-p" id="wpxv-continue-btn">Continue</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.getElementById('wpxv-cancel-btn').onclick = () => document.getElementById(id)?.remove();
+  document.getElementById('wpxv-continue-btn').onclick = () => {
+    const toDelete = [...document.querySelectorAll(`#${id} input[type=checkbox]:checked`)].map(cb => parseInt(cb.dataset.idx, 10));
+    document.getElementById(id)?.remove();
+    onProceed(toDelete);
+  };
+}
+
+// Real, new, per explicit request — lets the Testwork Grid (which
+// persists across page loads, unlike the Analyze modal) offer the same
+// Download/Attach actions exportToXlsx already provides from the Analyze
+// modal. exportToXlsx reads the module-level `analysisResults` global
+// directly (not a parameter) — so this just points that global at this
+// workpaper's own persisted results before delegating, exactly as if an
+// Analyze run had just populated it. Everything else exportToXlsx needs
+// (wp, attributes, sample data) is already re-derived from `ref` on every
+// call, so this is the only real gap between the two call sites.
+async function _exportAnalysisGridXlsx(ref, attachOnly) {
+  analysisResults = _wpAnalysisResults[ref] || [];
+  await exportToXlsx(attachOnly);
+}
+
 async function exportToXlsx(attachOnly = false) {
   if (!window.XLSX) {
     await new Promise((resolve, reject) => {
@@ -28212,30 +28276,81 @@ async function exportToXlsx(attachOnly = false) {
 
   // ── Add the exported file to Attached Workpaper Files (only when user clicks "Add to Workpaper Files") ──
   if (attachOnly) {
-  const xlsxFile = new File([xlsxBlob], filename, { type: xlsxBlob.type });
-  ensureFileStore(ref);
-  inMemoryFiles[ref].workpaper.push({
-    file: xlsxFile,
-    name: filename,
-    size: formatFileSize(xlsxBlob.size),
-    type: xlsxBlob.type,
-    uploadedBy: 'Wavefire',
-    uploadedOn: (() => {
-      const now = new Date();
-      const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      return `${date} at ${time}`;
-    })(),
-  });
-  refreshFileList(ref, 'workpaper');
+    ensureFileStore(ref);
 
-  // Show a brief confirmation in the modal status
-  const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
-    'Added to Attached Workpaper Files.';
+    // Real, new, per explicit design decision — every prior .xlsx this
+    // same export flow generated for this workpaper (tagged
+    // _isAnalysisExport when created, below) is offered up for optional
+    // deletion before adding the new one, listed with when it was
+    // created; nothing is ever deleted without the user checking it.
+    // Real, confirmed fix — _isAnalysisExport is a client-side-only flag,
+    // never sent to or stored in Postgres (the sample_files table has no
+    // equivalent column). It survives fine within the same browser
+    // session, but a file list REBUILT from the backend (a reload, a new
+    // session, a different user) loses it entirely, which would silently
+    // make this check see zero prior versions even when one genuinely
+    // exists on the server. Falls back to this export's own, otherwise
+    // unused, naming pattern (WP-{year}-{seq}_TestResults_{date}_{time}.xlsx)
+    // so a reloaded entry is still recognized as a prior version.
+    const _isGeneratedTestResultsName = (n) => /^WP-.+_TestResults_\d{8}_\d{4}\.xlsx$/i.test(n || '');
+    const priorVersions = inMemoryFiles[ref].workpaper
+      .map((f, idx) => ({ ...f, idx }))
+      .filter(f => f._isAnalysisExport || _isGeneratedTestResultsName(f.name));
 
-  // Update button to confirm
-  const _ab = document.getElementById('attach-xlsx-btn');
-  if (_ab) { _ab.innerHTML = '<i class="ti ti-check"></i> Added!'; _ab.disabled = true; }
+    const doAttach = async (deleteIdxs) => {
+      if (deleteIdxs && deleteIdxs.length) {
+        // Highest index first so removing one doesn't shift the others
+        // still queued for removal out from under their own index.
+        [...deleteIdxs].sort((a, b) => b - a).forEach(idx => {
+          const entry = inMemoryFiles[ref].workpaper[idx];
+          if (entry?.fileId) {
+            fetch(`/api/sample-files/${encodeURIComponent(ref)}/${encodeURIComponent(entry.fileId)}/archive`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived: true }),
+            }).catch(e => console.error('[exportToXlsx] Could not archive prior version:', e.message));
+          }
+          inMemoryFiles[ref].workpaper.splice(idx, 1);
+        });
+      }
+
+      const xlsxFile = new File([xlsxBlob], filename, { type: xlsxBlob.type });
+      const entry = {
+        file: xlsxFile,
+        name: filename,
+        size: formatFileSize(xlsxBlob.size),
+        type: xlsxBlob.type,
+        uploadedBy: 'Wavefire',
+        uploadedOn: (() => {
+          const now = new Date();
+          const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+          return `${date} at ${time}`;
+        })(),
+        _isAnalysisExport: true, // tags this as a generated test-results workpaper, so a future Attach can find and offer to clean up prior ones
+      };
+      inMemoryFiles[ref].workpaper.push(entry);
+      refreshFileList(ref, 'workpaper');
+
+      // Real, confirmed fix — previously this only ever pushed into the
+      // in-memory array above, unlike every other attached file, which
+      // does get persisted via this same helper. The file was silently
+      // lost on reload, and never downloadable from the file server.
+      await _persistSampleFileToBackend(ref, entry, 'Wavefire', 'workpaper');
+      refreshFileList(ref, 'workpaper');
+
+      // Show a brief confirmation in the modal status (only present when
+      // called from the Analyze modal's own button — harmless no-op from
+      // the Testwork Grid's buttons, which show their own feedback).
+      const _as3 = document.getElementById('analysis-status'); if(_as3) _as3.textContent =
+        'Added to Attached Workpaper Files.';
+      const _ab = document.getElementById('attach-xlsx-btn');
+      if (_ab) { _ab.innerHTML = '<i class="ti ti-check"></i> Added!'; _ab.disabled = true; }
+    };
+
+    if (priorVersions.length) {
+      _promptPriorWorkpaperXlsxVersions(ref, priorVersions, doAttach);
+    } else {
+      await doAttach([]);
+    }
   }
 }
 
