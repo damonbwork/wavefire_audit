@@ -11635,20 +11635,41 @@ function renderAnalysisResultsGrid(ref) {
           r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
         );
       }
-      const result = match ? match.result : null;
+      const aiResult = match ? match.result : null;
+      // Real, new — an override, when one exists for this exact
+      // (attribute, sample) pair, wins visually here too, exactly the
+      // same way it already does in the live PDF overlay and the
+      // Testwork Grid's own source-of-truth data. Without this, a click
+      // here would open the results modal already showing the override
+      // while the grid cell behind it still showed the AI's stale,
+      // pre-override symbol.
+      const overrideRow = ref ? _findOverrideFor(ref, ai, fi) : null;
+      const result = overrideRow?.override_result || aiResult;
       const tick   = TICK[result] || '–';
       const color  = TICK_COLOR[result] || '#9ca3af';
       const exRow  = exceptions.find(e => e.attributeIndex === ai && e.sampleRowIndex === fi);
       const refTag = exRow?.ref ? `<div style="font-size:9px;color:var(--text-tertiary)">[${escHtml(exRow.ref)}]</div>` : '';
+      const ovrTag = overrideRow?.override_result ? `<div style="font-size:8px;font-weight:700;color:#1e40af">OVR</div>` : '';
       // Each sample row is tested against every attached sample file
       // together (see analyzeOneFileFast's own comment on this), so
       // fileResult.fileName is deliberately the joined list of every
       // file made available as context — NOT which file evidenced this
       // particular attribute. That's on the mark itself instead, so the
       // tooltip (not the row label) is where it belongs.
-      const evidenceTitle = match?.sourceFile ? `Evidenced by: ${match.sourceFile}` : '';
+      let evidenceTitle = match?.sourceFile ? `Evidenced by: ${match.sourceFile}` : '';
+      if (overrideRow?.override_result && overrideRow.override_result !== aiResult) {
+        evidenceTitle = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult || 'not yet tested'}` + (evidenceTitle ? ` — ${evidenceTitle}` : '');
+      }
       const borderExtra = ai === 0 ? firstAttrBorder : '';
-      return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra}" title="${escHtml(evidenceTitle)}">${tick}${refTag}</div>`;
+      // Real, new, per explicit request — clicking a tick opens the
+      // exact same batch results modal the Test Attributes grid's own
+      // Result column already uses (_openAttrResultsModal), rather than
+      // building a second, separate override UI. attributeIndex/label
+      // match that column's own values exactly, so the two entry points
+      // can never disagree about which attribute they're opening.
+      const attrNum = attr.attrRef || attr.num || String(ai + 1);
+      const onClick = `_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
+      return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}</div>`;
     }).join('');
 
     // The specific file(s) that actually evidenced this sample's marks —
