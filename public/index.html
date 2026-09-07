@@ -26678,7 +26678,9 @@ Determining pass vs. fail for each mark, in order of how these interact:
 - A minor deviation from ideal practice that does NOT rise to an actual control failure is NOT an exception —
   keep the mark "pass", put the observation in "note" as a plain, non-exception comment, AND ALSO add it to the
   top-level "findings" array described below, so it's tracked as a genuine Finding rather than lost inside that
-  mark's own note.
+  mark's own note. This is the GENERAL rule — an attribute's own "Test Attribute Additional Information" may
+  contain a more specific classification rule for that attribute (e.g. "a missing PO number alone is a Finding,
+  not an Exception"); when it does, follow that attribute-specific instruction instead of this general one.
 - Sample data given to you that you genuinely cannot locate anywhere in the source documents — not contradicted,
   simply absent or unfindable — should also be marked "fail" with exception text explaining what could not be
   located, since untestable data is not the same as data that passed. This is the one case where "sourceFile"
@@ -28064,7 +28066,9 @@ async function _buildAttrPromptWithReferenceFiles(attributes, opts, ref, referen
   const parts = await Promise.all(attributes.map(async (a, i) => {
     let attrParts = [`${i+1}. "${a.title}"`];
     if (opts.attrDesc !== false && a.desc) attrParts.push(`\n   Test Attribute Description: ${a.desc}`);
-    if (opts.attrAddl && a.additionalInfo) attrParts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
+    if (opts.attrAddl && a.additionalInfo) attrParts.push(
+      `\n   Test Attribute Additional Information: ${a.additionalInfo}\n   (If the text above includes any instruction on when a deviation for THIS attribute should be treated as a Finding rather than an Exception, when a Recommendation should be raised, or when something should not be flagged at all, treat that as a binding rule for this attribute specifically — apply it ahead of the general Exception/Finding/Recommendation rule described later in these instructions.)`
+    );
     if (opts.success && a.successCriteria) attrParts.push(
       `\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`
     );
