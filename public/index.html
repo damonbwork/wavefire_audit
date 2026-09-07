@@ -11183,9 +11183,20 @@ function addException() {
   const ref = getWPRef();
   if (!ref) return;
   if (!wpExceptions[ref]) wpExceptions[ref] = [];
-  const num = wpExceptions[ref].length + 1;
-  wpExceptions[ref].push({ num, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' });
-  logEvent(ref, `Exception #${num} added`);
+  // Real, confirmed fix — `num` must come from the same, real,
+  // ever-increasing max+1 sequence the Analyze-driven auto-populate
+  // block already uses (see _getNextExNum there), not a bare
+  // `.length + 1` — length-based numbering collides with an existing
+  // real `num` the moment a row anywhere in the middle has ever been
+  // deleted (the array shrinks, but higher `num` values already handed
+  // out don't). This also makes a manually-added exception a genuine,
+  // real member of the same single numbering sequence Analyze-created
+  // exceptions use, so its own Ref ("E{num}") can never collide with
+  // theirs either.
+  const existing = wpExceptions[ref];
+  const num = existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
+  wpExceptions[ref].push({ num, ref: `E${num}`, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' });
+  logEvent(ref, `Exception #${num} (Ref E${num}) added`);
   renderExceptions(ref);
 }
 
@@ -26688,9 +26699,32 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
     return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
   };
 
-  // Build exMap AND populate exceptions simultaneously
+  // Build exMap AND populate exceptions simultaneously.
+  //
+  // Real, confirmed fix — per explicit follow-up concern: a Ref built
+  // from a counter that resets every run (the previous `E${n}` here) can
+  // collide across runs (two separate exceptions both legitimately named
+  // "E1"), and never accounted for exceptions a person adds by hand via
+  // "Add exception" (addException()), which never went through this
+  // block at all. Both problems share one fix: stop deriving Ref from
+  // anything run-scoped, and instead derive it from `num` — the
+  // exception's own position in a single, ever-increasing,
+  // workpaper-wide sequence that every exception already gets, auto-
+  // created or manual alike (see _getNextExNum below and addException's
+  // own matching fix), and which never resets. Ref is simply `E${num}`,
+  // which by construction can never collide with anything else in this
+  // workpaper.
+  //
+  // This also fixes a smaller, real drift bug that existed even before
+  // today: re-running Analyze over unchanged results used to hand out a
+  // BRAND NEW ref to an exception that already existed (since the old
+  // counter incremented on every match found, regardless of whether it
+  // was a duplicate) — ticks and the Exceptions section could disagree
+  // after a second run. Now looks up whether this exact (attribute,
+  // file) exception already exists first, and reuses its real, existing
+  // ref/num for the tick annotation if so, only minting a new one when
+  // actually creating a new exception.
   const _exMapForAnnotation = {};
-  let _exNumForAnnotation = 0;
   analysisResults.forEach((fileResult, fi) => {
     attributes.forEach((attr, ai) => {
       let match = fileResult.results.find(r => r.title === attr.title);
@@ -26701,12 +26735,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         );
       }
       if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        _exNumForAnnotation++;
-        const xlsxExRef = `E${_exNumForAnnotation}`; // reference used in .xlsx / annotated PDF
-        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef;
-
-        // Add to workpaper Exceptions section
-        const wpExNum = _getNextExNum();
         // Real, new, per explicit design change — the "E1"/attribute ref
         // prefix used to be baked into the exception's own name string
         // ("E1 - A: Ticket"). Per direct request, "E1" now lives in the
@@ -26727,12 +26755,20 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         // wrong rather than merely generic.
         const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
 
-        // Only add if not already present (avoid duplicates on re-run)
-        const alreadyExists = (wpExceptions[ref] || []).some(e =>
+        // Reuse an already-existing exception's own ref/num if this
+        // exact (attribute, file) exception was already recorded —
+        // avoids the drift described above; only a genuinely new
+        // exception mints a new number.
+        const existingEx = (wpExceptions[ref] || []).find(e =>
           e.name === exName && e.linkedFiles?.includes(linkedFile)
         );
 
-        if (!alreadyExists) {
+        let xlsxExRef;
+        if (existingEx) {
+          xlsxExRef = existingEx.ref || `E${existingEx.num}`;
+        } else {
+          const wpExNum = _getNextExNum();
+          xlsxExRef = `E${wpExNum}`;
           wpExceptions[ref].push({
             num:            wpExNum,
             ref:            xlsxExRef,
@@ -26749,6 +26785,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
           });
           logEvent(ref, `Exception #${wpExNum} (Ref ${xlsxExRef}, Attribute ${attrLabel}) auto-created from analysis: ${exName}`);
         }
+        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
       }
     });
   });
