@@ -310,3 +310,434 @@ after.
    updated rendering, and consistent exception numbering all need to exist
    before "find the corresponding annotation and update it" is even
    meaningful to build.
+
+## Status update: Parts 1–4 are done
+
+Everything above through Part 4, plus the exception-numbering-consistency
+prerequisite, has been built: the persistent `attribute_sample_results`
+table and override UI (the Testwork Grid's clickable ticks and the batch
+results modal, `_openAttrResultsModal`), the tightened prompt/schema
+(marks array, exception-implies-fail), true multi-mark rendering across
+all four annotation mechanisms, and the override-sync mechanism
+(`_syncOverrideToAnnotatedFiles`) that redraws an overridden attribute's
+tick as the override's own result — not a badge over the AI's stale
+symbol — in every already-annotated file that evidences it. Every
+mechanism now looks up a single, shared, persisted Ref via
+`_lookupExceptionRefMap` instead of recomputing its own, so the numbers
+can no longer drift apart.
+
+Since then, **Exceptions gained two sibling item types — Findings and
+Recommendations** (see the grid's own title, "Exceptions, Findings and
+Recommendations," and the `type`/`typeNum` fields on each
+`wpExceptions[ref]` row, each type numbered independently: E1/F1/R1).
+The two parts below extend the same pass-fail-override-and-sync
+machinery to cover both that new sibling-type work and two more,
+explicitly requested behaviors.
+
+## Part 5 — Confirmed: overriding to Pass never requires an exception to be resolved first
+
+**Confirmed already true, not a change.** `_postOverride` (the function
+every override path calls to persist a person's Pass/Fail judgment) never
+reads or references `wpExceptions[ref]` at all — an override is written
+to a wholly separate table (`attribute_sample_results`), keyed only by
+`(attribute, sample)`, with no dependency on whether an Exception row
+exists for that same pair. So a person can genuinely override an
+attribute to "Pass" while an Exception (or Finding) for that exact
+attribute/sample stays sitting in the grid, entirely unaffected — this is
+already valid, already works today, and needs no code change. Documented
+here explicitly because it's easy to assume the two are linked when
+they're not, and because Part 6 below depends on this being true (the
+override this feature writes on delete must be able to coexist with, or
+in that specific case replace, an Exception without either blocking the
+other).
+
+## Part 6 — Deleting an Exception, Finding, or Recommendation: sync annotated files, and (for an Exception) the pass/fail itself
+
+**The request, precisely:** when a person deletes a grid row, ask first
+whether they'd like any already-annotated file updated to remove that
+item's own mark. If they confirm, and the deleted row was an
+**Exception**, additionally set (or update) an override for that exact
+(attribute, sample) to **Pass**, with an explanation note reading
+"Exception deleted by user on `<date>`" — so the attribute's own
+pass/fail genuinely reflects the deletion, not just the grid row's
+absence. A Finding or Recommendation carries no pass/fail of its own, so
+deleting one only ever means "remove its own mark from the file(s)," never
+touches any attribute's result.
+
+**A real prerequisite this part depends on, confirmed via direct
+follow-up: Findings and Recommendations are not annotated into any file
+today.** Only Exception-driving marks (the checkmark/X + `[Ref]` tag Part
+3 draws, one per mark, across all four mechanisms) ever reach an
+annotated PDF. Per explicit confirmation, this plan now also calls for
+**building that annotation capability for Findings and Recommendations**
+— without it, "remove the finding from the annotated file" has nothing
+real to act on. Concretely, this means:
+- Extending the AI's own per-mark drawing (or a new, parallel one)
+  across all four mechanisms (`bi`, `bi2`, `ff`, `sn`) so a Finding or
+  Recommendation gets its own visual marker on the page it relates to
+  (when it names a specific `sourceFile`/attribute; a workpaper-level
+  Recommendation with no specific document isn't drawn on any file at
+  all — there's nothing to attach it to). A distinct symbol/color from
+  the pass/fail check-or-X is worth considering here, so a Finding or
+  Recommendation marker is never mistaken for a pass/fail judgment on
+  the page itself.
+- Since every annotated file is always fully rebuilt from pristine bytes
+  on every write (confirmed in Part 4 above — nothing patches an
+  existing annotated PDF in place), "removing" a Finding/Recommendation's
+  mark on deletion is really "re-run the applicable burn function(s)
+  against the pristine original, this time with that item excluded from
+  what gets drawn" — the exact same mechanism Part 4's sync already uses
+  for an override, just triggered by a deletion and omitting a mark
+  instead of substituting one.
+
+**Design for the deletion flow itself**, mirroring
+`_syncOverrideToAnnotatedFiles`'s own established shape as closely as
+possible rather than inventing a new pattern:
+1. Resolve every original file the deleted item's own evidence names
+   (its `linkedFiles`/any per-mark `sourceFile`, the same resolution
+   Part 4's sync already does), then every annotated derivative of those
+   originals (`inMemoryFiles[ref].sample.filter(f => f._annotatedFrom ===
+   originalName)`).
+2. If none exist, delete the row immediately with no prompt — nothing to
+   sync.
+3. Otherwise, prompt first (new confirmation dialog, matching
+   `_promptSyncOverrideToAnnotatedFiles`'s style) listing the affected
+   files — **each filename is a real, clickable link opening that exact
+   file (its current, still-unmodified annotated copy) in the viewer**,
+   per explicit follow-up, so a person can actually check what they're
+   about to change before confirming rather than recognize a filename
+   from memory alone. Implemented and verified (2026-09-07) in
+   `_promptDeleteGridItemSync`, reusing the same `_openSampleFileAtMark`
+   opener the Testwork Grid's and results modal's own file links already
+   use; `_reclassifyGridItem`'s own prompt (below) reuses this same
+   helper, so both dialogs get file links for free from one change. Per
+   explicit confirmation, this is a real three-way choice, not
+   a plain confirm/cancel — matching how the original request bundled
+   the file update and (for an Exception) the pass/fail correction into
+   one single "would you like this updated" question:
+   - **"Delete and update"** — does everything in step 4: removes the
+     row, and (for an Exception) sets the Pass-with-explanation override,
+     and updates every affected annotated file.
+   - **"Delete only"** — removes the row and nothing else: no override
+     change, no file changes. The attribute keeps whatever pass/fail it
+     already had, and every annotated file keeps showing the old mark.
+   - **"Cancel"** — deletes nothing at all.
+4. On confirm: for an Exception, call the existing `_postOverride` (and
+   therefore the existing override-sync path) with `overrideResult:
+   'pass'` and `overrideNote: `Exception deleted by user on
+   ${today}`` BEFORE removing the row — this reuses Part 4's own sync
+   entirely for the pass/fail + annotation update, rather than
+   duplicating that logic. For a Finding/Recommendation (no pass/fail to
+   set), re-run the applicable burn function(s) directly, the same way
+   Part 4 does, but with that one item's own mark omitted from what gets
+   drawn instead of substituted.
+5. Only after that succeeds, remove the row from `wpExceptions[ref]` and
+   re-render.
+- Respect the same "never touch a manually-edited file" protection Part 4
+  already established (`_autoGenerated === false`) — a protected file is
+  excluded from the automatic list and reported separately, exactly as
+  today.
+
+**Implemented and verified** (2026-09-07): `_deleteGridItem`,
+`_promptDeleteGridItemSync`, `_reburnCandidatesForFile`, and
+`_lookupFindingsAndRecommendationsForFile` are built; Finding/Recommendation
+annotation is built across all four mechanisms (a distinct bold letter —
+"F" amber, "R" blue — rather than a check/X, per the "never mistaken for
+a pass/fail judgment" goal above); both real deletion entry points
+(`deleteSelectedExceptions` and the legacy `confirmDeleteException`) now
+route through `_deleteGridItem`. Verified via synthetic in-memory data
+against the dev server: an item with no resolvable original file falls
+back to a plain confirm; a Finding/Recommendation with annotated
+derivatives shows the three-way prompt and "Delete only" leaves files
+untouched; an Exception with annotated derivatives shows the
+Pass-with-explanation prompt text and "Delete and update" calls
+`_postOverride('pass', 'Exception deleted by user on <date>')` followed
+by `_syncOverrideToAnnotatedFiles(..., skipPrompt: true)`.
+
+---
+
+## Part 7 — Steering the AI's classification: definitions, per-attribute guidance, and a correction feedback loop
+
+### The problem, precisely
+
+Today a person can tell the AI, per attribute, what counts as a **pass**
+or a **fail** (`successCriteria`/`failureCriteria`, plus free-text
+`additionalInfo` and per-attribute reference files — see
+`_buildAttrPromptWithReferenceFiles`). Nothing tells it how to
+**classify** what it finds once it's already decided pass/fail: whether
+a given fact pattern should become a formal Exception, a Finding, a
+Recommendation, or nothing worth surfacing at all. That line is
+currently drawn entirely by the system prompt's own generic language
+(`analyzeOneFileFast`, ~line 26676 onward) — the same rule applied
+identically to every attribute in every workpaper, with no way for a
+person to say "for *this* attribute, a missing PO number is a Finding,
+not an Exception" or "for *this* attribute, always raise a Recommendation
+when you see a manual workaround." In practice the AI's classification
+will sometimes disagree with what the user actually wants, and today
+there is no structured way to (a) tell it in advance, per attribute, how
+to draw that line, or (b) correct it after the fact in a way that
+sticks for the next run. This part proposes both.
+
+### Proposed definitions (for the design and, eventually, for the AI prompt and any user-facing help text)
+
+These replace the current one-line labels shown in `_promptGridItemType`
+(`_GRID_ITEM_PREFIX`'s option descriptions, ~line 11398) with something
+precise enough to draw a consistent line — audit terms of art, not
+invented for this app, so they should hold up if a reviewer asks "why is
+this a Finding and not an Exception":
+
+- **Exception** — A confirmed instance, for a specific sample or
+  instance tested, where the evidence fails to meet the attribute's
+  defined pass criteria (or affirmatively meets a defined failure
+  criterion). An Exception is a statement about *this one sample*, is
+  the direct, reviewable cause of that attribute's Fail result for that
+  sample, and requires disposition (owner, management response,
+  resolution date, retest). **Invariant carried over from Part 2: an
+  Exception implies the attribute is Fail for that sample; the reverse
+  is not required** — per Part 5/6, a person may override the attribute
+  back to Pass with an explanation while the Exception record itself
+  either remains (documenting a corrected/waived condition) or is
+  deleted (Part 6).
+- **Finding** — An observed deviation, anomaly, or documentation gap
+  encountered while testing a specific sample that does **not**, on its
+  own, fail that attribute's stated pass/fail criteria — the attribute
+  can still legitimately be marked Pass — but is worth recording because
+  it reflects a departure from expected process, best practice, or
+  documentation quality worth someone's attention. A Finding is still
+  tied to one sample/instance, the same as an Exception, but carries no
+  pass/fail consequence of its own.
+- **Recommendation** — A suggestion about the design or operation of the
+  underlying **control or process itself**, not about any one sample's
+  result — often noticed *while* testing a sample, but describing
+  something broader (e.g., "the approval workflow relies on a shared
+  email inbox with no logging"). A Recommendation is never tied to a
+  pass/fail outcome and, unlike an Exception or Finding, may not name a
+  specific sample or source file at all.
+- **(Not tracked as a grid item) Observation** — A plain, non-exception
+  comment about a sample that doesn't rise to a Finding either (e.g.,
+  "invoice was legible, no issues") — captured only in a mark's own
+  `note` text, exactly as today. The bar between "Observation" and
+  "Finding" is inherently judgment-based; per-attribute guidance (below)
+  is precisely the mechanism for a person to move that bar for a
+  specific attribute where the generic default doesn't fit.
+
+### Design: reuse Additional Information, don't add a fifth field (the "informing" mechanism)
+
+**Revised per explicit follow-up.** The first draft of this part proposed
+a new `classificationGuidance` field, reasoning by analogy to
+`successCriteria`/`failureCriteria`. On reflection that analogy is
+backwards: what makes Success/Failure Criteria effective isn't that
+they're *separate boxes* — it's that the prompt explicitly labels the
+text and tells the model precisely how to use it ("if all these
+conditions are met → pass," "if any of these is observed → fail
+regardless"). That explicit framing is the actual lever. A new field
+only helps if it comes with that same framing, in which case the
+framing — not the field — is what to build.
+
+**Decision: reuse `additionalInfo`, with a prompt-side change only.**
+No new field, no new UI column, no toggle, no migration. Reasons this is
+better than a new field, not just simpler:
+- **`additionalInfo` is always sent.** Success/Failure Criteria sit
+  behind a show/hide toggle and are frequently left blank; Additional
+  Information is the one field most attributes already have populated,
+  and the one a person already reaches for by habit when they have
+  something specific to say about an attribute. A new field only a
+  minority of attributes would ever fill in is weaker leverage than
+  making the field everyone already uses smarter.
+- **No workpaper migration.** Every existing attribute already carries
+  this field; nothing needs backfilling or re-entry.
+- **One box to think about, not four (effectively five, counting this
+  one).** Asking a person to first decide "is this a pass/fail nuance,
+  general context, or a classification rule?" before picking which box
+  to type it into is friction with no real payoff — the model can be
+  told to read classification rules out of the same free text a person
+  already writes their general instructions into.
+
+**The actual change**, in `_buildAttrPromptWithReferenceFiles`'s
+`additionalInfo` block (~line 28067) and the general exception/finding/
+recommendation rule it precedes (~line 26676 onward): extend the
+`additionalInfo` label so the model is explicitly told this field may
+also contain binding classification instructions, and that such
+instructions for a given attribute take precedence over the general rule
+below for that attribute specifically — e.g.:
+
+> "Test Attribute Additional Information: `<text>` — if this text
+> includes any instruction on when a deviation for this attribute should
+> be treated as a Finding rather than an Exception, when a Recommendation
+> should be raised, or when something should not be flagged at all,
+> treat that as a binding rule for this attribute, applied ahead of the
+> general classification rule described later in these instructions."
+
+A person writes the exact same kind of sentence originally proposed for
+the dedicated field — "if the invoice lacks a PO number but the amount
+and vendor agree to the contract, treat it as a Finding, not an
+Exception" — just in the Additional Information box they already know
+about, with the prompt now telling the model such sentences are rules to
+follow, not background color to skim.
+
+The one real cost of this approach — a classification rule sitting in
+the same free-text blob as general narrative context could, in
+principle, get read as color rather than a rule — is mitigated by the
+prompt-side framing above (explicitly calling out that such statements
+are binding), not by giving the user a second field to presort their own
+sentences into. If real use later shows attributes accumulating enough
+Additional Information text that classification rules get lost in it, a
+dedicated field remains an easy incremental addition at that point — but
+nothing here is signed up for a wholesale in-place migration if we build
+it, since it uses the exact same string field created for a different
+purpose today would just be *interpreted more richly* by the prompt.
+
+**Alternative considered and not recommended as the primary mechanism:**
+a structured, deterministic keyword/phrase-trigger list (e.g., "if the
+extracted text contains `related party`, always force a Finding,
+bypassing the AI's own judgment"), matched against extracted document
+text outside the AI call entirely. This is more rigid but genuinely
+deterministic and auditable — no dependence on the model actually
+honoring free-text guidance. **Recommendation: build free-text
+Classification Guidance first** (it fits the existing pattern, handles
+the general case, and needs no new matching engine); **keep a
+keyword-trigger list as a documented future option** for the narrow case
+where a person wants a zero-discretion, always-fires rule (e.g.,
+regulatory "must-flag" terms) — worth a small design note of its own if
+and when the user asks for it, not built now.
+
+### Design: closing the loop when the AI's conclusion doesn't match what the user wants
+
+Per-attribute guidance solves this *before* the fact. The other half of
+the problem is *after* Analyze runs and a person disagrees with what the
+AI actually did — today there is no way to reclassify an item (an
+Exception the user believes should have been a Finding, or vice versa)
+without deleting and manually re-adding it, which loses the original
+`sourceFile`/`page`/`paragraph` linkage and the annotated-file marker
+resolution Part 6 just built. Two additions close this loop, both
+reusing infrastructure already in place:
+
+1. **Manual reclassification — an inline dropdown in the row's existing
+   Type column, not a new button or menu.** `renderExceptions`'s row
+   template already has a Type cell (~line 11669) showing
+   "Exception"/"Finding"/"Recommendation" as plain colored text with no
+   interaction. Per explicit design discussion: rather than add a
+   separate "Reclassify…" action somewhere else in the row, that
+   existing cell becomes a `<select>` with the same three options,
+   styled and wired exactly like the row's own Disposition Type/Status
+   dropdowns two columns over (`dropStyle`, colored by current value,
+   `onchange` fires the change immediately — no confirmation click just
+   to open a picker). This is the cell a person already reads to know an
+   item's type; it becomes the same place they change it, with no new UI
+   surface to discover:
+   ```js
+   <select style="${dropStyle}font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type||'exception']}"
+     onchange="_reclassifyGridItem('${ref}',${i},this.value)">
+     <option value="exception" ${(ex.type||'exception')==='exception'?'selected':''}>Exception</option>
+     <option value="finding" ${ex.type==='finding'?'selected':''}>Finding</option>
+     <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
+   </select>
+   ```
+   `_reclassifyGridItem(ref, idx, newType)` keeps the row's global `#`
+   (`num`) and all evidence fields (`sourceFile`/`page`/`paragraph`/
+   `linkedFiles`/`desc`) exactly as-is, recomputes `ref`/`typeNum` via
+   the existing `_getNextTypeNum(ref, newType)`, and only interrupts with
+   a prompt when the change actually has a consequence to confirm —
+   most reclassifications (Finding ↔ Recommendation, or either one with
+   no annotated files yet) apply instantly on selection, the same as
+   picking a new Disposition Status does today:
+   - **Exception → Finding/Recommendation**: this removes the item's
+     Fail-driving status. Reuse Part 6's own exception-deletion pass/fail
+     path — prompt whether to also override the attribute to Pass with
+     an explanation ("Reclassified from Exception to Finding by user on
+     `<date>`"), exactly as deleting an Exception already does — then
+     re-burn: draw the new type's marker in place of the old one rather
+     than removing and separately adding (one call to the applicable
+     burn function per affected file, not two).
+   - **Finding/Recommendation → Exception**: the reverse — this newly
+     makes the attribute Fail for that sample, so prompt for the
+     analogous override (`overrideResult: 'fail'`, an explanation such
+     as "Reclassified from Finding to Exception by user on `<date>`"),
+     then re-burn with the Exception's own check/X + `[Ref]` marker in
+     place of the Finding/Recommendation's letter.
+   - **Finding ↔ Recommendation**: no pass/fail involved either way —
+     just re-burn the marker's letter/color and update the row's `type`/
+     `ref`/`typeNum`.
+2. **Auto-append the correction as durable guidance** — immediately
+   after a successful reclassification (or, symmetrically, after a
+   Part 6 exception-deletion where the explanation effectively says "I
+   don't think this was really an exception"), offer to append one plain
+   sentence to that attribute's own `additionalInfo`, e.g.:
+   > "Note: per a user correction on `<date>`, '`<item name>`' was
+   > reclassified from Exception to Finding — apply similar judgment to
+   > comparable facts for this attribute going forward."
+   Shown to the user as an editable suggestion in a small confirm
+   dialog (never appended silently) so they can accept, edit, or
+   decline it before it's saved. This is what actually "modifies how
+   the AI views the sample files and attribute-related information" for
+   every subsequent Analyze run on this attribute — the correction
+   becomes input to the same field and the same now-classification-aware
+   prompt framing described above, rather than a one-off, forgotten fix.
+   It's deliberately appended to the one existing free-text field rather
+   than a structured "corrections log" with its own schema — consistent
+   with keeping this app's steering mechanism singular (one instructions
+   field per attribute) rather than layering a second, competing source
+   of truth the model would have to reconcile against the first.
+
+### Data model additions (all in `public/index.html`, no server-side schema change and, per the revision above, no new attribute field at all)
+
+- **None** — the "informing" mechanism reuses the existing
+  `attributes[i].additionalInfo` string and every place it already flows
+  (DOM read/write helpers, xlsx export/import round-trip,
+  `_buildAttrPromptWithReferenceFiles`'s prompt assembly); the only
+  change there is the richer prompt framing described above, not a new
+  field to wire through those same call sites a second time.
+- No new field needed on `wpExceptions[ref]` entries either —
+  reclassification changes `type`/`ref`/`typeNum` on the existing row in
+  place; every other field (`sourceFile`/`page`/`paragraph`/
+  `linkedFiles`/etc.) is already generic across all three types.
+
+### Verification (when this is built)
+
+1. Set `additionalInfo` on one attribute to include a classification rule
+   ("a missing PO number alone is a Finding, not an Exception for this
+   attribute"); feed the AI a synthetic result that would otherwise be
+   an Exception under the generic rule; confirm the prompt text frames
+   this attribute's `additionalInfo` as a binding classification
+   instruction ahead of the general rule, and (once wired) confirm the
+   resulting item is created as a Finding.
+2. Confirm the Type column renders as a `<select>` for every row (not
+   just when some other action is clicked), pre-selected to the item's
+   current type, and that choosing Finding ↔ Recommendation on a row
+   with no annotated files applies immediately with no prompt.
+3. Reclassify a manually-created Exception to a Finding; confirm the row
+   keeps its `num` and evidence fields, its `ref` changes from `E{n}` to
+   the next `F{n}`, the optional Pass-override prompt behaves exactly
+   like Part 6's deletion prompt, and the annotated file's marker
+   changes from a check/X to the Finding letter in one re-burn (not a
+   stale mark plus a new one).
+4. Accept a suggested guidance-append after a reclassification; confirm
+   the sentence lands in that attribute's `additionalInfo` exactly as
+   edited/accepted, alongside whatever text was already there, and
+   reaches the next Analyze call's prompt text for that attribute.
+5. Confirm declining the guidance-append leaves `additionalInfo`
+   untouched — the correction still applies to the item just
+   reclassified, it just doesn't change future runs.
+
+**Implemented and verified** (2026-09-07): the Type column in
+`renderExceptions` is now a `<select>` firing `_reclassifyGridItem(ref,
+idx, newType)` on change; `_lookupExceptionRefMap` was fixed to filter
+by `type === 'exception'` (a real, previously-latent bug this work
+surfaced — nothing had ever changed a row's type after creation before
+now, so a reclassified-away Exception would otherwise have kept tagging
+its old attribute+sample's pass/fail tick with its now-stale Ref);
+`_offerClassificationGuidanceAppend` implements the correction-feedback
+loop, appending into `additionalInfo` via `_saveWorkpaperToDB` (which
+reads the in-memory stores directly, independent of whatever page is
+currently rendered) rather than requiring the Test Attributes page to be
+open. Verified via synthetic in-memory data against the dev server for
+all three cases: Exception → Finding (crosses the boundary, has an
+attribute link — routes through `_postOverride`/
+`_syncOverrideToAnnotatedFiles` exactly like a manual override, derives
+`sourceFile`/`page`/`paragraph` from the attribute's own first mark
+since the row didn't have one yet, offers and — when accepted — appends
+the guidance sentence with a newline separator alongside existing text);
+Finding → Recommendation (no boundary — no override calls at all, silent
+`_reburnCandidatesForFile` only); and Finding-with-no-attribute-link →
+Exception (refused with a clear alert, the row's `type` left unchanged,
+`renderExceptions` called to reset the dropdown to its real value).

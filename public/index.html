@@ -4019,29 +4019,30 @@ auditor's assessment.
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Exceptions</div>
+            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Exceptions, Findings and Recommendations</div>
             <div style="display:flex;align-items:center;gap:6px" id="exceptions-toolbar">
               <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()">
                 <i class="ti ti-download"></i>Export exceptions
               </button>
-              <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addException()">
-                <i class="ti ti-plus"></i>Add exception
+              <button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addGridItem()">
+                <i class="ti ti-plus"></i>Add
               </button>
             </div>
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Exception reference — assigned automatically each time Analyze runs">Ref</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="The test attribute this exception was raised against">Attribute</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception name</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception description</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="The test attribute this item was raised against, if any">Attribute</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Name</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Description</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Linked files</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Exception owner</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Owner</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Management response</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Expected resolution</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Retested</div>
@@ -4051,8 +4052,8 @@ auditor's assessment.
             </div>
             <!-- Exception rows -->
             <div id="exceptions-rows">
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E1 - 1a: Contract</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract document found; only a ServiceNow change request (CHG0053245) is present.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4099,8 +4100,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">2</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">2</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',1,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E2 - 1b: Signed_Physician</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',1,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract signature page present; document is a change request ticket only.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4147,8 +4148,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">3</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">3</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',2,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E3 - 1c: Signed_Corp</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',2,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No DocuSign or corporate legal/VP approval evidence found in document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4195,8 +4196,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">4</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">4</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',3,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E4 - 1d: Signed_Timeline</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',3,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract signature dates available to assess 90-day grace period compliance.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4243,8 +4244,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">5</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">5</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',4,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E5 - 1e: Renewal</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',4,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract or renewal approval documentation present to evaluate 36-month renewal.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4291,8 +4292,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">6</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">6</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',5,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E6 - 2: Term</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',5,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No contract term information found; document is a change request, not a contract.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4339,8 +4340,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">7</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">7</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',6,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E7 - 3: Payment_Accuracy</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',6,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No payment or contract rate information found in the change request document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4387,8 +4388,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">8</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">8</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',7,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E8 - 4: Payment_Support</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',7,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No timecard or payment calculation support found; document is an IT change request.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4435,8 +4436,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">9</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">9</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',8,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E9 - 5: Payee</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',8,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No payment or payee information found in the change request document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4483,8 +4484,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">10</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">10</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',9,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E10 - 6: Payment_Entity</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',9,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No entity payment information found; document is a ServiceNow IT change request.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -4531,8 +4532,8 @@ auditor's assessment.
         </button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
-      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">11</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
+    <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+      <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">11</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',10,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E11 - 7: Payment_Auth</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="2" placeholder="Describe the exception…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',10,'desc',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">No Payment to Physician/PRS form or check payment found in the document.</textarea></div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;flex-direction:column;gap:4px;align-items:flex-start">
@@ -8747,11 +8748,35 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 function _lookupExceptionRefMap(ref, wpResults, attributes) {
   const exMap = {};
   (wpExceptions[ref] || []).forEach(ex => {
-    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+    // Real, confirmed fix, surfaced by building reclassification — a row
+    // reclassified AWAY from 'exception' must stop showing up here (it's
+    // no longer the reason for that attribute's pass/fail tick), or the
+    // pass/fail tick would keep tagging itself with a Finding/
+    // Recommendation's own Ref. This filter was unreachable before
+    // reclassification existed (nothing ever changed a row's type after
+    // creation), so it was silently correct-by-accident until now.
+    if ((ex.type || 'exception') === 'exception' && ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
       exMap[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
     }
   });
   return exMap;
+}
+
+// Real, new, per the delete-sync design's own Findings/Recommendations
+// annotation requirement — unlike an Exception (always tied to one
+// specific attribute+sample, looked up above), a Finding or
+// Recommendation may or may not be tied to one specific attribute, but
+// IS always tied to one sample row and, when it has a real sourceFile,
+// one real document to draw on. Returns every Finding/Recommendation
+// for `fileName` specifically (matched the exact same way a mark's own
+// sourceFile is — normalized, not case/whitespace-sensitive), across
+// every sample row, ready for a burn mechanism's own drawing loop.
+function _lookupFindingsAndRecommendationsForFile(ref, fileName) {
+  const normFile = (fileName || '').trim().toLowerCase();
+  return (wpExceptions[ref] || []).filter(e =>
+    (e.type === 'finding' || e.type === 'recommendation') &&
+    e.sourceFile && e.sourceFile.trim().toLowerCase() === normFile
+  );
 }
 
 async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
@@ -8777,6 +8802,8 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   }
 
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
 
   function pdfText(s) {
     return String(s || '')
@@ -8970,6 +8997,33 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     });
   });
 
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — same as the plain burn-in mechanism's own
+  // identical addition, using this mechanism's own field-based
+  // reserveNonOverlappingY and a plain text letter beside a real field,
+  // matching how a pass/fail mark is drawn here.
+  _lookupFindingsAndRecommendationsForFile(ref, fileName).forEach(item => {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) return;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const lines = [pdfText('[' + item.ref + ']')];
+    if (item.desc) lines.push(pdfText(String(item.desc).slice(0, 90)));
+    const fieldH = lines.length > 1 ? 28 : 14;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, fieldH);
+    const symColor = FINDREC_COLORS[item.type];
+    page.drawText(FINDREC_LETTERS[item.type], { x: 12, y: finalY - 10, font: font, size: 11, color: symColor });
+    const uid = fieldSeq++;
+    placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
+      x: 28, y: finalY - fieldH + 8, width: 280, height: fieldH, size: 8,
+      textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+    });
+    anyPlaced = true;
+  });
+
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
   return pdfDoc.save();
 }
@@ -9025,9 +9079,18 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   // text below, all inside one single, shared white background sized
   // to fit whatever this specific mark actually needs. One box per
   // mark, never a separate box per piece of text within it.
+  // Real, new, per the Findings/Recommendations annotation requirement —
+  // `kind` generalizes what used to be a bare pass/fail boolean. Finding
+  // and Recommendation markers reuse this exact same box/number/detail
+  // mechanics, just with a colored letter ("F"/"R") instead of the
+  // geometric check/X, and their own distinct colors — so they can never
+  // be mistaken for a pass/fail judgment on the page itself.
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
   function drawTickMark(page, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
-    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden, kind } = opts;
+    const effectiveKind = kind || (pass ? 'pass' : 'fail');
+    const symColor = FINDREC_COLORS[effectiveKind] || (effectiveKind === 'pass' ? TICK_COLS.pass : TICK_COLS.fail);
     // Real, new, per Part 4 — an overridden mark's own combined
     // symbol-and-number unit carries a visible "OVR" tag directly in
     // that same text, rather than a separate badge element layered on
@@ -9092,9 +9155,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
       color: rgb(1, 1, 1), opacity: 1,
     });
 
-    // The symbol itself, drawn geometrically.
+    // The symbol itself. Pass/fail stay geometric (a drawn check/X, per
+    // the original design decision to avoid relying on any specific
+    // font supporting those exact characters); a Finding/Recommendation
+    // draws its own bold letter instead — that decision doesn't apply
+    // here since F/R are plain, universally-supported letters, and a
+    // letter reads unambiguously as "not a pass/fail judgment."
     const symX = x + 2, symY = y - topRowH / 2;
-    if (pass) {
+    if (FINDREC_LETTERS[effectiveKind]) {
+      page.drawText(FINDREC_LETTERS[effectiveKind], { x: symX, y: symY - 4, font: font, size: 11, color: symColor });
+    } else if (pass) {
       page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
       page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
     } else {
@@ -9247,6 +9317,31 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     });
   });
 
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — each Finding/Recommendation tied to THIS
+  // file gets its own marker, same box mechanics as a pass/fail mark,
+  // reusing the exact same drawTickMark/reserveNonOverlappingY this
+  // whole function already has in scope.
+  _lookupFindingsAndRecommendationsForFile(ref, fileName).forEach(item => {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) return;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const detailText = item.desc ? String(item.desc).slice(0, 400) : '';
+    const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+    const geomLineH = fontReg.heightAtSize(7) * 1.15;
+    const geomTopRowH = 16;
+    const geomTotalH = geomDetailLines.length
+      ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+      : geomTopRowH - 4;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+    drawTickMark(page, { x: 13, y: finalY, kind: item.type, attrNum: item.ref, detailText: detailText, detailFont: fontReg });
+    anyPlaced = true;
+  });
+
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
   return pdfDoc.save();
 }
@@ -9273,6 +9368,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const TICK_COLS = { pass: rgb(0.09,0.63,0.29), pass_exception: rgb(0.86,0.15,0.15), fail: rgb(0.86,0.15,0.15), error: rgb(0.42,0.45,0.5) };
+  const FINDREC_COLORS = { finding: rgb(0.85,0.55,0.02), recommendation: rgb(0.12,0.25,0.69) };
+  const FINDREC_LETTERS = { finding: 'F', recommendation: 'R' };
 
   function pdfText(s) {
     return String(s || '')
@@ -9308,8 +9405,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   // the one structural difference from drawTickMark above, which draws
   // these same pieces directly and separately onto the real page.
   async function drawGroupedTickMark(destPage, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
-    const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden, kind } = opts;
+    const effectiveKind = kind || (pass ? 'pass' : 'fail');
+    const symColor = FINDREC_COLORS[effectiveKind] || (effectiveKind === 'pass' ? TICK_COLS.pass : TICK_COLS.fail);
     // Real, new, per Part 4 — same "OVR" tag baked directly into the
     // combined symbol-and-number text as the plain burn-in mechanism
     // uses, rather than a separate badge — see its own comment for why.
@@ -9362,7 +9460,9 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     tmpPage.drawRectangle({ x: 0, y: 0, width: totalW + 4, height: totalH + 4, color: rgb(1,1,1), opacity: 1 });
 
     const symX = lx + 2, symY = ly - topRowH / 2;
-    if (pass) {
+    if (FINDREC_LETTERS[effectiveKind]) {
+      tmpPage.drawText(FINDREC_LETTERS[effectiveKind], { x: symX, y: symY - 4, font: tmpFontBold, size: 11, color: symColor });
+    } else if (pass) {
       tmpPage.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
       tmpPage.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
     } else {
@@ -9531,6 +9631,30 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
         anyPlaced = true;
       }
     }
+  }
+
+  // Real, new, per the delete-sync design's own Findings/Recommendations
+  // annotation requirement — same as the plain burn-in mechanism's own
+  // identical addition, just via this mechanism's own async
+  // drawGroupedTickMark (each becomes its own discrete Stamp annotation).
+  for (const item of _lookupFindingsAndRecommendationsForFile(ref, fileName)) {
+    const pgIdx = Math.max(0, (item.page || 1) - 1);
+    if (pgIdx >= pages.length) continue;
+    const page = pages[pgIdx];
+    const ptH = page.getSize().height;
+    const paraNum = Math.max(1, item.paragraph || 1);
+    const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+    const pdfY = ptH * (1 - paraFrac);
+    const detailText = item.desc ? String(item.desc).slice(0, 400) : '';
+    const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+    const geomLineH = fontReg.heightAtSize(7) * 1.15;
+    const geomTopRowH = 16;
+    const geomTotalH = geomDetailLines.length
+      ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+      : geomTopRowH - 4;
+    const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+    await drawGroupedTickMark(page, { x: 13, y: finalY, kind: item.type, attrNum: item.ref, detailText: detailText, detailFont: fontReg });
+    anyPlaced = true;
   }
 
   if (!anyPlaced) return null; // nothing relevant to this file — skip it entirely rather than include a blank copy
@@ -10045,6 +10169,45 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
             if (mark.note) summaryLines.push('     ' + String(mark.note).slice(0, 90));
           });
         });
+      });
+
+      // Real, new, per the delete-sync design's own Findings/
+      // Recommendations annotation requirement — a Text annotation per
+      // item, sharing the exact same stackCountByPage counter as the
+      // pass/fail icons above so a Finding/Recommendation icon never
+      // lands on top of one, colored distinctly from both green (pass)
+      // and red (fail/exception) so it never reads as a pass/fail
+      // judgment.
+      const FINDREC_COLORS_SN = { finding: { r: 217, g: 140, b: 5 }, recommendation: { r: 31, g: 64, b: 176 } };
+      _lookupFindingsAndRecommendationsForFile(ref, origEntry.name).forEach(item => {
+        const pgIdx = Math.max(0, (item.page || 1) - 1);
+        if (pgIdx >= realPageHeights.length) return;
+        const realPageHeight = realPageHeights[pgIdx];
+        const paraNum = Math.max(1, item.paragraph || 1);
+        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        const pdfY = realPageHeight * (1 - paraFrac);
+        const iconSize = 20;
+        const stackIdx = stackCountByPage[pgIdx] || 0;
+        stackCountByPage[pgIdx] = stackIdx + 1;
+        const stackedY = pdfY - stackIdx * (iconSize + 4);
+        const rectY1 = Math.max(0, stackedY - iconSize);
+        const rectY2 = Math.max(iconSize, stackedY);
+        const contents = '[' + item.ref + ']' + (item.desc ? '\n' + String(item.desc).slice(0, 300) : '');
+        try {
+          factory.createTextAnnotation({
+            page: pgIdx,
+            rect: [10, rectY1, 10 + iconSize, rectY2],
+            contents: contents,
+            author: 'Wavefire',
+            color: FINDREC_COLORS_SN[item.type],
+            open: false,
+          });
+          anyPlaced = true;
+        } catch (annErr) {
+          console.error('[AcrobatAnnotate] Could not place annotation for', item.ref, 'on', origEntry.name, ':', annErr.message);
+        }
+        summaryLines.push((item.type === 'finding' ? 'F' : 'R') + '  [' + item.ref + ']');
+        if (item.desc) summaryLines.push('     ' + String(item.desc).slice(0, 90));
       });
 
       if (!anyPlaced) continue; // nothing relevant to this file — skip it entirely, matching the burn-in mechanism's own real behavior
@@ -11217,10 +11380,64 @@ function renderPopRefFiles(ref) {
 ══════════════════════════════════════ */
 const wpExceptions = {}; // { ref: [{num, name, desc, owner, mgmtResponse, resolutionDate, retested}] }
 
-function addException() {
-  pushUndo();
+// Real, new, per explicit design change — Exceptions, Findings, and
+// Recommendations are three sibling item types sharing this one grid.
+// `num` (the "#" column) stays the single, global, ever-increasing
+// sequence every row has always used, regardless of type. `ref` (e.g.
+// "F3") now comes from a SEPARATE sequence per type — this is that
+// sequence's own next-number lookup, reused by both the post-analyze
+// auto-populate block and the manual add flow below, so the two can
+// never drift into different numbering logic.
+const _GRID_ITEM_PREFIX = { exception: 'E', finding: 'F', recommendation: 'R' };
+function _getNextTypeNum(ref, type) {
+  const existing = (wpExceptions[ref] || []).filter(e => (e.type || 'exception') === type);
+  return existing.length > 0 ? Math.max(...existing.map(e => e.typeNum || 0)) + 1 : 1;
+}
+
+// Small 3-way choice prompt — Cancel (or clicking outside) adds nothing.
+// Styled like the other small confirmation modals this session added
+// (_promptSyncOverrideToAnnotatedFiles, _promptPriorWorkpaperXlsxVersions).
+function _promptGridItemType() {
+  return new Promise(resolve => {
+    const id = 'grid-item-type-overlay';
+    document.getElementById(id)?.remove();
+    const OPTIONS = [
+      ['exception', 'Exception', '#dc2626', 'A formal control failure or deviation requiring remediation.'],
+      ['finding', 'Finding', '#d97706', 'A deviation or issue worth noting that does not rise to a formal exception.'],
+      ['recommendation', 'Recommendation', '#1e40af', 'A suggestion on internal control design or operation.'],
+    ];
+    const rows = OPTIONS.map(([type, label, color, desc]) => `
+      <button class="grid-item-type-btn" data-type="${type}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.12);background:#fff;cursor:pointer;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:${color}">${label}</span>
+        <span style="font-size:11px;color:var(--text-tertiary)">${desc}</span>
+      </button>`).join('');
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(360px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;padding:18px 18px 8px">
+        <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:12px">What kind of item is this?</div>
+        ${rows}
+        <button id="grid-item-type-cancel" class="btn-s" style="width:100%;margin-top:2px;margin-bottom:12px">Cancel</button>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const overlay = document.getElementById(id);
+    overlay.querySelectorAll('.grid-item-type-btn').forEach(btn => {
+      btn.onclick = () => { overlay.remove(); resolve(btn.dataset.type); };
+    });
+    document.getElementById('grid-item-type-cancel').onclick = () => { overlay.remove(); resolve(null); };
+    overlay.onclick = ev => { if (ev.target === overlay) { overlay.remove(); resolve(null); } };
+  });
+}
+
+// Real, renamed from addException() — now creates any of the three
+// sibling item types, per the user's own choice in the prompt above.
+// addException is kept as a thin alias below for anything that might
+// still call it by its old name.
+async function addGridItem() {
   const ref = getWPRef();
   if (!ref) return;
+  const type = await _promptGridItemType();
+  if (!type) return; // cancelled — nothing added
+  pushUndo();
   if (!wpExceptions[ref]) wpExceptions[ref] = [];
   // Real, confirmed fix — `num` must come from the same, real,
   // ever-increasing max+1 sequence the Analyze-driven auto-populate
@@ -11228,16 +11445,18 @@ function addException() {
   // `.length + 1` — length-based numbering collides with an existing
   // real `num` the moment a row anywhere in the middle has ever been
   // deleted (the array shrinks, but higher `num` values already handed
-  // out don't). This also makes a manually-added exception a genuine,
+  // out don't). This also makes a manually-added item a genuine,
   // real member of the same single numbering sequence Analyze-created
-  // exceptions use, so its own Ref ("E{num}") can never collide with
-  // theirs either.
+  // items use, so its own `num` can never collide with theirs either.
   const existing = wpExceptions[ref];
   const num = existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
-  wpExceptions[ref].push({ num, ref: `E${num}`, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' });
-  logEvent(ref, `Exception #${num} (Ref E${num}) added`);
+  const typeNum = _getNextTypeNum(ref, type);
+  const ref_ = `${_GRID_ITEM_PREFIX[type]}${typeNum}`;
+  wpExceptions[ref].push({ num, ref: ref_, type, typeNum, name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' });
+  logEvent(ref, `#${num} (Ref ${ref_}) added as a ${type}`);
   renderExceptions(ref);
 }
+function addException() { return addGridItem(); }
 
 function openExceptionFileDialog(ref, idx) {
   const staticWP  = WORKPAPERS.find(w => w.ref === ref)?.files || [];
@@ -11334,7 +11553,7 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Ref', 'Attribute', 'Exception Name', 'Exception Description', 'Linked Files', 'Exception Owner',
+    ['#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked Files', 'Owner',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
@@ -11343,6 +11562,7 @@ async function exportExceptions() {
     wsData.push([
       ex.num,
       ex.ref           || '',
+      ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase()),
       ex.attrRef       || '',
       ex.name          || '',
       ex.desc          || '',
@@ -11362,7 +11582,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 10 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 5 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -11373,36 +11593,11 @@ async function exportExceptions() {
 }
 
 function confirmDeleteException(ref, idx) {
-  const ex   = wpExceptions[ref]?.[idx];
-  const name = ex?.name ? `"${ex.name}"` : `exception #${ex?.num || idx + 1}`;
-
-  // Create inline confirm overlay
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:12000;display:flex;align-items:center;justify-content:center';
-
-  overlay.innerHTML = `
-    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);padding:24px 28px;max-width:380px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.22)">
-      <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Delete exception?</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:20px">
-        Are you sure you want to delete ${name}? This cannot be undone.
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button class="btn-s" id="exc-del-cancel">Cancel</button>
-        <button class="btn-p" style="background:#dc2626;border-color:#dc2626" id="exc-del-ok">
-          <i class="ti ti-trash"></i>Delete
-        </button>
-      </div>
-    </div>`;
-
-  document.body.appendChild(overlay);
-
-  overlay.querySelector('#exc-del-cancel').addEventListener('click', () => document.body.removeChild(overlay));
-  overlay.querySelector('#exc-del-ok').addEventListener('click', () => {
-    document.body.removeChild(overlay);
-    deleteException(ref, idx);
-  });
-  // Click outside to cancel
-  overlay.addEventListener('click', e => { if (e.target === overlay) document.body.removeChild(overlay); });
+  // Delegates to the shared delete-and-optionally-sync-annotated-files
+  // entry point (see _deleteGridItem) so this legacy call site — kept
+  // only for the static seed markup rendered before renderExceptions()
+  // replaces it on load — behaves identically to the live delete path.
+  _deleteGridItem(ref, idx);
 }
 
 function deleteException(ref, idx) {
@@ -11472,13 +11667,23 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 60px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Exception reference — assigned automatically each time Analyze runs">${ex.ref ? escHtml(ex.ref) : '—'}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="The test attribute this exception was raised against">${ex.attrRef ? escHtml(ex.attrRef) : '—'}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
+        <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
+          title="Change this item's classification"
+          onchange="_reclassifyGridItem('${ref}',${i},this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          <option value="exception" ${(ex.type||'exception')==='exception'?'selected':''}>Exception</option>
+          <option value="finding" ${ex.type==='finding'?'selected':''}>Finding</option>
+          <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
+        </select>
+      </div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="The test attribute this item was raised against, if any">${ex.attrRef ? escHtml(ex.attrRef) : '—'}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
         onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
@@ -11725,7 +11930,7 @@ function renderExceptionsToolbar(ref) {
     : '';
   toolbar.innerHTML = deleteBtn +
     `<button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()"><i class="ti ti-download"></i>Export exceptions</button>` +
-    `<button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addException()"><i class="ti ti-plus"></i>Add exception</button>`;
+    `<button class="btn-p" style="font-size:11px;padding:4px 10px" onclick="addGridItem()"><i class="ti ti-plus"></i>Add</button>`;
 }
 
 function toggleExceptionSelected(i, checkbox) {
@@ -11752,35 +11957,17 @@ function toggleExceptionsSelectAll(checkbox) {
 // Bulk delete with confirmation — reuses the existing, genuinely generic
 // rcmConfirmDelete dialog (title, bodyHtml, onConfirm) rather than
 // building a new confirmation UI, matching the established app pattern.
-function deleteSelectedExceptions(ref) {
+async function deleteSelectedExceptions(ref) {
   if (!_excSelected.size) return;
-  const count = _excSelected.size;
-  const list = wpExceptions[ref] || [];
-  const names = [..._excSelected].map(i => {
-    const ex = list[i];
-    return escHtml(ex?.name ? ex.name : `Exception #${ex?.num || i + 1}`);
-  });
-  const listHtml = names.length <= 5
-    ? '<ul style="margin:8px 0 0 0;padding-left:18px;font-size:12px;color:var(--text-secondary)">' + names.map(n => '<li>'+n+'</li>').join('') + '</ul>'
-    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">Including: ' + names.slice(0,3).join(', ') + ' and ' + (names.length-3) + ' more.</div>';
-  rcmConfirmDelete(
-    'Delete ' + count + ' Exception' + (count!==1?'s':''),
-    'Are you sure you want to delete <strong>' + count + ' exception' + (count!==1?'s':'') + '</strong>? This cannot be undone.' + listHtml,
-    function() {
-      // Delete indices in descending order so earlier splices don't
-      // shift the position of indices still pending removal.
-      const sortedDesc = [..._excSelected].sort((a,b) => b - a);
-      pushUndo();
-      sortedDesc.forEach(i => {
-        const ex = wpExceptions[ref][i];
-        const label = ex?.name ? `Exception #${ex.num} "${ex.name}"` : `Exception #${ex?.num || i + 1}`;
-        logEvent(ref, `${label} deleted`);
-        wpExceptions[ref].splice(i, 1);
-      });
-      _excSelected.clear();
-      renderExceptions(ref);
-    }
-  );
+  // Delete indices in descending order, one at a time via _deleteGridItem
+  // (which resolves each item's own annotated files and, when relevant,
+  // prompts a three-way delete/update/cancel choice per item) so earlier
+  // removals never shift the position of indices still pending removal.
+  const sortedDesc = [..._excSelected].sort((a, b) => b - a);
+  _excSelected.clear();
+  for (const i of sortedDesc) {
+    await _deleteGridItem(ref, i);
+  }
 }
 
 
@@ -22379,7 +22566,11 @@ function _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles) {
 // (the existing _autoGenerated === false flag Save Annotations already
 // sets — reused here rather than a separate new fingerprint system,
 // since it's an exact signal where it exists, not a probabilistic one).
-async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex, overrideResult, overrideNote) {
+// `skipPrompt`, per the delete-sync feature — when a caller (deleting an
+// Exception) has ALREADY gotten explicit consent via its own three-way
+// prompt covering this exact same set of files, this skips showing a
+// second, redundant confirmation for the same action.
+async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex, overrideResult, overrideNote, skipPrompt) {
   if (!overrideResult) return; // clearing an override has nothing new to burn in — the AI's own original marks are still exactly what every annotated file already shows
   const wpResults = _wpAnalysisResults[ref];
   if (!wpResults || !wpResults.length) return;
@@ -22410,7 +22601,7 @@ async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex
     return; // nothing else to do — no annotated copies exist at all
   }
 
-  const proceed = await _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles);
+  const proceed = skipPrompt ? true : await _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles);
   if (!proceed) return;
 
   const PDFLib = await loadPdfLib();
@@ -22489,6 +22680,364 @@ async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex
       failures.map(n => `  • ${n}`).join('\n') +
       `\n\nThe override itself was saved successfully — only the annotated file${failures.length !== 1 ? 's' : ''} listed above ${failures.length !== 1 ? 'still show' : 'still shows'} the prior determination.`);
   }
+}
+
+// ── Delete-sync: Part 6 of the pass-fail-override-and-sync design doc ────
+//
+// Resolves the one real original file a grid item (Exception/Finding/
+// Recommendation) traces back to, if any. Findings/Recommendations
+// store their own `sourceFile` directly (see the Findings/
+// Recommendations annotation work); an Exception (or any legacy row
+// predating that field) instead has `linkedFiles`, whose first entry is
+// only sometimes a real filename — it falls back to a sample
+// description string when no real sourceFile was ever known, which will
+// never resolve to a real attached file here, correctly yielding no
+// files to sync rather than a false match.
+function _resolveOriginalFileForGridItem(ref, item) {
+  const candidate = item.sourceFile || (item.linkedFiles && item.linkedFiles[0]) || '';
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const orig = bucketArr.find(f => f.name === candidate && !f._annotatedFrom);
+  return orig ? orig.name : null;
+}
+
+// Three-way choice, per explicit design decision — "Delete and update"
+// (removes the row AND syncs annotated files, plus the Pass override
+// for an Exception), "Delete only" (removes the row, touches nothing
+// else), or "Cancel" (deletes nothing). Styled like
+// _promptSyncOverrideToAnnotatedFiles, the closest existing analog.
+function _promptDeleteGridItemSync(ref, item, candidates, protectedFiles) {
+  return new Promise(resolve => {
+    const id = 'delete-grid-item-sync-overlay';
+    document.getElementById(id)?.remove();
+    const isException = (item.type || 'exception') === 'exception';
+    // Real, new, per explicit request — each affected file is a real,
+    // clickable link opening it in the viewer (its CURRENT, still-
+    // unmodified annotated copy, since nothing has been rewritten yet at
+    // the point this prompt is shown) so a person can actually check
+    // what they're about to change before confirming, rather than
+    // recognizing a filename by memory alone. Reuses the same opener the
+    // Testwork Grid's and results modal's own file links already use;
+    // isOriginal is false here since these are always annotated
+    // derivatives, never the pristine original.
+    const fileLink = (name) => `<a href="#" onclick="event.preventDefault();_openSampleFileAtMark('${escAttr(ref)}','${escAttr(name)}',1,false,null)" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e40af;text-decoration:underline" title="Open ${escHtml(name)} to review">${escHtml(name)}</a>`;
+    const rows = candidates.map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px">
+        <i class="ti ti-file-check" style="color:#1e40af"></i>
+        ${fileLink(f.name)}
+        <span style="color:var(--text-tertiary);font-size:11px">${escHtml(_syncMechanismLabel(f.name))}</span>
+      </div>`).join('');
+    const protectedRows = (protectedFiles || []).map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;color:var(--text-tertiary)">
+        <i class="ti ti-lock" style="color:#b45309"></i>
+        ${fileLink(f.name)}
+        <span style="font-size:11px">manually edited — left as-is</span>
+      </div>`).join('');
+    const explainText = isException
+      ? `Updating will also set this attribute to <strong>Pass</strong> for this sample, with an explanation noting the exception was deleted, and redraw the mark in each file below to match.`
+      : `Updating will remove this item's own marker from each file below.`;
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Delete ${escHtml(item.ref || '')}${item.name ? ' — ' + escHtml(item.name) : ''}?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This item is linked to ${candidates.length + protectedFiles.length} annotated file${(candidates.length + protectedFiles.length) !== 1 ? 's' : ''}. ${explainText}</div>
+        </div>
+        <div style="padding:2px 20px 4px;max-height:220px;overflow-y:auto">${rows}${protectedRows}</div>
+        <div style="padding:10px 20px 16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="delgs-cancel-btn">Cancel</button>
+          <button class="btn-s" id="delgs-deleteonly-btn">Delete only</button>
+          <button class="btn-p" style="background:#dc2626;border-color:#dc2626" id="delgs-update-btn">Delete and update</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('delgs-cancel-btn').onclick = () => { document.getElementById(id)?.remove(); resolve('cancel'); };
+    document.getElementById('delgs-deleteonly-btn').onclick = () => { document.getElementById(id)?.remove(); resolve('delete-only'); };
+    document.getElementById('delgs-update-btn').onclick = () => { document.getElementById(id)?.remove(); resolve('update'); };
+  });
+}
+
+// Re-runs the applicable burn function(s) for a set of already-annotated
+// derivative files against the CURRENT, live wpExceptions/wpResults
+// state — used after removing a Finding/Recommendation row, so its own
+// marker simply no longer appears (no "effective results" substitution
+// needed here, unlike an override: there's nothing to draw INSTEAD of a
+// deleted item, only the absence of what used to be drawn). If a file
+// ends up with nothing left to annotate at all, it's removed entirely
+// rather than left behind as a stale, now-blank "_annotated" copy.
+async function _reburnCandidatesForFile(ref, candidates) {
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const PDFLib = await loadPdfLib();
+  const nowStamp = () => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  };
+  const failures = [];
+  for (const derivEntry of candidates) {
+    try {
+      const origEntry = bucketArr.find(f => f.name === derivEntry._annotatedFrom && !f._annotatedFrom);
+      if (!origEntry || !origEntry.file) { failures.push(`${derivEntry.name} (original file not available)`); continue; }
+      const pristineBytes = await origEntry.file.arrayBuffer();
+
+      let outBytes = null;
+      if (/_annotated_bi2\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
+      } else if (/_annotated_bi\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
+      } else if (/_annotated_ff\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
+      } else if (/_annotated_sn\.pdf$/i.test(derivEntry.name)) {
+        await _makeAcrobatAnnotatedCopyAfterAnalyze(ref, [origEntry], wpResults);
+        continue;
+      } else {
+        continue; // unrecognized naming convention — skip rather than guess which mechanism produced it
+      }
+      if (!outBytes) {
+        // Nothing left to annotate on this file at all (it only ever had
+        // this one item's own marker) — a genuinely successful removal,
+        // not a failure; delete the now-blank derivative entirely rather
+        // than leave a stale "_annotated" copy with nothing on it.
+        const idx = bucketArr.indexOf(derivEntry);
+        if (idx >= 0) {
+          if (derivEntry.fileId) {
+            fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(derivEntry.fileId), { method: 'DELETE' }).catch(() => {});
+          }
+          bucketArr.splice(idx, 1);
+        }
+        continue;
+      }
+
+      const annotatedFile = new File([outBytes], derivEntry.name, { type: 'application/pdf' });
+      derivEntry.file      = annotatedFile;
+      derivEntry.size      = formatFileSize(annotatedFile.size);
+      derivEntry.updatedBy = 'Wavefire';
+      derivEntry.updatedOn = nowStamp();
+      await _persistSampleFileToBackend(ref, derivEntry, 'Wavefire');
+    } catch (err) {
+      console.error('[DeleteSync] Failed to update', derivEntry.name, ':', err.message);
+      failures.push(derivEntry.name);
+    }
+  }
+  refreshFileList(ref, 'sample');
+  return failures;
+}
+
+// Real, new — the one entry point for deleting any grid row
+// (Exception/Finding/Recommendation), replacing the old plain
+// confirm-and-delete. When the item traces back to a real original file
+// with annotated derivatives, prompts with the three-way choice above
+// before doing anything; when it doesn't (nothing to sync), falls back
+// to a plain confirm, matching the previous behavior exactly.
+async function _deleteGridItem(ref, idx) {
+  const item = wpExceptions[ref]?.[idx];
+  if (!item) return;
+  const isException = (item.type || 'exception') === 'exception';
+  const label = item.name ? `#${item.num} "${item.name}"` : `#${item.num || idx + 1}`;
+
+  const originalName = _resolveOriginalFileForGridItem(ref, item);
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates     = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
+  const protectedFiles = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated === false) : [];
+
+  let choice;
+  if (candidates.length || protectedFiles.length) {
+    choice = await _promptDeleteGridItemSync(ref, item, candidates, protectedFiles);
+  } else {
+    choice = confirm(`Are you sure you want to delete ${label}? This cannot be undone.`) ? 'delete-only' : 'cancel';
+  }
+  if (choice === 'cancel') return;
+
+  pushUndo();
+
+  if (choice === 'update' && isException && item.attributeIndex != null && item.sampleRowIndex != null) {
+    const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    const explanation = `Exception deleted by user on ${today}`;
+    await _postOverride(ref, item.attributeIndex, item.sampleRowIndex, 'pass', explanation);
+    // skipPrompt: true — the three-way prompt above already covered this
+    // exact same set of files; asking again would be a redundant second
+    // confirmation for the same action.
+    await _syncOverrideToAnnotatedFiles(ref, item.attributeIndex, item.sampleRowIndex, 'pass', explanation, true);
+  }
+
+  // Remove the row FIRST — a Finding/Recommendation re-burn (below) and
+  // any future lookup of this workpaper's items must both see it as
+  // already gone, not still present a moment longer.
+  const freshIdx = wpExceptions[ref].indexOf(item);
+  if (freshIdx >= 0) wpExceptions[ref].splice(freshIdx, 1);
+
+  if (choice === 'update' && !isException && candidates.length) {
+    const failures = await _reburnCandidatesForFile(ref, candidates);
+    if (failures.length) {
+      alert(`${failures.length} annotated file${failures.length !== 1 ? 's' : ''} could not be updated after this deletion:\n\n` +
+        failures.map(n => `  • ${n}`).join('\n') +
+        `\n\nThe item itself was still deleted from the grid.`);
+    }
+  }
+
+  logEvent(ref, `${label} deleted${choice === 'update' ? ' (annotated files updated)' : ''}`);
+  renderExceptions(ref);
+  renderAnalysisResultsGrid(ref);
+}
+
+function _typeLabel(type) {
+  return { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' }[type] || type;
+}
+
+// Real, new, per Part 7 of the design doc — the Type column's own
+// dropdown (renderExceptions) calls this on change. Handles three
+// distinct cases:
+//   1. Crossing INTO or OUT OF 'exception', for an item tied to a real
+//      attribute+sample: this changes that attribute's own pass/fail
+//      status, so it's routed through the SAME override machinery a
+//      manual pass/fail override already uses (_postOverride +
+//      _syncOverrideToAnnotatedFiles) — which shows its own existing
+//      confirmation dialog when annotated files exist, so this doesn't
+//      need (or build) a second, competing sync prompt.
+//   2. Crossing INTO 'exception' for an item with no attribute/sample
+//      link: refused outright — an Exception must drive some specific
+//      attribute's result, and there's nothing here to drive.
+//   3. Everything else (Finding <-> Recommendation, or a boundary
+//      crossing with no attribute link to override) — no pass/fail
+//      consequence at all, so no prompt; just relabel the row and
+//      silently redraw its own marker in any already-annotated files.
+async function _reclassifyGridItem(ref, idx, newType) {
+  const item = wpExceptions[ref]?.[idx];
+  if (!item) return;
+  const oldType = item.type || 'exception';
+  if (newType === oldType) return; // dropdown re-selected its own current value
+
+  const crossesExceptionBoundary = (oldType === 'exception') !== (newType === 'exception');
+  const hasAttrLink = item.attributeIndex != null && item.sampleRowIndex != null;
+
+  if (newType === 'exception' && !hasAttrLink) {
+    alert(`"${item.name || item.ref}" can't be reclassified as an Exception — it isn't tied to a specific test attribute and sample, and an Exception must drive that attribute's own pass/fail result for this sample. Link it to an attribute first (or leave it as a ${_typeLabel(oldType)}).`);
+    renderExceptions(ref); // resets the <select> back to its actual current value
+    return;
+  }
+
+  pushUndo();
+  const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const oldRef = item.ref;
+
+  // Update the row's type/ref/typeNum FIRST — num and every evidence
+  // field (sourceFile/page/paragraph/linkedFiles/desc) stay exactly
+  // as-is. Any re-burn triggered below reads this row's CURRENT state,
+  // so it must already reflect the new classification by the time that
+  // happens (see _lookupExceptionRefMap's own type filter and
+  // _lookupFindingsAndRecommendationsForFile's type filter — each burn
+  // function asks one of those two, and the answer must already be
+  // "the new type" for the marker swap to happen in one pass instead of
+  // needing a separate remove-then-add).
+  const typeNum = _getNextTypeNum(ref, newType);
+  item.type = newType;
+  item.typeNum = typeNum;
+  item.ref = `${_GRID_ITEM_PREFIX[newType]}${typeNum}`;
+
+  // A Finding/Recommendation is found for annotation purposes by its own
+  // sourceFile (_lookupFindingsAndRecommendationsForFile), unlike an
+  // Exception (found by attributeIndex/sampleRowIndex) — moving INTO one
+  // of those two types for the first time needs a sourceFile to actually
+  // get drawn anywhere. Derive one from the attribute's own first mark
+  // for this sample when the row doesn't already have one (an
+  // AI-created Finding/Recommendation already does; a reclassified
+  // Exception usually doesn't).
+  if (newType !== 'exception' && !item.sourceFile && hasAttrLink) {
+    const fileResult = (_wpAnalysisResults[ref] || [])[item.sampleRowIndex];
+    const attrTitle = (wpTestAttributes[ref] || []).filter(a => a.title)[item.attributeIndex]?.title;
+    const match = (fileResult?.results || []).find(r => r.title === attrTitle);
+    const firstMark = (match?.marks && match.marks[0]) || match;
+    if (firstMark?.sourceFile) {
+      item.sourceFile = firstMark.sourceFile;
+      item.page = firstMark.page || 1;
+      item.paragraph = firstMark.paragraph || 0;
+    }
+  }
+
+  if (crossesExceptionBoundary && hasAttrLink) {
+    const overrideResult = newType === 'exception' ? 'fail' : 'pass';
+    const explanation = `Reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)} by user on ${today}`;
+    await _postOverride(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
+    // No skipPrompt — this is the first and only sync confirmation for
+    // this action; _syncOverrideToAnnotatedFiles shows its own existing
+    // dialog when annotated files exist, same as a manual override does.
+    await _syncOverrideToAnnotatedFiles(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
+  } else {
+    // No pass/fail consequence — nothing to confirm, just redraw
+    // whatever's already annotated so it matches the new type.
+    const originalName = _resolveOriginalFileForGridItem(ref, item);
+    const bucketArr = inMemoryFiles[ref]?.sample || [];
+    const candidates = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
+    if (candidates.length) {
+      const failures = await _reburnCandidatesForFile(ref, candidates);
+      if (failures.length) {
+        alert(`${item.ref} was reclassified, but the following file(s) could not be updated to match:\n\n` + failures.map(n => `  • ${n}`).join('\n'));
+      }
+    }
+  }
+
+  logEvent(ref, `#${item.num} (${oldRef} → ${item.ref}) reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)}`);
+  renderExceptions(ref);
+  renderAnalysisResultsGrid(ref);
+
+  if (hasAttrLink) {
+    await _offerClassificationGuidanceAppend(ref, item, oldType, newType, today);
+  }
+}
+
+// Real, new, per Part 7 — closes the loop from a one-off correction back
+// into the SAME mechanism that steers the AI in the first place
+// (additionalInfo, per the revised design that reuses this field rather
+// than adding a new one). Shown as an editable, never-silent suggestion;
+// declining leaves additionalInfo untouched — the reclassification
+// itself still applies either way, this only affects future Analyze
+// runs on this attribute.
+async function _offerClassificationGuidanceAppend(ref, item, oldType, newType, dateStr) {
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[item.attributeIndex];
+  if (!attr) return;
+  const itemLabel = item.name ? `"${item.name}"` : (item.ref || 'this item');
+  const suggestion = `Note: per a user correction on ${dateStr}, ${itemLabel} was reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)} — apply similar judgment to comparable facts for this attribute going forward.`;
+
+  const accepted = await new Promise(resolve => {
+    const id = 'guidance-append-overlay';
+    document.getElementById(id)?.remove();
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(480px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Apply this going forward?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Add a note to "${escHtml(attr.title)}"'s Additional Information so future Analyze runs apply the same judgment automatically. Edit it below if you'd like, or skip it — the reclassification you just made is saved either way.</div>
+        </div>
+        <div style="padding:2px 20px 4px">
+          <textarea id="guidance-append-text" style="width:100%;min-height:70px;font-size:12px;font-family:inherit;padding:8px;border-radius:6px;border:1px solid var(--border);resize:vertical">${escHtml(suggestion)}</textarea>
+        </div>
+        <div style="padding:10px 20px 16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="guidance-append-skip-btn">Don't add</button>
+          <button class="btn-p" id="guidance-append-add-btn">Add to Additional Information</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('guidance-append-skip-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(null); };
+    document.getElementById('guidance-append-add-btn').onclick = () => {
+      const text = document.getElementById('guidance-append-text')?.value || '';
+      document.getElementById(id)?.remove();
+      resolve(text.trim() || null);
+    };
+  });
+  if (!accepted) return;
+
+  attr.additionalInfo = attr.additionalInfo ? `${attr.additionalInfo}\n${accepted}` : accepted;
+  // wpTestAttributes[ref] holds the SAME array `attributes` was filtered
+  // from by reference for each real row object, so mutating `attr`
+  // above already updated the real, stored attribute — no re-assignment
+  // needed. Refresh the Test Attributes grid too, in case it's the
+  // currently-visible page for this workpaper, so it doesn't show a
+  // stale Additional Information value until next navigation.
+  if (currentAttrWPRef === ref) renderTestAttributes(ref);
+  const w = WORKPAPERS.find(w => w.ref === ref);
+  if (w) await _saveWorkpaperToDB(w);
+  logEvent(ref, `Additional Information updated for "${attr.title}" from a reclassification correction`);
 }
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
@@ -26313,7 +26862,11 @@ Determining pass vs. fail for each mark, in order of how these interact:
   never write exception-sounding text on a "pass" mark, and never mark something "fail" without real exception
   text explaining it.
 - A minor deviation from ideal practice that does NOT rise to an actual control failure is NOT an exception —
-  keep the mark "pass" and put the observation in "note" as a plain, non-exception comment instead.
+  keep the mark "pass", put the observation in "note" as a plain, non-exception comment, AND ALSO add it to the
+  top-level "findings" array described below, so it's tracked as a genuine Finding rather than lost inside that
+  mark's own note. This is the GENERAL rule — an attribute's own "Test Attribute Additional Information" may
+  contain a more specific classification rule for that attribute (e.g. "a missing PO number alone is a Finding,
+  not an Exception"); when it does, follow that attribute-specific instruction instead of this general one.
 - Sample data given to you that you genuinely cannot locate anywhere in the source documents — not contradicted,
   simply absent or unfindable — should also be marked "fail" with exception text explaining what could not be
   located, since untestable data is not the same as data that passed. This is the one case where "sourceFile"
@@ -26323,7 +26876,24 @@ For each mark also include:
 - "note": one concise sentence (max 80 chars) — for a "fail" mark, this IS the exception text; for a "pass" mark, an optional plain observation, not an exception.
 For each attribute also include:
 - "reasoning": your own explanation of how you reached this conclusion for THIS attribute — what you looked for, what you found (or didn't), and why that supports the mark(s) you gave it. Write this as your own account of the evaluation process, not a restatement of the note. A few sentences is fine; there's no strict length cap, but stay focused on this one attribute's reasoning specifically.
-Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title, or \"\" if genuinely not found in any document>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}]}`;
+
+Two more, separate, TOP-LEVEL arrays — siblings of "results", not nested inside any one attribute — for observations
+that are not themselves a pass/fail judgment on one attribute:
+- "findings": a genuine minor deviation you noticed (see the rule above) that does not rise to a formal exception.
+  Include every one here, in addition to noting it on its own mark.
+- "recommendations": a suggestion on the internal control's own design or operation — broader than any single
+  sample's pass/fail, e.g. a way the control itself could be strengthened. Include one whenever you genuinely have
+  a specific, actionable suggestion; omit the array entirely (or leave it empty) when you don't — never invent one
+  just to have something to report.
+Each entry in either array: {"attributeTitle": "<exact attribute title this relates to, or \"\" if it's not tied to
+one specific attribute>", "note": "<one to two concise sentences describing it>", "sourceFile": "<exact document
+title this came from, or \"\" if not tied to one specific document>", "page": 1, "paragraph": 2}. "page" and
+"paragraph" work exactly like a mark's own (see above) — where in "sourceFile" this was noticed — and should be
+omitted (or left as 1 and 0) when "sourceFile" is itself empty, since there's nowhere to point them at. Neither
+array should ever duplicate something already fully captured by a mark's own pass/fail — these are for the
+genuinely separate observations described above.
+
+Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title, or \"\" if genuinely not found in any document>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}],"findings":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">","page":1,"paragraph":2}],"recommendations":[{"attributeTitle":"<exact title or \"\">","note":"<description>","sourceFile":"<exact document title or \"\">","page":1,"paragraph":2}]}`;
 
   // Builds the row-specific portion of the prompt: a human-readable
   // description of exactly which sample this pass is testing, built from
@@ -26634,7 +27204,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
       });
 
       if (!parsed.results?.length) throw new Error('No results in response');
-      return { ok: true, results: parsed.results, commentary: '' };
+      return { ok: true, results: parsed.results, findings: parsed.findings || [], recommendations: parsed.recommendations || [], commentary: '' };
     } catch(err) {
       return { ok: false, error: err.message || String(err), commentary: '' };
     }
@@ -26658,7 +27228,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         analyzeOneFileFast(row, rowEl, fi).then(outcome => {
           if (!_cancelled) {
             if (outcome.ok) {
-              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: outcome.results, fields: [], commentary: '' };
+              analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: outcome.results, findings: outcome.findings || [], recommendations: outcome.recommendations || [], fields: [], commentary: '' };
               updateResultRow(rowEl, 'done', null, null);
             } else {
               // Real, confirmed fix, per a real, live reported issue —
@@ -26676,7 +27246,7 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
               window[retryName] = async () => {
                 updateResultRow(rowEl, 'loading', 'Retrying…', null);
                 const retry = await analyzeOneFileFast(row, rowEl, fi);
-                if (retry.ok) { analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: retry.results, fields: [], commentary: '' }; updateResultRow(rowEl, 'done', null, null); }
+                if (retry.ok) { analysisResults[fi] = { fileName: allFileNamesJoined, sampleDesc, sampleRowCells, results: retry.results, findings: retry.findings || [], recommendations: retry.recommendations || [], fields: [], commentary: '' }; updateResultRow(rowEl, 'done', null, null); }
                 else updateResultRow(rowEl, 'error', retry.error, `${retryName}()`);
               };
               updateResultRow(rowEl, 'error', outcome.error, `${retryName}()`);
@@ -26834,10 +27404,13 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
           xlsxExRef = existingEx.ref || `E${existingEx.num}`;
         } else {
           const wpExNum = _getNextExNum();
-          xlsxExRef = `E${wpExNum}`;
+          const typeNum = _getNextTypeNum(ref, 'exception');
+          xlsxExRef = `E${typeNum}`;
           wpExceptions[ref].push({
             num:            wpExNum,
             ref:            xlsxExRef,
+            type:           'exception',
+            typeNum:        typeNum,
             attrRef:        attrLabel,
             attributeIndex: ai,
             sampleRowIndex: fi,
@@ -26853,6 +27426,72 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
         }
         _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
       }
+    });
+  });
+
+  // Real, new, per explicit design change — Findings and Recommendations
+  // are two more sibling item types, auto-created from the AI's own new
+  // top-level "findings"/"recommendations" arrays (see the system
+  // prompt above) the exact same way Exceptions already are: same
+  // dedup-by-name-and-linked-file check, same `num` (global "#") plus a
+  // type-scoped `typeNum` backing a letter-prefixed Ref ("F1", "R1"),
+  // via the same _getNextTypeNum shared with addGridItem(). Unlike an
+  // Exception, neither is necessarily tied to one specific attribute —
+  // attributeIndex/attrRef are only set when the AI's own
+  // "attributeTitle" actually matches one of this workpaper's own
+  // attributes; otherwise they stay blank, which the grid already
+  // renders as "—".
+  ['findings', 'recommendations'].forEach(kind => {
+    const type = kind === 'findings' ? 'finding' : 'recommendation';
+    const prefix = kind === 'findings' ? 'F' : 'R';
+    analysisResults.forEach((fileResult, fi) => {
+      (fileResult[kind] || []).forEach(item => {
+        const itemTitle = (item.attributeTitle || '').trim();
+        let attrIdx = null, attrLabel = '';
+        if (itemTitle) {
+          const foundAi = attributes.findIndex(a => a.title === itemTitle);
+          if (foundAi >= 0) { attrIdx = foundAi; attrLabel = attributes[foundAi].attrRef || attributes[foundAi].num || String(foundAi + 1); }
+        }
+        const itemName = itemTitle || (type === 'finding' ? 'Finding' : 'Recommendation');
+        const itemDesc = item.note || '';
+        const linkedFile = item.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
+
+        const already = (wpExceptions[ref] || []).some(e =>
+          e.type === type && e.name === itemName && e.desc === itemDesc && e.linkedFiles?.includes(linkedFile)
+        );
+        if (already) return;
+
+        const wpNum = _getNextExNum();
+        const typeNum = _getNextTypeNum(ref, type);
+        const itemRef = `${prefix}${typeNum}`;
+        wpExceptions[ref].push({
+          num:            wpNum,
+          ref:            itemRef,
+          type:           type,
+          typeNum:        typeNum,
+          attrRef:        attrLabel,
+          attributeIndex: attrIdx,
+          sampleRowIndex: fi,
+          name:           itemName,
+          desc:           itemDesc,
+          owner:          '',
+          mgmtResponse:   '',
+          resolutionDate: '',
+          retested:       false,
+          linkedFiles:    [linkedFile],
+          // Real, new, per the delete-sync design's own Findings/
+          // Recommendations annotation requirement — where on
+          // "sourceFile" this was noticed, mirroring a mark's own
+          // page/paragraph, so the four burn mechanisms have somewhere
+          // real to draw this item's own marker. Blank sourceFile means
+          // "not tied to one specific document" — nothing gets drawn
+          // for that case, matching a workpaper-level Recommendation.
+          sourceFile:     item.sourceFile || '',
+          page:           item.page || 1,
+          paragraph:      item.paragraph || 0,
+        });
+        logEvent(ref, `#${wpNum} (Ref ${itemRef}) auto-created from analysis as a ${type}: ${itemName}`);
+      });
     });
   });
 
@@ -27613,7 +28252,9 @@ async function _buildAttrPromptWithReferenceFiles(attributes, opts, ref, referen
   const parts = await Promise.all(attributes.map(async (a, i) => {
     let attrParts = [`${i+1}. "${a.title}"`];
     if (opts.attrDesc !== false && a.desc) attrParts.push(`\n   Test Attribute Description: ${a.desc}`);
-    if (opts.attrAddl && a.additionalInfo) attrParts.push(`\n   Test Attribute Additional Information: ${a.additionalInfo}`);
+    if (opts.attrAddl && a.additionalInfo) attrParts.push(
+      `\n   Test Attribute Additional Information: ${a.additionalInfo}\n   (If the text above includes any instruction on when a deviation for THIS attribute should be treated as a Finding rather than an Exception, when a Recommendation should be raised, or when something should not be flagged at all, treat that as a binding rule for this attribute specifically — apply it ahead of the general Exception/Finding/Recommendation rule described later in these instructions.)`
+    );
     if (opts.success && a.successCriteria) attrParts.push(
       `\n   Pass Criteria (the following describes the specific conditions that must be present and verifiable in the document for this attribute to be considered satisfied — if all conditions below are met by the evidence found, the result is a pass):\n   ${a.successCriteria}`
     );
@@ -27774,10 +28415,11 @@ function _doExportWorkpaperXLSX() {
   rows.push(secHdr('EXCEPTIONS'));
   const exceptions = wpExceptions[ref] || [];
   if (exceptions.length) {
-    rows.push(colHdr('#', 'Ref', 'Attribute', 'Exception Name', 'Description', 'Owner', 'Management Response', 'Resolution Date', 'Retested'));
+    rows.push(colHdr('#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Owner', 'Management Response', 'Resolution Date', 'Retested'));
     exceptions.forEach(ex => {
-      rows.push([ex.num||'', ex.ref||'', ex.attrRef||'', ex.name||'', ex.desc||'', ex.owner||'', ex.mgmtResponse||'', ex.resolutionDate||'', ex.retested||'']);
-      if (ex.linkedFiles?.length) rows.push(['', '', '', 'Linked Files:', ex.linkedFiles.join(', ')]);
+      const typeLabel = ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase());
+      rows.push([ex.num||'', ex.ref||'', typeLabel, ex.attrRef||'', ex.name||'', ex.desc||'', ex.owner||'', ex.mgmtResponse||'', ex.resolutionDate||'', ex.retested||'']);
+      if (ex.linkedFiles?.length) rows.push(['', '', '', '', 'Linked Files:', ex.linkedFiles.join(', ')]);
     });
   } else { rows.push(['No exceptions noted']); }
   rows.push(blank());
