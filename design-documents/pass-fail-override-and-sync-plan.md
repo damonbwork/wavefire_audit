@@ -718,3 +718,26 @@ reusing infrastructure already in place:
 5. Confirm declining the guidance-append leaves `additionalInfo`
    untouched — the correction still applies to the item just
    reclassified, it just doesn't change future runs.
+
+**Implemented and verified** (2026-09-07): the Type column in
+`renderExceptions` is now a `<select>` firing `_reclassifyGridItem(ref,
+idx, newType)` on change; `_lookupExceptionRefMap` was fixed to filter
+by `type === 'exception'` (a real, previously-latent bug this work
+surfaced — nothing had ever changed a row's type after creation before
+now, so a reclassified-away Exception would otherwise have kept tagging
+its old attribute+sample's pass/fail tick with its now-stale Ref);
+`_offerClassificationGuidanceAppend` implements the correction-feedback
+loop, appending into `additionalInfo` via `_saveWorkpaperToDB` (which
+reads the in-memory stores directly, independent of whatever page is
+currently rendered) rather than requiring the Test Attributes page to be
+open. Verified via synthetic in-memory data against the dev server for
+all three cases: Exception → Finding (crosses the boundary, has an
+attribute link — routes through `_postOverride`/
+`_syncOverrideToAnnotatedFiles` exactly like a manual override, derives
+`sourceFile`/`page`/`paragraph` from the attribute's own first mark
+since the row didn't have one yet, offers and — when accepted — appends
+the guidance sentence with a newline separator alongside existing text);
+Finding → Recommendation (no boundary — no override calls at all, silent
+`_reburnCandidatesForFile` only); and Finding-with-no-attribute-link →
+Exception (refused with a clear alert, the row's `type` left unchanged,
+`renderExceptions` called to reset the dropdown to its real value).

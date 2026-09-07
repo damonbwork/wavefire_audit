@@ -8748,7 +8748,14 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 function _lookupExceptionRefMap(ref, wpResults, attributes) {
   const exMap = {};
   (wpExceptions[ref] || []).forEach(ex => {
-    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+    // Real, confirmed fix, surfaced by building reclassification — a row
+    // reclassified AWAY from 'exception' must stop showing up here (it's
+    // no longer the reason for that attribute's pass/fail tick), or the
+    // pass/fail tick would keep tagging itself with a Finding/
+    // Recommendation's own Ref. This filter was unreachable before
+    // reclassification existed (nothing ever changed a row's type after
+    // creation), so it was silently correct-by-accident until now.
+    if ((ex.type || 'exception') === 'exception' && ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
       exMap[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
     }
   });
@@ -11666,7 +11673,16 @@ function renderExceptions(ref) {
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}">${escHtml((ex.type || 'exception').charAt(0).toUpperCase() + (ex.type || 'exception').slice(1))}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
+        <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
+          title="Change this item's classification"
+          onchange="_reclassifyGridItem('${ref}',${i},this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          <option value="exception" ${(ex.type||'exception')==='exception'?'selected':''}>Exception</option>
+          <option value="finding" ${ex.type==='finding'?'selected':''}>Finding</option>
+          <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
+        </select>
+      </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="The test attribute this item was raised against, if any">${ex.attrRef ? escHtml(ex.attrRef) : '—'}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
@@ -22862,6 +22878,166 @@ async function _deleteGridItem(ref, idx) {
   logEvent(ref, `${label} deleted${choice === 'update' ? ' (annotated files updated)' : ''}`);
   renderExceptions(ref);
   renderAnalysisResultsGrid(ref);
+}
+
+function _typeLabel(type) {
+  return { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' }[type] || type;
+}
+
+// Real, new, per Part 7 of the design doc — the Type column's own
+// dropdown (renderExceptions) calls this on change. Handles three
+// distinct cases:
+//   1. Crossing INTO or OUT OF 'exception', for an item tied to a real
+//      attribute+sample: this changes that attribute's own pass/fail
+//      status, so it's routed through the SAME override machinery a
+//      manual pass/fail override already uses (_postOverride +
+//      _syncOverrideToAnnotatedFiles) — which shows its own existing
+//      confirmation dialog when annotated files exist, so this doesn't
+//      need (or build) a second, competing sync prompt.
+//   2. Crossing INTO 'exception' for an item with no attribute/sample
+//      link: refused outright — an Exception must drive some specific
+//      attribute's result, and there's nothing here to drive.
+//   3. Everything else (Finding <-> Recommendation, or a boundary
+//      crossing with no attribute link to override) — no pass/fail
+//      consequence at all, so no prompt; just relabel the row and
+//      silently redraw its own marker in any already-annotated files.
+async function _reclassifyGridItem(ref, idx, newType) {
+  const item = wpExceptions[ref]?.[idx];
+  if (!item) return;
+  const oldType = item.type || 'exception';
+  if (newType === oldType) return; // dropdown re-selected its own current value
+
+  const crossesExceptionBoundary = (oldType === 'exception') !== (newType === 'exception');
+  const hasAttrLink = item.attributeIndex != null && item.sampleRowIndex != null;
+
+  if (newType === 'exception' && !hasAttrLink) {
+    alert(`"${item.name || item.ref}" can't be reclassified as an Exception — it isn't tied to a specific test attribute and sample, and an Exception must drive that attribute's own pass/fail result for this sample. Link it to an attribute first (or leave it as a ${_typeLabel(oldType)}).`);
+    renderExceptions(ref); // resets the <select> back to its actual current value
+    return;
+  }
+
+  pushUndo();
+  const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  const oldRef = item.ref;
+
+  // Update the row's type/ref/typeNum FIRST — num and every evidence
+  // field (sourceFile/page/paragraph/linkedFiles/desc) stay exactly
+  // as-is. Any re-burn triggered below reads this row's CURRENT state,
+  // so it must already reflect the new classification by the time that
+  // happens (see _lookupExceptionRefMap's own type filter and
+  // _lookupFindingsAndRecommendationsForFile's type filter — each burn
+  // function asks one of those two, and the answer must already be
+  // "the new type" for the marker swap to happen in one pass instead of
+  // needing a separate remove-then-add).
+  const typeNum = _getNextTypeNum(ref, newType);
+  item.type = newType;
+  item.typeNum = typeNum;
+  item.ref = `${_GRID_ITEM_PREFIX[newType]}${typeNum}`;
+
+  // A Finding/Recommendation is found for annotation purposes by its own
+  // sourceFile (_lookupFindingsAndRecommendationsForFile), unlike an
+  // Exception (found by attributeIndex/sampleRowIndex) — moving INTO one
+  // of those two types for the first time needs a sourceFile to actually
+  // get drawn anywhere. Derive one from the attribute's own first mark
+  // for this sample when the row doesn't already have one (an
+  // AI-created Finding/Recommendation already does; a reclassified
+  // Exception usually doesn't).
+  if (newType !== 'exception' && !item.sourceFile && hasAttrLink) {
+    const fileResult = (_wpAnalysisResults[ref] || [])[item.sampleRowIndex];
+    const attrTitle = (wpTestAttributes[ref] || []).filter(a => a.title)[item.attributeIndex]?.title;
+    const match = (fileResult?.results || []).find(r => r.title === attrTitle);
+    const firstMark = (match?.marks && match.marks[0]) || match;
+    if (firstMark?.sourceFile) {
+      item.sourceFile = firstMark.sourceFile;
+      item.page = firstMark.page || 1;
+      item.paragraph = firstMark.paragraph || 0;
+    }
+  }
+
+  if (crossesExceptionBoundary && hasAttrLink) {
+    const overrideResult = newType === 'exception' ? 'fail' : 'pass';
+    const explanation = `Reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)} by user on ${today}`;
+    await _postOverride(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
+    // No skipPrompt — this is the first and only sync confirmation for
+    // this action; _syncOverrideToAnnotatedFiles shows its own existing
+    // dialog when annotated files exist, same as a manual override does.
+    await _syncOverrideToAnnotatedFiles(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
+  } else {
+    // No pass/fail consequence — nothing to confirm, just redraw
+    // whatever's already annotated so it matches the new type.
+    const originalName = _resolveOriginalFileForGridItem(ref, item);
+    const bucketArr = inMemoryFiles[ref]?.sample || [];
+    const candidates = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
+    if (candidates.length) {
+      const failures = await _reburnCandidatesForFile(ref, candidates);
+      if (failures.length) {
+        alert(`${item.ref} was reclassified, but the following file(s) could not be updated to match:\n\n` + failures.map(n => `  • ${n}`).join('\n'));
+      }
+    }
+  }
+
+  logEvent(ref, `#${item.num} (${oldRef} → ${item.ref}) reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)}`);
+  renderExceptions(ref);
+  renderAnalysisResultsGrid(ref);
+
+  if (hasAttrLink) {
+    await _offerClassificationGuidanceAppend(ref, item, oldType, newType, today);
+  }
+}
+
+// Real, new, per Part 7 — closes the loop from a one-off correction back
+// into the SAME mechanism that steers the AI in the first place
+// (additionalInfo, per the revised design that reuses this field rather
+// than adding a new one). Shown as an editable, never-silent suggestion;
+// declining leaves additionalInfo untouched — the reclassification
+// itself still applies either way, this only affects future Analyze
+// runs on this attribute.
+async function _offerClassificationGuidanceAppend(ref, item, oldType, newType, dateStr) {
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[item.attributeIndex];
+  if (!attr) return;
+  const itemLabel = item.name ? `"${item.name}"` : (item.ref || 'this item');
+  const suggestion = `Note: per a user correction on ${dateStr}, ${itemLabel} was reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)} — apply similar judgment to comparable facts for this attribute going forward.`;
+
+  const accepted = await new Promise(resolve => {
+    const id = 'guidance-append-overlay';
+    document.getElementById(id)?.remove();
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(480px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Apply this going forward?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Add a note to "${escHtml(attr.title)}"'s Additional Information so future Analyze runs apply the same judgment automatically. Edit it below if you'd like, or skip it — the reclassification you just made is saved either way.</div>
+        </div>
+        <div style="padding:2px 20px 4px">
+          <textarea id="guidance-append-text" style="width:100%;min-height:70px;font-size:12px;font-family:inherit;padding:8px;border-radius:6px;border:1px solid var(--border);resize:vertical">${escHtml(suggestion)}</textarea>
+        </div>
+        <div style="padding:10px 20px 16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="guidance-append-skip-btn">Don't add</button>
+          <button class="btn-p" id="guidance-append-add-btn">Add to Additional Information</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('guidance-append-skip-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(null); };
+    document.getElementById('guidance-append-add-btn').onclick = () => {
+      const text = document.getElementById('guidance-append-text')?.value || '';
+      document.getElementById(id)?.remove();
+      resolve(text.trim() || null);
+    };
+  });
+  if (!accepted) return;
+
+  attr.additionalInfo = attr.additionalInfo ? `${attr.additionalInfo}\n${accepted}` : accepted;
+  // wpTestAttributes[ref] holds the SAME array `attributes` was filtered
+  // from by reference for each real row object, so mutating `attr`
+  // above already updated the real, stored attribute — no re-assignment
+  // needed. Refresh the Test Attributes grid too, in case it's the
+  // currently-visible page for this workpaper, so it doesn't show a
+  // stale Additional Information value until next navigation.
+  if (currentAttrWPRef === ref) renderTestAttributes(ref);
+  const w = WORKPAPERS.find(w => w.ref === ref);
+  if (w) await _saveWorkpaperToDB(w);
+  logEvent(ref, `Additional Information updated for "${attr.title}" from a reclassification correction`);
 }
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
