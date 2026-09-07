@@ -9833,12 +9833,23 @@ async function _drawTickMarksOnlyForFileFromResults(PDFLib, fileBytes, fileName,
   return pdfDoc.save({ useObjectStreams: false });
 }
 
-async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
-  const wpResults = _wpAnalysisResults[ref];
+// Real, new, per Part 4 (override sync) — `wpResultsOverride` and
+// `originalEntriesOverride` let _syncOverrideToAnnotatedFiles re-run this
+// same mechanism scoped to just one already-annotated file's original,
+// using an "effective results" copy with the overridden attribute's marks
+// replaced, rather than needing a separate, parallel implementation. Both
+// are optional; omitting them keeps this function's normal
+// every-original-file, real-analysis-results behavior exactly as before.
+async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref, originalEntriesOverride, wpResultsOverride) {
+  const wpResults = wpResultsOverride || _wpAnalysisResults[ref];
   if (!wpResults || !wpResults.length) return;
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
   const bucketArr = inMemoryFiles[ref]?.sample;
   if (!bucketArr || !bucketArr.length) return;
+
+  if (originalEntriesOverride) {
+    return _makeAcrobatAnnotatedCopyForEntries(ref, originalEntriesOverride, wpResults, attributes, bucketArr);
+  }
 
   // Only genuine originals — never re-annotate an already-"_copy",
   // already-"_annotated_bi", or already-"_annotated_sn"
@@ -9852,6 +9863,10 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
   );
   if (!originalEntries.length) return;
 
+  return _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResults, attributes, bucketArr);
+}
+
+async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResults, attributes, bucketArr) {
   let pdfAnnotateLib;
   try {
     pdfAnnotateLib = await loadPdfAnnotateLib();
@@ -22266,6 +22281,190 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
     }
   }
   popup.remove();
+
+  // Real, new, per Part 4 (override sync) — fire-and-forget, exactly the
+  // same pattern the four annotation mechanisms already use after
+  // Analyze: this offers to update any already-annotated files, but
+  // never blocks the override itself on it finishing.
+  _syncOverrideToAnnotatedFiles(ref, ai, fi, overrideResult, overrideNote).catch(err =>
+    console.error('[SyncOverride] Unexpected failure:', err)
+  );
+}
+
+// ── Part 4: keeping an override in sync with already-annotated files ──────
+//
+// SUFFIX_LABELS mirrors the exact mapping _openAttrResultsModal's own
+// file-links feature already uses — kept as a single shared source here so
+// the two can never describe the same filename suffix differently.
+const _SYNC_SUFFIX_LABELS = [
+  [/_annotated_bi2\.pdf$/i, 'Movable stamp (bi2)'],
+  [/_annotated_bi\.pdf$/i,  'Burned-in (bi)'],
+  [/_annotated_ff\.pdf$/i,  'Form-field (ff)'],
+  [/_annotated_sn\.pdf$/i,  'Sticky Note (sn)'],
+];
+function _syncMechanismLabel(name) {
+  const found = _SYNC_SUFFIX_LABELS.find(([re]) => re.test(name || ''));
+  return found ? found[1] : name;
+}
+
+// Confirmation dialog before touching any already-annotated file — never
+// automatic. `protectedFiles` (if any) are listed separately as already
+// excluded, so the person knows why fewer files than they might expect
+// are being offered for update.
+function _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles) {
+  return new Promise(resolve => {
+    const id = 'sync-override-overlay';
+    document.getElementById(id)?.remove();
+    const rows = candidates.map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px">
+        <i class="ti ti-file-check" style="color:#1e40af"></i>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        <span style="color:var(--text-tertiary);font-size:11px">${escHtml(_syncMechanismLabel(f.name))}</span>
+      </div>`).join('');
+    const protectedRows = (protectedFiles || []).map(f => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;color:var(--text-tertiary)">
+        <i class="ti ti-lock" style="color:#b45309"></i>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        <span style="font-size:11px">manually edited — left as-is</span>
+      </div>`).join('');
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Update annotated files?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">This override affects ${candidates.length} already-annotated file${candidates.length !== 1 ? 's' : ''}. Updating will redraw that attribute's mark to show the override as the real result, with the AI's original finding kept as context — not a badge added on top of the old mark.</div>
+        </div>
+        <div style="padding:2px 20px 4px;max-height:220px;overflow-y:auto">${rows}${protectedRows}</div>
+        <div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="syncov-cancel-btn">Not now</button>
+          <button class="btn-p" id="syncov-continue-btn">Update ${candidates.length} file${candidates.length !== 1 ? 's' : ''}</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('syncov-cancel-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(false); };
+    document.getElementById('syncov-continue-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(true); };
+  });
+}
+
+// Real, new — after an override is saved, offers to update every
+// already-annotated file evidencing this (attribute, sample) pair so
+// they don't keep showing the AI's stale, pre-override determination.
+// Per explicit design decision: scoped to every file this attribute's
+// OWN marks evidence for this sample (not just whichever file happens to
+// be open), and never touches a file a person has since manually edited
+// (the existing _autoGenerated === false flag Save Annotations already
+// sets — reused here rather than a separate new fingerprint system,
+// since it's an exact signal where it exists, not a probabilistic one).
+async function _syncOverrideToAnnotatedFiles(ref, attributeIndex, sampleRowIndex, overrideResult, overrideNote) {
+  if (!overrideResult) return; // clearing an override has nothing new to burn in — the AI's own original marks are still exactly what every annotated file already shows
+  const wpResults = _wpAnalysisResults[ref];
+  if (!wpResults || !wpResults.length) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[attributeIndex];
+  if (!attr) return;
+  const fileResult = wpResults[sampleRowIndex];
+  if (!fileResult) return;
+
+  let match = (fileResult.results || []).find(r => r.title === attr.title);
+  if (!match) {
+    const al = attr.title.toLowerCase();
+    match = (fileResult.results || []).find(r => r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase()));
+  }
+  if (!match) return;
+
+  const marksForAttr = (match.marks && match.marks.length) ? match.marks : [{ sourceFile: match.sourceFile || '' }];
+  const originalNames = [...new Set(marksForAttr.map(m => m.sourceFile).filter(Boolean))];
+  if (!originalNames.length) return; // nothing to trace an annotated copy back to
+
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates      = bucketArr.filter(f => originalNames.includes(f._annotatedFrom) && f._autoGenerated !== false);
+  const protectedFiles  = bucketArr.filter(f => originalNames.includes(f._annotatedFrom) && f._autoGenerated === false);
+  if (!candidates.length) {
+    if (protectedFiles.length) {
+      alert(`${protectedFiles.length} annotated file${protectedFiles.length !== 1 ? 's have' : ' has'} already been manually edited since Wavefire last wrote to ${protectedFiles.length !== 1 ? 'them' : 'it'}, so this override was not applied to ${protectedFiles.length !== 1 ? 'them' : 'it'}:\n\n` + protectedFiles.map(f => `  • ${f.name}`).join('\n'));
+    }
+    return; // nothing else to do — no annotated copies exist at all
+  }
+
+  const proceed = await _promptSyncOverrideToAnnotatedFiles(candidates, protectedFiles);
+  if (!proceed) return;
+
+  const PDFLib = await loadPdfLib();
+  const userName = _currentDisplayUser?.login_id || _currentDisplayUser?.name || 'a reviewer';
+  const aiSummary = (match.marks && match.marks.length)
+    ? match.marks.map(m => `${m.result}${m.note ? ' - ' + m.note : ''}`).join('; ')
+    : `${match.result || 'error'}${match.note ? ' - ' + match.note : ''}`;
+  const firstMark = (match.marks && match.marks[0]) || {};
+  const syntheticMark = {
+    result: overrideResult,
+    note: `[Overridden by ${userName}]${overrideNote ? ' ' + overrideNote : ''} — AI originally found: ${aiSummary}`,
+    sourceFile: firstMark.sourceFile || match.sourceFile || originalNames[0],
+    page: firstMark.page || match.page || 1,
+    paragraph: firstMark.paragraph || match.paragraph || (attributeIndex + 1),
+    overridden: true,
+  };
+
+  // A shallow "effective results" clone — only this one (attributeIndex,
+  // sampleRowIndex) attribute's marks are replaced with the single
+  // synthetic override mark; every other attribute and sample is passed
+  // through completely untouched, so re-burning only ever changes what
+  // this override actually affects.
+  const effectiveWpResults = wpResults.map((fr, fi) => {
+    if (fi !== sampleRowIndex) return fr;
+    return { ...fr, results: (fr.results || []).map(r => r.title === attr.title ? { ...r, marks: [syntheticMark] } : r) };
+  });
+
+  const nowStamp = () => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) + ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
+  };
+
+  const failures = [];
+  for (const derivEntry of candidates) {
+    try {
+      const origEntry = bucketArr.find(f => f.name === derivEntry._annotatedFrom && !f._annotatedFrom);
+      if (!origEntry || !origEntry.file) { failures.push(`${derivEntry.name} (original file not available)`); continue; }
+      const pristineBytes = await origEntry.file.arrayBuffer();
+
+      let outBytes = null;
+      if (/_annotated_bi2\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_bi\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_ff\.pdf$/i.test(derivEntry.name)) {
+        outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, effectiveWpResults, attributes, ref);
+      } else if (/_annotated_sn\.pdf$/i.test(derivEntry.name)) {
+        // The sn mechanism operates on a whole batch of originals via
+        // _makeAcrobatAnnotatedCopyAfterAnalyze, not a single-file burn
+        // function — re-run it scoped to just this one original, via the
+        // override params it accepts specifically for this (see its own
+        // comment). It persists its own result, so nothing further is
+        // needed for this branch below.
+        await _makeAcrobatAnnotatedCopyAfterAnalyze(ref, [origEntry], effectiveWpResults);
+        continue;
+      } else {
+        continue; // unrecognized naming convention — skip rather than guess which mechanism produced it
+      }
+      if (!outBytes) { failures.push(`${derivEntry.name} (nothing left to annotate after the override)`); continue; }
+
+      const annotatedFile = new File([outBytes], derivEntry.name, { type: 'application/pdf' });
+      derivEntry.file      = annotatedFile;
+      derivEntry.size      = formatFileSize(annotatedFile.size);
+      derivEntry.updatedBy = 'Wavefire';
+      derivEntry.updatedOn = nowStamp();
+      await _persistSampleFileToBackend(ref, derivEntry, 'Wavefire');
+    } catch (err) {
+      console.error('[SyncOverride] Failed to update', derivEntry.name, ':', err.message);
+      failures.push(derivEntry.name);
+    }
+  }
+
+  refreshFileList(ref, 'sample');
+  if (failures.length) {
+    alert(`${failures.length} annotated file${failures.length !== 1 ? 's' : ''} could not be updated with this override:\n\n` +
+      failures.map(n => `  • ${n}`).join('\n') +
+      `\n\nThe override itself was saved successfully — only the annotated file${failures.length !== 1 ? 's' : ''} listed above ${failures.length !== 1 ? 'still show' : 'still shows'} the prior determination.`);
+  }
 }
 
 function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentFileName, ref) {
@@ -22351,6 +22550,13 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
       'pointer-events:all !important;' +
       'box-shadow:0 2px 6px rgba(0,0,0,0.18)';
     tickEl.textContent = sym;
+    // Real, new, per Part 4 — "show both when they disagree": an
+    // override always wins for what's drawn, but the AI's own current
+    // determination stays visible on hover rather than disappearing
+    // once overridden, in case a later Analyze run changed it.
+    if (overrideRow?.override_result && overrideRow.override_result !== aiResult) {
+      tickEl.title = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult}`;
+    }
     if (overrideRow?.override_result) {
       const badge = document.createElement('span');
       badge.className = 'ann-override-badge';
@@ -34324,6 +34530,19 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       await Promise.all(entries.map(([fi, change]) =>
         _postOverride(ref, attributeIndex, Number(fi), change.result, change.note)
       ));
+      // Real, new, per Part 4 (override sync) — offers to update any
+      // already-annotated files for each changed (attribute, sample)
+      // pair, the same as the live-tick popup's own _saveOverride
+      // already does. Sequential, not Promise.all, since each one can
+      // show its own confirmation dialog — running them in parallel
+      // would show several dialogs stacked on top of each other at once.
+      for (const [fi, change] of entries) {
+        try {
+          await _syncOverrideToAnnotatedFiles(ref, attributeIndex, Number(fi), change.result, change.note);
+        } catch (err) {
+          console.error('[SyncOverride] Unexpected failure:', err);
+        }
+      }
     }
     overlay.remove();
     if (currentAttrWPRef === ref) renderTestAttributes(ref);
