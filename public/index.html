@@ -34413,15 +34413,20 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
     if (!match || !match.sourceFile) return '';
     const bucketArr = inMemoryFiles[ref]?.sample || [];
     const copies = bucketArr.filter(f => f._annotatedFrom === match.sourceFile);
+    // Real, confirmed fix, per direct request — the visible link text is
+    // now the actual filename, not the mechanism type ("Burned-in",
+    // "Movable stamp", ...); the mechanism still shows, just as a hover
+    // tooltip, for anyone who wants that context without it being the
+    // primary label.
     const links = copies.length
       ? copies.map(f => {
           const found = SUFFIX_LABELS.find(([re]) => re.test(f.name));
-          return { label: found ? found[1] : f.name, filename: f.name, isOriginal: false };
+          return { label: f.name, mechanism: found ? found[1] : '', filename: f.name, isOriginal: false };
         })
-      : [{ label: 'Original file', filename: match.sourceFile, isOriginal: true }];
+      : [{ label: match.sourceFile, mechanism: 'Original file', filename: match.sourceFile, isOriginal: true }];
     return links.map(l =>
       `<a href="#" class="attr-modal-file-link" data-filename="${escAttr(l.filename)}" data-page="${match.page || 1}" data-original="${l.isOriginal ? '1' : '0'}" ` +
-      `style="font-size:10px;color:#1e40af;text-decoration:underline;margin-right:12px;white-space:nowrap">${escHtml(l.label)}</a>`
+      `title="${escAttr(l.mechanism)}" style="font-size:10px;color:#1e40af;text-decoration:underline;margin-right:12px;white-space:nowrap">${escHtml(l.label)}</a>`
     ).join('');
   }
 
@@ -34435,6 +34440,11 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
 
     const sym = effective ? (SYMS[effective] || '–') : '…';
     const col = effective ? (COLS[effective] || '#6b7280') : '#94a3b8';
+    // Real, new, per direct request — an explicit "Pass"/"Fail" word
+    // next to the symbol, not just the colored glyph on its own, so the
+    // designation reads as a label, not just a color someone has to
+    // interpret.
+    const resultWord = effective ? (effective.charAt(0).toUpperCase() + effective.slice(1)) : 'Not tested';
     const statusBadge = isPending
       ? '<span style="font-size:9px;font-weight:700;background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">PENDING</span>'
       : (saved?.override_result ? '<span style="font-size:9px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">OVR</span>' : '');
@@ -34446,6 +34456,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
     header.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none';
     header.innerHTML = `
       <span style="font-size:15px;font-weight:900;color:${col};width:16px;text-align:center">${sym}</span>
+      <span style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap">${escHtml(resultWord)}</span>
       <span style="flex:1;font-size:12px;color:#1e293b">${escHtml(rowLabel(row, fi))}</span>
       ${statusBadge}
       <span style="font-size:10px;color:var(--text-tertiary)">${isExpanded ? '▲' : '▼'}</span>
