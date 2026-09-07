@@ -310,3 +310,121 @@ after.
    updated rendering, and consistent exception numbering all need to exist
    before "find the corresponding annotation and update it" is even
    meaningful to build.
+
+## Status update: Parts 1–4 are done
+
+Everything above through Part 4, plus the exception-numbering-consistency
+prerequisite, has been built: the persistent `attribute_sample_results`
+table and override UI (the Testwork Grid's clickable ticks and the batch
+results modal, `_openAttrResultsModal`), the tightened prompt/schema
+(marks array, exception-implies-fail), true multi-mark rendering across
+all four annotation mechanisms, and the override-sync mechanism
+(`_syncOverrideToAnnotatedFiles`) that redraws an overridden attribute's
+tick as the override's own result — not a badge over the AI's stale
+symbol — in every already-annotated file that evidences it. Every
+mechanism now looks up a single, shared, persisted Ref via
+`_lookupExceptionRefMap` instead of recomputing its own, so the numbers
+can no longer drift apart.
+
+Since then, **Exceptions gained two sibling item types — Findings and
+Recommendations** (see the grid's own title, "Exceptions, Findings and
+Recommendations," and the `type`/`typeNum` fields on each
+`wpExceptions[ref]` row, each type numbered independently: E1/F1/R1).
+The two parts below extend the same pass-fail-override-and-sync
+machinery to cover both that new sibling-type work and two more,
+explicitly requested behaviors.
+
+## Part 5 — Confirmed: overriding to Pass never requires an exception to be resolved first
+
+**Confirmed already true, not a change.** `_postOverride` (the function
+every override path calls to persist a person's Pass/Fail judgment) never
+reads or references `wpExceptions[ref]` at all — an override is written
+to a wholly separate table (`attribute_sample_results`), keyed only by
+`(attribute, sample)`, with no dependency on whether an Exception row
+exists for that same pair. So a person can genuinely override an
+attribute to "Pass" while an Exception (or Finding) for that exact
+attribute/sample stays sitting in the grid, entirely unaffected — this is
+already valid, already works today, and needs no code change. Documented
+here explicitly because it's easy to assume the two are linked when
+they're not, and because Part 6 below depends on this being true (the
+override this feature writes on delete must be able to coexist with, or
+in that specific case replace, an Exception without either blocking the
+other).
+
+## Part 6 — Deleting an Exception, Finding, or Recommendation: sync annotated files, and (for an Exception) the pass/fail itself
+
+**The request, precisely:** when a person deletes a grid row, ask first
+whether they'd like any already-annotated file updated to remove that
+item's own mark. If they confirm, and the deleted row was an
+**Exception**, additionally set (or update) an override for that exact
+(attribute, sample) to **Pass**, with an explanation note reading
+"Exception deleted by user on `<date>`" — so the attribute's own
+pass/fail genuinely reflects the deletion, not just the grid row's
+absence. A Finding or Recommendation carries no pass/fail of its own, so
+deleting one only ever means "remove its own mark from the file(s)," never
+touches any attribute's result.
+
+**A real prerequisite this part depends on, confirmed via direct
+follow-up: Findings and Recommendations are not annotated into any file
+today.** Only Exception-driving marks (the checkmark/X + `[Ref]` tag Part
+3 draws, one per mark, across all four mechanisms) ever reach an
+annotated PDF. Per explicit confirmation, this plan now also calls for
+**building that annotation capability for Findings and Recommendations**
+— without it, "remove the finding from the annotated file" has nothing
+real to act on. Concretely, this means:
+- Extending the AI's own per-mark drawing (or a new, parallel one)
+  across all four mechanisms (`bi`, `bi2`, `ff`, `sn`) so a Finding or
+  Recommendation gets its own visual marker on the page it relates to
+  (when it names a specific `sourceFile`/attribute; a workpaper-level
+  Recommendation with no specific document isn't drawn on any file at
+  all — there's nothing to attach it to). A distinct symbol/color from
+  the pass/fail check-or-X is worth considering here, so a Finding or
+  Recommendation marker is never mistaken for a pass/fail judgment on
+  the page itself.
+- Since every annotated file is always fully rebuilt from pristine bytes
+  on every write (confirmed in Part 4 above — nothing patches an
+  existing annotated PDF in place), "removing" a Finding/Recommendation's
+  mark on deletion is really "re-run the applicable burn function(s)
+  against the pristine original, this time with that item excluded from
+  what gets drawn" — the exact same mechanism Part 4's sync already uses
+  for an override, just triggered by a deletion and omitting a mark
+  instead of substituting one.
+
+**Design for the deletion flow itself**, mirroring
+`_syncOverrideToAnnotatedFiles`'s own established shape as closely as
+possible rather than inventing a new pattern:
+1. Resolve every original file the deleted item's own evidence names
+   (its `linkedFiles`/any per-mark `sourceFile`, the same resolution
+   Part 4's sync already does), then every annotated derivative of those
+   originals (`inMemoryFiles[ref].sample.filter(f => f._annotatedFrom ===
+   originalName)`).
+2. If none exist, delete the row immediately with no prompt — nothing to
+   sync.
+3. Otherwise, prompt first (new confirmation dialog, matching
+   `_promptSyncOverrideToAnnotatedFiles`'s style) listing the affected
+   files. Per explicit confirmation, this is a real three-way choice, not
+   a plain confirm/cancel — matching how the original request bundled
+   the file update and (for an Exception) the pass/fail correction into
+   one single "would you like this updated" question:
+   - **"Delete and update"** — does everything in step 4: removes the
+     row, and (for an Exception) sets the Pass-with-explanation override,
+     and updates every affected annotated file.
+   - **"Delete only"** — removes the row and nothing else: no override
+     change, no file changes. The attribute keeps whatever pass/fail it
+     already had, and every annotated file keeps showing the old mark.
+   - **"Cancel"** — deletes nothing at all.
+4. On confirm: for an Exception, call the existing `_postOverride` (and
+   therefore the existing override-sync path) with `overrideResult:
+   'pass'` and `overrideNote: `Exception deleted by user on
+   ${today}`` BEFORE removing the row — this reuses Part 4's own sync
+   entirely for the pass/fail + annotation update, rather than
+   duplicating that logic. For a Finding/Recommendation (no pass/fail to
+   set), re-run the applicable burn function(s) directly, the same way
+   Part 4 does, but with that one item's own mark omitted from what gets
+   drawn instead of substituted.
+5. Only after that succeeds, remove the row from `wpExceptions[ref]` and
+   re-render.
+- Respect the same "never touch a manually-edited file" protection Part 4
+  already established (`_autoGenerated === false`) — a protected file is
+  excluded from the automatic list and reported separately, exactly as
+  today.
