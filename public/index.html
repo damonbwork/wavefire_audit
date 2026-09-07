@@ -11577,10 +11577,16 @@ function renderAnalysisResultsGrid(ref) {
     // NOT fileResult.fileName (the joined list of every attached file
     // every row is tested against together; see the earlier fixes for
     // why that's never the right thing to show as "this row's file").
-    // Falls back to that joined list only when no mark reports a
-    // sourceFile at all (an older/legacy result).
+    // Real, confirmed fix — per explicit instruction, an empty
+    // sourceFile (the AI genuinely couldn't tie this mark to any one
+    // document — see the system prompt's own instruction to leave it
+    // blank rather than guess) must never be shown as if every attached
+    // file were somehow "the" source; a blank cell is the honest answer
+    // when nothing was actually found. No fallback to fileResult.fileName
+    // at all — that previously showed the entire joined file list
+    // whenever every mark happened to have an empty sourceFile.
     const evidenceFiles = [...new Set((fileResult.results || []).map(r => r.sourceFile).filter(Boolean))];
-    const filesLabel = evidenceFiles.length ? evidenceFiles.join(', ') : (fileResult.fileName || '');
+    const filesLabel = evidenceFiles.join(', ');
 
     const sampleLabel = fileResult.sampleDesc || `Sample ${fi + 1}`;
     return `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px">
@@ -25981,10 +25987,10 @@ async function analyzeWithClaude() {
   // location is now per-MARK, not per-attribute, since one attribute can
   // carry more than one mark (each with its own evidence location).
   const locationInstructions = `Each mark needs its own location for where you found the supporting evidence:
-- "sourceFile": the exact title of the specific attached document (from the list of document titles given below) where you found the evidence for THIS mark — every document you were given has its own title; use that exact title, not a paraphrase or a guess
-- "page": the page number (integer, 1-based) within that document where the evidence was found
-- "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none)
-- "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable)
+- "sourceFile": the exact title of the specific attached document (from the list of document titles given below) where you found the evidence for THIS mark — every document you were given has its own title; use that exact title, not a paraphrase or a guess. If this mark is a "fail" because the sample data could not be located in ANY of the documents at all (see below), leave "sourceFile" as an empty string ("") instead — do NOT name a document just because it's the one you happened to check last, or any other document you can't actually point to real evidence in. An empty "sourceFile" is the correct, honest answer whenever there is genuinely no specific document to cite; never guess.
+- "page": the page number (integer, 1-based) within that document where the evidence was found — 1 (or any placeholder) when "sourceFile" is empty, since there's no real page to report either
+- "section": the section heading, numbered heading, or clause label nearest to the evidence (empty string if none, or if "sourceFile" is empty)
+- "paragraph": the paragraph number on that page counting from the top (integer, 1-based; estimate if needed, 0 if not determinable or if "sourceFile" is empty)
 Be as precise as possible — these coordinates are used to place tick marks directly on the correct document.
 Different marks — whether for the same attribute or different ones — can point to evidence in DIFFERENT documents; report the actual document each one was found in, not just whichever document you looked at first.`;
 
@@ -26016,13 +26022,14 @@ Determining pass vs. fail for each mark, in order of how these interact:
   keep the mark "pass" and put the observation in "note" as a plain, non-exception comment instead.
 - Sample data given to you that you genuinely cannot locate anywhere in the source documents — not contradicted,
   simply absent or unfindable — should also be marked "fail" with exception text explaining what could not be
-  located, since untestable data is not the same as data that passed.
+  located, since untestable data is not the same as data that passed. This is the one case where "sourceFile"
+  should be left empty (see below) — there is no document to cite when nothing was found in any of them.
 ${locationInstructions}
 For each mark also include:
 - "note": one concise sentence (max 80 chars) — for a "fail" mark, this IS the exception text; for a "pass" mark, an optional plain observation, not an exception.
 For each attribute also include:
 - "reasoning": your own explanation of how you reached this conclusion for THIS attribute — what you looked for, what you found (or didn't), and why that supports the mark(s) you gave it. Write this as your own account of the evaluation process, not a restatement of the note. A few sentences is fine; there's no strict length cap, but stay focused on this one attribute's reasoning specifically.
-Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}]}`;
+Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"result":"pass"|"fail","note":"<one concise sentence, max 80 chars>","sourceFile":"<exact document title, or \"\" if genuinely not found in any document>","page":1,"section":"<section heading or empty>","paragraph":2}],"reasoning":"<your explanation of how you evaluated this attribute>"}]}`;
 
   // Builds the row-specific portion of the prompt: a human-readable
   // description of exactly which sample this pass is testing, built from
