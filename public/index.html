@@ -15872,8 +15872,13 @@ async function _adminFileInventoryReload() {
     } else {
       tbody.innerHTML = data.rows.map(function(f) {
         const categoryLabel = f.file_category === 'workpaper' ? 'Workpaper' : 'Sample';
-        const created = f.date_created ? new Date(f.date_created).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
-        const updated = f.date_updated ? new Date(f.date_updated).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+        // Matches the established "<date> at <time>" convention already
+        // used for file timestamps elsewhere (e.g. the Attached Sample
+        // Files list) rather than a date-only stamp.
+        const fmtDateTime = (d) => d ? (new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+          + ' at ' + new Date(d).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })) : '';
+        const created = fmtDateTime(f.date_created);
+        const updated = fmtDateTime(f.date_updated);
         return `<tr style="border-bottom:0.5px solid var(--border-light)">
           <td style="padding:7px 10px">${escAttr(f.filename)}</td>
           <td style="padding:7px 10px">${categoryLabel}</td>
