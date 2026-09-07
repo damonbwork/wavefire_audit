@@ -239,3 +239,24 @@ All in `public/index.html`:
    elements: the three definitions, the pass/fail determination
    explanation, how to change a decision, and the annotated-file
    implications of changing one.
+
+**Implemented and verified** (2026-09-07) for the Testwork Grid, the
+first of the prioritized rollout list — the shared `helpIcon()`/
+`_toggleHelpPopup()`/`_closeHelpPopup()`/`HELP_TOPICS`/
+`_downloadHelpTopic()` mechanism, plus the `ti-help-circle` icon wired
+into the Testwork Grid's own header, with its content covering all four
+required elements. Verified against the dev server (auth-gated
+workpaper pages aren't reachable in this harness, so tested by injecting
+an equivalent icon into a reachable page and exercising the exact same
+shared functions): click opens the popup positioned near the icon;
+click-away closes it; clicking the same icon again toggles it closed;
+the popup contains the three definitions and the annotated-file-
+implications section; "Download this explanation" produces clean,
+readable plain text (block-level segments joined by blank lines, no
+template-literal indentation artifacts, using a control character no
+real content will ever contain as the internal split marker rather than
+a plain space or newline that real text could collide with).
+
+Test Attributes, the Exceptions/Findings/Recommendations grid, Attached
+Sample Files, and migrating the two existing hover-only patterns remain
+per the rollout list above.

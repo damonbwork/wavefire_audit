@@ -4001,7 +4001,7 @@ auditor's assessment.
              produced at least one result for this workpaper. -->
         <div class="sect-card" id="sect-analysis-grid" style="display:none">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Testwork Grid</div>
+            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Testwork Grid<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkGrid" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
           </div>
           <div class="sect-body" style="padding:0;overflow-x:auto">
             <div id="analysis-grid-rows"></div>
@@ -24622,6 +24622,178 @@ function positionAuditTooltip(e) {
   if (left + tw > window.innerWidth  - pad) left = e.clientX - tw - pad;
   if (top  + th > window.innerHeight - pad) top  = e.clientY - th - pad;
   tt.style.left = left + 'px'; tt.style.top = top + 'px';
+}
+
+/* ══════════════════════════════════════
+   IN-CONTEXT HELP ICONS (design: inline-help-icons-plan.md)
+   One click-to-open popup mechanism for every section's own "explain
+   this" icon — deliberately NOT hover-based, so the exact same click
+   handler works identically on a mouse and on a touchscreen, with no
+   device detection anywhere in this code. Content lives in one
+   registry (HELP_TOPICS) so a new header's help is "one entry, one
+   helpIcon() call," not a bespoke popup built from scratch each time.
+   Per explicit correction: no consolidated "download everything"
+   button — only a per-topic download, matching what's actually being
+   asked for (a reference copy of the one explanation just read).
+══════════════════════════════════════ */
+const HELP_TOPICS = {
+  testworkGrid: {
+    title: 'Testwork Grid',
+    html: `
+      <p><strong>What this grid shows.</strong> One row per sample, one
+      column per test attribute. Each tick is the current result for
+      that (sample, attribute) pair — pulled live from the most recent
+      Analyze run, or from a person's own override when one exists. A
+      <code>[Ref]</code> tag under a fail tick names the Exception it
+      drove; an <strong>OVR</strong> tag marks an attribute a person has
+      since overridden.</p>
+
+      <p><strong>Exception, Finding, and Recommendation — what each one means:</strong></p>
+      <ul style="margin:4px 0 4px 18px;padding:0">
+        <li style="margin-bottom:6px"><strong>Exception</strong> — a
+        confirmed, sample-specific failure of the attribute's own stated
+        pass criteria (or a stated failure criterion being met). This is
+        the direct, reviewable cause of that attribute's Fail result for
+        that one sample, and requires disposition (owner, management
+        response, resolution date).</li>
+        <li style="margin-bottom:6px"><strong>Finding</strong> — a
+        sample-specific deviation or documentation gap that does
+        <em>not</em> fail the attribute's own stated criteria — the
+        sample can still legitimately Pass — but is worth recording.</li>
+        <li><strong>Recommendation</strong> — a suggestion about the
+        design or operation of the control or process itself, not about
+        any one sample's result. May not name a specific sample or file
+        at all.</li>
+      </ul>
+
+      <p><strong>How the AI reaches a pass/fail result.</strong> The
+      attribute's title, description, additional information, and
+      pass/failure criteria are weighed together — never any one of
+      those alone. A genuine control failure, or a genuine inconsistency
+      between the sample data given and what the source documents
+      actually show, is a Fail, and always comes with real exception
+      text explaining specifically what failed and why. Sample data that
+      can't be located anywhere in the source documents is also a Fail —
+      untestable is not the same as passing. An attribute's own
+      "Additional Information" field can carry a binding, attribute-
+      specific rule for when something should be a Finding instead of an
+      Exception, or when a Recommendation should be raised — that rule
+      takes precedence over the general rule above, for that one
+      attribute specifically.</p>
+
+      <p><strong>Changing a decision.</strong> Click any tick to open the
+      results for that attribute and sample; overriding the result there
+      does not require resolving or deleting any existing Exception
+      first. In the Exceptions, Findings and Recommendations grid below,
+      the Type column lets a person reclassify an item between Exception,
+      Finding, and Recommendation directly.</p>
+
+      <p><strong>What happens to already-annotated files.</strong> Every
+      annotated file (burned-in, stamp, form-field, or sticky-note copy)
+      is always fully rebuilt from the pristine original — nothing is
+      ever patched in place. If overriding a result or reclassifying an
+      item would affect a file that's already been annotated, a
+      confirmation lists exactly which files would change, with each
+      filename a clickable link so it can be opened and checked first.
+      Declining leaves every existing file exactly as it was.</p>
+    `,
+  },
+};
+
+function helpIcon(topicKey) {
+  return `<i class="ti ti-help-circle wf-help-icon" data-help-topic="${escAttr(topicKey)}"
+    onclick="event.stopPropagation();_toggleHelpPopup(this)"
+    title="Click to explain this section"
+    style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i>`;
+}
+
+let _openHelpPopup = null;
+function _closeHelpPopup() {
+  if (_openHelpPopup) {
+    _openHelpPopup.el.remove();
+    _openHelpPopup = null;
+  }
+}
+function _toggleHelpPopup(iconEl) {
+  if (_openHelpPopup && _openHelpPopup.anchorEl === iconEl) { _closeHelpPopup(); return; }
+  _closeHelpPopup(); // only one open at a time
+  const topicKey = iconEl.dataset.helpTopic;
+  const topic = HELP_TOPICS[topicKey];
+  if (!topic) return;
+
+  const popup = document.createElement('div');
+  popup.className = 'wf-help-popup';
+  popup.style.cssText = 'position:fixed;z-index:20000;width:min(520px,92vw);max-height:70vh;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25)';
+  popup.innerHTML = `
+    <div style="position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md) var(--radius-md) 0 0">
+      <div style="font-size:12px;font-weight:700;letter-spacing:0.3px">${escHtml(topic.title)}</div>
+      <button onclick="_closeHelpPopup()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">&#x00D7;</button>
+    </div>
+    <div style="padding:12px 14px;font-size:12px;color:var(--text-primary);line-height:1.6">${topic.html}</div>
+    <div style="padding:8px 14px 12px;border-top:0.5px solid var(--border-light)">
+      <button class="btn-s" style="font-size:11px" onclick="_downloadHelpTopic('${topicKey}')"><i class="ti ti-download"></i> Download this explanation</button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+
+  // Position near the icon, staying on-screen — the same edge-aware
+  // approach already used for positionTooltip/positionAuditTooltip
+  // above, reused here rather than re-derived. No device check: this
+  // reacts to the icon's real on-screen position and the popup's own
+  // measured size, which is exactly as correct on a narrow mobile
+  // viewport as on a wide desktop one.
+  const rect = iconEl.getBoundingClientRect();
+  const pad = 10;
+  popup.style.left = Math.max(pad, rect.left) + 'px';
+  popup.style.top  = (rect.bottom + 6) + 'px';
+  requestAnimationFrame(() => {
+    const pw = popup.offsetWidth, ph = popup.offsetHeight;
+    let left = rect.left, top = rect.bottom + 6;
+    if (left + pw > window.innerWidth - pad) left = window.innerWidth - pw - pad;
+    if (left < pad) left = pad;
+    if (top + ph > window.innerHeight - pad) top = Math.max(pad, rect.top - ph - 6);
+    popup.style.left = left + 'px';
+    popup.style.top  = top + 'px';
+  });
+
+  _openHelpPopup = { el: popup, anchorEl: iconEl };
+}
+// One shared dismiss-on-click-outside listener for every popup, rather
+// than one per instance. The triggering icon's own onclick already
+// calls stopPropagation, so this never fires for the click that just
+// opened a popup.
+document.addEventListener('click', e => {
+  if (_openHelpPopup && !_openHelpPopup.el.contains(e.target)) _closeHelpPopup();
+});
+
+function _downloadHelpTopic(topicKey) {
+  const topic = HELP_TOPICS[topicKey];
+  if (!topic) return;
+  // Splits into block-level segments (paragraphs/list items) FIRST,
+  // using a control character no real content will ever contain as the
+  // split marker, THEN collapses each segment's own internal
+  // whitespace — the source HTML is an indented template literal, so a
+  // naive strip-tags-only pass would leave that literal indentation and
+  // mid-sentence line breaks sitting in the downloaded text. Only the
+  // breaks BETWEEN blocks are meaningful, not the ones inside them.
+  const BLOCK_BREAK = String.fromCharCode(30);
+  const plain = topic.html
+    .replace(/<li[^>]*>/gi, BLOCK_BREAK + '• ')
+    .replace(/<\/(p|li|div)>/gi, BLOCK_BREAK)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .split(BLOCK_BREAK)
+    .map(seg => seg.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n\n');
+  const text = topic.title + '\n' + '='.repeat(topic.title.length) + '\n\n' + plain + '\n';
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Wavefire_${topicKey}_help.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 /* ══════════════════════════════════════
