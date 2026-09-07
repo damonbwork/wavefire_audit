@@ -34432,7 +34432,19 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
 
   function renderRow(row, fi) {
     const saved = _findOverrideFor(ref, attributeIndex, fi);
-    const savedEffective = saved?.override_result || saved?.ai_result;
+    // Real, confirmed fix, per a real, live reported bug — this only
+    // ever read the persisted attribute_sample_results cache
+    // (_attrSampleResultsCache[ref], populated by _loadAttrSampleResults),
+    // with no fallback at all to the raw Analyze results every other
+    // consumer of this same data (the Testwork Grid, placeInteractiveAnnotations)
+    // already falls back to. If that cache hasn't loaded yet, or this
+    // workpaper's results predate the persistent-results table, every
+    // row showed "Not tested" even when the Testwork Grid, reading
+    // directly from _wpAnalysisResults, plainly showed real pass/fail
+    // ticks for the same samples. Falls back to findMatchForSample(fi)'s
+    // own real, live result, the same source of truth the rest of the
+    // app already trusts.
+    const savedEffective = saved?.override_result || saved?.ai_result || findMatchForSample(fi)?.result;
     const change = pending[fi];
     const effective = change ? change.result : savedEffective;
     const isExpanded = expanded.has(fi);
