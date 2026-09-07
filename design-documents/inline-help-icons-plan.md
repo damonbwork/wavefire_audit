@@ -257,6 +257,20 @@ template-literal indentation artifacts, using a control character no
 real content will ever contain as the internal split marker rather than
 a plain space or newline that real text could collide with).
 
-Test Attributes, the Exceptions/Findings/Recommendations grid, Attached
-Sample Files, and migrating the two existing hover-only patterns remain
-per the rollout list above.
+**Implemented and verified** (2026-09-07) for Test Attributes, the
+second rollout item — a `testAttributes` topic on the section header
+covering the grid's purpose and each column, plus two further, more
+targeted topics: `additionalInfo` (its dual role — general context and
+a binding, attribute-specific classification rule, cross-referencing
+the Testwork Grid's own help) and `successCriteria`/`failureCriteria`.
+The existing hover-only `#criteria-tooltip` (shared between both
+criteria columns, shown via `onmouseenter`/`onmouseleave`) was removed
+entirely and replaced by dedicated help icons on each column header
+using the same shared mechanism — no hover-only implementation remains
+on this grid. Verified against the dev server: all four topics open
+with correct titles and content; the `additionalInfo` topic's content
+was spot-checked for the classification-rule example text.
+
+The Exceptions/Findings/Recommendations grid, Attached
+Sample Files, and migrating the remaining hover-only annotation-type
+popup remain per the rollout list above.
