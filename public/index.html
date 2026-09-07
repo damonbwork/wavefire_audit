@@ -27829,23 +27829,28 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
     retryAllBtn.onclick = async () => {
       retryAllBtn.disabled = true;
       retryAllBtn.innerHTML = '<i class="ti ti-loader-2"></i> Retrying…';
-      for (const { entry, row } of failedEntries) {
+      for (const { entry, row, fi } of failedEntries) {
         updateResultRow(row, 'loading', 'Retrying…', null);
-        const retry = await analyzeOneFile(entry, row);
+        // Real, confirmed fix — this previously called analyzeOneFile
+        // (row, rowEl), a different function with a different return
+        // shape, then tried to find which analysisResults entry it
+        // belonged to via `r.fileName === entry.name` — but
+        // analysisResults[].fileName is the joined list of every
+        // attached file's name for that sample row (established
+        // elsewhere this session), never any one entry's own name, and
+        // `entry` here (the sample row pushed alongside `fi` above) has
+        // no `.name` at all — so that lookup could never match, and
+        // "Retry all failed" silently retried every file without ever
+        // applying a single one of its results. `fi` was already
+        // captured at the point of failure (see failedEntries.push
+        // above); using it directly, and analyzeOneFileFast with the
+        // same (row, rowEl, fi) signature the single "Retry this file"
+        // button already uses successfully, fixes both problems at once.
+        const retry = await analyzeOneFileFast(entry, row, fi);
         if (retry.ok) {
-          // NOTE: this lookup pre-dates this fix and looks genuinely
-          // broken independent of it — analysisResults[].fileName is
-          // the joined list of every attached file's name (see this
-          // session's other fixes establishing that), not any one
-          // entry's own name, so this findIndex likely never matches.
-          // Left as-is rather than guessed-at here; flagged separately
-          // for its own dedicated look.
-          const idx = analysisResults.findIndex(r => r.fileName === entry.name);
-          if (idx >= 0) {
-            analysisResults[idx].results = retry.results;
-            if (_wpAnalysisResults[ref]) _wpAnalysisResults[ref][idx] = analysisResults[idx];
-            await _reburnAnnotatedFilesForSample(ref, idx);
-          }
+          analysisResults[fi] = { ...analysisResults[fi], results: retry.results, findings: retry.findings || [], recommendations: retry.recommendations || [] };
+          if (_wpAnalysisResults[ref]) _wpAnalysisResults[ref][fi] = analysisResults[fi];
+          await _reburnAnnotatedFilesForSample(ref, fi);
           updateResultRow(row, 'done', null, null);
         } else {
           updateResultRow(row, 'error', retry.error, null);
