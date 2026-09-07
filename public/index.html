@@ -8865,73 +8865,116 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
 
   var exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
+  // Real, new, per Part 3 — same non-overlapping-Y stacking approach the
+  // burn-in mechanism already uses (reserveNonOverlappingY there), sized
+  // for this mechanism's own field-height math instead of its geometry.
+  // Needed now that one attribute can place more than one field on the
+  // same page when it carries more than one mark.
+  var placedBoxesByPage = {};
+  function reserveNonOverlappingY(pgIdx, initialY, totalH) {
+    var GAP = 4;
+    var arr = placedBoxesByPage[pgIdx] || (placedBoxesByPage[pgIdx] = []);
+    var y = initialY;
+    var top = y + 2;
+    var bottom = y - totalH - 2;
+    var guard = 0, moved = true;
+    while (moved && guard++ < 500) {
+      moved = false;
+      for (var i = 0; i < arr.length; i++) {
+        var b = arr[i];
+        if (top > b.bottom - GAP && bottom < b.top + GAP) {
+          var shift = top - (b.bottom - GAP);
+          y -= shift; top -= shift; bottom -= shift;
+          moved = true;
+        }
+      }
+    }
+    arr.push({ top: top, bottom: bottom });
+    return y;
+  }
+
   var anyPlaced = false;
   var fieldSeq = 0; // Genuinely guarantees unique field names even if two entries would otherwise collide.
   wpResults.forEach(function(fileResult, fi){
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
-      // Identical source-file verification to the existing, proven
-      // burn-in function — kept word-for-word consistent rather than
-      // re-derived, since drift between the two mechanisms here would
-      // mean annotations landing on different files for the same
-      // underlying result.
-      if (match.sourceFile) {
-        var normSource = match.sourceFile.trim().toLowerCase();
-        var normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) return;
-      }
 
-      var pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) return;
-      var page = pages[pgIdx];
-      var ptH = page.getSize().height;
-
-      var result = match.result || 'error';
-      var isPass = (result === 'pass');
-      var isException = (result === 'fail');
       var exLabel = exMap[fi + '-' + ai] || null;
-
-      var paraNum = Math.max(1, match.paragraph || (ai + 1));
-      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      var pdfY = ptH * (1 - paraFrac);
-
-      // Real, confirmed redesign, per direct request — the check/X
-      // symbol is drawn geometrically, straight onto the page, the
-      // exact, same proven approach already used in the burn-in
-      // mechanism — this part isn't a form field at all, just a
-      // visual indicator sitting beside the real field below.
-      var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
-      var symX = 12, symY = pdfY - 6;
-      if (isPass) {
-        page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
-        page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
-      } else {
-        page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
-        page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
-      }
-
-      // Real, confirmed redesign — one single field now, replacing the
-      // three separate ones this used to create (wf_tick_, wf_attrnum_,
-      // wf_note_). The attribute number and, when present, exception or
-      // note detail, live together in one field's own text, joined by a
-      // real newline — its own intrinsic background is already the one
-      // shared box everything needed here now sits inside, rather than
-      // three separate fields each with their own.
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var lines = [pdfText('[' + attrNum + ']')];
-      if (isException) {
-        lines.push(pdfText('Exception ' + (exLabel || '?') + (match.note ? ': ' + String(match.note).slice(0, 90) : '')));
-      } else if (match.note) {
-        lines.push(pdfText(String(match.note).slice(0, 90)));
-      }
-      var uid = fieldSeq++;
-      var fieldH = lines.length > 1 ? 28 : 14;
-      placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
-        x: symX + 16, y: pdfY - fieldH + 8, width: 280, height: fieldH, size: 8,
-        textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+
+      // Real, new, per Part 3 — one field per MARK, not one collapsed
+      // representative per attribute; see _burnAnnotationsForFileFromResults's
+      // own identical comment for the full rationale (match.marks already
+      // survives intact from the AI's own response).
+      var marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
+
+      marksToRender.forEach(function(mark) {
+        // Identical source-file verification to the existing, proven
+        // burn-in function — kept word-for-word consistent rather than
+        // re-derived, since drift between the two mechanisms here would
+        // mean annotations landing on different files for the same
+        // underlying result.
+        if (mark.sourceFile) {
+          var normSource = mark.sourceFile.trim().toLowerCase();
+          var normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) return;
+        }
+
+        var pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) return;
+        var page = pages[pgIdx];
+        var ptH = page.getSize().height;
+
+        var result = mark.result || 'error';
+        var isPass = (result === 'pass');
+        var isException = (result === 'fail');
+
+        var paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        var pdfY = ptH * (1 - paraFrac);
+
+        // Real, confirmed redesign — one single field now, replacing the
+        // three separate ones this used to create (wf_tick_, wf_attrnum_,
+        // wf_note_). The attribute number and, when present, exception or
+        // note detail, live together in one field's own text, joined by a
+        // real newline — its own intrinsic background is already the one
+        // shared box everything needed here now sits inside, rather than
+        // three separate fields each with their own.
+        var lines = [pdfText('[' + attrNum + ']' + (mark.overridden ? ' OVR' : ''))];
+        if (isException) {
+          lines.push(pdfText('Exception ' + (exLabel || '?') + (mark.note ? ': ' + String(mark.note).slice(0, 90) : '')));
+        } else if (mark.note) {
+          lines.push(pdfText(String(mark.note).slice(0, 90)));
+        }
+        var fieldH = lines.length > 1 ? 28 : 14;
+        var finalY = reserveNonOverlappingY(pgIdx, pdfY, fieldH);
+
+        // Real, confirmed redesign, per direct request — the check/X
+        // symbol is drawn geometrically, straight onto the page, the
+        // exact, same proven approach already used in the burn-in
+        // mechanism — this part isn't a form field at all, just a
+        // visual indicator sitting beside the real field below.
+        var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
+        var symX = 12, symY = finalY - 6;
+        if (isPass) {
+          page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
+          page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
+        } else {
+          page.drawLine({ start: { x: symX, y: symY - 4 }, end: { x: symX + 7, y: symY + 4 }, thickness: 1.6, color: symColor });
+          page.drawLine({ start: { x: symX, y: symY + 4 }, end: { x: symX + 7, y: symY - 4 }, thickness: 1.6, color: symColor });
+        }
+
+        var uid = fieldSeq++;
+        placeField(page, 'wf_mark_' + uid, lines.join('\n'), {
+          x: symX + 16, y: finalY - fieldH + 8, width: 280, height: fieldH, size: 8,
+          textColor: rgb(0.15,0.15,0.15), multiline: lines.length > 1,
+        });
+        anyPlaced = true;
       });
-      anyPlaced = true;
     });
   });
 
@@ -8991,9 +9034,16 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
   // to fit whatever this specific mark actually needs. One box per
   // mark, never a separate box per piece of text within it.
   function drawTickMark(page, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
     const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
-    const numText = pdfText('[' + attrNum + ']');
+    // Real, new, per Part 4 — an overridden mark's own combined
+    // symbol-and-number unit carries a visible "OVR" tag directly in
+    // that same text, rather than a separate badge element layered on
+    // top: this tick IS the override's own result already (the caller
+    // passes the override's pass/fail as `pass` here, not the AI's
+    // original), so OVR is context about WHY, not a cover-up of what
+    // was there before.
+    const numText = pdfText('[' + attrNum + ']' + (overridden ? ' OVR' : ''));
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10; // the symbol's own real, drawn footprint, in points
 
@@ -9112,75 +9162,96 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     attributes.forEach(function(attr, ai){
       var match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) return;
-      // Only skip drawing this attribute's tick on THIS file if we can
-      // affirmatively tell it belongs elsewhere — never skip just because
-      // a comparison failed to prove a match. Reproducing a filename
-      // exactly across a full generation is a real LLM reliability risk
-      // (whitespace, case, or minor reformatting drift is common even when
-      // explicitly instructed to copy verbatim); silently dropping a real
-      // finding because of that drift is worse than occasionally drawing a
-      // tick on a file it may not strictly belong to, so:
-      //   1. Exact match -> definitely belongs here, draw it.
-      //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
-      //   3. No sourceFile reported at all -> can't tell, draw it (matches
-      //      the live viewer's own legacy-result fallback).
-      //   4. sourceFile reported AND clearly doesn't match after normalizing
-      //      -> only skip in this case, where drift is least likely to be
-      //      the explanation.
-      if (match.sourceFile) {
-        var normSource = match.sourceFile.trim().toLowerCase();
-        var normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) {
-          console.log('[BurnPDF] Skipping tick for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + match.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
-          return;
-        }
-      }
-
-      var pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) return;
-      var page = pages[pgIdx];
-      var ptH = page.getSize().height;
-
-      var result = match.result || 'error';
-      var isPass = (result === 'pass');
-      var isException = (result === 'fail');
-      var exLabel = exMap[fi + '-' + ai] || null;
-
-      var paraNum = Math.max(1, match.paragraph || (ai + 1));
-      var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      var pdfY = ptH * (1 - paraFrac);
 
       var attrNum = attr.attrRef || attr.num || String(ai + 1);
-      var detailText = null;
-      // Real, confirmed fix, per direct report — a flat 90-character cap
-      // silently cut off longer AI-generated explanations with no
-      // indication anything was missing. Raised well past what a real
-      // exception note or comment realistically runs, with a visible
-      // "..." only on the rare case it's still hit — the box itself
-      // already grows to fit however many lines this produces (totalH
-      // scales with detailLines.length), so there's no separate height
-      // cap needing to move in step with this one.
-      var _noteRaw = match.note ? String(match.note) : '';
-      var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
-      if (isException) {
-        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
-      } else if (_noteText) {
-        detailText = _noteText;
-      }
+      var exLabel = exMap[fi + '-' + ai] || null;
 
-      // Same geometry math drawTickMark itself uses internally — computed
-      // here first only to know this mark's real footprint before
-      // deciding its final, non-overlapping y.
-      var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
-      var geomLineH = fontReg.heightAtSize(7) * 1.15;
-      var geomTopRowH = 16;
-      var geomTotalH = geomDetailLines.length
-        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
-        : geomTopRowH - 4;
-      var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+      // Real, new, per Part 3 of the pass-fail-override-and-sync plan —
+      // draw one tick per MARK, not one collapsed representative per
+      // attribute. match.marks already survives intact from the AI's own
+      // response all the way through (analyzeOneFileFast's normalization
+      // only overwrites match's own flat result/note/page/... fields, it
+      // never deletes marks) — falls back to a single synthetic mark
+      // built from those same flat fields for any older/legacy result
+      // saved before marks existed. A sync-triggered override (see
+      // _syncOverrideToAnnotatedFiles) replaces this array with exactly
+      // one synthetic mark for the overridden attribute — the same loop
+      // below then naturally draws just that one tick, with nothing
+      // attribute-specific needed here to know an override even occurred.
+      var marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
 
-      drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
-      anyPlaced = true;
+      marksToRender.forEach(function(mark) {
+        // Only skip drawing this mark on THIS file if we can affirmatively
+        // tell it belongs elsewhere — never skip just because a comparison
+        // failed to prove a match. Reproducing a filename exactly across a
+        // full generation is a real LLM reliability risk (whitespace, case,
+        // or minor reformatting drift is common even when explicitly
+        // instructed to copy verbatim); silently dropping a real finding
+        // because of that drift is worse than occasionally drawing a tick
+        // on a file it may not strictly belong to, so:
+        //   1. Exact match -> definitely belongs here, draw it.
+        //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
+        //   3. No sourceFile reported at all -> can't tell, draw it (matches
+        //      the live viewer's own legacy-result fallback).
+        //   4. sourceFile reported AND clearly doesn't match after normalizing
+        //      -> only skip in this case, where drift is least likely to be
+        //      the explanation.
+        if (mark.sourceFile) {
+          var normSource = mark.sourceFile.trim().toLowerCase();
+          var normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) {
+            console.log('[BurnPDF] Skipping mark for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + mark.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
+            return;
+          }
+        }
+
+        var pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) return;
+        var page = pages[pgIdx];
+        var ptH = page.getSize().height;
+
+        var result = mark.result || 'error';
+        var isPass = (result === 'pass');
+        var isException = (result === 'fail');
+
+        var paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        var pdfY = ptH * (1 - paraFrac);
+
+        var detailText = null;
+        // Real, confirmed fix, per direct report — a flat 90-character cap
+        // silently cut off longer AI-generated explanations with no
+        // indication anything was missing. Raised well past what a real
+        // exception note or comment realistically runs, with a visible
+        // "..." only on the rare case it's still hit — the box itself
+        // already grows to fit however many lines this produces (totalH
+        // scales with detailLines.length), so there's no separate height
+        // cap needing to move in step with this one.
+        var _noteRaw = mark.note ? String(mark.note) : '';
+        var _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
+        if (isException) {
+          detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
+        } else if (_noteText) {
+          detailText = _noteText;
+        }
+
+        // Same geometry math drawTickMark itself uses internally — computed
+        // here first only to know this mark's real footprint before
+        // deciding its final, non-overlapping y.
+        var geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+        var geomLineH = fontReg.heightAtSize(7) * 1.15;
+        var geomTopRowH = 16;
+        var geomTotalH = geomDetailLines.length
+          ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+          : geomTopRowH - 4;
+        var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+
+        drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        anyPlaced = true;
+      });
     });
   });
 
@@ -9245,9 +9316,12 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
   // the one structural difference from drawTickMark above, which draws
   // these same pieces directly and separately onto the real page.
   async function drawGroupedTickMark(destPage, opts) {
-    const { x, y, pass, attrNum, detailText, detailFont } = opts;
+    const { x, y, pass, attrNum, detailText, detailFont, overridden } = opts;
     const symColor = pass ? TICK_COLS.pass : TICK_COLS.fail;
-    const numText = pdfText('[' + attrNum + ']');
+    // Real, new, per Part 4 — same "OVR" tag baked directly into the
+    // combined symbol-and-number text as the plain burn-in mechanism
+    // uses, rather than a separate badge — see its own comment for why.
+    const numText = pdfText('[' + attrNum + ']' + (overridden ? ' OVR' : ''));
     const numW = font.widthOfTextAtSize(numText, 9);
     const symSize = 10;
 
@@ -9404,53 +9478,66 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
       const attr = attributes[ai];
       const match = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
       if (!match) continue;
-      if (match.sourceFile) {
-        const normSource = match.sourceFile.trim().toLowerCase();
-        const normFile    = fileName.trim().toLowerCase();
-        if (normSource !== normFile) continue;
-      }
 
-      const pgIdx = Math.max(0, (match.page || 1) - 1);
-      if (pgIdx >= pages.length) continue;
-      const page = pages[pgIdx];
-      const ptH = page.getSize().height;
-
-      const result = match.result || 'error';
-      const isPass = (result === 'pass');
-      const isException = (result === 'fail');
       const exLabel = exMap[fi + '-' + ai] || null;
-
-      const paraNum = Math.max(1, match.paragraph || (ai + 1));
-      const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-      const pdfY = ptH * (1 - paraFrac);
-
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
-      let detailText = null;
-      // Real, confirmed fix, per direct report — same raised cap as the
-      // plain "_annotated_bi" mechanism above, so a longer AI-generated
-      // explanation isn't silently cut off. The box already grows to fit
-      // however many lines this produces.
-      const _noteRaw = match.note ? String(match.note) : '';
-      const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
-      if (isException) {
-        detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
-      } else if (_noteText) {
-        detailText = _noteText;
+
+      // Real, new, per Part 3 — one Stamp annotation per MARK, not one
+      // collapsed representative per attribute; see
+      // _burnAnnotationsForFileFromResults's own identical comment for
+      // the full rationale.
+      const marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+        result: match.result || 'error', note: match.note || '',
+        sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+      }];
+
+      for (const mark of marksToRender) {
+        if (mark.sourceFile) {
+          const normSource = mark.sourceFile.trim().toLowerCase();
+          const normFile    = fileName.trim().toLowerCase();
+          if (normSource !== normFile) continue;
+        }
+
+        const pgIdx = Math.max(0, (mark.page || 1) - 1);
+        if (pgIdx >= pages.length) continue;
+        const page = pages[pgIdx];
+        const ptH = page.getSize().height;
+
+        const result = mark.result || 'error';
+        const isPass = (result === 'pass');
+        const isException = (result === 'fail');
+
+        const paraNum = Math.max(1, mark.paragraph || (ai + 1));
+        const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+        const pdfY = ptH * (1 - paraFrac);
+
+        let detailText = null;
+        // Real, confirmed fix, per direct report — same raised cap as the
+        // plain "_annotated_bi" mechanism above, so a longer AI-generated
+        // explanation isn't silently cut off. The box already grows to fit
+        // however many lines this produces.
+        const _noteRaw = mark.note ? String(mark.note) : '';
+        const _noteText = _noteRaw.length > 400 ? _noteRaw.slice(0, 400) + '...' : _noteRaw;
+        if (isException) {
+          detailText = 'Exception ' + (exLabel || '?') + (_noteText ? ': ' + _noteText : '');
+        } else if (_noteText) {
+          detailText = _noteText;
+        }
+
+        // Same geometry math drawGroupedTickMark itself uses internally —
+        // computed here first only to know this mark's real footprint
+        // before deciding its final, non-overlapping y.
+        const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
+        const geomLineH = fontReg.heightAtSize(7) * 1.15;
+        const geomTopRowH = 16;
+        const geomTotalH = geomDetailLines.length
+          ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
+          : geomTopRowH - 4;
+        const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
+
+        await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        anyPlaced = true;
       }
-
-      // Same geometry math drawGroupedTickMark itself uses internally —
-      // computed here first only to know this mark's real footprint
-      // before deciding its final, non-overlapping y.
-      const geomDetailLines = detailText ? wrapLines(pdfText(detailText), fontReg, 7, 200) : [];
-      const geomLineH = fontReg.heightAtSize(7) * 1.15;
-      const geomTopRowH = 16;
-      const geomTotalH = geomDetailLines.length
-        ? geomTopRowH + 6 + (geomDetailLines.length - 1) * geomLineH + 3
-        : geomTopRowH - 4;
-      const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
-
-      await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg });
-      anyPlaced = true;
     }
   }
 
@@ -9871,6 +9958,16 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
       // correct pattern the burn-in mechanism already uses: iterate
       // over all of wpResults, and let sourceFile matching happen
       // inside, the same way it already does elsewhere.
+      // Real, new, per Part 3 — this mechanism has no existing
+      // non-overlapping-Y logic (unlike bi/bi2's reserveNonOverlappingY),
+      // since it never previously needed to place more than one icon per
+      // attribute. A simple fixed per-page counter is enough here: unlike
+      // a drawn box whose real footprint varies with its own text, a
+      // sticky-note icon's real footprint is always the same fixed
+      // iconSize, so a flat offset per placement on the same page is
+      // sufficient to keep marks from stacking exactly on top of each
+      // other.
+      const stackCountByPage = {};
       wpResults.forEach(function(fileResult, fi) {
         attributes.forEach(function(attr, ai) {
           let match = (fileResult.results || []).find(function(r) { return r.title === attr.title; });
@@ -9881,48 +9978,65 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
             );
           }
           if (!match) return;
-          if (match.sourceFile) {
-            const normSource = match.sourceFile.trim().toLowerCase();
-            const normFile = origEntry.name.trim().toLowerCase();
-            if (normSource !== normFile) return;
-          }
 
-          const pgIdx = Math.max(0, (match.page || 1) - 1);
-          if (pgIdx >= realPageHeights.length) return;
-          const realPageHeight = realPageHeights[pgIdx];
-
-          const result = match.result || 'error';
           const exRef = exMap[`${fi}-${ai}`] || '';
-
-          const paraNum = Math.max(1, match.paragraph || (ai + 1));
-          const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-          const pdfY = realPageHeight * (1 - paraFrac);
-          const iconSize = 20;
-          const rectY1 = Math.max(0, pdfY - iconSize);
-          const rectY2 = Math.max(iconSize, pdfY);
-
           const attrNum = attr.attrRef || attr.num || String(ai + 1);
-          const exTag = exRef ? ' [' + exRef + ']' : '';
-          const contents = '[' + attrNum + ']' + exTag + (match.note ? '\n' + String(match.note).slice(0, 300) : '');
 
-          try {
-            factory.createTextAnnotation({
-              page: pgIdx,
-              rect: [10, rectY1, 10 + iconSize, rectY2],
-              contents: contents,
-              author: 'Wavefire',
-              color: TICK_COLORS[result] || TICK_COLORS.error,
-              open: false,
-            });
-            anyPlaced = true;
-          } catch (annErr) {
-            console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
-          }
+          // Real, new, per Part 3 — one comment icon per MARK, not one
+          // collapsed representative per attribute; see
+          // _burnAnnotationsForFileFromResults's own identical comment
+          // for the full rationale.
+          const marksToRender = (match.marks && match.marks.length) ? match.marks : [{
+            result: match.result || 'error', note: match.note || '',
+            sourceFile: match.sourceFile || '', page: match.page || 1, paragraph: match.paragraph || (ai + 1),
+          }];
 
-          const tickSym = TICK_SYMS[result] || '-';
-          const pageTag = (match.page && match.page > 0) ? '  Pg ' + match.page : '';
-          summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
-          if (match.note) summaryLines.push('     ' + String(match.note).slice(0, 90));
+          marksToRender.forEach(function(mark) {
+            if (mark.sourceFile) {
+              const normSource = mark.sourceFile.trim().toLowerCase();
+              const normFile = origEntry.name.trim().toLowerCase();
+              if (normSource !== normFile) return;
+            }
+
+            const pgIdx = Math.max(0, (mark.page || 1) - 1);
+            if (pgIdx >= realPageHeights.length) return;
+            const realPageHeight = realPageHeights[pgIdx];
+
+            const result = mark.result || 'error';
+
+            const paraNum = Math.max(1, mark.paragraph || (ai + 1));
+            const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
+            const pdfY = realPageHeight * (1 - paraFrac);
+            const iconSize = 20;
+            const stackIdx = stackCountByPage[pgIdx] || 0;
+            stackCountByPage[pgIdx] = stackIdx + 1;
+            const stackedY = pdfY - stackIdx * (iconSize + 4);
+            const rectY1 = Math.max(0, stackedY - iconSize);
+            const rectY2 = Math.max(iconSize, stackedY);
+
+            const exTag = exRef ? ' [' + exRef + ']' : '';
+            const ovrTag = mark.overridden ? ' OVR' : '';
+            const contents = '[' + attrNum + ']' + ovrTag + exTag + (mark.note ? '\n' + String(mark.note).slice(0, 300) : '');
+
+            try {
+              factory.createTextAnnotation({
+                page: pgIdx,
+                rect: [10, rectY1, 10 + iconSize, rectY2],
+                contents: contents,
+                author: 'Wavefire',
+                color: TICK_COLORS[result] || TICK_COLORS.error,
+                open: false,
+              });
+              anyPlaced = true;
+            } catch (annErr) {
+              console.error('[AcrobatAnnotate] Could not place annotation for', attr.title, 'on', origEntry.name, ':', annErr.message);
+            }
+
+            const tickSym = TICK_SYMS[result] || '-';
+            const pageTag = (mark.page && mark.page > 0) ? '  Pg ' + mark.page : '';
+            summaryLines.push(tickSym + '  [' + attrNum + ']' + ovrTag + exTag + ' ' + attr.title + pageTag);
+            if (mark.note) summaryLines.push('     ' + String(mark.note).slice(0, 90));
+          });
         });
       });
 
