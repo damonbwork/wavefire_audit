@@ -8762,6 +8762,31 @@ function _lookupExceptionRefMap(ref, wpResults, attributes) {
   return exMap;
 }
 
+// Real, confirmed fix, per a real reported bug — every burn mechanism's
+// per-mark file-matching guard only ever SKIPPED a mark when its
+// sourceFile named a DIFFERENT file (an exact or fuzzy mismatch);
+// whenever sourceFile was blank — exactly the case for the synthetic
+// "Analysis failed: <reason>" placeholder a genuinely aborted/errored
+// row gets (built with no sourceFile at all, since there's no real
+// evidence to cite) — that mark passed through UNCONDITIONALLY and got
+// burned into EVERY original file in the workpaper, not just whichever
+// sample it "belonged" to. In a workpaper with more than one sample
+// file, this meant one sample's aborted analysis attempt could show up
+// as "Analysis failed: The operation was aborted." inside a
+// completely unrelated, genuinely-passing sample's own annotated PDF —
+// a real, serious cross-contamination bug for an audit deliverable.
+// Used everywhere that guard exists: when there's more than one
+// original sample file attached, a mark with no sourceFile can't be
+// confidently attributed to any ONE of them, so it's excluded from all
+// of them (it's still visible in the Testwork Results Matrix and the
+// results modal, which aren't per-file) rather than defaulting to
+// "stamp it on everything." When there's only a single original file,
+// there's no ambiguity — the old permissive behavior is preserved.
+function _ambiguousSourceFileAcrossOriginals(ref) {
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  return bucketArr.filter(f => f.file && !f._annotatedFrom).length > 1;
+}
+
 // Real, new, per the delete-sync design's own Findings/Recommendations
 // annotation requirement — unlike an Exception (always tied to one
 // specific attribute+sample, looked up above), a Finding or
@@ -8941,6 +8966,8 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
           var normSource = mark.sourceFile.trim().toLowerCase();
           var normFile    = fileName.trim().toLowerCase();
           if (normSource !== normFile) return;
+        } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+          return; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
         }
 
         var pgIdx = Math.max(0, (mark.page || 1) - 1);
@@ -9256,8 +9283,23 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
         // on a file it may not strictly belong to, so:
         //   1. Exact match -> definitely belongs here, draw it.
         //   2. Case/whitespace-insensitive match -> still belongs here, draw it.
-        //   3. No sourceFile reported at all -> can't tell, draw it (matches
-        //      the live viewer's own legacy-result fallback).
+        //   3. No sourceFile reported at all, and only ONE original file is
+        //      attached -> can't tell, but there's no other candidate it
+        //      could belong to either, so draw it (matches the live
+        //      viewer's own legacy-result fallback, which is genuinely a
+        //      one-open-file-at-a-time context where this reasoning holds).
+        //   3b. No sourceFile reported, and MORE THAN ONE original file is
+        //      attached -> real, confirmed fix, per a reported bug — this
+        //      used to draw it here regardless, which meant a genuinely
+        //      unrelated sample's own unattributed mark (most commonly the
+        //      synthetic "Analysis failed: <reason>" placeholder a failed/
+        //      aborted row gets, which never carries a sourceFile at all)
+        //      got burned into EVERY attached file's own annotated PDF, not
+        //      just whichever sample it belonged to. With more than one
+        //      candidate file, "can't tell" must mean "don't guess," not
+        //      "draw it everywhere" — skip it here (it's still visible in
+        //      the Testwork Results Matrix and results modal, which aren't
+        //      per-file).
         //   4. sourceFile reported AND clearly doesn't match after normalizing
         //      -> only skip in this case, where drift is least likely to be
         //      the explanation.
@@ -9268,6 +9310,8 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
             console.log('[BurnPDF] Skipping mark for "' + attr.title + '" on file "' + fileName + '" — model reported sourceFile "' + mark.sourceFile + '", which does not match even after normalizing. If this looks like it SHOULD have matched, that indicates real drift in the model output worth investigating further.');
             return;
           }
+        } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+          return; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
         }
 
         var pgIdx = Math.max(0, (mark.page || 1) - 1);
@@ -9588,6 +9632,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
           const normSource = mark.sourceFile.trim().toLowerCase();
           const normFile    = fileName.trim().toLowerCase();
           if (normSource !== normFile) continue;
+        } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+          continue; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
         }
 
         const pgIdx = Math.max(0, (mark.page || 1) - 1);
@@ -10127,6 +10173,8 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
               const normSource = mark.sourceFile.trim().toLowerCase();
               const normFile = origEntry.name.trim().toLowerCase();
               if (normSource !== normFile) return;
+            } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+              return; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
             }
 
             const pgIdx = Math.max(0, (mark.page || 1) - 1);
@@ -10667,6 +10715,8 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
             const normSrc = match.sourceFile.trim().toLowerCase();
             const normFile = origEntry.name.trim().toLowerCase();
             if (normSrc !== normFile) return;
+          } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+            return; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
           }
           resultAnnotations.push({
             type: 'result',
@@ -10818,6 +10868,8 @@ async function _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref) {
             const normSrc = match.sourceFile.trim().toLowerCase();
             const normFile = origEntry.name.trim().toLowerCase();
             if (normSrc !== normFile) return;
+          } else if (_ambiguousSourceFileAcrossOriginals(ref)) {
+            return; // can't confidently attribute an unattributed mark to this one file when multiple originals exist
           }
           resultAnnotations.push({
             type: 'result',
