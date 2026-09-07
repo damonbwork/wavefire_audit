@@ -402,7 +402,16 @@ possible rather than inventing a new pattern:
    sync.
 3. Otherwise, prompt first (new confirmation dialog, matching
    `_promptSyncOverrideToAnnotatedFiles`'s style) listing the affected
-   files. Per explicit confirmation, this is a real three-way choice, not
+   files — **each filename is a real, clickable link opening that exact
+   file (its current, still-unmodified annotated copy) in the viewer**,
+   per explicit follow-up, so a person can actually check what they're
+   about to change before confirming rather than recognize a filename
+   from memory alone. Implemented and verified (2026-09-07) in
+   `_promptDeleteGridItemSync`, reusing the same `_openSampleFileAtMark`
+   opener the Testwork Grid's and results modal's own file links already
+   use; `_reclassifyGridItem`'s own prompt (below) reuses this same
+   helper, so both dialogs get file links for free from one change. Per
+   explicit confirmation, this is a real three-way choice, not
    a plain confirm/cancel — matching how the original request bundled
    the file update and (for an Exception) the pass/fail correction into
    one single "would you like this updated" question:

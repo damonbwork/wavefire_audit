@@ -22689,21 +22689,31 @@ function _resolveOriginalFileForGridItem(ref, item) {
 // for an Exception), "Delete only" (removes the row, touches nothing
 // else), or "Cancel" (deletes nothing). Styled like
 // _promptSyncOverrideToAnnotatedFiles, the closest existing analog.
-function _promptDeleteGridItemSync(item, candidates, protectedFiles) {
+function _promptDeleteGridItemSync(ref, item, candidates, protectedFiles) {
   return new Promise(resolve => {
     const id = 'delete-grid-item-sync-overlay';
     document.getElementById(id)?.remove();
     const isException = (item.type || 'exception') === 'exception';
+    // Real, new, per explicit request — each affected file is a real,
+    // clickable link opening it in the viewer (its CURRENT, still-
+    // unmodified annotated copy, since nothing has been rewritten yet at
+    // the point this prompt is shown) so a person can actually check
+    // what they're about to change before confirming, rather than
+    // recognizing a filename by memory alone. Reuses the same opener the
+    // Testwork Grid's and results modal's own file links already use;
+    // isOriginal is false here since these are always annotated
+    // derivatives, never the pristine original.
+    const fileLink = (name) => `<a href="#" onclick="event.preventDefault();_openSampleFileAtMark('${escAttr(ref)}','${escAttr(name)}',1,false,null)" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e40af;text-decoration:underline" title="Open ${escHtml(name)} to review">${escHtml(name)}</a>`;
     const rows = candidates.map(f => `
       <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px">
         <i class="ti ti-file-check" style="color:#1e40af"></i>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        ${fileLink(f.name)}
         <span style="color:var(--text-tertiary);font-size:11px">${escHtml(_syncMechanismLabel(f.name))}</span>
       </div>`).join('');
     const protectedRows = (protectedFiles || []).map(f => `
       <div style="display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px;color:var(--text-tertiary)">
         <i class="ti ti-lock" style="color:#b45309"></i>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span>
+        ${fileLink(f.name)}
         <span style="font-size:11px">manually edited — left as-is</span>
       </div>`).join('');
     const explainText = isException
@@ -22816,7 +22826,7 @@ async function _deleteGridItem(ref, idx) {
 
   let choice;
   if (candidates.length || protectedFiles.length) {
-    choice = await _promptDeleteGridItemSync(item, candidates, protectedFiles);
+    choice = await _promptDeleteGridItemSync(ref, item, candidates, protectedFiles);
   } else {
     choice = confirm(`Are you sure you want to delete ${label}? This cannot be undone.`) ? 'delete-only' : 'cancel';
   }
