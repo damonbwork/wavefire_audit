@@ -1228,8 +1228,22 @@
             <input type="text" id="adm-fi-audit" placeholder="Audit…" oninput="_adminFileInventoryDebouncedReload()" style="width:140px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
             <input type="text" id="adm-fi-workpaper" placeholder="Workpaper ref…" oninput="_adminFileInventoryDebouncedReload()" style="width:140px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
             <input type="text" id="adm-fi-uploader" placeholder="Uploaded by…" oninput="_adminFileInventoryDebouncedReload()" style="width:130px;padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px">
-            <input type="date" id="adm-fi-date-from" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="From date">
-            <input type="date" id="adm-fi-date-to" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="To date">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px">Created</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <input type="date" id="adm-fi-created-from" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="Created from">
+                <span style="font-size:11px;color:var(--text-tertiary)">to</span>
+                <input type="date" id="adm-fi-created-to" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="Created to">
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px">Updated</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <input type="date" id="adm-fi-updated-from" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="Updated from">
+                <span style="font-size:11px;color:var(--text-tertiary)">to</span>
+                <input type="date" id="adm-fi-updated-to" onchange="_adminFileInventoryReloadFromFilterChange()" style="padding:6px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);font-size:12px" title="Updated to">
+              </div>
+            </div>
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap">
               <input type="checkbox" id="adm-fi-show-archived" onchange="_adminFileInventoryReloadFromFilterChange()" style="cursor:pointer">
               Show archived
@@ -15854,10 +15868,14 @@ async function _adminFileInventoryReload() {
   if (uploader) params.set('uploader', uploader);
   const search = document.getElementById('adm-fi-search')?.value.trim();
   if (search) params.set('search', search);
-  const dateFrom = document.getElementById('adm-fi-date-from')?.value;
-  if (dateFrom) params.set('dateFrom', dateFrom);
-  const dateTo = document.getElementById('adm-fi-date-to')?.value;
-  if (dateTo) params.set('dateTo', dateTo);
+  const createdFrom = document.getElementById('adm-fi-created-from')?.value;
+  if (createdFrom) params.set('createdFrom', createdFrom);
+  const createdTo = document.getElementById('adm-fi-created-to')?.value;
+  if (createdTo) params.set('createdTo', createdTo);
+  const updatedFrom = document.getElementById('adm-fi-updated-from')?.value;
+  if (updatedFrom) params.set('updatedFrom', updatedFrom);
+  const updatedTo = document.getElementById('adm-fi-updated-to')?.value;
+  if (updatedTo) params.set('updatedTo', updatedTo);
   const showArchived = document.getElementById('adm-fi-show-archived')?.checked;
   if (!showArchived) params.set('showArchived', 'false');
 
