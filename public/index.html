@@ -8733,7 +8733,36 @@ async function burnAnnotationsToPDF(returnBytesOnly = false) {
 // real PDF form-field spec — constructed here from page index,
 // attribute index, and field role so two attributes on the same page
 // (or the same attribute across two files) never collide.
-async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+// Real, confirmed fix, per the pass-fail-override-and-sync plan's own
+// numbering-consistency prerequisite for Part 4 — every mechanism that
+// numbers exceptions ("E1", "E2"...) used to independently recompute its
+// own counter from scratch by walking wpResults in the same fixed order,
+// which only happened to agree with the persisted Exceptions section's
+// own Ref by coincidence (same order, nothing to dedup yet on a first
+// run) — a second run where one exception is dedup-reused (keeping its
+// original Ref) while another is genuinely new could make them disagree,
+// exactly the risk the design doc calls out. Every mechanism now looks
+// up the SAME, single, persisted Ref that wpExceptions[ref] already
+// holds for each (attribute, sample) pair — keyed by the same
+// attributeIndex/sampleRowIndex convention the override feature already
+// uses — instead of deriving its own; by construction, this can never
+// disagree with what the Exceptions section itself shows. A (attribute,
+// sample) pair with no matching exception yet (shouldn't normally
+// happen, since exceptions are always auto-created before any of these
+// mechanisms run — see the reordering above) is simply absent from the
+// map, matching the exact same "no Ref" behavior an empty exMap lookup
+// already had.
+function _lookupExceptionRefMap(ref, wpResults, attributes) {
+  const exMap = {};
+  (wpExceptions[ref] || []).forEach(ex => {
+    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+      exMap[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
+    }
+  });
+  return exMap;
+}
+
+async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages    = pdfDoc.getPages();
@@ -8834,29 +8863,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
     }
   }
 
-  // Real, confirmed fix, per direct report — same global, run-wide
-  // exception numbering as the burn-in mechanism, instead of a local
-  // counter that reset to 0 on every file. See the full explanation in
-  // _burnAnnotationsForFileFromResults above. pass_exception is retired:
-  // only 'fail' counts as an exception now.
-  var exNumGlobal = 0;
-  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        var al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
-      }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+  var exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   var anyPlaced = false;
   var fieldSeq = 0; // Genuinely guarantees unique field names even if two entries would otherwise collide.
@@ -8932,7 +8939,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
   return pdfDoc.save();
 }
 
-async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes) {
+async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc   = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages    = pdfDoc.getPages();
@@ -9098,34 +9105,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
     return y;
   }
 
-  // Real, confirmed fix, per direct report — exception numbering is now
-  // computed ONCE, globally, across every file in this Analyze run,
-  // using the exact same algorithm already proven correct in the
-  // Acrobat Sticky Note mechanism's own exMap (see
-  // _makeAcrobatAnnotatedCopyAfterAnalyze) and in exportToXlsx.
-  // Previously this function's own local "exNum" counter reset to 0 on
-  // every call (once per file), so the same real exception could show a
-  // different E-number depending on which annotated copy — or the xlsx
-  // export — someone had open. pass_exception is retired: only 'fail'
-  // counts as an exception now.
-  var exNumGlobal = 0;
-  var exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      var m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        var al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
-      }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+  var exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   var anyPlaced = false;
   wpResults.forEach(function(fileResult, fi){
@@ -9222,7 +9202,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 // so this is the same fix in kind as switching from "_annotated_bi" to a
 // genuine annotation-based mechanism, just with this mark's own drawn
 // appearance instead of Acrobat's built-in comment icon.
-async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes) {
+async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, fileName, wpResults, attributes, ref) {
   const { PDFDocument, rgb, StandardFonts, PDFName, PDFDict, PDFString, PDFNumber } = PDFLib;
   const pdfDoc  = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
   const pages   = pdfDoc.getPages();
@@ -9414,29 +9394,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
     return y;
   }
 
-  // Real, confirmed fix, per direct report — same global, run-wide
-  // exception numbering as the plain "_annotated_bi" mechanism above,
-  // instead of a local counter that reset to 0 on every file. See the
-  // full explanation there. pass_exception is retired: only 'fail'
-  // counts as an exception now.
-  let exNumGlobal = 0;
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach(function(fileResult, fi) {
-    attributes.forEach(function(attr, ai) {
-      let m = (fileResult.results || []).find(function(r){ return r.title === attr.title; });
-      if (!m) {
-        const al = attr.title.toLowerCase();
-        m = (fileResult.results || []).find(function(r){
-          return r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-                 r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase());
-        });
-      }
-      if (m && m.result === 'fail') {
-        exNumGlobal++;
-        exMap[fi + '-' + ai] = 'E' + exNumGlobal;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   let anyPlaced = false;
   let fi = -1;
@@ -9535,7 +9493,7 @@ async function downloadAllAnnotatedPDFs() {
     let annotatedCount = 0;
     for (const entry of memFiles) {
       const bytes = await entry.file.arrayBuffer();
-      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, bytes, entry.name, wpResults, attributes, ref);
       if (!outBytes) continue; // no relevant results for this specific file — skip rather than include an unmarked copy
       const baseName = (entry.name || 'document').replace(/\.pdf$/i, '');
       zip.file(baseName + '_annotated_bi.pdf', outBytes);
@@ -9827,33 +9785,7 @@ async function _makeAcrobatAnnotatedCopyAfterAnalyze(ref) {
     return;
   }
 
-  // Real, global exception numbering — computed ONCE, across every file
-  // in this Analyze run, using the EXACT SAME algorithm already proven
-  // correct in exportToXlsx (see its own exMap construction). Per
-  // explicit instruction, the number shown here must be the same one
-  // that ends up in the .xlsx export — this is a faithful, independent
-  // re-computation of that identical logic (exportToXlsx builds its own
-  // exMap as a local variable, not something this function can read
-  // directly), not a separate, potentially-drifting scheme.
-  let exNumGlobal = 0;
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-  wpResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = (fileResult.results || []).find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = (fileResult.results || []).find(r =>
-          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        exNumGlobal++;
-        exMap[`${fi}-${ai}`] = `E${exNumGlobal}`;
-      }
-    });
-  });
-
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
   const TICK_SYMS = { pass: '\u2713', pass_exception: '\u26A0', fail: '\u2717', error: '\u2013' };
 
   for (const origEntry of originalEntries) {
@@ -10090,21 +10022,7 @@ async function _autoTickCommentFilesAfterAnalyze(ref) {
     return;
   }
 
-  // Identical global exception numbering to the existing comment
-  // mechanism — the exact, same algorithm, so the number shown here
-  // matches every other output for the same underlying exception.
-  let exNumGlobal = 0;
-  const exMap = {};
-  wpResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = (fileResult.results || []).find(r => r.title === attr.title);
-      if (!match) return;
-      if (match.result === 'fail' || match.result === 'pass_exception') {
-        exNumGlobal++;
-        exMap[`${fi}-${ai}`] = `E${exNumGlobal}`;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, wpResults, attributes);
 
   const TICK_LABELS = { pass: 'PASS', pass_exception: 'EXCEPTION', fail: 'FAIL', error: 'N/A' };
   // Real, confirmed redesign, per the confirmed tick-mark design —
@@ -10443,7 +10361,7 @@ async function _autoBurnAnnotatedFilesAfterAnalyze(ref) {
       // ── Step 3: NOW mark up that same copy's bytes — genuinely
       // separate from step 2, using the pristine bytes just stored, not
       // bytes that were already marked before ever being written. ──
-      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         // No relevant results for this specific file after all — remove
         // the pristine placeholder copy rather than leave an unmarked
@@ -10597,7 +10515,7 @@ async function _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref) {
       refreshFileList(ref, 'sample');
       await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
 
-      const outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _burnAnnotationsForFileFromResultsGrouped(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         if (annEntry.fileId) {
           fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
@@ -10726,7 +10644,7 @@ async function _autoFormFieldFilesAfterAnalyze(ref) {
       refreshFileList(ref, 'sample');
       await _persistSampleFileToBackend(ref, annEntry, 'Wavefire');
 
-      const outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes);
+      const outBytes = await _formFieldAnnotationsForFileFromResults(PDFLib, pristineBytes, origEntry.name, wpResults, attributes, ref);
       if (!outBytes) {
         if (annEntry.fileId) {
           fetch('/api/sample-files/' + encodeURIComponent(ref) + '/' + encodeURIComponent(annEntry.fileId), { method: 'DELETE' }).catch(function(){});
@@ -10913,7 +10831,7 @@ async function saveAnnotatedPDF() {
         const baseEntryName = entry._annotatedFrom || entry.name;
         const baseEntry = inMemoryFiles[_fpRef]?.[_fpBucket]?.find(f => f.name === baseEntryName && f.file) || entry;
         const fileBytes = await baseEntry.file.arrayBuffer();
-        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, baseEntry.name, wpResultsForBurn, attrsForBurn);
+        burnedBytes = await _burnAnnotationsForFileFromResults(PDFLib, fileBytes, baseEntry.name, wpResultsForBurn, attrsForBurn, _fpRef);
         if (!burnedBytes) throw new Error('No analysis results are relevant to this specific file.');
       } catch (burnErr) {
         console.error('[Save] Burn from analysis results failed:', burnErr);
@@ -26481,6 +26399,119 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   const _wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
 
+  // Real, confirmed fix, per the numbering-consistency prerequisite the
+  // pass-fail-override-and-sync plan calls out for Part 4 — this whole
+  // block (originally positioned after the four annotation-mechanism
+  // triggers below) MUST run and fully populate wpExceptions[ref] BEFORE
+  // any of bi/bi2/ff/sn fire. Each of those is invoked fire-and-forget
+  // (not awaited) — calling an async function still runs its body
+  // SYNCHRONOUSLY up to its own first `await`, so if this block ran
+  // after those calls (as it used to), each mechanism's own pre-await
+  // code could execute — and, per the fix below, look up
+  // wpExceptions[ref] for its Ref values — before this block had put
+  // anything there at all. Moving the block earlier removes that race
+  // entirely: by the time any annotation mechanism runs, every
+  // exception this run will create already exists.
+  // ── Auto-populate Exceptions section from analysis results ──────
+  if (!wpExceptions[ref]) wpExceptions[ref] = [];
+
+  // Get next available exception number in the workpaper exceptions section
+  const _getNextExNum = () => {
+    const existing = wpExceptions[ref] || [];
+    return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
+  };
+
+  // Build exMap AND populate exceptions simultaneously.
+  //
+  // Real, confirmed fix — per explicit follow-up concern: a Ref built
+  // from a counter that resets every run (the previous `E${n}` here) can
+  // collide across runs (two separate exceptions both legitimately named
+  // "E1"), and never accounted for exceptions a person adds by hand via
+  // "Add exception" (addException()), which never went through this
+  // block at all. Both problems share one fix: stop deriving Ref from
+  // anything run-scoped, and instead derive it from `num` — the
+  // exception's own position in a single, ever-increasing,
+  // workpaper-wide sequence that every exception already gets, auto-
+  // created or manual alike (see _getNextExNum below and addException's
+  // own matching fix), and which never resets. Ref is simply `E${num}`,
+  // which by construction can never collide with anything else in this
+  // workpaper.
+  //
+  // This also fixes a smaller, real drift bug that existed even before
+  // today: re-running Analyze over unchanged results used to hand out a
+  // BRAND NEW ref to an exception that already existed (since the old
+  // counter incremented on every match found, regardless of whether it
+  // was a duplicate) — ticks and the Exceptions section could disagree
+  // after a second run. Now looks up whether this exact (attribute,
+  // file) exception already exists first, and reuses its real, existing
+  // ref/num for the tick annotation if so, only minting a new one when
+  // actually creating a new exception.
+  const _exMapForAnnotation = {};
+  analysisResults.forEach((fileResult, fi) => {
+    attributes.forEach((attr, ai) => {
+      let match = fileResult.results.find(r => r.title === attr.title);
+      if (!match) {
+        const al = attr.title.toLowerCase();
+        match = fileResult.results.find(r =>
+          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+        );
+      }
+      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
+        // Real, new, per explicit design change — the "E1"/attribute ref
+        // prefix used to be baked into the exception's own name string
+        // ("E1 - A: Ticket"). Per direct request, "E1" now lives in the
+        // Ref column and the attribute ref ("A") in its own Attribute
+        // column instead, leaving the name as just the attribute's own
+        // title — the two pieces of structured data are still available,
+        // just as real fields instead of parsed out of freeform text.
+        const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+        const exName = attr.title;
+        const exDesc = match.note || '';
+        // The specific file that actually evidenced THIS exception —
+        // fileResult.fileName is deliberately the joined list of every
+        // attached sample file (each row is tested against all of them
+        // together; see analyzeOneFileFast's own comment on this), not
+        // the one file behind this particular mark. Falls back to the
+        // sample's own description when a mark has no sourceFile (an
+        // older/legacy result), so a linked "file" is never silently
+        // wrong rather than merely generic.
+        const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
+
+        // Reuse an already-existing exception's own ref/num if this
+        // exact (attribute, file) exception was already recorded —
+        // avoids the drift described above; only a genuinely new
+        // exception mints a new number.
+        const existingEx = (wpExceptions[ref] || []).find(e =>
+          e.name === exName && e.linkedFiles?.includes(linkedFile)
+        );
+
+        let xlsxExRef;
+        if (existingEx) {
+          xlsxExRef = existingEx.ref || `E${existingEx.num}`;
+        } else {
+          const wpExNum = _getNextExNum();
+          xlsxExRef = `E${wpExNum}`;
+          wpExceptions[ref].push({
+            num:            wpExNum,
+            ref:            xlsxExRef,
+            attrRef:        attrLabel,
+            attributeIndex: ai,
+            sampleRowIndex: fi,
+            name:           exName,
+            desc:           exDesc,
+            owner:          '',
+            mgmtResponse:   '',
+            resolutionDate: '',
+            retested:       false,
+            linkedFiles:    [linkedFile],
+          });
+          logEvent(ref, `Exception #${wpExNum} (Ref ${xlsxExRef}, Attribute ${attrLabel}) auto-created from analysis: ${exName}`);
+        }
+        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
+      }
+    });
+  });
+
   // Automatically create a burned-in annotated copy of every attached sample
   // file, added alongside its original in the Attached Sample Files list —
   // runs in the background and doesn't block the rest of this function from
@@ -26689,106 +26720,6 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   // Update Cancel → Close
   const _closeBtn = document.getElementById('analysis-close-btn');
   if (_closeBtn) { _closeBtn.textContent = 'Close'; _closeBtn.onclick = closeAnalysis; }
-
-  // ── Auto-populate Exceptions section from analysis results ──────
-  if (!wpExceptions[ref]) wpExceptions[ref] = [];
-
-  // Get next available exception number in the workpaper exceptions section
-  const _getNextExNum = () => {
-    const existing = wpExceptions[ref] || [];
-    return existing.length > 0 ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
-  };
-
-  // Build exMap AND populate exceptions simultaneously.
-  //
-  // Real, confirmed fix — per explicit follow-up concern: a Ref built
-  // from a counter that resets every run (the previous `E${n}` here) can
-  // collide across runs (two separate exceptions both legitimately named
-  // "E1"), and never accounted for exceptions a person adds by hand via
-  // "Add exception" (addException()), which never went through this
-  // block at all. Both problems share one fix: stop deriving Ref from
-  // anything run-scoped, and instead derive it from `num` — the
-  // exception's own position in a single, ever-increasing,
-  // workpaper-wide sequence that every exception already gets, auto-
-  // created or manual alike (see _getNextExNum below and addException's
-  // own matching fix), and which never resets. Ref is simply `E${num}`,
-  // which by construction can never collide with anything else in this
-  // workpaper.
-  //
-  // This also fixes a smaller, real drift bug that existed even before
-  // today: re-running Analyze over unchanged results used to hand out a
-  // BRAND NEW ref to an exception that already existed (since the old
-  // counter incremented on every match found, regardless of whether it
-  // was a duplicate) — ticks and the Exceptions section could disagree
-  // after a second run. Now looks up whether this exact (attribute,
-  // file) exception already exists first, and reuses its real, existing
-  // ref/num for the tick annotation if so, only minting a new one when
-  // actually creating a new exception.
-  const _exMapForAnnotation = {};
-  analysisResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = fileResult.results.find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = fileResult.results.find(r =>
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        // Real, new, per explicit design change — the "E1"/attribute ref
-        // prefix used to be baked into the exception's own name string
-        // ("E1 - A: Ticket"). Per direct request, "E1" now lives in the
-        // Ref column and the attribute ref ("A") in its own Attribute
-        // column instead, leaving the name as just the attribute's own
-        // title — the two pieces of structured data are still available,
-        // just as real fields instead of parsed out of freeform text.
-        const attrLabel = attr.attrRef || attr.num || String(ai + 1);
-        const exName = attr.title;
-        const exDesc = match.note || '';
-        // The specific file that actually evidenced THIS exception —
-        // fileResult.fileName is deliberately the joined list of every
-        // attached sample file (each row is tested against all of them
-        // together; see analyzeOneFileFast's own comment on this), not
-        // the one file behind this particular mark. Falls back to the
-        // sample's own description when a mark has no sourceFile (an
-        // older/legacy result), so a linked "file" is never silently
-        // wrong rather than merely generic.
-        const linkedFile = match.sourceFile || fileResult.sampleDesc || `Sample ${fi + 1}`;
-
-        // Reuse an already-existing exception's own ref/num if this
-        // exact (attribute, file) exception was already recorded —
-        // avoids the drift described above; only a genuinely new
-        // exception mints a new number.
-        const existingEx = (wpExceptions[ref] || []).find(e =>
-          e.name === exName && e.linkedFiles?.includes(linkedFile)
-        );
-
-        let xlsxExRef;
-        if (existingEx) {
-          xlsxExRef = existingEx.ref || `E${existingEx.num}`;
-        } else {
-          const wpExNum = _getNextExNum();
-          xlsxExRef = `E${wpExNum}`;
-          wpExceptions[ref].push({
-            num:            wpExNum,
-            ref:            xlsxExRef,
-            attrRef:        attrLabel,
-            attributeIndex: ai,
-            sampleRowIndex: fi,
-            name:           exName,
-            desc:           exDesc,
-            owner:          '',
-            mgmtResponse:   '',
-            resolutionDate: '',
-            retested:       false,
-            linkedFiles:    [linkedFile],
-          });
-          logEvent(ref, `Exception #${wpExNum} (Ref ${xlsxExRef}, Attribute ${attrLabel}) auto-created from analysis: ${exName}`);
-        }
-        _exMapForAnnotation[`${fi}-${ai}`] = xlsxExRef; // reference used in .xlsx / annotated PDF
-      }
-    });
-  });
 
   // Re-render exceptions section with the new entries
   renderExceptions(ref);
@@ -28093,28 +28024,7 @@ async function exportToXlsx(attachOnly = false) {
   const TICK = { pass: '✓', pass_exception: '⚠', fail: '✗', error: '–' };
   const TICK_LABEL = { pass: '✓  Pass', pass_exception: '⚠  Pass with Exception', fail: '✗  Fail', error: '–  Error / Not evaluated' };
 
-  // ── Collect all exceptions (pass_exception + fail) for the exceptions list ──
-  // exceptionList: [{num, file, attrTitle, note}]
-  let exNum = 0;
-  // Map: (fileIdx, attrIdx) → exception number string e.g. "E1"
-  const exMap = {}; // key: `${fileIdx}-${attrIdx}` → 'E1'
-
-  analysisResults.forEach((fileResult, fi) => {
-    attributes.forEach((attr, ai) => {
-      let match = fileResult.results.find(r => r.title === attr.title);
-      if (!match) {
-        const al = attr.title.toLowerCase();
-        match = fileResult.results.find(r =>
-          r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
-          r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
-        );
-      }
-      if (match && (match.result === 'pass_exception' || match.result === 'fail')) {
-        exNum++;
-        exMap[`${fi}-${ai}`] = `E${exNum}`;
-      }
-    });
-  });
+  const exMap = _lookupExceptionRefMap(ref, analysisResults, attributes);
 
   // ── Results sheet data ──
   // Rows 1-4: header info
@@ -28724,18 +28634,7 @@ async function previewMemFile(ref, bucket, idx) {
         if (relevantResults.length) {
           console.log('[Viewer] Found', relevantResults.length, 'relevant result(s) for', name, '— will place overlays after PDF renders');
           const _attrs = (wpTestAttributes[ref]||[]).filter(a=>a.title);
-          const exMapLocal = {};
-          let exNum = 0;
-          wpResults.forEach((fr, fii) => {
-            _attrs.forEach((attr, ai) => {
-              let m = fr.results.find(r => r.title === attr.title);
-              if (m && (m.result === 'pass_exception' || m.result === 'fail')) {
-                exNum++;
-                exMapLocal[`${fii}-${ai}`] = `E${exNum}`;
-              }
-            });
-          });
-
+          const exMapLocal = _lookupExceptionRefMap(ref, wpResults, _attrs);
           // Place overlays — PDF is already rendered so try immediately, then poll as fallback
           let _placed = false;
           const _tryPlace = () => {
