@@ -5770,14 +5770,14 @@ auditor's assessment.
         <button onclick="document.getElementById('analysis-options-overlay').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">&#x00D7;</button>
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis:</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis. Categories with data already available for this workpaper are checked by default — <i class="ti ti-circle-check" style="color:#16a34a;font-size:12px;vertical-align:-1px"></i> marks which ones.</div>
 
         <!-- Knowledge Base box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Knowledge Base</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-company" class="analysis-opt-cb" checked><span class="analysis-opt-label">Company / Organisation Context</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-controls" class="analysis-opt-cb" checked><span class="analysis-opt-label">Control &amp; Risk Analyst Notes</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-company" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Company / Organisation Context</span><i id="aopt-kb-company-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-kb-controls" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Control &amp; Risk Analyst Notes</span><i id="aopt-kb-controls-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
           </div>
         </div>
 
@@ -5785,10 +5785,10 @@ auditor's assessment.
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Audit Elements</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-desc" class="analysis-opt-cb"><span class="analysis-opt-label">Audit Description</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-entities" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Assessment Entities</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-risks" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Risks &amp; Controls</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-fs" class="analysis-opt-cb"><span class="analysis-opt-label">Linked Financial Statement Accounts &amp; Footnotes</span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-desc" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Audit Description</span><i id="aopt-audit-desc-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-entities" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Linked Assessment Entities</span><i id="aopt-audit-entities-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-risks" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Linked Risks &amp; Controls</span><i id="aopt-audit-risks-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-audit-fs" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Linked Financial Statement Accounts &amp; Footnotes</span><i id="aopt-audit-fs-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
           </div>
         </div>
 
@@ -5796,12 +5796,14 @@ auditor's assessment.
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Workpaper Elements</div>
           <div style="padding:12px 14px;display:flex;flex-direction:column;gap:9px">
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative description</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb"><span class="analysis-opt-label">Process / Control Narrative attachment</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Description</span></label>
-            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdetails" checked="checked" class="analysis-opt-cb"><span class="analysis-opt-label">Test Attribute Details <span style="font-size:9px;color:var(--text-tertiary);font-weight:400">(description, additional info, pass &amp; fail criteria)</span></span></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Process / Control Narrative description</span><i id="aopt-narrative-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-narrative-file" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Process / Control Narrative attachment</span><i id="aopt-narrative-file-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-testdesc" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Test Description</span><i id="aopt-testdesc-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
+            <label class="analysis-opt-row"><input type="checkbox" id="aopt-attrdetails" class="analysis-opt-cb" onchange="_updateAnalysisOptionsSummary()"><span class="analysis-opt-label">Test Attribute Details <span style="font-size:9px;color:var(--text-tertiary);font-weight:400">(description, additional info, pass &amp; fail criteria)</span></span><i id="aopt-attrdetails-dot" class="ti ti-circle-check" style="display:none;color:#16a34a;font-size:12px;margin-left:5px" title="Data available for this workpaper"></i></label>
           </div>
         </div>
+
+        <div id="aopt-summary" style="font-size:12px;color:var(--text-secondary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:6px;padding:9px 12px;line-height:1.5"></div>
       </div>
       <!-- Real, new, per direct request — moved here from the
            Guidance modal, since this is a genuinely different concern
@@ -5811,7 +5813,7 @@ auditor's assessment.
            by default, matching established behavior. -->
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light)">
         <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);cursor:pointer">
-          <input type="checkbox" id="aopt-guidance-web-search" checked style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" onchange="_guidanceWebSearchPref = this.checked">
+          <input type="checkbox" id="aopt-guidance-web-search" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" onchange="_guidanceWebSearchPref = this.checked">
           Search external sources for guidance on improving the test.
         </label>
       </div>
@@ -24624,8 +24626,114 @@ function positionAuditTooltip(e) {
 /* ══════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════ */
+// Real, new, per the analyze-context-auto-selection design doc's
+// recommendation — auto-detect and default-check, don't remove the
+// choice. Returns whether each context category genuinely has real
+// data available for the given workpaper right now, using the same
+// underlying accessors the actual prompt-building code
+// (_buildKnowledgeBlock, analyzeWithClaude, downloadTestGuidance) reads
+// from, so this can never disagree with what an ON checkbox would
+// actually send. Shared by openAnalysisOptionsDialog (to auto-check and
+// show the data-available dot) and downloadTestGuidance's improved
+// options-selected summary (to note when a category had nothing to
+// send regardless of its checkbox state).
+function _kbControlsHasData(ref) {
+  const ctrlIds = Array.from(wpLinkedControls[ref] || []);
+  return ctrlIds.some(cid => {
+    const c = (typeof _fndControls !== 'undefined' ? _fndControls : []).find(x => x.id === cid);
+    if (!c) return false;
+    if (c.analyst_notes && c.analyst_notes.trim()) return true;
+    const riskIds = Array.isArray(c.linked_risks) ? c.linked_risks : (CTRL_RISKS_MAP[cid] || []);
+    return riskIds.some(rid => {
+      const r = (typeof _fndRisks !== 'undefined' ? _fndRisks : []).find(x => x.id === rid);
+      return !!(r && r.analyst_notes && r.analyst_notes.trim());
+    });
+  });
+}
+function _analysisOptionDataAvailability(ref) {
+  const wp = WORKPAPERS.find(w => w.ref === ref) || WORKPAPERS[currentWPIndex] || {};
+  const currentAuditObj = AUDITS.find(a => a.name === wp.auditName);
+  return {
+    kbCompany:     !!(typeof _kbCompanyNotes !== 'undefined' && _kbCompanyNotes && _kbCompanyNotes.trim()),
+    kbControls:    _kbControlsHasData(ref),
+    auditDesc:     !!(currentAuditObj && currentAuditObj.desc && currentAuditObj.desc.trim()),
+    auditEntities: !!(currentAuditEntities && currentAuditEntities.size),
+    // Approximates "is anything genuinely linked" via the raw linked-ID
+    // sets, rather than fully re-deriving whether every ID still
+    // resolves to a real, current control/FS-account record the way the
+    // actual prompt-building loops do — a reasonable, good-faith
+    // approximation for a quick "is there anything here at all" check,
+    // not a promise every linked ID is still valid.
+    auditRisks:    !!((auditLinkedControls[wp.auditName] || new Set()).size),
+    auditFs:       !!((auditLinkedFs[wp.auditName] || new Set()).size),
+    narrative:     !!(wp.narrative && wp.narrative.trim()),
+    narrativeFile: !!((wpNarrativeRefFiles[ref] || new Set()).size),
+    testDesc:      !!(wp.testDesc && wp.testDesc.trim()),
+    attrDetails:   (wpTestAttributes[ref] || []).some(a =>
+      (a.desc || '').trim() || (a.additionalInfo || '').trim() || (a.successCriteria || '').trim() || (a.failureCriteria || '').trim()
+    ),
+  };
+}
+const _AOPT_FIELD_MAP = [
+  ['kbCompany',     'aopt-kb-company',     'Company / Organisation Context'],
+  ['kbControls',    'aopt-kb-controls',    'Control & Risk Analyst Notes'],
+  ['auditDesc',     'aopt-audit-desc',     'Audit Description'],
+  ['auditEntities', 'aopt-audit-entities', 'Linked Assessment Entities'],
+  ['auditRisks',    'aopt-audit-risks',    'Linked Risks & Controls'],
+  ['auditFs',       'aopt-audit-fs',       'Linked Financial Statement Accounts & Footnotes'],
+  ['narrative',     'aopt-narrative',      'Process / Control Narrative description'],
+  ['narrativeFile', 'aopt-narrative-file', 'Process / Control Narrative attachment'],
+  ['testDesc',      'aopt-testdesc',       'Test Description'],
+  ['attrDetails',   'aopt-attrdetails',    'Test Attribute Details'],
+];
+
+// Live summary line, updated on open and on every checkbox change —
+// this is the "improve the summary of data sent to AI" half of the
+// request: a person can see, before ever clicking Run Analysis, exactly
+// how many categories will actually be included, and which available
+// ones they've chosen to leave out.
+function _updateAnalysisOptionsSummary() {
+  const el = document.getElementById('aopt-summary');
+  if (!el) return;
+  const ref = getWPRef();
+  const avail = ref ? _analysisOptionDataAvailability(ref) : {};
+  let availableCount = 0, includedCount = 0;
+  const excludedButAvailable = [];
+  _AOPT_FIELD_MAP.forEach(([key, id, label]) => {
+    const cb = document.getElementById(id);
+    const hasData = !!avail[key];
+    if (hasData) availableCount++;
+    if (cb && cb.checked) includedCount++;
+    if (hasData && cb && !cb.checked) excludedButAvailable.push(label);
+  });
+  let text = `<strong>${includedCount}</strong> categor${includedCount === 1 ? 'y' : 'ies'} will be sent to the AI`;
+  text += availableCount ? ` (${availableCount} available for this workpaper).` : ' (nothing yet has data for this workpaper).';
+  if (excludedButAvailable.length) {
+    text += ` <span style="color:#b45309">Excluded despite having data: ${excludedButAvailable.join(', ')}.</span>`;
+  }
+  el.innerHTML = text;
+}
+
 function openAnalysisOptionsDialog() {
   document.getElementById('analysis-options-overlay').style.display = 'flex';
+  // Real, new, per the analyze-context-auto-selection design doc —
+  // every data-input checkbox above is now set FROM whether real data
+  // actually exists for this workpaper, every time the modal opens
+  // (live, not a one-time snapshot), rather than a fixed static
+  // default. A small checkmark dot next to each label shows the same
+  // detection result directly, so a person can see at a glance which
+  // categories are populated even before checking the box states.
+  const ref = getWPRef();
+  const avail = ref ? _analysisOptionDataAvailability(ref) : {};
+  _AOPT_FIELD_MAP.forEach(([key, id]) => {
+    const cb  = document.getElementById(id);
+    const dot = document.getElementById(id + '-dot');
+    const hasData = !!avail[key];
+    if (cb)  cb.checked = hasData;
+    if (dot) dot.style.display = hasData ? 'inline' : 'none';
+  });
+  _updateAnalysisOptionsSummary();
+
   // Real, new, per direct request — the confirmed annotation-type
   // selection design, matching the exact, same established pattern
   // already proven for xlsx_export_prefs. Only overrides the static
@@ -28003,26 +28111,41 @@ async function downloadTestGuidance() {
   lines.push('');
 
   // ── Analysis Options Selected ─────────────────────────────────────────────
+  // Real, new, per the analyze-context-auto-selection design doc's
+  // "improve the summary" request — each line now also says whether
+  // that category genuinely had data available for this workpaper,
+  // distinguishing "excluded because there was nothing to send anyway"
+  // (expected, not a judgment call) from "excluded despite having real
+  // data available" (a deliberate exclusion worth a reviewer's
+  // attention), using the exact same detection
+  // openAnalysisOptionsDialog's own auto-check and data-available dot
+  // already use — this can never disagree with what the modal itself
+  // showed when the run was started.
   lines.push(hr);
   lines.push('ANALYSIS OPTIONS SELECTED');
   lines.push(hr);
+  const avail = ref ? _analysisOptionDataAvailability(ref) : {};
   const optLabels = [
-    [opts.kbCompany,     'Knowledge Base: Company / Organisation Context'],
-    [opts.kbControls,    'Knowledge Base: Control & Risk Analyst Notes'],
-    [false, ''],
-    [opts.auditDesc,     'Audit Description'],
-    [opts.auditEntities, 'Audit-Level Assessment Entities'],
-    [opts.auditRisks,    'Audit-Level Risks & Controls'],
-    [opts.auditFs,       'Audit-Level Financial Statement Accounts & Footnotes'],
-    [false, ''],
-    [opts.narrative,     'Process / Control Narrative (text)'],
-    [opts.narrativeFile, 'Process / Control Narrative (attached file)'],
-    [opts.testDesc,      'Test Description'],
-    [opts.attrDesc,      'Test Attribute Details (description, additional info, pass & fail criteria)'],
+    [opts.kbCompany,     'kbCompany',     'Knowledge Base: Company / Organisation Context'],
+    [opts.kbControls,    'kbControls',    'Knowledge Base: Control & Risk Analyst Notes'],
+    [null, null, ''],
+    [opts.auditDesc,     'auditDesc',     'Audit Description'],
+    [opts.auditEntities, 'auditEntities', 'Audit-Level Assessment Entities'],
+    [opts.auditRisks,    'auditRisks',    'Audit-Level Risks & Controls'],
+    [opts.auditFs,       'auditFs',       'Audit-Level Financial Statement Accounts & Footnotes'],
+    [null, null, ''],
+    [opts.narrative,     'narrative',     'Process / Control Narrative (text)'],
+    [opts.narrativeFile, 'narrativeFile', 'Process / Control Narrative (attached file)'],
+    [opts.testDesc,      'testDesc',      'Test Description'],
+    [opts.attrDesc,      'attrDetails',   'Test Attribute Details (description, additional info, pass & fail criteria)'],
   ];
-  optLabels.forEach(([checked, label]) => {
+  optLabels.forEach(([checked, key, label]) => {
     if (!label) { lines.push(''); return; }
-    lines.push(`  [${checked ? 'X' : ' '}]  ${label}`);
+    const hasData = key ? !!avail[key] : null;
+    let note = '';
+    if (hasData === false) note = '  (no data available for this workpaper)';
+    else if (hasData === true && !checked) note = '  (excluded despite having data)';
+    lines.push(`  [${checked ? 'X' : ' '}]  ${label}${note}`);
   });
   lines.push('');
 
@@ -36131,7 +36254,7 @@ let _annotationTypeSelection = { bi: true, ff: false, sn: true, bi2: false };
 
 let _analysisInProgress = false;
 
-let _guidanceWebSearchPref = true;
+let _guidanceWebSearchPref = false;
 
 function openGuidanceModal(title) {
   const ref = currentAttrWPRef;

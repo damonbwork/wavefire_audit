@@ -220,3 +220,38 @@ the app.
    confirm enabling it skips the modal's review step entirely for that
    user going forward, and that the post-Analyze payload summary is
    shown unconditionally in that mode.
+
+**Implemented and verified** (2026-09-07), the recommendation above (not
+full automation): `_analysisOptionDataAvailability(ref)` computes
+availability for all ten context categories from the same underlying
+accessors the real prompt-building code reads
+(`_kbCompanyNotes`/`wpLinkedControls`+`analyst_notes`/`AUDITS`'s own
+`desc`/`currentAuditEntities`/`auditLinkedControls`/`auditLinkedFs`/
+`wp.narrative`/`wpNarrativeRefFiles`/`wp.testDesc`/`wpTestAttributes`).
+`openAnalysisOptionsDialog()` now calls it fresh every time the modal
+opens, setting each checkbox's default from real data (never a static
+HTML default) and toggling a small `ti-circle-check` dot next to each
+label as the "which ones have data" indicator. A live summary line
+(`_updateAnalysisOptionsSummary()`, wired to every checkbox's `onchange`)
+shows how many categories will actually be sent, how many have data
+available, and explicitly calls out anything left unchecked despite
+having data — addressing "improve the summary of data sent to AI" for
+the pre-run side. `downloadTestGuidance()`'s post-run "ANALYSIS OPTIONS
+SELECTED" report reuses the exact same availability function to annotate
+each line with "(no data available for this workpaper)" or "(excluded
+despite having data)" as appropriate, so the two summaries — before and
+after a run — can never disagree about what was actually available.
+Separately, per explicit request, "Search external sources for guidance
+on improving the test" (`aopt-guidance-web-search`, a Guidance-only
+setting unrelated to Analyze's own context categories) now defaults
+unchecked, both in the static HTML and `_guidanceWebSearchPref`'s own
+default value.
+
+Verified against the dev server: seeded one category with real data and
+confirmed only it came up checked with its dot visible, all others
+correctly unchecked with no dot; toggled it off and confirmed the live
+summary updated to show "0 categories... Excluded despite having data:
+Test Attribute Details"; confirmed the report-annotation logic correctly
+labels a no-data category and a deliberately-excluded-despite-data
+category; confirmed the web-search checkbox and its backing preference
+both default to unchecked/false.
