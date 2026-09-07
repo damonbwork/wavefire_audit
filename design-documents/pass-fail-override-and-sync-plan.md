@@ -603,14 +603,35 @@ without deleting and manually re-adding it, which loses the original
 resolution Part 6 just built. Two additions close this loop, both
 reusing infrastructure already in place:
 
-1. **Manual reclassification** — a new `_reclassifyGridItem(ref, idx,
-   newType)`, exposed as a small action next to each row (a
-   "Reclassify…" option, e.g. in the same menu area as the delete
-   button), mirroring `_promptGridItemType`'s existing 3-button chooser.
-   It keeps the row's global `#` (`num`) and all evidence fields
-   (`sourceFile`/`page`/`paragraph`/`linkedFiles`/`desc`) exactly as-is,
-   recomputes `ref`/`typeNum` via the existing `_getNextTypeNum(ref,
-   newType)`, and:
+1. **Manual reclassification — an inline dropdown in the row's existing
+   Type column, not a new button or menu.** `renderExceptions`'s row
+   template already has a Type cell (~line 11669) showing
+   "Exception"/"Finding"/"Recommendation" as plain colored text with no
+   interaction. Per explicit design discussion: rather than add a
+   separate "Reclassify…" action somewhere else in the row, that
+   existing cell becomes a `<select>` with the same three options,
+   styled and wired exactly like the row's own Disposition Type/Status
+   dropdowns two columns over (`dropStyle`, colored by current value,
+   `onchange` fires the change immediately — no confirmation click just
+   to open a picker). This is the cell a person already reads to know an
+   item's type; it becomes the same place they change it, with no new UI
+   surface to discover:
+   ```js
+   <select style="${dropStyle}font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type||'exception']}"
+     onchange="_reclassifyGridItem('${ref}',${i},this.value)">
+     <option value="exception" ${(ex.type||'exception')==='exception'?'selected':''}>Exception</option>
+     <option value="finding" ${ex.type==='finding'?'selected':''}>Finding</option>
+     <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
+   </select>
+   ```
+   `_reclassifyGridItem(ref, idx, newType)` keeps the row's global `#`
+   (`num`) and all evidence fields (`sourceFile`/`page`/`paragraph`/
+   `linkedFiles`/`desc`) exactly as-is, recomputes `ref`/`typeNum` via
+   the existing `_getNextTypeNum(ref, newType)`, and only interrupts with
+   a prompt when the change actually has a consequence to confirm —
+   most reclassifications (Finding ↔ Recommendation, or either one with
+   no annotated files yet) apply instantly on selection, the same as
+   picking a new Disposition Status does today:
    - **Exception → Finding/Recommendation**: this removes the item's
      Fail-driving status. Reuse Part 6's own exception-deletion pass/fail
      path — prompt whether to also override the attribute to Pass with
@@ -671,16 +692,20 @@ reusing infrastructure already in place:
    this attribute's `additionalInfo` as a binding classification
    instruction ahead of the general rule, and (once wired) confirm the
    resulting item is created as a Finding.
-2. Reclassify a manually-created Exception to a Finding; confirm the row
+2. Confirm the Type column renders as a `<select>` for every row (not
+   just when some other action is clicked), pre-selected to the item's
+   current type, and that choosing Finding ↔ Recommendation on a row
+   with no annotated files applies immediately with no prompt.
+3. Reclassify a manually-created Exception to a Finding; confirm the row
    keeps its `num` and evidence fields, its `ref` changes from `E{n}` to
    the next `F{n}`, the optional Pass-override prompt behaves exactly
    like Part 6's deletion prompt, and the annotated file's marker
    changes from a check/X to the Finding letter in one re-burn (not a
    stale mark plus a new one).
-3. Accept a suggested guidance-append after a reclassification; confirm
+4. Accept a suggested guidance-append after a reclassification; confirm
    the sentence lands in that attribute's `additionalInfo` exactly as
    edited/accepted, alongside whatever text was already there, and
    reaches the next Analyze call's prompt text for that attribute.
-4. Confirm declining the guidance-append leaves `additionalInfo`
+5. Confirm declining the guidance-append leaves `additionalInfo`
    untouched — the correction still applies to the item just
    reclassified, it just doesn't change future runs.
