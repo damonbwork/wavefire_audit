@@ -11428,7 +11428,13 @@ function renderExceptions(ref) {
         </button>
         <div id="exc-files-${ref.replace(/[^a-z0-9]/gi,'_')}_${i}" style="display:flex;flex-direction:column;gap:2px">
           ${(ex.linkedFiles||[]).map(f => {
-            const missing = !attachedFileNames.has(f);
+            // A legacy exception's linkedFiles entry can be a single
+            // comma-joined string naming every file its sample was
+            // tested against (see promptDelete's own matching fix for
+            // why) rather than one real filename — treat it as present
+            // if ANY of its comma-separated names still resolves to an
+            // attached file, not just an exact whole-string match.
+            const missing = !f.split(',').map(s => s.trim()).some(name => attachedFileNames.has(name));
             return missing
               ? `<div style="font-size:10px;color:#b45309;display:flex;align-items:center;gap:3px" title="This file is no longer attached to the workpaper — it may have been deleted."><i class="ti ti-alert-triangle" style="font-size:10px;color:#b45309"></i>${escHtml(f)} <span style="font-style:italic">(missing)</span></div>`
               : `<div style="font-size:10px;color:var(--text-secondary);display:flex;align-items:center;gap:3px"><i class="ti ti-file" style="font-size:10px;color:var(--wf-navy)"></i>${escHtml(f)}</div>`;
@@ -29838,17 +29844,35 @@ function promptDelete(ref, bucket, idx, name) {
 
   // Real, new, per explicit design decision — deleting a file must never
   // silently take an exception (a documented audit finding) down with it.
-  // Only the ORIGINAL sample file is what an exception's linkedFiles
-  // entry ever actually names (see the exceptions-linked-file fix — it's
+  //
+  // Real, confirmed fix — this originally only checked the ORIGINAL
+  // sample file, reasoning that an exception's linkedFiles entry is
   // always match.sourceFile, which is always the original, never an
-  // annotated bi/bi2/ff/sn copy's own name) — so deleting an annotated
-  // copy alone can never affect an exception's link, and only needs
-  // checking here for bucket 'sample' entries that aren't themselves an
-  // annotated derivative.
+  // annotated bi/bi2/ff/sn copy's own name. That's true for exceptions
+  // created AFTER the linkedFiles fix — but exceptions created before it
+  // still carry their OLD, wrong linkedFiles value: fileResult.fileName,
+  // the joined list of every attached sample file (e.g. "A.pdf, B.pdf,
+  // C.pdf") as a single array entry, not the individual filename. Two
+  // real gaps followed from that: (1) skipping annotated copies entirely
+  // meant deleting one could never warn, even though a legacy joined-list
+  // entry doesn't distinguish original from copy anyway; (2) an exact
+  // .includes(entry.name) match can never match a filename AGAINST that
+  // joined string. Checking every 'sample' bucket file regardless of
+  // _annotatedFrom, and matching a linkedFiles entry either exactly or as
+  // one comma-separated name within it, covers both old and new
+  // exceptions correctly without needing to migrate old data.
   if (ref && bucket === 'sample') {
     const entry = inMemoryFiles[ref]?.sample?.[idx];
-    if (entry && !entry._annotatedFrom) {
-      const linkedExceptions = (wpExceptions[ref] || []).filter(e => (e.linkedFiles || []).includes(entry.name));
+    if (entry) {
+      // An annotated copy's OWN filename never appears in any
+      // exception's linkedFiles — only its original's name does, since
+      // annotations are generated AFTER analysis already recorded that
+      // link. Deleting a copy is deleting one rendering of evidence that
+      // exception is genuinely still linked to, so resolve the check
+      // through _annotatedFrom (the original's name) when present.
+      const nameToCheck = entry._annotatedFrom || entry.name;
+      const isLinkedTo = (lf) => lf === nameToCheck || lf.split(',').map(s => s.trim()).includes(nameToCheck);
+      const linkedExceptions = (wpExceptions[ref] || []).filter(e => (e.linkedFiles || []).some(isLinkedTo));
       if (linkedExceptions.length) {
         const list = linkedExceptions.map(e => `<li>${escHtml((e.ref ? e.ref + ' — ' : '') + (e.name || 'Untitled exception'))}</li>`).join('');
         warningHtml = `<div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border:1px solid #eab308;border-radius:6px;font-size:12px;color:#854d0e;text-align:left">
