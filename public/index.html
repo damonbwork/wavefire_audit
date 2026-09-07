@@ -28278,9 +28278,19 @@ async function exportToXlsx(attachOnly = false) {
     // _isAnalysisExport when created, below) is offered up for optional
     // deletion before adding the new one, listed with when it was
     // created; nothing is ever deleted without the user checking it.
+    // Real, confirmed fix — _isAnalysisExport is a client-side-only flag,
+    // never sent to or stored in Postgres (the sample_files table has no
+    // equivalent column). It survives fine within the same browser
+    // session, but a file list REBUILT from the backend (a reload, a new
+    // session, a different user) loses it entirely, which would silently
+    // make this check see zero prior versions even when one genuinely
+    // exists on the server. Falls back to this export's own, otherwise
+    // unused, naming pattern (WP-{year}-{seq}_TestResults_{date}_{time}.xlsx)
+    // so a reloaded entry is still recognized as a prior version.
+    const _isGeneratedTestResultsName = (n) => /^WP-.+_TestResults_\d{8}_\d{4}\.xlsx$/i.test(n || '');
     const priorVersions = inMemoryFiles[ref].workpaper
       .map((f, idx) => ({ ...f, idx }))
-      .filter(f => f._isAnalysisExport);
+      .filter(f => f._isAnalysisExport || _isGeneratedTestResultsName(f.name));
 
     const doAttach = async (deleteIdxs) => {
       if (deleteIdxs && deleteIdxs.length) {
