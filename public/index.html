@@ -4008,6 +4008,10 @@ auditor's assessment.
             <button class="btn-s" style="font-size:12px;background:#1e40af;color:#fff;border-color:#1e40af" onclick="_exportAnalysisGridXlsx(getWPRef(), true)">
               <i class="ti ti-paperclip"></i>Attach to Workpaper Files
             </button>
+            <button class="btn-s" id="testwork-clear-all-btn" onclick="clearTestworkGrid()" style="font-size:12px;padding:3px 10px" title="Clear the entire Testwork Grid for this workpaper — every tested result and pass/fail override. Exceptions, Findings, Recommendations, and attached/annotated files are not affected.">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Clear Testwork Grid
+            </button>
           </div>
         </div><!-- /sect-card analysis grid -->
 
@@ -5766,11 +5770,6 @@ auditor's assessment.
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis. Categories with data already available for this workpaper are checked by default.</div>
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;font-size:11px;color:var(--text-secondary)">
-          <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
-          <span><i class="ti ti-circle-check" style="color:#16a34a;font-size:12px;vertical-align:-1px"></i>&nbsp;Data available for this workpaper</span>
-        </div>
-
         <!-- Knowledge Base box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Knowledge Base</div>
@@ -25005,31 +25004,19 @@ const _AOPT_FIELD_MAP = [
   ['attrDetails',   'aopt-attrdetails',    'Test Attribute Details'],
 ];
 
-// Live summary line, updated on open and on every checkbox change —
-// this is the "improve the summary of data sent to AI" half of the
-// request: a person can see, before ever clicking Run Analysis, exactly
-// how many categories will actually be included, and which available
-// ones they've chosen to leave out.
+// Real, revised per direct correction — this was a live, dynamically
+// computed count of what will be sent, updated on every checkbox
+// change. Simplified to a static legend line explaining what the
+// checkmark dot itself means, matching the plain "Legend" convention
+// already used elsewhere in this same modal, rather than a running
+// tally. No longer needs to inspect checkbox state at all, but stays a
+// function (called on open and still wired to every checkbox's
+// onchange, which is now simply a harmless no-op re-render of the same
+// fixed text) so no other call site needs to change.
 function _updateAnalysisOptionsSummary() {
   const el = document.getElementById('aopt-summary');
   if (!el) return;
-  const ref = getWPRef();
-  const avail = ref ? _analysisOptionDataAvailability(ref) : {};
-  let availableCount = 0, includedCount = 0;
-  const excludedButAvailable = [];
-  _AOPT_FIELD_MAP.forEach(([key, id, label]) => {
-    const cb = document.getElementById(id);
-    const hasData = !!avail[key];
-    if (hasData) availableCount++;
-    if (cb && cb.checked) includedCount++;
-    if (hasData && cb && !cb.checked) excludedButAvailable.push(label);
-  });
-  let text = `<strong>${includedCount}</strong> categor${includedCount === 1 ? 'y' : 'ies'} will be sent to the AI`;
-  text += availableCount ? ` (${availableCount} available for this workpaper).` : ' (nothing yet has data for this workpaper).';
-  if (excludedButAvailable.length) {
-    text += ` <span style="color:#b45309">Excluded despite having data: ${excludedButAvailable.join(', ')}.</span>`;
-  }
-  el.innerHTML = text;
+  el.innerHTML = `<i class="ti ti-circle-check" style="color:#16a34a;font-size:12px;vertical-align:-1px"></i> means Wavefire already has data available for that item.`;
 }
 
 function openAnalysisOptionsDialog() {
@@ -35322,6 +35309,55 @@ async function clearAllSampleData(ref) {
   }
 }
 
+// Real, new, per direct request — the Testwork Grid's own equivalent of
+// "Clear Sample Data": removes the entire grid for this workpaper, same
+// confirm-then-clear shape as clearAllSampleData above. Scoped
+// narrowly to the grid's own data (the Analyze snapshot and any
+// pass/fail overrides tied to it) — Exceptions, Findings,
+// Recommendations, and attached/annotated files are all independently
+// managed elsewhere and are deliberately left untouched, matching how
+// clearing Sample Data doesn't touch Test Attributes either.
+async function clearTestworkGrid(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const overrideRows = _attrSampleResultsCache[ref] || [];
+  if (!wpResults.length && !overrideRows.length) return; // nothing to clear
+
+  const confirmed = await _sdShowGenericConfirm(
+    'Clear Testwork Grid',
+    'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
+    'Clear grid'
+  );
+  if (!confirmed) return;
+
+  pushUndo(ref);
+
+  // Clear any persisted overrides FIRST, and before wiping the local
+  // cache — without this, a future Analyze run could silently reapply
+  // a stale override to whatever different sample happens to occupy
+  // that same position by then (the exact class of bug just fixed
+  // elsewhere in this file for the results modal's own row alignment).
+  // No bulk-delete endpoint exists for this table, so each cached row
+  // is cleared individually via the same override endpoint a manual
+  // clear already uses (overrideResult: null is its established
+  // "remove this override" convention).
+  if (overrideRows.length) {
+    await Promise.all(overrideRows.map(row =>
+      _postOverride(ref, row.attribute_index, row.sample_row_index, null, null)
+    ));
+  }
+  _attrSampleResultsCache[ref] = [];
+
+  _wpAnalysisResults[ref] = [];
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) wpObj._analysisResults = [];
+
+  renderAnalysisResultsGrid(ref);
+  logEvent(ref, 'Testwork Grid cleared by user');
+}
+
 // Guards the "add to grid above" checkbox: only allowed when the User
 // Provided Sample Data grid already has at least one row of real (non-blank)
 // data. Reverts the checkbox and shows a temporary inline error otherwise —
@@ -35540,7 +35576,25 @@ function renderTestAttributes(ref) {
 function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   document.querySelectorAll('.attr-results-modal-overlay').forEach(el => el.remove());
 
-  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  // Real, confirmed fix, per a real reported bug — this previously built
+  // its own row list straight from the LIVE, current Sample Data grid
+  // (_daSampleDataFor(ref).rows), while the Testwork Grid builds ITS
+  // rows from _wpAnalysisResults[ref] — a snapshot captured at Analyze
+  // time. If Sample Data is ever edited (a row added, removed, or
+  // reordered) after Analyze last ran, "Sample 3" here and "Sample 3"
+  // in the grid could silently refer to two different real samples —
+  // exactly what was reported: the grid's own D3 tick showed an active
+  // Fail override, while this same modal's "Sample 3" showed Pass,
+  // because the two views were indexing into two different arrays that
+  // had drifted out of alignment. Using the exact same array as the
+  // grid whenever one exists makes that specific class of mismatch
+  // impossible; only a workpaper that has NEVER been analyzed (no
+  // snapshot exists yet — see manual-testwork-grid-plan.md) falls back
+  // to Sample Data directly, since there's nothing yet to align to.
+  const wpResultsForModal = _wpAnalysisResults[ref] || [];
+  const sampleRows = wpResultsForModal.length
+    ? wpResultsForModal.map(fr => ({ cells: fr.sampleRowCells || {}, _sampleDesc: fr.sampleDesc || '' }))
+    : (_daSampleDataFor(ref)?.rows || []);
   const SYMS = { pass: '✓', fail: '✗' };
   const COLS = { pass: '#16a34a', fail: '#dc2626' };
 
@@ -35572,7 +35626,12 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   }
 
   function rowLabel(row, i) {
-    const desc = _describeSampleGridRow(ref, row);
+    // Prefer the label already captured in the analysis snapshot itself
+    // (row._sampleDesc, set above from fr.sampleDesc) so this modal's
+    // labels can never drift from what the Testwork Grid shows for the
+    // exact same row — only recompute from the live Sample Data grid
+    // when there's no snapshot at all (the un-analyzed fallback case).
+    const desc = row._sampleDesc || _describeSampleGridRow(ref, row);
     return 'Sample ' + (i + 1) + (desc ? ' — ' + desc : '');
   }
 
