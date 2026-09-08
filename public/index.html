@@ -5824,58 +5824,20 @@ auditor's assessment.
            header alone would dismiss it the instant the mouse left it
            to reach a checkbox. -->
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light)">
-        <!-- Real, rebuilt, per direct correction — the checkboxes
-             themselves are now always visible on this modal, matching
-             the same style as the other data-input checkboxes above,
-             rather than hidden inside a hover. The hover is now purely
-             informational — over this header specifically, showing
-             only the explanatory grid from the design document, no
-             checkboxes inside it. -->
-        <div class="wf-ann-type-hover-wrap" style="position:relative;display:inline-block;margin-bottom:8px">
-          <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:0.4px;color:var(--text-tertiary);cursor:default;text-transform:uppercase">
-            SAMPLE FILE ANNOTATION TYPE(S)
-            <i class="ti ti-info-circle" style="font-size:13px;color:var(--text-tertiary)"></i>
-          </div>
-          <div class="wf-ann-type-popup" style="display:none;position:absolute;bottom:100%;left:0;width:720px;max-width:90vw;margin-bottom:6px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:10">
-            <table style="width:100%;border-collapse:collapse;font-size:11px">
-              <thead><tr style="background:var(--bg-secondary)">
-                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
-                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Acrobat Characteristics</th>
-                <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Suffix</th>
-              </tr></thead>
-              <tbody>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Burned-in inline annotations (bi)</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Movable stamp copy (bi2)</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">Each mark is a real Stamp annotation, using this same visual mark as its appearance, rather than flattened page content — click-selectable and freely movable in Acrobat as one object, without entering Edit PDF.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi2</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Form-field annotations (ff)</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
-                </tr>
-                <tr style="border-top:0.5px solid var(--border-light)">
-                  <td style="padding:8px 8px;font-weight:600">Sticky Note annotations (sn)</td>
-                  <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
-                  <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- Real, migrated onto the shared click-to-open help mechanism
+             (design: inline-help-icons-plan.md) — this was the last
+             hover-only popup left in the app; hover doesn't exist on a
+             touchscreen, so it couldn't have worked there. Same content,
+             now reachable by tap as well as click. -->
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:0.4px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:8px">
+          SAMPLE FILE ANNOTATION TYPE(S)
+          <i class="ti ti-help-circle wf-help-icon" data-help-topic="annotationTypes" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:14px"></i>
         </div>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi" class="analysis-opt-cb" checked><span class="analysis-opt-label">Burned-in inline annotations (bi)</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-bi2" class="analysis-opt-cb"><span class="analysis-opt-label">Movable stamp copy (bi2)</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-ff" class="analysis-opt-cb"><span class="analysis-opt-label">Form-field annotations (ff)</span></label>
         <label class="analysis-opt-row"><input type="checkbox" id="aopt-ann-sn" class="analysis-opt-cb" checked><span class="analysis-opt-label">Sticky Note annotations (sn)</span></label>
       </div>
-      <style>
-        .wf-ann-type-hover-wrap:hover .wf-ann-type-popup { display: block !important; }
-      </style>
       <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
         <button class="btn-s" onclick="document.getElementById('analysis-options-overlay').style.display='none'">Cancel</button>
         <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="runAnalysisWithOptions()"><i class="ti ti-sparkles"></i>Run Analysis</button>
@@ -24834,6 +24796,44 @@ const HELP_TOPICS = {
       copy at a glance.</p>
     `,
   },
+  annotationTypes: {
+    title: 'Sample File Annotation Type(s)',
+    width: '720px',
+    html: `
+      <p>Choose which kind(s) of annotated copy Analyze creates for each
+      original sample file. More than one can be selected — each
+      produces its own separate copy alongside the original.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:var(--bg-secondary)">
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Type</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Acrobat Characteristics</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">Annotated File Suffix</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Burned-in inline annotations (bi)</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Flattened page content — drawn rectangles and text merged directly into the page, indistinguishable from the page's own original content.</td>
+            <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi</td>
+          </tr>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Movable stamp copy (bi2)</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Each mark is a real Stamp annotation, using this same visual mark as its appearance, rather than flattened page content — click-selectable and freely movable in Acrobat as one object, without entering Edit PDF.</td>
+            <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_bi2</td>
+          </tr>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Form-field annotations (ff)</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Real AcroForm fields — formally, Widget annotations in the PDF spec, the same object type used for fillable forms. Shows up under Acrobat's "Prepare Form" tool.</td>
+            <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_ff</td>
+          </tr>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Sticky Note annotations (sn)</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">A genuine PDF Text annotation — what Acrobat's own UI calls a Sticky Note. Appears as an icon, expands on click, shown in the Comments panel.</td>
+            <td style="padding:8px 8px;font-family:monospace;color:var(--text-tertiary)">annotated_sn</td>
+          </tr>
+        </tbody>
+      </table>
+    `,
+  },
 };
 
 function helpIcon(topicKey) {
@@ -24859,7 +24859,10 @@ function _toggleHelpPopup(iconEl) {
 
   const popup = document.createElement('div');
   popup.className = 'wf-help-popup';
-  popup.style.cssText = 'position:fixed;z-index:20000;width:min(520px,92vw);max-height:70vh;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25)';
+  // Most topics are plain prose and fit the default 520px; a topic
+  // carrying tabular content (e.g. the annotation-type comparison
+  // table) can request a wider popup via its own `width`.
+  popup.style.cssText = `position:fixed;z-index:20000;width:min(${topic.width || '520px'},92vw);max-height:70vh;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25)`;
   popup.innerHTML = `
     <div style="position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md) var(--radius-md) 0 0">
       <div style="font-size:12px;font-weight:700;letter-spacing:0.3px">${escHtml(topic.title)}</div>
@@ -24913,13 +24916,16 @@ function _downloadHelpTopic(topicKey) {
   // mid-sentence line breaks sitting in the downloaded text. Only the
   // breaks BETWEEN blocks are meaningful, not the ones inside them.
   const BLOCK_BREAK = String.fromCharCode(30);
+  const CELL_BREAK  = String.fromCharCode(31);
   const plain = topic.html
     .replace(/<li[^>]*>/gi, BLOCK_BREAK + '• ')
     .replace(/<\/(p|li|div)>/gi, BLOCK_BREAK)
+    .replace(/<\/tr>/gi, BLOCK_BREAK)
+    .replace(/<\/(td|th)>/gi, CELL_BREAK)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .split(BLOCK_BREAK)
-    .map(seg => seg.replace(/\s+/g, ' ').trim())
+    .map(seg => seg.split(CELL_BREAK).map(cell => cell.replace(/\s+/g, ' ').trim()).filter(Boolean).join('  |  '))
     .filter(Boolean)
     .join('\n\n');
   const text = topic.title + '\n' + '='.repeat(topic.title.length) + '\n\n' + plain + '\n';

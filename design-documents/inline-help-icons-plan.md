@@ -301,5 +301,27 @@ Verified against the dev server: popup opens with correct content,
 covering the original-vs-annotated relationship, the storage
 indicators, and the Original badge.
 
-Migrating the remaining hover-only annotation-type popup remains per
-the rollout list above.
+**Implemented and verified** (2026-09-07) — the fifth and final rollout
+item, migrating the "Sample File Annotation Type(s)" comparison table
+off its `wf-ann-type-hover-wrap`/`:hover` CSS mechanism (the app's last
+remaining hover-only popup, and the one this doc's own precedent section
+called out as not working on a touchscreen) onto the shared
+`_toggleHelpPopup` mechanism, same content, now reachable by tap as well
+as click. `_toggleHelpPopup` gained an optional per-topic `width` (this
+topic uses 720px for its table; everything else keeps the 520px
+default) rather than forcing every topic into one fixed size.
+`_downloadHelpTopic`'s plain-text export was extended to treat `</tr>`
+as a block break and `</td>`/`</th>` as a cell break within a block
+(cells joined with `  |  `), so a topic with a table downloads as a
+readable, column-separated table rather than every cell's text running
+together. The old hover-only markup, its wrapper class, and its CSS
+`:hover` rule were removed entirely — nothing hover-only remains
+anywhere in the app.
+
+This completes the prioritized rollout: Testwork Grid, Test Attributes,
+the Exceptions/Findings/Recommendations grid, Attached Sample Files, and
+this migration. Verified against the dev server: the popup opens at the
+wider 720px width with the full four-row table intact; the table-aware
+plain-text export produces a clean, pipe-separated table; a
+plain-prose topic (Testwork Grid) still exports correctly, confirming
+no regression from the table-handling change.
