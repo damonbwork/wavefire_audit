@@ -334,3 +334,47 @@ Analyze re-run's own prior AI output arguably doesn't.
 8. If Part 3's evidence fields are built, confirm a manually-set result
    with a chosen source file and page correctly produces a working file
    link in the results modal, identical in behavior to an AI-cited mark.
+
+**Implemented and verified** (2026-09-08) — Parts 1, 2, 4, and 7. Part 3
+(evidence fields) remains a deliberate later addition, not yet built.
+
+- **Part 1**: `createTestworkGrid(ref)` + the "Create Testwork Grid"
+  button, shown only when `_wpAnalysisResults[ref]` is empty and real
+  Sample Data + Test Attributes exist (toggled inside
+  `renderAnalysisResultsGrid` itself, alongside its own existing
+  visibility logic). Writes a real snapshot into `_wpAnalysisResults
+  [ref]` and its `WORKPAPERS[]._analysisResults` mirror.
+- **Part 2**: `renderRow`'s body text now reads "record the result for
+  this sample" when `savedEffective` is unset, and only says "override
+  the AI's result" once a real prior result exists.
+- **Part 4**: `_maybeOfferLinkedException(ref, ai, fi, note)` +
+  `_promptCreateLinkedException`, wired into both `_saveOverride` (the
+  live-tick popup) and `_openAttrResultsModal`'s OK-handler, whenever a
+  save sets `result === 'fail'` and no Exception already exists for that
+  exact (attributeIndex, sampleRowIndex) pair.
+- **Part 7**: `analyzeWithClaude`'s pre-flight check now covers
+  annotated files AND the Testwork Grid/overrides in one combined
+  `rcmConfirmDelete` dialog, with a single Cancel stopping everything
+  and a single OK proceeding through both. `clearTestworkGrid` gained a
+  `skipConfirm` parameter (mirroring `_syncOverrideToAnnotatedFiles`'s
+  own `skipPrompt` convention) so this reuses its exact clearing logic
+  without a redundant second confirmation.
+
+Verified against the dev server: seeded 2 samples × 2 attributes with no
+prior analysis; confirmed the Create button shows only when both exist
+and the grid doesn't yet; clicking it produced the correct snapshot
+shape (no `result` key, correct `sampleDesc`/`sampleRowCells`) and the
+grid rendered five dashes as expected. Opened the results modal on an
+untested cell and confirmed the "Not tested" label and the new
+record-the-result wording; set Fail and saved through the full OK
+handler (a real round trip through `_postOverride`/
+`_syncOverrideToAnnotatedFiles` against the dev server) and confirmed
+the linked-Exception offer appeared with the correct text, and accepting
+it created a correctly-numbered E1 row with the right
+attributeIndex/sampleRowIndex. Confirmed no duplicate offer for an
+(attribute, sample) pair that already has one, and that declining the
+offer creates nothing. Confirmed the combined Analyze-warning message
+text builds correctly for the grid+overrides case, and that
+`clearTestworkGrid(ref, true)` skips its own dialog while still
+correctly clearing both `_wpAnalysisResults[ref]` and the override
+cache.
