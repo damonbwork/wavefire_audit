@@ -271,6 +271,19 @@ on this grid. Verified against the dev server: all four topics open
 with correct titles and content; the `additionalInfo` topic's content
 was spot-checked for the classification-rule example text.
 
-The Exceptions/Findings/Recommendations grid, Attached
-Sample Files, and migrating the remaining hover-only annotation-type
-popup remain per the rollout list above.
+**Implemented and verified** (2026-09-07) for the Exceptions, Findings
+and Recommendations grid, the third rollout item — an `exceptionsGrid`
+topic on the section header covering the Ref numbering scheme (the
+shared `#` sequence vs. each type's own letter-prefixed sequence),
+reclassifying an item via the Type dropdown (including which direction
+needs the pass/fail confirmation and which doesn't), and the three-way
+delete confirmation, cross-referencing the Testwork Grid's own help for
+the type definitions themselves rather than repeating them. Verified
+against the dev server: popup opens with correct content, confirmed via
+`innerText` (not `innerHTML`, since tag boundaries split literal
+substring matches) that the Ref numbering examples, the reclassify
+explanation, and the three-way delete choices are all present and
+accurate.
+
+Attached Sample Files, and migrating the remaining hover-only
+annotation-type popup remain per the rollout list above.

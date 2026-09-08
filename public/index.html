@@ -4013,7 +4013,7 @@ auditor's assessment.
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Exceptions, Findings and Recommendations</div>
+            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Exceptions, Findings and Recommendations<i class="ti ti-help-circle wf-help-icon" data-help-topic="exceptionsGrid" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
             <div style="display:flex;align-items:center;gap:6px" id="exceptions-toolbar">
               <button class="btn-s" style="font-size:11px;padding:4px 10px" onclick="exportExceptions()">
                 <i class="ti ti-download"></i>Export exceptions
@@ -24767,6 +24767,44 @@ const HELP_TOPICS = {
       <p>This is weighed together with the attribute's title,
       description, and Additional Information — never as the only input
       that matters on its own.</p>
+    `,
+  },
+  exceptionsGrid: {
+    title: 'Exceptions, Findings and Recommendations',
+    html: `
+      <p>Every Exception, Finding, and Recommendation for this workpaper
+      lives in one grid — auto-created from Analyze's own results, or
+      added manually with "Add". See the Testwork Grid's own help for
+      what each of the three types means.</p>
+
+      <p><strong>Ref numbering.</strong> The <code>#</code> column is one
+      shared sequence across all three types, in the order items were
+      created. <code>Ref</code> is a separate, per-type sequence with a
+      letter prefix — <strong>E1, E2…</strong> for Exceptions,
+      <strong>F1, F2…</strong> for Findings, <strong>R1, R2…</strong> for
+      Recommendations — so an item's Ref always identifies its current
+      type at a glance, independent of when it was created relative to
+      the others.</p>
+
+      <p><strong>Reclassifying an item.</strong> The Type column is a
+      dropdown — pick Exception, Finding, or Recommendation to change
+      what an item is. Moving between Finding and Recommendation applies
+      immediately, since neither affects any sample's pass/fail result.
+      Moving into or out of Exception changes that attribute's own
+      result for that sample (Exception → Fail; away from Exception →
+      Pass), so it shows the same confirmation described below before
+      anything changes.</p>
+
+      <p><strong>Deleting an item.</strong> If it's linked to any
+      already-annotated file, a confirmation offers three choices:
+      <strong>Delete and update</strong> (removes the item and redraws
+      the affected files — for an Exception, also resets that attribute
+      to Pass with an explanation noting it was deleted), <strong>Delete
+      only</strong> (removes the item, touches no files), or
+      <strong>Cancel</strong>. Each affected file is shown as a clickable
+      link so it can be opened and checked before deciding. If nothing
+      is linked to an annotated file, deleting asks for a plain
+      confirmation instead.</p>
     `,
   },
 };
