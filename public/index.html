@@ -3962,12 +3962,22 @@ to the facility name.  If not found return an empty cell</textarea>
             <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
               <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
             </button>
+            <!-- Real, new, per manual-testwork-grid-plan.md Part 1 — the
+                 one, explicit, deliberate action that brings the
+                 Testwork Grid into existence without ever running
+                 Analyze. Shown/hidden by createTestworkGridBtn's own
+                 visibility logic (see renderAnalysisResultsGrid), never
+                 both this AND the grid itself at once. -->
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#1e40af;color:#fff;border-color:#1e40af;flex-shrink:0;white-space:nowrap;display:none" onclick="createTestworkGrid()" id="create-testwork-grid-btn">
+              <i class="ti ti-table"></i>Create Testwork Grid
+            </button>
             <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
-              Analyze each of the attached sample files according to 
-each of the above documented attributes. The output will create a new 
-Attached Workpaper File above with the results of the analysis. The 
-results should be reviewed and modified as necessary based upon the 
-auditor's assessment.
+              Analyze each of the attached sample files according to
+each of the above documented attributes. The output will create a new
+Attached Workpaper File above with the results of the analysis. The
+results should be reviewed and modified as necessary based upon the
+auditor's assessment. Prefer to test manually instead? Use "Create
+Testwork Grid" to build a blank grid and record each result yourself.
             </p>
           </div></div><!-- /sect-analyze -->
           <!-- Legend for the storage-status dot and Original badge shown
@@ -11791,6 +11801,21 @@ function renderAnalysisResultsGrid(ref) {
   if (!card || !container) return;
 
   const wpResults = _wpAnalysisResults[ref] || [];
+
+  // Real, new, per manual-testwork-grid-plan.md Part 1 — "Create
+  // Testwork Grid" is the one, explicit action that brings the grid
+  // into existence without ever running Analyze; it's only ever shown
+  // when there's genuinely nothing to show yet (never alongside the
+  // grid itself), and only once there's real Sample Data and Test
+  // Attributes to build it from — matching the same preconditions
+  // Analyze itself needs.
+  const createBtn = document.getElementById('create-testwork-grid-btn');
+  if (createBtn) {
+    const hasSampleRows = ((_daSampleDataFor(ref)?.rows || [])).length > 0;
+    const hasAttributes = ((wpTestAttributes[ref] || []).filter(a => a.title)).length > 0;
+    createBtn.style.display = (!wpResults.length && hasSampleRows && hasAttributes) ? '' : 'none';
+  }
+
   if (!wpResults.length) {
     card.style.display = 'none';
     container.innerHTML = '';
@@ -22514,6 +22539,83 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
   _syncOverrideToAnnotatedFiles(ref, ai, fi, overrideResult, overrideNote).catch(err =>
     console.error('[SyncOverride] Unexpected failure:', err)
   );
+
+  // Real, new, per manual-testwork-grid-plan.md Part 4 — setting an
+  // override to Fail never used to create an Exception at all, whether
+  // it corrected an AI Pass or recorded a brand-new manual Fail (see
+  // _postOverride's own confirmed behavior). Analyze's own
+  // post-processing usually masks this for the AI path since it
+  // auto-creates Exceptions from the AI's own fail marks before anyone
+  // gets a chance to override anything — but nothing else ever does
+  // that for an override, which matters far more once a manually-
+  // created grid means Fail can happen with no AI involvement at all.
+  if (overrideResult === 'fail') {
+    await _maybeOfferLinkedException(ref, ai, fi, overrideNote);
+  }
+}
+
+// Real, new, per manual-testwork-grid-plan.md Part 4 — offers (never
+// silently) to create an Exception linked to this exact (attribute,
+// sample) pair, only when one doesn't already exist for it. Shared by
+// both places an override can be saved as Fail — this function
+// (the live-tick popup) and _openAttrResultsModal's own OK-handler.
+async function _maybeOfferLinkedException(ref, ai, fi, note) {
+  const already = (wpExceptions[ref] || []).some(e => e.attributeIndex === ai && e.sampleRowIndex === fi);
+  if (already) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[ai];
+  if (!attr) return;
+
+  const accept = await _promptCreateLinkedException(attr, note);
+  if (!accept) return;
+
+  const existing = wpExceptions[ref] || (wpExceptions[ref] = []);
+  const num = existing.length ? Math.max(...existing.map(e => e.num || 0)) + 1 : 1;
+  const typeNum = _getNextTypeNum(ref, 'exception');
+  const itemRef = `${_GRID_ITEM_PREFIX.exception}${typeNum}`;
+  existing.push({
+    num, ref: itemRef, type: 'exception', typeNum,
+    attrRef: attr.attrRef || attr.num || String(ai + 1), attributeIndex: ai, sampleRowIndex: fi,
+    name: attr.title, desc: accept, owner: '', mgmtResponse: '', resolutionDate: '',
+    retested: false, linkedFiles: [],
+  });
+  logEvent(ref, `#${num} (Ref ${itemRef}) created from a manual Fail on "${attr.title}"`);
+  renderExceptions(ref);
+}
+
+// Small Add/Don't-add prompt, matching the established small-modal
+// style already used for _promptGridItemType and similar — the
+// description defaults to the override's own note text, but is
+// genuinely editable before accepting, never created silently.
+// Resolves the (possibly edited) description string, or null if
+// declined.
+function _promptCreateLinkedException(attr, note) {
+  return new Promise(resolve => {
+    const id = 'create-linked-exception-overlay';
+    document.getElementById(id)?.remove();
+    const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="padding:18px 20px 10px">
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Add a linked Exception?</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">"${escHtml(attr.title)}" was just marked Fail with no Exception recorded for it yet. Add one now, or edit the description below first.</div>
+        </div>
+        <div style="padding:2px 20px 4px">
+          <textarea id="create-linked-exception-text" style="width:100%;min-height:60px;font-size:12px;font-family:inherit;padding:8px;border-radius:6px;border:1px solid var(--border);resize:vertical">${escHtml(note || '')}</textarea>
+        </div>
+        <div style="padding:10px 20px 16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">
+          <button class="btn-s" id="cle-skip-btn">Don't add</button>
+          <button class="btn-p" id="cle-add-btn">Add Exception</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('cle-skip-btn').onclick = () => { document.getElementById(id)?.remove(); resolve(null); };
+    document.getElementById('cle-add-btn').onclick = () => {
+      const text = document.getElementById('create-linked-exception-text')?.value || '';
+      document.getElementById(id)?.remove();
+      resolve(text.trim() || attr.title);
+    };
+  });
 }
 
 // ── Part 4: keeping an override in sync with already-annotated files ──────
@@ -26983,30 +27085,47 @@ async function analyzeWithClaude() {
   if (!ref) return;
 
   // Per explicit instruction: the very first real step of Analyze is
-  // removing any existing "Annotated files" — since Analyze is about to
-  // produce a fresh, current set of annotations, any leftover ones from
-  // a prior run would be stale. Uses the new, real, shared
-  // _isAnnotatedFile detector, matching exactly the same definition the
-  // Attached Sample Files display itself uses for this same category —
-  // genuinely the same real files a user would see under "Annotated
-  // files" there. If any exist, warns with the real, exact count before
-  // deleting anything, per explicit instruction — Cancel genuinely stops
-  // Analyze here, before any other real work begins.
-  const bucketArrForCleanup = inMemoryFiles[ref]?.sample;
-  if (bucketArrForCleanup && bucketArrForCleanup.length) {
-    const annotatedIndices = [];
-    bucketArrForCleanup.forEach((f, i) => { if (_isAnnotatedFile(f)) annotatedIndices.push(i); });
+  // warning about — and, on consent, clearing — everything it's about
+  // to overwrite: any existing "Annotated files" (since Analyze is about
+  // to produce a fresh, current set), and, per
+  // manual-testwork-grid-plan.md Part 7, the Testwork Grid's own
+  // results and any pass/fail overrides, whether they came from a prior
+  // real Analyze run or a manually-created grid — Analyze silently
+  // overwrote both before this, with no warning of any kind. ONE
+  // combined dialog, not two stacked confirmations for one action; a
+  // single Cancel stops everything, a single OK proceeds with all of
+  // it. Existing Exceptions, Findings, and Recommendations are
+  // deliberately never touched by any of this (confirmed by reading the
+  // actual auto-populate code below: it only ever adds, deduping exact
+  // repeats, never deletes) — the dialog says so explicitly rather than
+  // leaving that unstated.
+  const bucketArrForCleanup = inMemoryFiles[ref]?.sample || [];
+  const annotatedIndices = [];
+  bucketArrForCleanup.forEach((f, i) => { if (_isAnnotatedFile(f)) annotatedIndices.push(i); });
+  const priorWpResults = _wpAnalysisResults[ref] || [];
+  const priorOverrides = _attrSampleResultsCache[ref] || [];
+  const hasGridToClear = priorWpResults.length > 0 || priorOverrides.length > 0;
+  if (annotatedIndices.length || hasGridToClear) {
+    const messageParts = [];
     if (annotatedIndices.length) {
-      const proceed = await new Promise((resolve) => {
-        rcmConfirmDelete(
-          'Remove existing annotated files?',
-          'Analyze is about to create a fresh set of annotated files. <strong>' + annotatedIndices.length + ' existing annotated file' + (annotatedIndices.length !== 1 ? 's' : '') + '</strong> will be deleted first. This cannot be undone.',
-          () => resolve(true),
-          () => resolve(false)
-        );
-      });
-      if (!proceed) return; // genuine Cancel — stop Analyze entirely, before any other real work begins
+      messageParts.push('<strong>' + annotatedIndices.length + ' existing annotated file' + (annotatedIndices.length !== 1 ? 's' : '') + '</strong> will be deleted first.');
+    }
+    if (hasGridToClear) {
+      messageParts.push('The current <strong>Testwork Grid</strong> (every tested result)' + (priorOverrides.length ? ' and <strong>' + priorOverrides.length + ' pass/fail override' + (priorOverrides.length !== 1 ? 's' : '') + '</strong>' : '') + ' will be replaced with fresh results.');
+    }
+    messageParts.push('Existing Exceptions, Findings, and Recommendations will <strong>not</strong> be deleted, but they may no longer match what Analyze concludes once it re-runs — review them afterward.');
+    messageParts.push('This cannot be undone.');
+    const proceed = await new Promise((resolve) => {
+      rcmConfirmDelete(
+        'Analyze will replace existing results',
+        'Analyze is about to run again for this workpaper. ' + messageParts.join(' '),
+        () => resolve(true),
+        () => resolve(false)
+      );
+    });
+    if (!proceed) return; // genuine Cancel — stop Analyze entirely, before any other real work begins
 
+    if (annotatedIndices.length) {
       // Genuinely re-read the array and delete in descending index
       // order — the same, real, proven-correct pattern already used
       // elsewhere in this app for bulk deletion, avoiding the exact
@@ -27015,6 +27134,12 @@ async function analyzeWithClaude() {
       // mid-loop.
       const sortedDesc = [...annotatedIndices].sort((a, b) => b - a);
       sortedDesc.forEach(i => deleteMemFile(ref, 'sample', i));
+    }
+    if (hasGridToClear) {
+      // skipConfirm: true — the combined dialog above already covered
+      // this exact clearing action; asking again would be a redundant
+      // second confirmation for the same consent just given.
+      await clearTestworkGrid(ref, true);
     }
   }
 
@@ -35309,6 +35434,57 @@ async function clearAllSampleData(ref) {
   }
 }
 
+// Real, new, per manual-testwork-grid-plan.md Part 1 — the one,
+// explicit action that brings the Testwork Grid into existence without
+// ever running Analyze. Takes a real, persisted snapshot, at this exact
+// moment, into the SAME _wpAnalysisResults[ref] shape Analyze itself
+// produces — one entry per CURRENT Sample Data row, one `results` entry
+// per CURRENT Test Attribute, `title` set and `result` left unset (the
+// grid already renders a missing result as a dash, and the results
+// modal already prefers this exact array over live Sample Data — see
+// its own sample-alignment fix — so nothing about either of those needs
+// to change for a manually-created grid to work correctly). This is
+// deliberately a snapshot, not a live view: editing Sample Data or Test
+// Attributes afterward does not retroactively change it, matching how
+// a real Analyze run's own output doesn't auto-refresh either — use
+// Clear Testwork Grid then Create Testwork Grid again to rebuild after
+// such a change, rather than this silently trying to merge in place.
+async function createTestworkGrid(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+
+  if ((_wpAnalysisResults[ref] || []).length) return; // already exists — button shouldn't even be visible here
+
+  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  if (!sampleRows.length || !attributes.length) {
+    alert(
+      !sampleRows.length && !attributes.length
+        ? 'Add at least one Sample Data row and one Test Attribute before creating the Testwork Grid.'
+        : !sampleRows.length
+          ? 'Add at least one Sample Data row before creating the Testwork Grid.'
+          : 'Add at least one Test Attribute before creating the Testwork Grid.'
+    );
+    return;
+  }
+
+  pushUndo(ref);
+
+  const snapshot = sampleRows.map(row => ({
+    sampleDesc: _describeSampleGridRow(ref, row) || '',
+    sampleRowCells: Object.assign({}, row.cells || {}),
+    results: attributes.map(a => ({ title: a.title })), // no `result` key — renders as a dash, same as an untested AI mark
+    fields: [],
+  }));
+
+  _wpAnalysisResults[ref] = snapshot;
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) wpObj._analysisResults = snapshot.slice();
+
+  renderAnalysisResultsGrid(ref);
+  logEvent(ref, `Testwork Grid created manually by user (${snapshot.length} sample${snapshot.length !== 1 ? 's' : ''} × ${attributes.length} attribute${attributes.length !== 1 ? 's' : ''})`);
+}
+
 // Real, new, per direct request — the Testwork Grid's own equivalent of
 // "Clear Sample Data": removes the entire grid for this workpaper, same
 // confirm-then-clear shape as clearAllSampleData above. Scoped
@@ -35317,7 +35493,14 @@ async function clearAllSampleData(ref) {
 // Recommendations, and attached/annotated files are all independently
 // managed elsewhere and are deliberately left untouched, matching how
 // clearing Sample Data doesn't touch Test Attributes either.
-async function clearTestworkGrid(ref) {
+// `skipConfirm`, matching the established convention already used by
+// _syncOverrideToAnnotatedFiles's own `skipPrompt` — per
+// manual-testwork-grid-plan.md Part 7, analyzeWithClaude's own combined
+// pre-flight warning already gets explicit consent covering this exact
+// clearing action as part of ONE bigger dialog, so calling this
+// afterward must not show a second, redundant confirmation for the same
+// thing the person already agreed to.
+async function clearTestworkGrid(ref, skipConfirm) {
   ref = ref || getWPRef?.();
   if (!ref) return;
 
@@ -35325,12 +35508,14 @@ async function clearTestworkGrid(ref) {
   const overrideRows = _attrSampleResultsCache[ref] || [];
   if (!wpResults.length && !overrideRows.length) return; // nothing to clear
 
-  const confirmed = await _sdShowGenericConfirm(
-    'Clear Testwork Grid',
-    'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
-    'Clear grid'
-  );
-  if (!confirmed) return;
+  if (!skipConfirm) {
+    const confirmed = await _sdShowGenericConfirm(
+      'Clear Testwork Grid',
+      'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
+      'Clear grid'
+    );
+    if (!confirmed) return;
+  }
 
   pushUndo(ref);
 
@@ -35761,8 +35946,18 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       body.style.cssText = 'padding:0 14px 12px 38px';
       const selected = effective;
       const noteVal = change ? change.note : (saved?.override_note || '');
+      // Real, new, per manual-testwork-grid-plan.md Part 2 — this
+      // previously always said "override the AI's result," which reads
+      // wrong for a manually-created grid where no AI result exists to
+      // override at all. savedEffective is only set once something
+      // (AI or a prior manual entry) has already given this cell a
+      // real answer; before that, this is recording a first answer, not
+      // overriding one.
+      const overrideCopy = savedEffective
+        ? 'Select Pass or Fail below to override the AI\'s result — the current result is already selected.'
+        : 'Select Pass or Fail below to record the result for this sample.';
       body.innerHTML = `
-        <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">Select Pass or Fail below to override the AI's result — the current result is already selected.</div>
+        <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
           <button class="attr-modal-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
             border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
@@ -35842,6 +36037,15 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
           await _syncOverrideToAnnotatedFiles(ref, attributeIndex, Number(fi), change.result, change.note);
         } catch (err) {
           console.error('[SyncOverride] Unexpected failure:', err);
+        }
+      }
+      // Real, new, per manual-testwork-grid-plan.md Part 4 — the same
+      // offer _saveOverride's own live-tick popup already makes, for
+      // this modal's own entry point too. Sequential for the same
+      // reason as the sync loop above — each offer is its own dialog.
+      for (const [fi, change] of entries) {
+        if (change.result === 'fail') {
+          await _maybeOfferLinkedException(ref, attributeIndex, Number(fi), change.note);
         }
       }
     }
