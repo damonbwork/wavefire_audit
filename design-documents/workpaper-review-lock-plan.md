@@ -298,6 +298,20 @@ clear permission (a non-author/non-admin is blocked with an alert; the
 author succeeds; an admin can also reopen a note they didn't author),
 and file attachment linking with View/Download actions rendered per-note.
 
+**Follow-up refinements (Sep 8, 2026), per explicit feedback:**
+- The corner dot no longer lights up for the blank placeholder note that's
+  auto-seeded when the window is first opened for a section — it now only
+  counts notes that actually have typed text, updating live as the user
+  types/blurs out of a note (`_rnUpdateDot` now filters on non-blank
+  `text`, called both after render and after every text save).
+- The notes window's filter now defaults to **All** (was "Uncleared"),
+  both in `_notesFilter`'s initial value and in `openNotesWindow`.
+- The Open/Cleared status control is now a real two-segment toggle —
+  both "OPEN" and "CLEARED" are always visible side by side, with the
+  currently-active one shown bold/filled (orange for Open, blue for
+  Cleared) and the inactive one shown as a plain, dim outline — rather
+  than a single pill that only ever showed the current state.
+
 
 The per-section notes window (`reviewNotes[ref][sectionId]`,
 `openNotesWindow`/`closeNotesWindow`/`addNoteEntry`,
