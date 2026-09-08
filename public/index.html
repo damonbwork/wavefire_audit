@@ -5474,15 +5474,18 @@ Testwork Grid" to build a blank grid and record each result yourself.
   <div id="notes-window-template" class="notes-window" style="display:none;width:420px;height:460px;top:100px;left:calc(50% - 210px)">
     <!-- Header -->
     <div class="notes-window-hdr" id="notes-window-hdr-el">
-      <span id="notes-window-title">Section notes</span>
-      <div style="display:flex;gap:2px">
+      <div style="display:flex;flex-direction:column;line-height:1.25;min-width:0;overflow:hidden">
+        <span id="notes-window-title">Review Notes</span>
+        <span id="notes-window-subtitle" style="font-size:9px;font-weight:400;opacity:0.85;text-transform:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      </div>
+      <div style="display:flex;gap:2px;flex-shrink:0">
         <button onclick="minimizeNotesWindow()" title="Minimize" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
           –
         </button>
         <button onclick="expandNotesToTab()" title="Expand to new tab" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
           ☐
         </button>
-        <button onclick="closeNotesWindow(false)" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+        <button onclick="closeNotesWindow()" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
           ✕
         </button>
       </div>
@@ -5500,9 +5503,8 @@ Testwork Grid" to build a blank grid and record each result yourself.
     </div>
     <!-- Footer -->
     <div style="padding:8px 10px;display:flex;justify-content:flex-end;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
-      <button class="btn-s" onclick="closeNotesWindow(false)">Cancel</button>
       <button class="btn-s" onclick="addNewReviewNote()" style="white-space:nowrap"><i class="ti ti-plus"></i>New review note</button>
-      <button class="btn-p" onclick="closeNotesWindow(true)"><i class="ti ti-check"></i>Ok</button>
+      <button class="btn-p" onclick="closeNotesWindow()"><i class="ti ti-check"></i>Close</button>
     </div>
   </div>
 
@@ -12055,11 +12057,59 @@ function loadExceptions(ref) {
 
 /* ══════════════════════════════════════
    REVIEW NOTES — dog-ear corners & floating window
+   { ref: { sectionId: [ noteObj, ... ] } } — each noteObj:
+   { id, authorId, author, ts, text, status:'open'|'cleared',
+     clearedBy, clearedByName, clearedAt, attachments:[{name,source,fileKey}],
+     responses: [ { id, authorId, author, ts, text, attachments:[...] } ] }
+   `author`/`clearedByName` are snapshots taken at write time (matching
+   _admCurrentUserName()'s use everywhere else in the app) — they never
+   retroactively change if the user is later renamed.
 ══════════════════════════════════════ */
-const reviewNotes = {}; // { ref: { sectionId: 'note text' } }
+const reviewNotes = {};
 let _notesCurrentRef = null;
 let _notesCurrentSection = null;
 let _notesDragOffX = 0, _notesDragOffY = 0, _notesDragging = false;
+
+function _rnId() {
+  return 'rn_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+// Whether the CURRENT user may toggle a given note's open/cleared status —
+// per explicit instruction, only the note's own author or an admin/
+// superadmin (a real tightening vs. the old any-user-can-clear behavior).
+function _rnCanClearNote(note) {
+  if (_currentDisplayUser?.is_superadmin || _currentDisplayUser?.role === 'admin') return true;
+  return !!(note.authorId && _currentDisplayUser && note.authorId === _currentDisplayUser.user_id);
+}
+
+function _rnNewNote(text) {
+  return {
+    id: _rnId(),
+    authorId: _currentDisplayUser?.user_id || null,
+    author: _admCurrentUserName(),
+    ts: nowStamp(),
+    text: text || '',
+    status: 'open',
+    clearedBy: null, clearedByName: null, clearedAt: null,
+    attachments: [],
+    responses: [],
+  };
+}
+
+function _rnNewResponse(text) {
+  return {
+    id: _rnId(),
+    authorId: _currentDisplayUser?.user_id || null,
+    author: _admCurrentUserName(),
+    ts: nowStamp(),
+    text: text || '',
+    attachments: [],
+  };
+}
+
+function _rnFindNote(ref, sectionId, noteId) {
+  return (reviewNotes[ref]?.[sectionId] || []).find(n => n.id === noteId) || null;
+}
 
 const SECTION_NAMES = {
   'sect-wpinfo':          'Workpaper information',
@@ -12100,13 +12150,6 @@ function injectDogEars() {
   });
 }
 
-function makeNoteHeader() {
-  const now  = new Date();
-  const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-  const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-  return `jdavis  ·  ${date} ${time}\n${'─'.repeat(32)}\n`;
-}
-
 let _notesFilter = 'uncleared'; // default: hide cleared
 
 function setNotesFilter(mode) {
@@ -12132,7 +12175,7 @@ function applyNotesFilter() {
   const container = document.getElementById('notes-entries-container');
   if (!container) return;
   Array.from(container.children).forEach(entry => {
-    const isCleared = entry.querySelector('[data-cleared="1"]') !== null;
+    const isCleared = entry.dataset.status === 'cleared';
     let show = true;
     if (_notesFilter === 'cleared')   show = isCleared;
     if (_notesFilter === 'uncleared') show = !isCleared;
@@ -12165,147 +12208,252 @@ function minimizeNotesWindow() {
   }
 }
 
-function addNoteEntry(container, text, focusNew) {
-  const entry = document.createElement('div');
-  entry.style.cssText = 'display:flex;flex-direction:row;gap:6px;align-items:flex-start;width:100%';
+// Builds the small "link an existing file / upload a new file" attach
+// toolbar shared by both top-level notes and responses. `targetKind` is
+// 'note' or 'response'; `responseId` is only meaningful for 'response'.
+function _rnAttachToolbarHtml(ref, sectionId, noteId, targetKind, responseId) {
+  const files = [];
+  (inMemoryFiles[ref]?.workpaper || []).forEach(f => files.push({ bucket: 'workpaper', name: f.name }));
+  (inMemoryFiles[ref]?.sample    || []).forEach(f => files.push({ bucket: 'sample',    name: f.name }));
+  const options = files.map(f => `<option value="${f.bucket}|${escAttr(f.name)}">${escHtml(f.name)}</option>`).join('');
+  const argTail = targetKind === 'response' ? `,'${responseId}'` : ',null';
+  const uid = `${noteId}${responseId ? '_' + responseId : ''}`;
+  return `
+    <div style="display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:wrap">
+      <select id="rn-linksel-${uid}" style="font-size:10px;padding:1px 4px;border:0.5px solid var(--border-light);border-radius:4px;background:var(--bg-secondary);max-width:160px">
+        <option value="">Link a workpaper/sample file…</option>
+        ${options}
+      </select>
+      <button class="btn-s" style="font-size:9px;padding:1px 6px" onclick="_rnLinkAttachment('${ref}','${sectionId}','${noteId}'${argTail}, document.getElementById('rn-linksel-${uid}').value)">Link</button>
+      <label class="btn-s" style="font-size:9px;padding:1px 6px;cursor:pointer;margin:0">Upload<input type="file" style="display:none" onchange="_rnUploadAttachment('${ref}','${sectionId}','${noteId}'${argTail}, this)"></label>
+    </div>`;
+}
 
-  // Textarea
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.placeholder = 'Enter review notes…';
-  ta.style.cssText = 'flex:1;min-width:0;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);outline:none;line-height:1.6;min-height:140px;overflow-y:hidden;box-sizing:border-box;display:block;width:100%';
+function _rnAttachmentsHtml(ref, attachments) {
+  if (!attachments || !attachments.length) return '';
+  return `<div style="display:flex;flex-direction:column;gap:2px;margin-top:6px;padding-top:4px;border-top:0.5px dashed var(--border-light)">
+    ${attachments.map(a => `
+      <div style="display:flex;align-items:center;gap:6px;font-size:10px">
+        <i class="ti ti-paperclip" style="font-size:11px;color:var(--text-tertiary)"></i>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a.name)}</span>
+        <span onclick="_rnViewAttachment('${ref}','${a.source}','${escAttr(a.fileKey)}')" style="cursor:pointer;color:var(--wf-navy);text-decoration:underline">View</span>
+        <span onclick="_rnDownloadAttachment('${ref}','${a.source}','${escAttr(a.fileKey)}')" style="cursor:pointer;color:var(--wf-navy);text-decoration:underline">Download</span>
+      </div>`).join('')}
+  </div>`;
+}
 
-  function fitTA() {
-    ta.style.height = 'auto';
-    ta.style.height = Math.max(140, ta.scrollHeight) + 'px';
+function _rnFindFileEntry(ref, source, fileKey) {
+  const arr = inMemoryFiles[ref]?.[source] || [];
+  const idx = arr.findIndex(f => f.name === fileKey);
+  return idx >= 0 ? { entry: arr[idx], idx } : null;
+}
+
+function _rnViewAttachment(ref, source, fileKey) {
+  const found = _rnFindFileEntry(ref, source, fileKey);
+  if (!found) { alert('That file is no longer available.'); return; }
+  previewMemFile(ref, source, found.idx);
+}
+
+function _rnDownloadAttachment(ref, source, fileKey) {
+  const found = _rnFindFileEntry(ref, source, fileKey);
+  if (!found?.entry?.file) { alert('That file is no longer available.'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(found.entry.file);
+  a.download = found.entry.name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function _rnAttachFile(ref, sectionId, noteId, responseId, attachment) {
+  const note = _rnFindNote(ref, sectionId, noteId);
+  if (!note) return;
+  const target = responseId ? note.responses.find(r => r.id === responseId) : note;
+  if (!target) return;
+  target.attachments.push(attachment);
+  renderReviewNotesList(ref, sectionId);
+}
+
+function _rnLinkAttachment(ref, sectionId, noteId, responseId, value) {
+  if (!value) return;
+  const [source, name] = value.split('|');
+  _rnAttachFile(ref, sectionId, noteId, responseId, { name, source, fileKey: name });
+}
+
+async function _rnUploadAttachment(ref, sectionId, noteId, responseId, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  // Uploading here reuses the exact same workpaper-file upload pipeline as
+  // the "Attached workpaper files" section — the note simply links to the
+  // resulting entry by name — rather than inventing a second, separate
+  // file-storage path just for notes.
+  await processUploadedFiles([file], 'workpaper');
+  _rnAttachFile(ref, sectionId, noteId, responseId, { name: file.name, source: 'workpaper', fileKey: file.name });
+  inputEl.value = '';
+}
+
+function _rnSaveNoteText(ref, sectionId, noteId, value) {
+  const note = _rnFindNote(ref, sectionId, noteId);
+  if (note) note.text = value;
+}
+
+function _rnToggleStatus(ref, sectionId, noteId) {
+  const note = _rnFindNote(ref, sectionId, noteId);
+  if (!note) return;
+  if (!_rnCanClearNote(note)) {
+    alert('Only the person who wrote this review note, or an admin, can change its status.');
+    return;
   }
-
-  ta.addEventListener('input', fitTA);
-  // Also resize on window resize
-  new ResizeObserver(fitTA).observe(ta.parentElement || ta);
-
-  // Right-side: cleared button + stamp pinned to right of textarea
-  const side = document.createElement('div');
-  side.style.cssText = 'flex-shrink:0;width:48px;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:4px';
-
-  const clearBtn = document.createElement('button');
-  clearBtn.textContent = 'Cleared';
-  clearBtn.style.cssText = 'font-size:9px;padding:2px 5px;border-radius:4px;border:0.5px solid var(--border-light);background:transparent;color:var(--text-tertiary);cursor:pointer;white-space:nowrap;transition:all 0.15s;width:100%';
-  clearBtn.title = 'Mark this note as cleared';
-
-  const stamp = document.createElement('div');
-  stamp.style.cssText = 'font-size:8px;color:var(--text-tertiary);text-align:center;line-height:1.4;display:none;word-break:break-all';
-
-  clearBtn.addEventListener('click', () => {
-    const isCleared = clearBtn.dataset.cleared === '1';
-    if (!isCleared) {
-      const now  = new Date();
-      const date = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-      const time = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
-      const clearer = _admCurrentUserName();
-      clearBtn.dataset.cleared = '1';
-      clearBtn.style.background = '#2563eb';
-      clearBtn.style.color = '#fff';
-      clearBtn.style.borderColor = '#2563eb';
-      stamp.textContent = `${clearer}\n${date}\n${time}`;
-      stamp.style.display = 'block';
-      stamp.style.color = '#2563eb';
-    } else {
-      clearBtn.dataset.cleared = '0';
-      clearBtn.style.background = 'transparent';
-      clearBtn.style.color = 'var(--text-tertiary)';
-      clearBtn.style.borderColor = 'var(--border-light)';
-      stamp.style.display = 'none';
-    }
-    applyNotesFilter();
-    // Update dog-ear dot live (preview before Ok)
-    if (_notesCurrentSection) {
-      const allBtns      = Array.from(document.querySelectorAll('#notes-entries-container [data-cleared]'));
-      const totalEntries = Array.from(document.querySelectorAll('#notes-entries-container textarea')).filter(ta => ta.value.trim()).length;
-      const clearedCount = allBtns.filter(b => b.dataset.cleared === '1').length;
-      updateDogEarDot(_notesCurrentSection, totalEntries, clearedCount);
-    }
-  });
-
-  side.appendChild(clearBtn);
-  side.appendChild(stamp);
-  entry.appendChild(ta);
-  entry.appendChild(side);
-  container.appendChild(entry);
-
-  if (focusNew) {
-    setTimeout(() => {
-      fitTA();
-      ta.selectionStart = ta.selectionEnd = ta.value.length;
-      ta.focus();
-      container.scrollTop = container.scrollHeight;
-    }, 30);
+  // Clearing/reopening an EXISTING note's status is a status change, not
+  // new content — it stays allowed even while the workpaper is locked
+  // (carve-out #1 of the review-lock design), so no _guardWpEdit() call here.
+  if (note.status === 'open') {
+    note.status = 'cleared';
+    note.clearedBy = _currentDisplayUser?.user_id || null;
+    note.clearedByName = _admCurrentUserName();
+    note.clearedAt = nowStamp();
   } else {
-    setTimeout(fitTA, 30);
+    note.status = 'open';
+    note.clearedBy = null; note.clearedByName = null; note.clearedAt = null;
   }
-  return ta;
+  renderReviewNotesList(ref, sectionId);
+}
+
+function _rnAddResponse(ref, sectionId, noteId, taEl) {
+  // Adding a brand-new response is new content, unlike toggling status —
+  // gate it behind the review-lock guard once that feature exists.
+  if (typeof _guardWpEdit === 'function' && !_guardWpEdit(ref)) return;
+  const note = _rnFindNote(ref, sectionId, noteId);
+  if (!note) return;
+  const text = (taEl.value || '').trim();
+  if (!text) return;
+  note.responses.push(_rnNewResponse(text));
+  renderReviewNotesList(ref, sectionId);
+}
+
+function _rnResponseHtml(ref, sectionId, noteId, r) {
+  return `
+    <div style="margin-left:18px;padding:6px 0 6px 10px;border-left:2px solid var(--border-light)">
+      <div style="font-size:10px;color:var(--text-secondary);margin-bottom:3px"><strong>${escHtml(r.author)}</strong> · ${escHtml(r.ts)}</div>
+      <div style="font-size:11px;color:var(--text-primary);white-space:pre-wrap;line-height:1.5">${escHtml(r.text)}</div>
+      ${_rnAttachmentsHtml(ref, r.attachments)}
+      ${_rnAttachToolbarHtml(ref, sectionId, noteId, 'response', r.id)}
+    </div>`;
+}
+
+function _renderNoteBlock(ref, sectionId, note) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rn-note';
+  wrap.setAttribute('data-note-id', note.id);
+  wrap.setAttribute('data-status', note.status);
+  wrap.style.cssText = 'display:flex;flex-direction:column;width:100%;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;background:var(--bg-secondary)';
+
+  const canClear = _rnCanClearNote(note);
+  const statusPillStyle = note.status === 'cleared'
+    ? 'background:#2563eb;color:#fff;border-color:#2563eb'
+    : 'background:#fff7ed;color:#c2410c;border-color:#fed7aa';
+  const clearedFooter = note.status === 'cleared'
+    ? `<div style="font-size:8px;color:var(--text-tertiary);margin-top:2px">Cleared by ${escHtml(note.clearedByName || '')} · ${escHtml(note.clearedAt || '')}</div>`
+    : '';
+
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+      <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(note.author)}</strong> · ${escHtml(note.ts)}</div>
+      <div style="text-align:right;flex-shrink:0">
+        <button onclick="_rnToggleStatus('${ref}','${sectionId}','${note.id}')"
+          title="${canClear ? 'Click to toggle Open/Cleared' : 'Only the author or an admin can change this'}"
+          style="font-size:9px;padding:2px 8px;border-radius:10px;border:0.5px solid;cursor:${canClear ? 'pointer' : 'default'};font-weight:600;letter-spacing:0.3px;${statusPillStyle}">
+          ${note.status === 'cleared' ? 'CLEARED' : 'OPEN'}
+        </button>
+        ${clearedFooter}
+      </div>
+    </div>
+    <textarea placeholder="Enter review notes…" data-role="rn-body"
+      style="margin-top:6px;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-primary);outline:none;line-height:1.6;min-height:70px;overflow-y:hidden;box-sizing:border-box;width:100%">${escHtml(note.text)}</textarea>
+    ${_rnAttachmentsHtml(ref, note.attachments)}
+    ${_rnAttachToolbarHtml(ref, sectionId, note.id, 'note', null)}
+    <div style="margin-top:6px">
+      ${note.responses.map(r => _rnResponseHtml(ref, sectionId, note.id, r)).join('')}
+      <div style="margin-left:18px;margin-top:6px;padding-left:10px;display:flex;gap:4px;align-items:flex-start">
+        <textarea placeholder="Add a response…" data-role="rn-response-input"
+          style="flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px;font-size:11px;font-family:inherit;min-height:32px;background:var(--bg-primary)"></textarea>
+        <button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:nowrap" onclick="_rnAddResponse('${ref}','${sectionId}','${note.id}', this.previousElementSibling)">Reply</button>
+      </div>
+    </div>`;
+
+  const bodyTa = wrap.querySelector('[data-role="rn-body"]');
+  const fitTA = () => { bodyTa.style.height = 'auto'; bodyTa.style.height = Math.max(70, bodyTa.scrollHeight) + 'px'; };
+  bodyTa.addEventListener('input', () => { fitTA(); });
+  bodyTa.addEventListener('blur', () => _rnSaveNoteText(ref, sectionId, note.id, bodyTa.value));
+  setTimeout(fitTA, 30);
+
+  return wrap;
+}
+
+function renderReviewNotesList(ref, sectionId) {
+  const container = document.getElementById('notes-entries-container');
+  if (!container) return;
+  container.innerHTML = '';
+  const notes = (ref && reviewNotes[ref]?.[sectionId]) || [];
+  notes.forEach(note => container.appendChild(_renderNoteBlock(ref, sectionId, note)));
+  applyNotesFilter();
+  _rnUpdateDot(ref, sectionId);
+}
+
+function _rnUpdateDot(ref, sectionId) {
+  const notes = (ref && reviewNotes[ref]?.[sectionId]) || [];
+  updateDogEarDot(sectionId, notes.length, notes.filter(n => n.status === 'cleared').length);
 }
 
 function addNewReviewNote() {
-  const container = document.getElementById('notes-entries-container');
-  if (!container) return;
-  addNoteEntry(container, makeNoteHeader(), true);
+  const ref = _notesCurrentRef, sectionId = _notesCurrentSection;
+  if (!ref || !sectionId) return;
+  // New top-level note = new content — gate behind the review-lock guard
+  // once that feature exists (no-op today since it isn't built yet).
+  if (typeof _guardWpEdit === 'function' && !_guardWpEdit(ref)) return;
+  if (!reviewNotes[ref]) reviewNotes[ref] = {};
+  if (!reviewNotes[ref][sectionId]) reviewNotes[ref][sectionId] = [];
+  const note = _rnNewNote('');
+  reviewNotes[ref][sectionId].push(note);
+  renderReviewNotesList(ref, sectionId);
+  setTimeout(() => {
+    const el = document.querySelector(`.rn-note[data-note-id="${note.id}"] [data-role="rn-body"]`);
+    if (el) el.focus();
+  }, 40);
 }
 
 function openNotesWindow(sectionId) {
-  const ref  = getWPRef();
-  const win  = document.getElementById('notes-window-template');
-  const title= document.getElementById('notes-window-title');
+  const ref     = getWPRef();
+  const win     = document.getElementById('notes-window-template');
+  const title   = document.getElementById('notes-window-title');
+  const subtitle= document.getElementById('notes-window-subtitle');
   const container = document.getElementById('notes-entries-container');
   if (!win || !title || !container) return;
 
   _notesCurrentRef     = ref;
   _notesCurrentSection = sectionId;
-  title.textContent = (SECTION_NAMES[sectionId] || sectionId).toUpperCase();
+  // Per explicit instruction, the modal title is always the literal
+  // "Review Notes" — the section itself is named in the subtitle line so
+  // that context isn't lost.
+  title.textContent = 'Review Notes';
+  if (subtitle) subtitle.textContent = SECTION_NAMES[sectionId] || sectionId;
 
-  // Clear existing entries
-  container.innerHTML = '';
-
-  // Load saved entries — stored as array of strings, or legacy single string
-  const saved = (ref && reviewNotes[ref]?.[sectionId]);
-  if (saved && saved.length) {
-    const entries = Array.isArray(saved) ? saved : [saved];
-    entries.forEach((text, i) => {
-      addNoteEntry(container, text, i === entries.length - 1);
-    });
-  } else {
-    // First open — create one blank entry with header
-    addNoteEntry(container, makeNoteHeader(), true);
+  renderReviewNotesList(ref, sectionId);
+  if (!(ref && reviewNotes[ref]?.[sectionId]?.length)) {
+    // First open for this section — seed one blank note so there's
+    // somewhere to type immediately.
+    addNewReviewNote();
   }
 
   win.style.display = 'flex';
   setNotesFilter('uncleared');
   makeDraggable(document.getElementById('notes-window-hdr-el'), win);
-  // Refit all textareas when window is resized
-  new ResizeObserver(() => {
-    win.querySelectorAll('textarea').forEach(ta => {
-      ta.style.height = 'auto';
-      ta.style.height = Math.max(140, ta.scrollHeight) + 'px';
-    });
-  }).observe(win);
 }
 
-function closeNotesWindow(save) {
+function closeNotesWindow() {
+  // Notes, responses, status changes, and attachments are all saved to
+  // `reviewNotes` immediately as they happen (not deferred to an Ok/Cancel
+  // choice) — there's nothing left to persist on close.
   const win = document.getElementById('notes-window-template');
-  const container = document.getElementById('notes-entries-container');
   if (!win) return;
-  if (save && _notesCurrentRef && _notesCurrentSection) {
-    if (!reviewNotes[_notesCurrentRef]) reviewNotes[_notesCurrentRef] = {};
-    const entries = Array.from(container?.querySelectorAll('textarea') || [])
-      .map(ta => ta.value)
-      .filter(v => v.trim());
-    reviewNotes[_notesCurrentRef][_notesCurrentSection] = entries;
-    // Determine dot state from cleared buttons
-    const allBtns     = Array.from(container?.querySelectorAll('[data-cleared]') || []);
-    const total       = entries.length;
-    const clearedCount= allBtns.filter(b => b.dataset.cleared === '1').length;
-    updateDogEarDot(_notesCurrentSection, total, clearedCount);
-  }
   win.style.display = 'none';
   _notesCurrentRef     = null;
   _notesCurrentSection = null;
@@ -12336,12 +12484,17 @@ function updateDogEarDot(sectionId, total, clearedCount) {
 }
 
 function expandNotesToTab() {
-  const container = document.getElementById('notes-entries-container');
-  const title = document.getElementById('notes-window-title');
-  const entries = Array.from(container?.querySelectorAll('textarea') || []).map(ta => ta.value).filter(v => v.trim());
-  const text  = entries.join('\n\n' + '═'.repeat(32) + '\n\n');
-  const sName = title?.textContent || 'Notes';
-  const ref   = _notesCurrentRef || '';
+  const ref     = _notesCurrentRef || '';
+  const sectionId = _notesCurrentSection;
+  const notes   = (ref && reviewNotes[ref]?.[sectionId]) || [];
+  const text    = notes.map(n => {
+    let block = `${n.author}  ·  ${n.ts}  [${n.status.toUpperCase()}]\n${'─'.repeat(32)}\n${n.text}`;
+    if (n.responses.length) {
+      block += '\n\n' + n.responses.map(r => `    ↳ ${r.author}  ·  ${r.ts}\n    ${r.text}`).join('\n\n');
+    }
+    return block;
+  }).join('\n\n' + '═'.repeat(32) + '\n\n');
+  const sName = 'Review Notes' + (SECTION_NAMES[sectionId] ? ' — ' + SECTION_NAMES[sectionId] : '');
   const wp    = WORKPAPERS[currentWPIndex]?.name || '';
   const html  = `<!DOCTYPE html><html><head><meta charset="UTF-8">
     <title>${sName} — ${ref}</title>
