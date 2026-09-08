@@ -35523,7 +35523,25 @@ function renderTestAttributes(ref) {
 function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   document.querySelectorAll('.attr-results-modal-overlay').forEach(el => el.remove());
 
-  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  // Real, confirmed fix, per a real reported bug — this previously built
+  // its own row list straight from the LIVE, current Sample Data grid
+  // (_daSampleDataFor(ref).rows), while the Testwork Grid builds ITS
+  // rows from _wpAnalysisResults[ref] — a snapshot captured at Analyze
+  // time. If Sample Data is ever edited (a row added, removed, or
+  // reordered) after Analyze last ran, "Sample 3" here and "Sample 3"
+  // in the grid could silently refer to two different real samples —
+  // exactly what was reported: the grid's own D3 tick showed an active
+  // Fail override, while this same modal's "Sample 3" showed Pass,
+  // because the two views were indexing into two different arrays that
+  // had drifted out of alignment. Using the exact same array as the
+  // grid whenever one exists makes that specific class of mismatch
+  // impossible; only a workpaper that has NEVER been analyzed (no
+  // snapshot exists yet — see manual-testwork-grid-plan.md) falls back
+  // to Sample Data directly, since there's nothing yet to align to.
+  const wpResultsForModal = _wpAnalysisResults[ref] || [];
+  const sampleRows = wpResultsForModal.length
+    ? wpResultsForModal.map(fr => ({ cells: fr.sampleRowCells || {}, _sampleDesc: fr.sampleDesc || '' }))
+    : (_daSampleDataFor(ref)?.rows || []);
   const SYMS = { pass: '✓', fail: '✗' };
   const COLS = { pass: '#16a34a', fail: '#dc2626' };
 
@@ -35555,7 +35573,12 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   }
 
   function rowLabel(row, i) {
-    const desc = _describeSampleGridRow(ref, row);
+    // Prefer the label already captured in the analysis snapshot itself
+    // (row._sampleDesc, set above from fr.sampleDesc) so this modal's
+    // labels can never drift from what the Testwork Grid shows for the
+    // exact same row — only recompute from the live Sample Data grid
+    // when there's no snapshot at all (the un-analyzed fallback case).
+    const desc = row._sampleDesc || _describeSampleGridRow(ref, row);
     return 'Sample ' + (i + 1) + (desc ? ' — ' + desc : '');
   }
 
