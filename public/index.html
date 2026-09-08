@@ -5766,11 +5766,6 @@ auditor's assessment.
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
         <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">Select the data to include in the analysis. Categories with data already available for this workpaper are checked by default.</div>
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;font-size:11px;color:var(--text-secondary)">
-          <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
-          <span><i class="ti ti-circle-check" style="color:#16a34a;font-size:12px;vertical-align:-1px"></i>&nbsp;Data available for this workpaper</span>
-        </div>
-
         <!-- Knowledge Base box -->
         <div style="border:1px solid var(--border-medium);border-radius:8px;overflow:hidden">
           <div style="background:var(--wf-navy);color:#fff;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Knowledge Base</div>
@@ -25005,31 +25000,19 @@ const _AOPT_FIELD_MAP = [
   ['attrDetails',   'aopt-attrdetails',    'Test Attribute Details'],
 ];
 
-// Live summary line, updated on open and on every checkbox change —
-// this is the "improve the summary of data sent to AI" half of the
-// request: a person can see, before ever clicking Run Analysis, exactly
-// how many categories will actually be included, and which available
-// ones they've chosen to leave out.
+// Real, revised per direct correction — this was a live, dynamically
+// computed count of what will be sent, updated on every checkbox
+// change. Simplified to a static legend line explaining what the
+// checkmark dot itself means, matching the plain "Legend" convention
+// already used elsewhere in this same modal, rather than a running
+// tally. No longer needs to inspect checkbox state at all, but stays a
+// function (called on open and still wired to every checkbox's
+// onchange, which is now simply a harmless no-op re-render of the same
+// fixed text) so no other call site needs to change.
 function _updateAnalysisOptionsSummary() {
   const el = document.getElementById('aopt-summary');
   if (!el) return;
-  const ref = getWPRef();
-  const avail = ref ? _analysisOptionDataAvailability(ref) : {};
-  let availableCount = 0, includedCount = 0;
-  const excludedButAvailable = [];
-  _AOPT_FIELD_MAP.forEach(([key, id, label]) => {
-    const cb = document.getElementById(id);
-    const hasData = !!avail[key];
-    if (hasData) availableCount++;
-    if (cb && cb.checked) includedCount++;
-    if (hasData && cb && !cb.checked) excludedButAvailable.push(label);
-  });
-  let text = `<strong>${includedCount}</strong> categor${includedCount === 1 ? 'y' : 'ies'} will be sent to the AI`;
-  text += availableCount ? ` (${availableCount} available for this workpaper).` : ' (nothing yet has data for this workpaper).';
-  if (excludedButAvailable.length) {
-    text += ` <span style="color:#b45309">Excluded despite having data: ${excludedButAvailable.join(', ')}.</span>`;
-  }
-  el.innerHTML = text;
+  el.innerHTML = `<i class="ti ti-circle-check" style="color:#16a34a;font-size:12px;vertical-align:-1px"></i> means Wavefire already has data available for that item.`;
 }
 
 function openAnalysisOptionsDialog() {

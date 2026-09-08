@@ -255,3 +255,15 @@ Test Attribute Details"; confirmed the report-annotation logic correctly
 labels a no-data category and a deliberately-excluded-despite-data
 category; confirmed the web-search checkbox and its backing preference
 both default to unchecked/false.
+
+**Revised per direct correction** (2026-09-07): the live, dynamically
+computed summary line above was simplified to a static legend —
+`_updateAnalysisOptionsSummary()` now just explains what the checkmark
+dot itself means ("✓ means Wavefire already has data available for
+that item") rather than tallying what's checked/excluded on every
+change. The redundant "Legend" row that had separately been added near
+the top of the modal (explaining the same dot) was removed, since the
+simplified summary line now says the same thing in the one place. The
+function is still called on open and still wired to every checkbox's
+`onchange` so no other call site needed to change, but no longer
+inspects checkbox state at all.
