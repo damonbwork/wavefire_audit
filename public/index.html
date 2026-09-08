@@ -5493,8 +5493,8 @@ Testwork Grid" to build a blank grid and record each result yourself.
     <!-- Filter subheader -->
     <div style="display:flex;align-items:center;gap:4px;padding:5px 10px;background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);flex-shrink:0">
       <span style="font-size:10px;color:var(--text-tertiary);margin-right:4px">Show:</span>
-      <button id="notes-filter-all" onclick="setNotesFilter('all')" class="btn-s" style="font-size:10px;padding:1px 7px">All</button>
-      <button id="notes-filter-uncleared" onclick="setNotesFilter('uncleared')" class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">Uncleared</button>
+      <button id="notes-filter-all" onclick="setNotesFilter('all')" class="btn-s" style="font-size:10px;padding:1px 7px;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">All</button>
+      <button id="notes-filter-uncleared" onclick="setNotesFilter('uncleared')" class="btn-s" style="font-size:10px;padding:1px 7px">Uncleared</button>
       <button id="notes-filter-cleared" onclick="setNotesFilter('cleared')" class="btn-s" style="font-size:10px;padding:1px 7px">Cleared</button>
     </div>
     <!-- Body -->
@@ -12150,7 +12150,7 @@ function injectDogEars() {
   });
 }
 
-let _notesFilter = 'uncleared'; // default: hide cleared
+let _notesFilter = 'all'; // default: show every note
 
 function setNotesFilter(mode) {
   _notesFilter = mode;
@@ -12292,7 +12292,12 @@ async function _rnUploadAttachment(ref, sectionId, noteId, responseId, inputEl) 
 
 function _rnSaveNoteText(ref, sectionId, noteId, value) {
   const note = _rnFindNote(ref, sectionId, noteId);
-  if (note) note.text = value;
+  if (!note) return;
+  note.text = value;
+  // The corner dot only lights up once a note actually has text — update
+  // it here so typing (then blurring out of) a note reflects immediately,
+  // without needing to close and reopen the notes window.
+  _rnUpdateDot(ref, sectionId);
 }
 
 function _rnToggleStatus(ref, sectionId, noteId) {
@@ -12347,22 +12352,27 @@ function _renderNoteBlock(ref, sectionId, note) {
   wrap.style.cssText = 'display:flex;flex-direction:column;width:100%;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;background:var(--bg-secondary)';
 
   const canClear = _rnCanClearNote(note);
-  const statusPillStyle = note.status === 'cleared'
-    ? 'background:#2563eb;color:#fff;border-color:#2563eb'
-    : 'background:#fff7ed;color:#c2410c;border-color:#fed7aa';
+  // Segmented Open/Cleared toggle — BOTH options are always visible; the
+  // currently-selected one is bolded/filled, the other stays a plain,
+  // unfilled outline, so the current state is unambiguous at a glance
+  // without hiding either option.
+  const isOpen = note.status !== 'cleared';
+  const openSegStyle    = isOpen  ? 'background:#c2410c;color:#fff;font-weight:700' : 'background:transparent;color:var(--text-tertiary);font-weight:500';
+  const clearedSegStyle = !isOpen ? 'background:#2563eb;color:#fff;font-weight:700' : 'background:transparent;color:var(--text-tertiary);font-weight:500';
+  const segCursor = canClear ? 'cursor:pointer' : 'cursor:default';
+  const segTitle = canClear ? 'Click to change status' : 'Only the author or an admin can change this';
   const clearedFooter = note.status === 'cleared'
-    ? `<div style="font-size:8px;color:var(--text-tertiary);margin-top:2px">Cleared by ${escHtml(note.clearedByName || '')} · ${escHtml(note.clearedAt || '')}</div>`
+    ? `<div style="font-size:8px;color:var(--text-tertiary);margin-top:2px;text-align:right">Cleared by ${escHtml(note.clearedByName || '')} · ${escHtml(note.clearedAt || '')}</div>`
     : '';
 
   wrap.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
       <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(note.author)}</strong> · ${escHtml(note.ts)}</div>
       <div style="text-align:right;flex-shrink:0">
-        <button onclick="_rnToggleStatus('${ref}','${sectionId}','${note.id}')"
-          title="${canClear ? 'Click to toggle Open/Cleared' : 'Only the author or an admin can change this'}"
-          style="font-size:9px;padding:2px 8px;border-radius:10px;border:0.5px solid;cursor:${canClear ? 'pointer' : 'default'};font-weight:600;letter-spacing:0.3px;${statusPillStyle}">
-          ${note.status === 'cleared' ? 'CLEARED' : 'OPEN'}
-        </button>
+        <div style="display:inline-flex;border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden" title="${segTitle}">
+          <span onclick="_rnToggleStatus('${ref}','${sectionId}','${note.id}')" style="font-size:9px;padding:2px 8px;letter-spacing:0.3px;${segCursor};${openSegStyle}">OPEN</span>
+          <span onclick="_rnToggleStatus('${ref}','${sectionId}','${note.id}')" style="font-size:9px;padding:2px 8px;letter-spacing:0.3px;${segCursor};${clearedSegStyle}">CLEARED</span>
+        </div>
         ${clearedFooter}
       </div>
     </div>
@@ -12399,7 +12409,11 @@ function renderReviewNotesList(ref, sectionId) {
 }
 
 function _rnUpdateDot(ref, sectionId) {
-  const notes = (ref && reviewNotes[ref]?.[sectionId]) || [];
+  // Only count notes that actually have text — the blank placeholder note
+  // seeded when the window is first opened for a section (or created via
+  // "New review note") shouldn't light up the corner dot until the user
+  // has actually typed something into it.
+  const notes = ((ref && reviewNotes[ref]?.[sectionId]) || []).filter(n => (n.text || '').trim());
   updateDogEarDot(sectionId, notes.length, notes.filter(n => n.status === 'cleared').length);
 }
 
@@ -12444,7 +12458,7 @@ function openNotesWindow(sectionId) {
   }
 
   win.style.display = 'flex';
-  setNotesFilter('uncleared');
+  setNotesFilter('all');
   makeDraggable(document.getElementById('notes-window-hdr-el'), win);
 }
 
