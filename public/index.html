@@ -3900,6 +3900,7 @@ to the facility name.  If not found return an empty cell</textarea>
           <div class="sect-hdr">
             <div class="sect-hdr-title">
               <i class="ti ti-file-type-pdf"></i>Attached sample files
+              <i class="ti ti-help-circle wf-help-icon" data-help-topic="sampleFiles" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i>
               <span style="font-weight:400;color:var(--text-tertiary);margin-left:4px" id="sample-file-count">1 file</span>
             </div>
             <div style="display:flex;gap:7px;align-items:center" id="sample-files-toolbar">
@@ -24805,6 +24806,32 @@ const HELP_TOPICS = {
       link so it can be opened and checked before deciding. If nothing
       is linked to an annotated file, deleting asks for a plain
       confirmation instead.</p>
+    `,
+  },
+  sampleFiles: {
+    title: 'Attached Sample Files',
+    html: `
+      <p>The documents Analyze tests against — upload here before
+      running Analyze. After Analyze runs, one or more annotated copies
+      of each original appear alongside it automatically, one per
+      selected annotation type (see "Sample File Annotation Type(s)" on
+      the Analyze options for what each type is).</p>
+
+      <p><strong>Original vs. annotated copies.</strong> An original file
+      is never modified in place — every annotated copy is a separate
+      file, always fully rebuilt from the original's own pristine bytes
+      each time it's regenerated (after an override, a reclassification,
+      or a re-run of Analyze). Deleting an original does not delete any
+      Exception, Finding, or Recommendation that names it — those stay,
+      flagged as pointing to a file that's no longer attached.</p>
+
+      <p><strong>The indicators next to each file's name</strong> (see
+      the Legend below this list): a filled green dot means the file is
+      saved on the server; an outlined dot means it exists only in this
+      browser session so far. An <strong>Original</strong> badge marks a
+      file confirmed never to have been modified since upload — useful
+      for telling a genuine original apart from a same-named annotated
+      copy at a glance.</p>
     `,
   },
 };

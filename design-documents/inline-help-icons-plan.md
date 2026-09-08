@@ -285,5 +285,21 @@ substring matches) that the Ref numbering examples, the reclassify
 explanation, and the three-way delete choices are all present and
 accurate.
 
-Attached Sample Files, and migrating the remaining hover-only
-annotation-type popup remain per the rollout list above.
+**Implemented and verified** (2026-09-07) for Attached Sample Files, the
+fourth rollout item — a `sampleFiles` topic on the section header
+covering the original-vs-annotated-copy relationship (never modified in
+place; every annotated copy always fully rebuilt from pristine bytes;
+deleting an original doesn't delete anything that names it, just flags
+it as no longer attached) and what the storage-status dot and Original
+badge mean. The existing static Legend at the bottom of the section
+(the dot/badge explanations) was left in place rather than removed — it
+was already always-visible and self-explanatory, not a hover-only
+pattern needing migration — with the new help topic providing the
+fuller explanation and restating what the Legend's own indicators mean,
+so a person can read everything in one place if they open the popup.
+Verified against the dev server: popup opens with correct content,
+covering the original-vs-annotated relationship, the storage
+indicators, and the Original badge.
+
+Migrating the remaining hover-only annotation-type popup remains per
+the rollout list above.
