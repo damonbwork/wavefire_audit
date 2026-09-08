@@ -4008,6 +4008,10 @@ auditor's assessment.
             <button class="btn-s" style="font-size:12px;background:#1e40af;color:#fff;border-color:#1e40af" onclick="_exportAnalysisGridXlsx(getWPRef(), true)">
               <i class="ti ti-paperclip"></i>Attach to Workpaper Files
             </button>
+            <button class="btn-s" id="testwork-clear-all-btn" onclick="clearTestworkGrid()" style="font-size:12px;padding:3px 10px" title="Clear the entire Testwork Grid for this workpaper — every tested result and pass/fail override. Exceptions, Findings, Recommendations, and attached/annotated files are not affected.">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Clear Testwork Grid
+            </button>
           </div>
         </div><!-- /sect-card analysis grid -->
 
@@ -35303,6 +35307,55 @@ async function clearAllSampleData(ref) {
     await saveExtractedDataRecordsToDB(ref);
     renderExtractedDataResults(ref);
   }
+}
+
+// Real, new, per direct request — the Testwork Grid's own equivalent of
+// "Clear Sample Data": removes the entire grid for this workpaper, same
+// confirm-then-clear shape as clearAllSampleData above. Scoped
+// narrowly to the grid's own data (the Analyze snapshot and any
+// pass/fail overrides tied to it) — Exceptions, Findings,
+// Recommendations, and attached/annotated files are all independently
+// managed elsewhere and are deliberately left untouched, matching how
+// clearing Sample Data doesn't touch Test Attributes either.
+async function clearTestworkGrid(ref) {
+  ref = ref || getWPRef?.();
+  if (!ref) return;
+
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const overrideRows = _attrSampleResultsCache[ref] || [];
+  if (!wpResults.length && !overrideRows.length) return; // nothing to clear
+
+  const confirmed = await _sdShowGenericConfirm(
+    'Clear Testwork Grid',
+    'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
+    'Clear grid'
+  );
+  if (!confirmed) return;
+
+  pushUndo(ref);
+
+  // Clear any persisted overrides FIRST, and before wiping the local
+  // cache — without this, a future Analyze run could silently reapply
+  // a stale override to whatever different sample happens to occupy
+  // that same position by then (the exact class of bug just fixed
+  // elsewhere in this file for the results modal's own row alignment).
+  // No bulk-delete endpoint exists for this table, so each cached row
+  // is cleared individually via the same override endpoint a manual
+  // clear already uses (overrideResult: null is its established
+  // "remove this override" convention).
+  if (overrideRows.length) {
+    await Promise.all(overrideRows.map(row =>
+      _postOverride(ref, row.attribute_index, row.sample_row_index, null, null)
+    ));
+  }
+  _attrSampleResultsCache[ref] = [];
+
+  _wpAnalysisResults[ref] = [];
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) wpObj._analysisResults = [];
+
+  renderAnalysisResultsGrid(ref);
+  logEvent(ref, 'Testwork Grid cleared by user');
 }
 
 // Guards the "add to grid above" checkbox: only allowed when the User
