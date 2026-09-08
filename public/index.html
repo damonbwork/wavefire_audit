@@ -202,16 +202,24 @@
   .pt { font-size: 20px; font-weight: 600; color: var(--text-primary); }
   .ps { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
 
-  /* Real, new, per direct request — a subtle separator between the
-     Workpaper Detail page's own title/actions header and the section
-     cards below it. Scoped to #page-wpdetail specifically (.ph is a
-     shared header pattern reused on several other pages, which should
-     stay untouched) rather than changing the shared .ph rule globally.
-     The Audit Information strip above already reads as its own bounded
-     box (it has a full border), so this targets the one header piece
-     that currently has none — the title/actions row right before the
-     first section card begins. */
-  #page-wpdetail > .ph { padding-bottom: 14px; border-bottom: 1px solid var(--border-medium); }
+  /* Real, revised per direct follow-up — a subtle double-line separator
+     between the Workpaper Detail page's own title/actions header and
+     the section cards below it (the single-hairline version this
+     replaced is preserved here in spirit: same border-bottom, plus a
+     second, lighter line a few pixels below it via box-shadow, rather
+     than a second real element, so it costs nothing structurally).
+     Scoped to #page-wpdetail specifically (.ph is a shared header
+     pattern reused on several other pages, which should stay
+     untouched) rather than changing the shared .ph rule globally. The
+     Audit Information strip above already reads as its own bounded box
+     (it has a full border), so this targets the one header piece that
+     previously had none — the title/actions row right before the first
+     section card begins. */
+  #page-wpdetail > .ph {
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-medium);
+    box-shadow: 0 4px 0 -3px var(--border-light);
+  }
 
   /* BREADCRUMB */
   .bc { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-tertiary); }
