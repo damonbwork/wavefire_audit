@@ -335,8 +335,8 @@ Analyze re-run's own prior AI output arguably doesn't.
    with a chosen source file and page correctly produces a working file
    link in the results modal, identical in behavior to an AI-cited mark.
 
-**Implemented and verified** (2026-09-08) — Parts 1, 2, 4, and 7. Part 3
-(evidence fields) remains a deliberate later addition, not yet built.
+**Implemented and verified** (2026-09-08) — Parts 1, 2, 3, 4, and 7 are
+all now built.
 
 - **Part 1**: `createTestworkGrid(ref)` + the "Create Testwork Grid"
   button, shown only when `_wpAnalysisResults[ref]` is empty and real
@@ -347,6 +347,20 @@ Analyze re-run's own prior AI output arguably doesn't.
 - **Part 2**: `renderRow`'s body text now reads "record the result for
   this sample" when `savedEffective` is unset, and only says "override
   the AI's result" once a real prior result exists.
+- **Part 3**: the modal's expanded row body gains an "Evidence
+  (optional)" section — a dropdown of attached original sample files
+  plus page/paragraph number inputs, defaulting from whatever this
+  cell's own live match already reports. On save, evidence is folded
+  into the persisted override note as a plain "Evidenced by: `<file>`,
+  p. `<n>`[, para `<n>`]" line via the new `_noteWithEvidence(note,
+  evidence)` helper — no schema change to `attribute_sample_results`,
+  per the design doc's own explicit stopgap. It's also written directly
+  onto the cell's own live `_wpAnalysisResults[ref][fi].results[ai]`
+  object client-side, so the exact same file-link building the modal
+  already uses for an AI mark works immediately for a manual entry too,
+  for the rest of the session — degrading gracefully to the note text
+  alone after a reload, since only the note itself is actually
+  persisted.
 - **Part 4**: `_maybeOfferLinkedException(ref, ai, fi, note)` +
   `_promptCreateLinkedException`, wired into both `_saveOverride` (the
   live-tick popup) and `_openAttrResultsModal`'s OK-handler, whenever a
@@ -377,4 +391,11 @@ offer creates nothing. Confirmed the combined Analyze-warning message
 text builds correctly for the grid+overrides case, and that
 `clearTestworkGrid(ref, true)` skips its own dialog while still
 correctly clearing both `_wpAnalysisResults[ref]` and the override
-cache.
+cache. For Part 3 specifically: confirmed the evidence file dropdown
+lists only real attached originals; selected a file and page, saved,
+and confirmed the live result entry picked up the correct
+`sourceFile`/`page`/`paragraph`; confirmed `_noteWithEvidence` formats
+all four real cases correctly (file+page, file+page+paragraph, no
+evidence at all, evidence with an empty note); and confirmed reopening
+the modal on the same cell shows the previously-chosen file and page
+pre-filled rather than blank.
