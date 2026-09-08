@@ -202,6 +202,17 @@
   .pt { font-size: 20px; font-weight: 600; color: var(--text-primary); }
   .ps { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
 
+  /* Real, new, per direct request — a subtle separator between the
+     Workpaper Detail page's own title/actions header and the section
+     cards below it. Scoped to #page-wpdetail specifically (.ph is a
+     shared header pattern reused on several other pages, which should
+     stay untouched) rather than changing the shared .ph rule globally.
+     The Audit Information strip above already reads as its own bounded
+     box (it has a full border), so this targets the one header piece
+     that currently has none — the title/actions row right before the
+     first section card begins. */
+  #page-wpdetail > .ph { padding-bottom: 14px; border-bottom: 1px solid var(--border-medium); }
+
   /* BREADCRUMB */
   .bc { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-tertiary); }
   .bc span { color: var(--text-secondary); cursor: pointer; }
