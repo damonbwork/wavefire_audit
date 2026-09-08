@@ -35750,6 +35750,22 @@ function renderTestAttributes(ref) {
   setTimeout(() => container.querySelectorAll('textarea').forEach(ta => autoResizeTA(ta)), 0);
 }
 
+// Real, new, per manual-testwork-grid-plan.md Part 3 — folds a chosen
+// evidence file/page/paragraph into the override note text as a plain,
+// human-readable "Evidenced by: ..." line, since attribute_sample_
+// results has no dedicated sourceFile/page/paragraph columns of its own
+// yet (the design doc's own explicit, deliberate stopgap for this first
+// pass — see its Part 3). Returns `note` completely unchanged when no
+// evidence file was actually chosen.
+function _noteWithEvidence(note, evidence) {
+  if (!evidence?.sourceFile) return note;
+  const parts = [`Evidenced by: ${evidence.sourceFile}`];
+  if (evidence.page) parts.push(`p. ${evidence.page}`);
+  if (evidence.paragraph) parts.push(`para ${evidence.paragraph}`);
+  const evidenceLine = parts.join(', ');
+  return note ? `${evidenceLine}\n${note}` : evidenceLine;
+}
+
 // Real, confirmed redesign, per direct request — replaces the old
 // per-button popup (_openAttrOverridePopup/_saveAttrGridOverride, which
 // saved immediately on every click) with a single modal listing every
@@ -35956,6 +35972,25 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       const overrideCopy = savedEffective
         ? 'Select Pass or Fail below to override the AI\'s result — the current result is already selected.'
         : 'Select Pass or Fail below to record the result for this sample.';
+
+      // Real, new, per manual-testwork-grid-plan.md Part 3 — lets a
+      // manual entry cite its own evidence (which original file, which
+      // page/paragraph) the same way an AI mark already does, rather
+      // than a bare Pass/Fail with nothing to point at. Defaults from
+      // whatever this cell's own live match already reports (an AI
+      // mark, or evidence a prior manual entry already set), so
+      // reopening an already-evidenced row doesn't show blank fields.
+      const existingMatch = match; // findMatchForSample(fi), already computed above in this same closure
+      const evidenceDefaults = change?.evidence || {
+        sourceFile: existingMatch?.sourceFile || '',
+        page: existingMatch?.page || '',
+        paragraph: existingMatch?.paragraph || '',
+      };
+      const originalFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file && !f._annotatedFrom);
+      const fileOptionsHtml = ['<option value="">— Not specified —</option>']
+        .concat(originalFiles.map(f => `<option value="${escAttr(f.name)}" ${f.name === evidenceDefaults.sourceFile ? 'selected' : ''}>${escHtml(f.name)}</option>`))
+        .join('');
+
       body.innerHTML = `
         <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -35968,22 +36003,38 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
         </div>
         <textarea class="attr-modal-note" placeholder="Explanation (recorded as a user override)" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(noteVal)}</textarea>
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
+        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
+        <div style="display:flex;gap:5px">
+          <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
+          <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+          <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        </div>
       `;
-      const setPending = (result, note) => {
+      const readEvidence = () => ({
+        sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
+        page: body.querySelector('.attr-modal-evidence-page')?.value || '',
+        paragraph: body.querySelector('.attr-modal-evidence-para')?.value || '',
+      });
+      const setPending = (result, note, evidence) => {
+        const eff = evidence || readEvidence();
+        const evidenceUnchanged = eff.sourceFile === (evidenceDefaults.sourceFile || '') && String(eff.page || '') === String(evidenceDefaults.page || '') && String(eff.paragraph || '') === String(evidenceDefaults.paragraph || '');
         // Only actually pending if it genuinely differs from the saved
         // state — flipping back to the original value un-stages it,
         // rather than leaving a no-op "change" queued.
-        if (result === savedEffective && note === (saved?.override_note || '')) {
+        if (result === savedEffective && note === (saved?.override_note || '') && evidenceUnchanged) {
           delete pending[fi];
         } else {
-          pending[fi] = { result, note };
+          pending[fi] = { result, note, evidence: eff };
         }
         renderList();
       };
       body.querySelector('.attr-modal-pass').onclick = () => setPending('pass', noteVal);
       body.querySelector('.attr-modal-fail').onclick = () => setPending('fail', noteVal);
       body.querySelector('.attr-modal-note').addEventListener('change', ev => setPending(selected || savedEffective || 'pass', ev.target.value));
+      ['attr-modal-evidence-file', 'attr-modal-evidence-page', 'attr-modal-evidence-para'].forEach(cls => {
+        body.querySelector('.' + cls)?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', noteVal));
+      });
       rowEl.appendChild(body);
     }
 
@@ -36024,8 +36075,29 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       okBtn.disabled = true;
       okBtn.textContent = 'Saving…';
       await Promise.all(entries.map(([fi, change]) =>
-        _postOverride(ref, attributeIndex, Number(fi), change.result, change.note)
+        _postOverride(ref, attributeIndex, Number(fi), change.result, _noteWithEvidence(change.note, change.evidence))
       ));
+      // Real, new, per manual-testwork-grid-plan.md Part 3 — no schema
+      // change to attribute_sample_results for this first pass (per the
+      // design doc's own explicit stopgap), so the chosen evidence is
+      // folded into the persisted override note text above. It's ALSO
+      // written directly onto this cell's own live match object here,
+      // client-side, so the exact same file-link building
+      // (buildFileLinksHtml/findMatchForSample) this modal already uses
+      // for an AI mark works immediately for a manual entry too, for the
+      // rest of this session — degrading gracefully to the note text
+      // alone (still human-readable) after a reload, since only the note
+      // itself is actually persisted.
+      entries.forEach(([fi, change]) => {
+        if (!change.evidence?.sourceFile) return;
+        const fileResult = _wpAnalysisResults[ref]?.[Number(fi)];
+        const resultEntry = fileResult?.results?.find(r => r.title === attrTitle);
+        if (resultEntry) {
+          resultEntry.sourceFile = change.evidence.sourceFile;
+          resultEntry.page = Number(change.evidence.page) || 1;
+          resultEntry.paragraph = Number(change.evidence.paragraph) || 0;
+        }
+      });
       // Real, new, per Part 4 (override sync) — offers to update any
       // already-annotated files for each changed (attribute, sample)
       // pair, the same as the live-tick popup's own _saveOverride
@@ -36034,7 +36106,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       // would show several dialogs stacked on top of each other at once.
       for (const [fi, change] of entries) {
         try {
-          await _syncOverrideToAnnotatedFiles(ref, attributeIndex, Number(fi), change.result, change.note);
+          await _syncOverrideToAnnotatedFiles(ref, attributeIndex, Number(fi), change.result, _noteWithEvidence(change.note, change.evidence));
         } catch (err) {
           console.error('[SyncOverride] Unexpected failure:', err);
         }
