@@ -1136,6 +1136,7 @@
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Status</th>
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="Automatically set when this account has too many failed logins in a day. A superadmin must uncheck this to re-enable the account.">Security Disabled</th>
               <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Created</th>
+              <th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)" title="The later of this user's last login or their last change anywhere in the application">Last Activity</th>
               <th style="padding:8px 12px;text-align:center;font-size:11px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Password</th>
             </tr></thead>
             <tbody id="adm-users-list"></tbody>
@@ -16566,7 +16567,7 @@ function _adminFileInventoryReloadFromFilterChange() {
 async function renderAdminUsers() {
   const listEl = document.getElementById('adm-users-list');
   if (!listEl) return;
-  listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
+  listEl.innerHTML = '<tr><td colspan="10" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Loading users…</td></tr>';
   try {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -16575,7 +16576,7 @@ async function renderAdminUsers() {
     // the same real user data — share the cache instead of fetching twice.
     _preparerReviewerUsersCache = users;
     if (!users.length) {
-      listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
+      listEl.innerHTML = '<tr><td colspan="10" style="padding:16px;font-size:13px;color:var(--text-tertiary)">No users yet. Click "Add User" to create one.</td></tr>';
       return;
     }
     // Per explicit request: the Login ID column should be wide enough
@@ -16626,6 +16627,7 @@ async function renderAdminUsers() {
             title="Automatically set when this account has too many failed logins in a day. A superadmin must uncheck this to re-enable the account." style="accent-color:#dc2626;cursor:pointer">
         </td>
         <td style="padding:8px 12px;color:var(--text-tertiary);font-size:12px">${u.date_created ? new Date(u.date_created).toLocaleDateString() : ''}</td>
+        <td style="padding:8px 12px;color:var(--text-tertiary);font-size:12px">${u.last_activity_at ? new Date(u.last_activity_at).toLocaleDateString() : '<span style="font-style:italic">Never</span>'}</td>
         <td style="padding:8px 12px;text-align:center">
           <button class="btn-s" style="font-size:11px;padding:3px 10px" onclick='openSetUserPasswordModal(${JSON.stringify(u.user_id)}, ${JSON.stringify(((u.first_name||'')+' '+(u.last_name||'')).trim() || u.email)})'>
             <i class="ti ti-key"></i>Set Password
@@ -16633,7 +16635,7 @@ async function renderAdminUsers() {
         </td>
       </tr>`).join('');
   } catch(e) {
-    listEl.innerHTML = '<tr><td colspan="9" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
+    listEl.innerHTML = '<tr><td colspan="10" style="padding:16px;font-size:13px;color:var(--text-tertiary)">Could not load users: ' + escAttr(e.message) + '</td></tr>';
   }
 }
 

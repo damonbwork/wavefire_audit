@@ -304,6 +304,17 @@ async function getUserFromSessionToken(rawToken) {
     // forward.
     await pool.query('UPDATE sessions SET last_activity_at=NOW() WHERE session_id=$1', [row.session_id]);
 
+    // Also stamp the USER row itself (not just this one session) — this
+    // is what backs the admin Users list's "Last Activity" column, and it
+    // needs to survive this session eventually expiring/being deleted,
+    // which sessions.last_activity_at above does not. Every authenticated
+    // request runs through here (this function is called from the global
+    // auth middleware), so this genuinely captures "last login OR last
+    // change anywhere in the app," not merely login time. Fire-and-forget
+    // — never let this best-effort bookkeeping write block or fail a real
+    // request.
+    pool.query('UPDATE users SET last_activity_at=NOW() WHERE user_id=$1', [row.user_id]).catch(() => {});
+
     // Real, actual session_id is preserved separately for the real,
     // new set-current-tenant route below (which genuinely needs it to
     // know WHICH session row to update) — but never returned to the
@@ -2696,7 +2707,13 @@ async function ensureFailedLoginColumns() {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_failed_login_count INTEGER NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_failed_login_reset_at TIMESTAMPTZ DEFAULT NOW()`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS security_disabled BOOLEAN NOT NULL DEFAULT false`);
-    console.log('DB: failed_login_count / locked_until / daily_failed_login_count / daily_failed_login_reset_at / security_disabled columns confirmed ready (standalone check)');
+    // Backs the admin Users list's "Last Activity" column — the later of
+    // this user's last login or their last change anywhere in the app.
+    // Updated on every authenticated request (see getUserFromSessionToken),
+    // not just on login, and persisted on the user row itself (not the
+    // sessions table) so it survives logout/session expiry/cleanup.
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ`);
+    console.log('DB: failed_login_count / locked_until / daily_failed_login_count / daily_failed_login_reset_at / security_disabled / last_activity_at columns confirmed ready (standalone check)');
   } catch (err) {
     console.error('DB: standalone failed-login columns check FAILED:', err.message, err.code);
   }
@@ -5107,7 +5124,7 @@ app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
     const { rows } = await pool.query(
-      'SELECT user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, date_created, date_updated FROM users ORDER BY last_name, first_name'
+      'SELECT user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled, date_created, date_updated, last_activity_at FROM users ORDER BY last_name, first_name'
     );
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
