@@ -3397,8 +3397,8 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title" style="flex:1;min-width:0"><i class="ti ti-list-details"></i>Test attributes<i class="ti ti-help-circle wf-help-icon" data-help-topic="testAttributes" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
             <span id="attr-bulk-delete-slot"></span>
-            <button id="attr-guidance-btn" onclick="openGuidanceModal()" title="Get AI-powered suggestions for this workpaper's attributes and risks" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;background:var(--wf-navy);color:#fff;border-color:var(--wf-navy)">
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/></svg> Guidance
+            <button id="attr-guidance-btn" onclick="openGuidanceModal()" title="Get AI-powered suggestions for this workpaper's attributes and risks" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;background:#ea580c;color:#fff;border-color:#ea580c">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2zm-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/></svg> AI Guidance
             </button>
             <button id="attr-criteria-toggle" onclick="toggleAttrCriteria()" title="Show/hide Pass/Fail Criteria columns" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0">
               <i class="ti ti-circle-check" style="font-size:11px"></i> Pass/Fail Criteria
@@ -37207,7 +37207,7 @@ function openGuidanceModal(title) {
   // title so the original Guidance button's own call site (which
   // passes no argument) keeps its own current behavior unchanged.
   const titleEl = document.getElementById('guidance-modal-title');
-  if (titleEl) titleEl.innerHTML = `<i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>${escAttr(title || 'Attribute Guidance')}`;
+  if (titleEl) titleEl.innerHTML = `<i class="ti ti-sparkles" style="color:var(--wf-navy)"></i>${escAttr(title || 'AI Guidance')}`;
   const bodyEl = document.getElementById('guidance-body');
   bodyEl.innerHTML = `<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:13px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:22px"></i><div style="margin-top:10px">Gathering guidance — this can take a moment while it checks current external sources…</div><div id="guidance-elapsed-timer" style="margin-top:6px;font-size:11px;color:var(--text-tertiary)">0:00</div></div>`;
   // Real, clears any real, prior, final elapsed-time text from a
