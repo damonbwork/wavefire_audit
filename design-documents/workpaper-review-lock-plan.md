@@ -311,6 +311,11 @@ and file attachment linking with View/Download actions rendered per-note.
   currently-active one shown bold/filled (orange for Open, blue for
   Cleared) and the inactive one shown as a plain, dim outline — rather
   than a single pill that only ever showed the current state.
+- The response composer is no longer shown unconditionally under every
+  note. It now only appears (as a "Create Response" button) once the
+  note itself has actual text; clicking that button is what reveals the
+  actual response textarea + Reply control, rather than the textarea
+  being present in the DOM the whole time.
 
 
 The per-section notes window (`reviewNotes[ref][sectionId]`,

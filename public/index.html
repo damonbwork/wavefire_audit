@@ -12322,6 +12322,27 @@ function _rnToggleStatus(ref, sectionId, noteId) {
   renderReviewNotesList(ref, sectionId);
 }
 
+// Swaps the "Create Response" button for an actual response textarea +
+// Reply button — the response composer only exists in the DOM once a
+// user has asked for it, rather than being shown unconditionally under
+// every note.
+function _rnShowResponseComposer(btn) {
+  const ref       = btn.closest('.rn-note')?.dataset.noteId ? _notesCurrentRef : null;
+  const sectionId = _notesCurrentSection;
+  const noteId    = btn.closest('.rn-note')?.dataset.noteId;
+  if (!ref || !sectionId || !noteId) return;
+  const wrap = btn.closest('[data-role="rn-response-composer-wrap"]');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div style="display:flex;gap:4px;align-items:flex-start">
+      <textarea placeholder="Add a response…" data-role="rn-response-input"
+        style="flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px;font-size:11px;font-family:inherit;min-height:32px;background:var(--bg-primary)"></textarea>
+      <button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:nowrap" onclick="_rnAddResponse('${ref}','${sectionId}','${noteId}', this.previousElementSibling)">Reply</button>
+    </div>`;
+  const ta = wrap.querySelector('[data-role="rn-response-input"]');
+  if (ta) { ta.focus(); }
+}
+
 function _rnAddResponse(ref, sectionId, noteId, taEl) {
   // Adding a brand-new response is new content, unlike toggling status —
   // gate it behind the review-lock guard once that feature exists.
@@ -12382,11 +12403,10 @@ function _renderNoteBlock(ref, sectionId, note) {
     ${_rnAttachToolbarHtml(ref, sectionId, note.id, 'note', null)}
     <div style="margin-top:6px">
       ${note.responses.map(r => _rnResponseHtml(ref, sectionId, note.id, r)).join('')}
-      <div style="margin-left:18px;margin-top:6px;padding-left:10px;display:flex;gap:4px;align-items:flex-start">
-        <textarea placeholder="Add a response…" data-role="rn-response-input"
-          style="flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px;font-size:11px;font-family:inherit;min-height:32px;background:var(--bg-primary)"></textarea>
-        <button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:nowrap" onclick="_rnAddResponse('${ref}','${sectionId}','${note.id}', this.previousElementSibling)">Reply</button>
-      </div>
+      ${(note.text || '').trim() ? `
+      <div data-role="rn-response-composer-wrap" style="margin-left:18px;margin-top:6px;padding-left:10px">
+        <button class="btn-s" data-role="rn-create-response-btn" style="font-size:9px;padding:2px 8px" onclick="_rnShowResponseComposer(this)">Create Response</button>
+      </div>` : ''}
     </div>`;
 
   const bodyTa = wrap.querySelector('[data-role="rn-body"]');
