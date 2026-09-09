@@ -2512,16 +2512,16 @@
           <div class="resizable-table"><table id="wp-table">
             <colgroup id="wp-colgroup">
               <col style="min-width:155px;width:155px"><col style="min-width:200px"><col style="min-width:85px;width:85px">
-              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:95px"><col style="min-width:150px"><col style="min-width:80px"><col style="min-width:50px;width:50px">
+              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:150px"><col style="min-width:80px"><col style="min-width:50px;width:50px">
             </colgroup>
             <thead>
               <tr>
                 <th>Reference<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Workpaper name<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Type<div class="col-resize-handle" title="Drag to resize column"></div></th>
-                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Review date<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th><th></th>
+                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th><th></th>
               </tr>
             </thead>
             <tbody id="wp-tbody">
-    <tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">Loading workpapers…</td></tr>
+    <tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">Loading workpapers…</td></tr>
     </tbody>
           </table></div>
           <div style="padding:12px 4px 0">
@@ -2724,8 +2724,6 @@
               </select>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date submitted for review</div>
               <input type="date" id="wpd-date-submitted" onchange="logWPDropdownChange('wpd-date-submitted','Date submitted for review')" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Date reviewed</div>
-              <div id="wpd-date-reviewed" style="font-size: 12px; font-weight: 500; color: var(--text-tertiary); padding: 4px 2px; min-height: 22px; font-style: italic;">—</div>
             </div>
             <!-- Workpaper Review Sign-off subsection -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
@@ -4712,13 +4710,42 @@ Testwork Grid" to build a blank grid and record each result yourself.
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
           </div>
           <div class="sect-body">
-            <!-- Title + Code row -->
-            <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:12px;max-width:520px">
+            <!-- Title + Category + Code row -->
+            <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:12px;max-width:760px">
               <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
                 <div class="fl">Workpaper title</div>
                 <input id="nwp-name" type="text" maxlength="50" placeholder="Enter workpaper title…" oninput="nwpNameInput(this)" style="font-size:13px;color:var(--text-primary);background:var(--bg-secondary);
                          border:0.5px solid var(--border-light);border-radius:var(--radius-md);
                          padding:6px 10px;outline:none;width:100%;font-family:inherit" autocomplete="off">
+              </div>
+              <!-- Workpaper Category picker — determines the workpaper code
+                   (nwp-seg3) below. This control was previously missing
+                   entirely from this page (it only existed on the workpaper
+                   detail page, under a different id), which is what made it
+                   impossible to select a category — and therefore impossible
+                   to get past this screen at all — when creating or
+                   duplicating a workpaper. See _categoryUiIds() for how the
+                   shared picker logic now resolves to whichever page's ids
+                   are actually present. -->
+              <div class="fld" style="width:260px;position:relative;flex-shrink:0">
+                <div class="fl">Workpaper Category <span style="color:#dc2626">*</span></div>
+                <button type="button" id="nwp-category-trigger" onclick="toggleCategoryDropdown()"
+                  style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left">
+                  <span id="nwp-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
+                  <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text-tertiary);flex-shrink:0"></i>
+                </button>
+                <div id="nwp-category-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:320px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+                  <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+                    <button type="button" onclick="openAddCategoryModal()" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
+                      <i class="ti ti-plus" style="font-size:13px"></i>Add new category
+                    </button>
+                  </div>
+                  <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                    <input type="text" id="nwp-category-search" placeholder="Search categories…" oninput="filterCategoryDropdown(this.value)"
+                      style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
+                  </div>
+                  <div id="nwp-category-list" style="padding:6px"></div>
+                </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
                 <div class="fl">Workpaper code</div>
@@ -6818,7 +6845,6 @@ function renderWorkpapers(list) {
       <td>${typePill(w.type)}</td>
       <td class="tm">${w.preparer}</td>
       <td class="tm">${w.reviewer}</td>
-      <td class="tm wp-review-date-cell">${w.reviewDate || '—'}</td>
       <td>${statusPill(w.status)}</td>
       <td>${resultPill(w.results)}</td>
       <td style="text-align:right;white-space:nowrap" onclick="event.stopPropagation()">
@@ -12322,6 +12348,27 @@ function _rnToggleStatus(ref, sectionId, noteId) {
   renderReviewNotesList(ref, sectionId);
 }
 
+// Swaps the "Create Response" button for an actual response textarea +
+// Reply button — the response composer only exists in the DOM once a
+// user has asked for it, rather than being shown unconditionally under
+// every note.
+function _rnShowResponseComposer(btn) {
+  const ref       = btn.closest('.rn-note')?.dataset.noteId ? _notesCurrentRef : null;
+  const sectionId = _notesCurrentSection;
+  const noteId    = btn.closest('.rn-note')?.dataset.noteId;
+  if (!ref || !sectionId || !noteId) return;
+  const wrap = btn.closest('[data-role="rn-response-composer-wrap"]');
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div style="display:flex;gap:4px;align-items:flex-start">
+      <textarea placeholder="Add a response…" data-role="rn-response-input"
+        style="flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px;font-size:11px;font-family:inherit;min-height:32px;background:var(--bg-primary)"></textarea>
+      <button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:nowrap" onclick="_rnAddResponse('${ref}','${sectionId}','${noteId}', this.previousElementSibling)">Reply</button>
+    </div>`;
+  const ta = wrap.querySelector('[data-role="rn-response-input"]');
+  if (ta) { ta.focus(); }
+}
+
 function _rnAddResponse(ref, sectionId, noteId, taEl) {
   // Adding a brand-new response is new content, unlike toggling status —
   // gate it behind the review-lock guard once that feature exists.
@@ -12382,11 +12429,10 @@ function _renderNoteBlock(ref, sectionId, note) {
     ${_rnAttachToolbarHtml(ref, sectionId, note.id, 'note', null)}
     <div style="margin-top:6px">
       ${note.responses.map(r => _rnResponseHtml(ref, sectionId, note.id, r)).join('')}
-      <div style="margin-left:18px;margin-top:6px;padding-left:10px;display:flex;gap:4px;align-items:flex-start">
-        <textarea placeholder="Add a response…" data-role="rn-response-input"
-          style="flex:1;resize:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:6px;font-size:11px;font-family:inherit;min-height:32px;background:var(--bg-primary)"></textarea>
-        <button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:nowrap" onclick="_rnAddResponse('${ref}','${sectionId}','${note.id}', this.previousElementSibling)">Reply</button>
-      </div>
+      ${(note.text || '').trim() ? `
+      <div data-role="rn-response-composer-wrap" style="margin-left:18px;margin-top:6px;padding-left:10px">
+        <button class="btn-s" data-role="rn-create-response-btn" style="font-size:9px;padding:2px 8px" onclick="_rnShowResponseComposer(this)">Create Response</button>
+      </div>` : ''}
     </div>`;
 
   const bodyTa = wrap.querySelector('[data-role="rn-body"]');
@@ -12760,6 +12806,35 @@ async function _saveAuditFsAccountsToDB(auditName) {
 async function _saveWorkpaperToDB(w) {
   if (!window._hasBackend) return true; // genuinely, no real backend at all — not a real failure, nothing to persist to
   if (!w || !w.ref) return false; // a genuinely malformed workpaper — a real, actual failure
+
+  // Per explicit instruction: the first time ANY information is saved
+  // into a workpaper that has no Preparer/Date started yet, auto-stamp
+  // both with the current user and today's date. Either can still be
+  // freely changed afterward by any user via the normal Preparer
+  // dropdown / Date started field — this only ever fills a blank value,
+  // never overwrites one that's already set. `_saveWorkpaperToDB` is
+  // called from every real field-edit path across the workpaper (see
+  // its many call sites), which makes it the one correct, central place
+  // to do this rather than duplicating the check at each call site.
+  if (!w.preparer && _currentDisplayUser) {
+    w.preparer = (_currentDisplayUser.email || '').split('@')[0] || _currentDisplayUser.email || '';
+  }
+  if (!w.dateStarted) {
+    w.dateStarted = new Date().toISOString().split('T')[0];
+  }
+  // Reflect the auto-stamp onto the visible header fields immediately if
+  // this is the workpaper currently open (they'd otherwise only show up
+  // after a reload).
+  if (WORKPAPERS[currentWPIndex] === w) {
+    const prepSel = document.getElementById('wpd-preparer');
+    if (prepSel && !prepSel.value && w.preparer &&
+        Array.from(prepSel.options).some(o => o.value === w.preparer)) {
+      prepSel.value = w.preparer;
+    }
+    const dsEl = document.getElementById('wpd-date-started');
+    if (dsEl && !dsEl.value && w.dateStarted) dsEl.value = w.dateStarted;
+  }
+
   try {
     // Gather linked data from session stores (exclude file attachment objects)
     var linkedControls  = w.linkedControls || [...(wpLinkedControls[w.ref]||[])];
@@ -26047,9 +26122,14 @@ async function openNewWorkpaper(dupSourceRef) {
   const year = (audit.period.match(/\b(20\d{2})\b/) || [])[1] || new Date().getFullYear();
   if (nwpSegYear) nwpSegYear.textContent = year;
 
-  // Segment 3 — clear and reset user-edited flag
+  // Segment 3 — clear and reset user-edited flag, and reset the Category
+  // picker back to its unselected state so a stale category from a
+  // previous visit to this page isn't left showing.
   const seg3El = document.getElementById('nwp-seg3');
   if (seg3El) { seg3El.value = ''; seg3El.dataset.userEdited = ''; }
+  _nwpSelectedCategoryAbbrev = '';
+  const nwpCatDisplay = document.getElementById('nwp-category-display');
+  if (nwpCatDisplay) { nwpCatDisplay.textContent = 'Select category…'; nwpCatDisplay.style.color = 'var(--text-tertiary)'; }
 
   // Segment 4 — default to highest existing sequence + 10
   const auditWPs = WORKPAPERS.filter(w => w.auditName === audit.name);
@@ -36984,16 +37064,35 @@ async function _ensureCategoriesLoaded() {
   }
 }
 
+// The Workpaper Category picker (trigger button + dropdown panel) is
+// shared behavior across two different pages — the workpaper detail
+// page and the New Workpaper (create/duplicate) page — but each page
+// needs its OWN element ids (an id must be unique in the document; the
+// New Workpaper page's copy of this control was originally missing
+// entirely, which is what made it impossible to select a category — and
+// therefore impossible to get a workpaper code — when creating or
+// duplicating a workpaper). This resolves the correct set of ids for
+// whichever page is actually active, rather than hardcoding one page's
+// ids everywhere.
+function _categoryUiIds() {
+  const onNewWpPage = document.getElementById('page-newwp')?.classList.contains('active');
+  return onNewWpPage
+    ? { trigger: 'nwp-category-trigger', panel: 'nwp-category-panel', display: 'nwp-category-display', search: 'nwp-category-search', list: 'nwp-category-list' }
+    : { trigger: 'wpd-category-trigger', panel: 'wpd-category-panel', display: 'wpd-category-display', search: 'wpd-category-search', list: 'wpd-category-list' };
+}
+
 async function toggleCategoryDropdown() {
-  const panel = document.getElementById('wpd-category-panel');
+  const ids = _categoryUiIds();
+  const panel = document.getElementById(ids.panel);
   if (!panel) return;
   const isOpening = panel.style.display === 'none';
   panel.style.display = isOpening ? 'block' : 'none';
   if (isOpening) {
     await _ensureCategoriesLoaded();
-    document.getElementById('wpd-category-search').value = '';
+    const searchEl = document.getElementById(ids.search);
+    if (searchEl) searchEl.value = '';
     _renderCategoryDropdownList('');
-    setTimeout(() => document.getElementById('wpd-category-search')?.focus(), 30);
+    setTimeout(() => document.getElementById(ids.search)?.focus(), 30);
   }
 }
 
@@ -37004,7 +37103,7 @@ function filterCategoryDropdown(text) { _renderCategoryDropdownList(text); }
 // matches against both the real category name and its own real
 // abbreviation, per explicit request for type-ahead search.
 function _renderCategoryDropdownList(filterText) {
-  const listEl = document.getElementById('wpd-category-list');
+  const listEl = document.getElementById(_categoryUiIds().list);
   if (!listEl) return;
   const q = (filterText || '').trim().toLowerCase();
   const cats = (_wpCategoriesCache || []).filter(c =>
@@ -37039,13 +37138,15 @@ function selectWorkpaperCategory(categoryName) {
   // branch correctly updates the tag field directly instead, sourcing
   // the workpaper reference's own tag segment from the category's
   // abbreviation, deprecating the old name-derived tag in its favor.
+  const ids = _categoryUiIds();
   const onNewWpPage = document.getElementById('page-newwp')?.classList.contains('active');
   if (onNewWpPage) {
     const cat = (_wpCategoriesCache || []).find(c => c.name === categoryName);
     _nwpSelectedCategoryAbbrev = cat?.abbreviation || '';
-    const displayEl = document.getElementById('wpd-category-display');
+    const displayEl = document.getElementById(ids.display);
     if (displayEl) { displayEl.textContent = categoryName; displayEl.style.color = 'var(--text-primary)'; }
-    document.getElementById('wpd-category-panel').style.display = 'none';
+    const panelEl = document.getElementById(ids.panel);
+    if (panelEl) panelEl.style.display = 'none';
     autoFillNwpTag();
     return;
   }
@@ -37055,9 +37156,10 @@ function selectWorkpaperCategory(categoryName) {
   const ref = getWPRef();
   logChange(ref, 'Workpaper Category', w.userSelectedCategory || '', categoryName);
   w.userSelectedCategory = categoryName;
-  const displayEl = document.getElementById('wpd-category-display');
+  const displayEl = document.getElementById(ids.display);
   if (displayEl) { displayEl.textContent = categoryName; displayEl.style.color = 'var(--text-primary)'; }
-  document.getElementById('wpd-category-panel').style.display = 'none';
+  const panelEl = document.getElementById(ids.panel);
+  if (panelEl) panelEl.style.display = 'none';
   _saveWorkpaperToDB(w);
 }
 
@@ -37365,7 +37467,8 @@ function _applyGuidanceNewAttribute(suggestion) {
 }
 
 function openAddCategoryModal() {
-  document.getElementById('wpd-category-panel').style.display = 'none'; // close the real, underlying dropdown first
+  const panelEl = document.getElementById(_categoryUiIds().panel);
+  if (panelEl) panelEl.style.display = 'none'; // close the real, underlying dropdown first
   document.getElementById('acm-section').value = '';
   document.getElementById('acm-category-name').value = '';
   document.getElementById('acm-abbreviation').value = '';
