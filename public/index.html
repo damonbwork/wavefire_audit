@@ -2512,16 +2512,16 @@
           <div class="resizable-table"><table id="wp-table">
             <colgroup id="wp-colgroup">
               <col style="min-width:155px;width:155px"><col style="min-width:200px"><col style="min-width:85px;width:85px">
-              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:95px"><col style="min-width:150px"><col style="min-width:80px"><col style="min-width:50px;width:50px">
+              <col style="min-width:80px"><col style="min-width:80px"><col style="min-width:150px"><col style="min-width:80px"><col style="min-width:50px;width:50px">
             </colgroup>
             <thead>
               <tr>
                 <th>Reference<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Workpaper name<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Type<div class="col-resize-handle" title="Drag to resize column"></div></th>
-                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Review date<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th><th></th>
+                <th>Preparer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Reviewer<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Status<div class="col-resize-handle" title="Drag to resize column"></div></th><th>Results</th><th></th>
               </tr>
             </thead>
             <tbody id="wp-tbody">
-    <tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">Loading workpapers…</td></tr>
+    <tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px">Loading workpapers…</td></tr>
     </tbody>
           </table></div>
           <div style="padding:12px 4px 0">
@@ -6816,7 +6816,6 @@ function renderWorkpapers(list) {
       <td>${typePill(w.type)}</td>
       <td class="tm">${w.preparer}</td>
       <td class="tm">${w.reviewer}</td>
-      <td class="tm wp-review-date-cell">${w.reviewDate || '—'}</td>
       <td>${statusPill(w.status)}</td>
       <td>${resultPill(w.results)}</td>
       <td style="text-align:right;white-space:nowrap" onclick="event.stopPropagation()">
@@ -12778,6 +12777,35 @@ async function _saveAuditFsAccountsToDB(auditName) {
 async function _saveWorkpaperToDB(w) {
   if (!window._hasBackend) return true; // genuinely, no real backend at all — not a real failure, nothing to persist to
   if (!w || !w.ref) return false; // a genuinely malformed workpaper — a real, actual failure
+
+  // Per explicit instruction: the first time ANY information is saved
+  // into a workpaper that has no Preparer/Date started yet, auto-stamp
+  // both with the current user and today's date. Either can still be
+  // freely changed afterward by any user via the normal Preparer
+  // dropdown / Date started field — this only ever fills a blank value,
+  // never overwrites one that's already set. `_saveWorkpaperToDB` is
+  // called from every real field-edit path across the workpaper (see
+  // its many call sites), which makes it the one correct, central place
+  // to do this rather than duplicating the check at each call site.
+  if (!w.preparer && _currentDisplayUser) {
+    w.preparer = (_currentDisplayUser.email || '').split('@')[0] || _currentDisplayUser.email || '';
+  }
+  if (!w.dateStarted) {
+    w.dateStarted = new Date().toISOString().split('T')[0];
+  }
+  // Reflect the auto-stamp onto the visible header fields immediately if
+  // this is the workpaper currently open (they'd otherwise only show up
+  // after a reload).
+  if (WORKPAPERS[currentWPIndex] === w) {
+    const prepSel = document.getElementById('wpd-preparer');
+    if (prepSel && !prepSel.value && w.preparer &&
+        Array.from(prepSel.options).some(o => o.value === w.preparer)) {
+      prepSel.value = w.preparer;
+    }
+    const dsEl = document.getElementById('wpd-date-started');
+    if (dsEl && !dsEl.value && w.dateStarted) dsEl.value = w.dateStarted;
+  }
+
   try {
     // Gather linked data from session stores (exclude file attachment objects)
     var linkedControls  = w.linkedControls || [...(wpLinkedControls[w.ref]||[])];
