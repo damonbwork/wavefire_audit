@@ -27350,7 +27350,14 @@ function _extractApiErrorMessage(errBody, response) {
 
 async function analyzeWithClaude() {
   const ref = getWPRef();
-  if (!ref) return;
+  // Every early exit below happens BEFORE the progress modal is shown but
+  // AFTER runAnalysisWithOptions() has already set _analysisInProgress =
+  // true. If any of them returned without clearing that flag, the app
+  // would be permanently stuck believing an analysis is running: no
+  // progress modal (it was never opened), and every later attempt just
+  // alerts "an analysis is already running." Reset it on every one of
+  // these paths.
+  if (!ref) { _analysisInProgress = false; return; }
 
   // Per explicit instruction: the very first real step of Analyze is
   // warning about — and, on consent, clearing — everything it's about
@@ -27391,7 +27398,7 @@ async function analyzeWithClaude() {
         () => resolve(false)
       );
     });
-    if (!proceed) return; // genuine Cancel — stop Analyze entirely, before any other real work begins
+    if (!proceed) { _analysisInProgress = false; return; } // genuine Cancel — stop Analyze entirely, before any other real work begins
 
     if (annotatedIndices.length) {
       // Genuinely re-read the array and delete in descending index
@@ -27463,17 +27470,20 @@ async function analyzeWithClaude() {
   );
 
   if (attributes.length === 0) {
+    _analysisInProgress = false;
     showUploadError('Please add at least one Test Attribute before running analysis.');
     return;
   }
 
   if (sampleRows.length === 0) {
+    _analysisInProgress = false;
     showUploadError('Please add at least one row of sample data to the Sample Data grid before running analysis — Analyze now tests each grid row as its own sample, rather than each attached file.');
     return;
   }
 
   const totalFiles = memFiles.length + staticSampleFiles.length;
   if (totalFiles === 0) {
+    _analysisInProgress = false;
     showUploadError('Please upload at least one PDF sample file before running analysis.');
     return;
   }
