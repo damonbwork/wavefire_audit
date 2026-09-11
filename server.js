@@ -5898,12 +5898,17 @@ app.get('/api/workpapers/:ref/attribute-sample-results', async (req, res) => {
 });
 
 // Real, new, per the same plan — sets a person's own override for one
-// specific (attribute, sample) result. Built now as the "read/write
-// plumbing" foundation the plan calls for, even though no UI calls this
-// yet — that's the override UI, a later, separate step. Requires the row
-// to already exist (an AI determination from at least one Analyze run),
-// since overriding a result that was never actually produced isn't a
-// meaningful action.
+// specific (attribute, sample) result. Upserts rather than requiring the
+// row to already exist: an AI-produced row from a real Analyze run is
+// updated in place, exactly as before, but a manually-created Testwork
+// Grid (built via "Create Testwork Grid," never run through Analyze) has
+// no such row yet — its cells are legitimately entered here for the
+// first time, and that's just as meaningful an action as overriding an
+// AI result. Previously this was a plain UPDATE that 404'd when no row
+// existed, and the client-side caller never checked the response status
+// at all — so a manually-entered result LOOKED saved (the tick updated
+// locally) while nothing actually reached Postgres, and it silently
+// vanished on the next page load.
 app.post('/api/workpapers/:ref/attribute-sample-results/override', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const attributeIndex = Number(req.body?.attributeIndex);
@@ -5912,16 +5917,18 @@ app.post('/api/workpapers/:ref/attribute-sample-results/override', async (req, r
     return res.status(400).json({ error: 'attributeIndex and sampleRowIndex are required' });
   }
   try {
-    const { rows } = await pool.query(
-      `UPDATE attribute_sample_results
-       SET override_result=$1, override_note=$2, exception_text=$3,
-           overridden_by=$4, overridden_at=NOW(), updated_at=NOW()
-       WHERE tenant_id=$5 AND workpaper_ref=$6 AND attribute_index=$7 AND sample_row_index=$8
-       RETURNING id`,
-      [req.body?.overrideResult || null, req.body?.overrideNote || null, req.body?.exceptionText || null,
-       req.currentUser?.login_id || '', req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex]
+    await pool.query(
+      `INSERT INTO attribute_sample_results
+         (tenant_id, workpaper_ref, attribute_index, sample_row_index,
+          override_result, override_note, exception_text, overridden_by, overridden_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+       ON CONFLICT (tenant_id, workpaper_ref, attribute_index, sample_row_index)
+       DO UPDATE SET override_result=$5, override_note=$6, exception_text=$7,
+                      overridden_by=$8, overridden_at=NOW(), updated_at=NOW()`,
+      [req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex,
+       req.body?.overrideResult || null, req.body?.overrideNote || null, req.body?.exceptionText || null,
+       req.currentUser?.login_id || '']
     );
-    if (!rows.length) return res.status(404).json({ error: 'No AI determination exists yet for this attribute/sample — run Analyze first' });
     res.json({ ok: true });
   } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/attribute-sample-results/override:'); }
 });

@@ -22810,6 +22810,65 @@ function _findOverrideFor(ref, attributeIndex, sampleRowIndex) {
   return rows.find(r => r.attribute_index === attributeIndex && r.sample_row_index === sampleRowIndex) || null;
 }
 
+// Real, new fix for a genuine gap: the Testwork Grid itself
+// (_wpAnalysisResults[ref] — sample descriptions, cell snapshots, and
+// per-attribute results) was ONLY ever held in browser memory. It's
+// built in exactly two places — after a real Analyze run, and by the
+// manual "Create Testwork Grid" button — and neither one persisted that
+// structure anywhere, so reloading the page (or opening the same
+// workpaper in another session) made the entire grid disappear, even
+// though the AI's own per-cell result/marks/note (and any manual
+// entry/override, now that the override endpoint upserts — see its own
+// comment) were sitting unused in the attribute_sample_results table the
+// whole time. This reconstructs the grid FROM that table plus the
+// already-persisted Sample Data grid and Test Attributes, rather than
+// adding a new, separate, redundant JSONB blob to keep in sync — the
+// exact same "derive it from what's already saved" approach this app
+// already uses for the sample-data-driven columns elsewhere.
+async function _reconstructAnalysisResultsFromDB(ref) {
+  if ((_wpAnalysisResults[ref] || []).length) return; // already have it this session (e.g. Analyze just ran) — never clobber that with a stale reconstruction
+  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  if (!sampleRows.length || !attributes.length) return; // nothing to rebuild yet
+
+  const dbRows = await _loadAttrSampleResults(ref);
+  if (!dbRows.length) return; // never analyzed AND nothing manually entered yet — genuinely nothing to reconstruct
+
+  const snapshot = sampleRows.map((row, fi) => {
+    const results = attributes.map((attr, ai) => {
+      const dbRow = dbRows.find(r => r.attribute_index === ai && r.sample_row_index === fi);
+      if (!dbRow) return { title: attr.title }; // no result persisted for this cell yet — renders as untested, same as a fresh manual grid
+      const marks = Array.isArray(dbRow.ai_marks) ? dbRow.ai_marks : [];
+      const firstMark = marks[0] || {};
+      // Deliberately the AI's OWN result/note/marks here, never the
+      // override columns — an active override is layered on top at
+      // render time via _findOverrideFor, exactly as it already is for
+      // a same-session grid. Reconstructing with the override baked in
+      // here would make it indistinguishable from an AI result and
+      // break that existing "OVR" badge/tooltip logic.
+      return {
+        title: attr.title,
+        result: dbRow.ai_result || undefined,
+        note: dbRow.ai_note || '',
+        marks,
+        sourceFile: firstMark.sourceFile || '',
+        page: firstMark.page || 1,
+        paragraph: firstMark.paragraph || 0,
+      };
+    });
+    return {
+      sampleDesc: _describeSampleGridRow(ref, row) || '',
+      sampleRowCells: Object.assign({}, row.cells || {}),
+      results,
+      fields: [],
+    };
+  });
+
+  _wpAnalysisResults[ref] = snapshot;
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) wpObj._analysisResults = snapshot.slice();
+}
+
 
 // A direct port of the _describeSampleRow closure inside analyzeWithClaude
 // (private to that function, not reachable here) — builds the same
@@ -22903,7 +22962,7 @@ function _openOverridePopup(overlay, tickEl, opts) {
 // updated cached row, or null if the save failed (already alerted).
 async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
   try {
-    await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
+    const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         attributeIndex: ai, sampleRowIndex: fi,
@@ -22912,6 +22971,19 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
         exceptionText: overrideNote || null,
       }),
     });
+    // Real, confirmed fix — fetch() only rejects on a genuine network-
+    // level failure; a server-side rejection (this endpoint used to 404
+    // when no row existed yet, e.g. for a manually-created Testwork Grid
+    // cell that had never been through Analyze) resolved normally and
+    // was silently treated as success, updating the local cache below as
+    // if it had actually persisted. Without this check, a manual entry
+    // looked saved in the UI but was never actually in Postgres, and
+    // vanished on the next page load.
+    if (!res.ok) {
+      console.error('[Override] Save rejected by server:', res.status);
+      alert('Could not save this result — the server rejected the save. Please try again.');
+      return null;
+    }
     // Updates the cached row in place rather than refetching the whole
     // workpaper's rows just to reflect this one save.
     const rows = _attrSampleResultsCache[ref] || (_attrSampleResultsCache[ref] = []);
@@ -33315,6 +33387,21 @@ async function loadSampleDataFromDB(ref) {
   // attributes (avoids a stale, slow load clobbering a render for
   // whatever the user has since navigated to).
   if (currentAttrWPRef === ref) renderTestAttributes(ref);
+
+  // Now that this workpaper's Sample Data rows are freshly loaded (Test
+  // Attributes were already loaded earlier, during the initial full
+  // workpaper-list fetch), reconstruct the Testwork Grid from Postgres if
+  // it isn't already sitting in memory — see that function's own comment
+  // for why this was previously lost on every page reload.
+  try {
+    await _reconstructAnalysisResultsFromDB(ref);
+    // Guard against a slow load finishing after the user has since
+    // navigated to a different workpaper — same pattern as the
+    // renderTestAttributes guard just above.
+    if (WORKPAPERS[currentWPIndex]?.ref === ref) renderAnalysisResultsGrid(ref);
+  } catch (e) {
+    console.warn('[Testwork Grid] Could not reconstruct from saved results:', e.message);
+  }
 }
 
 // ── Sample Data grid as the source for Analyze & Create Workpaper ────────────

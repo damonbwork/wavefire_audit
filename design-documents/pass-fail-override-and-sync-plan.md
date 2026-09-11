@@ -799,3 +799,65 @@ Finding leaves `_findOverrideFor` returning null and the AI's own
 `result` field unchanged at `'fail'`; deleting that same Exception
 (via the plain-confirm path, no annotated files) likewise leaves the
 result at `'fail'` with no override created.
+
+## Testwork Grid persistence — a genuine gap, now closed (2026-09-11)
+
+**The gap.** `_wpAnalysisResults[ref]` — the Testwork Grid's own
+structure (one entry per sample: `sampleDesc`, `sampleRowCells`,
+`results[]` per attribute) — was built in exactly two places (a real
+Analyze run, and the manual "Create Testwork Grid" button) and never
+persisted anywhere. Reloading the page, logging out and back in, or
+opening the same workpaper from a different session made the entire
+grid disappear, even though the AI's own per-cell `result`/`marks`/
+`note` were already sitting in the `attribute_sample_results` table via
+the existing post-Analyze bulk save (see Step 5 above) — nothing ever
+read that data back to rebuild the grid's shape.
+
+A second, compounding bug made this worse specifically for a manually-
+created grid: `/api/workpapers/:ref/attribute-sample-results/override`
+was a plain `UPDATE`, which 404'd when no row existed yet (true for any
+cell in a manually-created grid, since no Analyze run had ever produced
+one) — and the client's `_postOverride` never checked the response
+status at all, so a manual entry looked saved (the tick updated
+locally) while the server had silently rejected it and nothing ever
+reached Postgres.
+
+**The fix — reconstruct from what's already saved, rather than add a
+new redundant store:**
+1. The override endpoint is now a real upsert (`INSERT ... ON CONFLICT
+   ... DO UPDATE`, keyed on the table's existing `(tenant_id,
+   workpaper_ref, attribute_index, sample_row_index)` unique
+   constraint) — an AI-produced row still updates in place exactly as
+   before, and a manually-entered result now genuinely creates its own
+   row instead of 404ing.
+2. `_postOverride` now checks `res.ok` and surfaces a real failure
+   (alert + no local cache update) instead of treating any server
+   response as success.
+3. New `_reconstructAnalysisResultsFromDB(ref)` — called once per
+   workpaper open, after `loadSampleDataFromDB` finishes — rebuilds
+   `_wpAnalysisResults[ref]` by joining the already-persisted Sample
+   Data rows, Test Attributes, and `attribute_sample_results` rows
+   (via the existing `_loadAttrSampleResults` cache). Deliberately
+   uses only the AI-side columns (`ai_result`/`ai_note`/`ai_marks`),
+   never the override columns — an active override is layered on top
+   at render time via `_findOverrideFor`, exactly as it already is for
+   a same-session grid, so reconstruction can't collapse the existing
+   "OVR" badge/tooltip distinction between the AI's own result and a
+   person's override. No-ops (leaves `_wpAnalysisResults[ref]` alone)
+   whenever it already has data this session, or when there's nothing
+   persisted yet to rebuild from.
+
+No new table or JSONB column was added — this follows the same
+"derive it from what's already saved" approach the sample-data-driven
+columns already use, rather than introducing a second, separate copy of
+the grid that could drift out of sync with the per-cell data underneath
+it.
+
+**Verified** against the dev server: reconstructing from a set of
+synthetic `attribute_sample_results` rows correctly rebuilds both
+samples' full result sets (title/result/note/marks/sourceFile/page);
+an in-session grid with live data is never overwritten by a
+reconstruction attempt; a workpaper with no persisted rows at all stays
+correctly empty (no crash, no phantom grid); and a simulated server
+rejection from `_postOverride` now surfaces an alert and leaves the
+local cache untouched rather than being silently swallowed.
