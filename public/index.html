@@ -5973,6 +5973,29 @@ Testwork Grid" to build a blank grid and record each result yourself.
       </div>
     </div>
   </div>
+
+  <!-- Per-attribute Testwork Grid guidance modal — opened via the "G"
+       icon next to each attribute's ref in the Testwork Grid header.
+       Shows the same underlying reasoning already offered as a one-time
+       download right after Analyze finishes (AI Reasoning Log), but
+       scoped to one attribute and reachable any time the grid exists,
+       not just from that end-of-run screen. -->
+  <div id="attr-guidance-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10500;align-items:center;justify-content:center">
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(640px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:0.5px solid var(--border-light);flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--wf-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">G</div>
+          <div id="attr-guidance-title" style="font-size:15px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Guidance</div>
+        </div>
+        <button class="icon-btn" onclick="_closeAttrGuidanceModal()" title="Close" style="flex-shrink:0"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="attr-guidance-body" style="flex:1;overflow-y:auto;padding:16px 20px;min-height:0"></div>
+      <div style="padding:12px 20px;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+        <button class="btn-s" id="attr-guidance-download-btn" onclick="_downloadAttrGuidance()"><i class="ti ti-download"></i>Download .txt</button>
+        <button class="btn-p" onclick="_closeAttrGuidanceModal()">OK</button>
+      </div>
+    </div>
+  </div>
 </div><!-- /app -->
 
 <script>
@@ -11899,7 +11922,12 @@ function renderAnalysisResultsGrid(ref) {
   const headRow = `<div style="display:grid;grid-template-columns:${gridTemplate};min-width:${totalWidth}px;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);position:sticky;top:0;z-index:1">
     <div style="${headCellStyle}text-align:center">Sample #</div>
     ${sdColumns.map(c => `<div style="${headCellStyle}" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
-    ${attributes.map((a, ai) => `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">${escHtml(a.attrRef || a.num || String(ai + 1))}</div>`).join('')}
+    ${attributes.map((a, ai) => {
+      const attrLabel = a.attrRef || a.num || String(ai + 1);
+      return `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">
+        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
+      </div>`;
+    }).join('')}
     <div style="${headCellStyle}">Sample File(s)</div>
   </div>`;
 
@@ -12004,6 +12032,147 @@ function renderAnalysisResultsGrid(ref) {
   </div>`;
 
   container.innerHTML = headRow + bodyRows + legend;
+}
+
+/* ══════════════════════════════════════
+   TESTWORK GRID — per-attribute Guidance modal ("G" icon in the header)
+   Surfaces, at any time the grid exists (not just right after Analyze
+   finishes), the same underlying per-attribute AI reasoning already
+   offered as a one-time download via the Reasoning Log — scoped to one
+   attribute, broken out by sample, starting with the first.
+══════════════════════════════════════ */
+let _attrGuidanceOpenKey    = null; // `${ref}:${attrIndex}` while the modal is open for that attribute, else null
+let _attrGuidanceCurrentRef = null;
+let _attrGuidanceCurrentIndex = null;
+
+// Same title-matching logic renderAnalysisResultsGrid's own tick cells
+// already use — kept identical so the guidance modal can never show a
+// different sample's result than what the grid itself displays for the
+// same attribute/sample pair.
+function _attrGuidanceMatchForSample(fileResult, attr) {
+  let match = (fileResult.results || []).find(r => r.title === attr.title);
+  if (!match) {
+    const al = (attr.title || '').toLowerCase();
+    match = (fileResult.results || []).find(r =>
+      (r.title || '').toLowerCase().startsWith(al) || al.startsWith((r.title || '').toLowerCase()) ||
+      (r.title || '').toLowerCase().includes(al) || al.includes((r.title || '').toLowerCase())
+    );
+  }
+  return match || null;
+}
+
+function _buildAttrGuidanceSections(ref, attrIndex) {
+  const wpResults  = _wpAnalysisResults[ref] || [];
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[attrIndex];
+  if (!attr) return [];
+  return wpResults.map((fileResult, fi) => {
+    const match = _attrGuidanceMatchForSample(fileResult, attr);
+    return {
+      sampleNum:  fi + 1,
+      sampleDesc: fileResult.sampleDesc || `Sample ${fi + 1}`,
+      result:     match?.result || null,
+      reasoning:  match?.reasoning || '',
+      note:       match?.note || '',
+    };
+  });
+}
+
+// Opens the modal for this attribute — or, per explicit instruction, a
+// SECOND click on the same attribute's "G" icon while its modal is
+// already open closes it again, rather than re-opening/re-rendering it.
+function _toggleAttrGuidanceModal(ref, attrIndex, attrLabel, attrTitle) {
+  const key = `${ref}:${attrIndex}`;
+  const overlay = document.getElementById('attr-guidance-overlay');
+  if (_attrGuidanceOpenKey === key && overlay && overlay.style.display !== 'none') {
+    _closeAttrGuidanceModal();
+    return;
+  }
+  _attrGuidanceOpenKey = key;
+  _attrGuidanceCurrentRef = ref;
+  _attrGuidanceCurrentIndex = attrIndex;
+
+  const titleEl = document.getElementById('attr-guidance-title');
+  if (titleEl) titleEl.textContent = `Guidance — Attribute ${attrLabel}: ${attrTitle}`;
+
+  const sections = _buildAttrGuidanceSections(ref, attrIndex);
+  const bodyEl = document.getElementById('attr-guidance-body');
+  if (bodyEl) {
+    if (!sections.length) {
+      bodyEl.innerHTML = `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:20px 0;text-align:center">No testwork guidance is available for this attribute yet.</div>`;
+    } else {
+      // One labeled section per sample, in order, starting with Sample 1
+      // — the scrollable body (not a separate control) is what "scroll
+      // if necessary" means here: nothing extra is needed when the
+      // content is short, and it scrolls naturally once it's long.
+      bodyEl.innerHTML = sections.map(s => {
+        const icon  = s.result === 'pass' ? '✓' : s.result === 'fail' ? '✗' : '–';
+        const color = s.result === 'pass' ? '#16a34a' : s.result === 'fail' ? '#dc2626' : 'var(--text-tertiary)';
+        const body  = s.reasoning
+          ? escHtml(s.reasoning)
+          : (s.note ? escHtml(s.note) : '<span style="font-style:italic;color:var(--text-tertiary)">No reasoning returned for this sample.</span>');
+        return `<div style="margin-bottom:16px;padding-bottom:14px;border-bottom:0.5px solid var(--border-light)">
+          <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:4px">
+            <span style="color:${color};margin-right:4px">${icon}</span>SAMPLE ${s.sampleNum}: ${escHtml(s.sampleDesc)}
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap">${body}</div>
+        </div>`;
+      }).join('');
+    }
+    bodyEl.scrollTop = 0;
+  }
+  const dlBtn = document.getElementById('attr-guidance-download-btn');
+  if (dlBtn) dlBtn.style.display = sections.length ? '' : 'none';
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function _closeAttrGuidanceModal() {
+  const overlay = document.getElementById('attr-guidance-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _attrGuidanceOpenKey = null;
+}
+
+function _downloadAttrGuidance() {
+  const ref = _attrGuidanceCurrentRef, attrIndex = _attrGuidanceCurrentIndex;
+  if (!ref || attrIndex == null) return;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[attrIndex];
+  if (!attr) return;
+  const attrLabel = attr.attrRef || attr.num || String(attrIndex + 1);
+  const wp  = WORKPAPERS[currentWPIndex];
+  const now = new Date();
+  const ts  = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+  const dateStr = now.toLocaleString();
+  const sections = _buildAttrGuidanceSections(ref, attrIndex);
+
+  const lines = [
+    '═'.repeat(72),
+    `WAVEFIRE — TESTWORK GUIDANCE — ATTRIBUTE ${attrLabel}: ${attr.title || ''}`,
+    '═'.repeat(72),
+    `Workpaper : ${ref} — ${wp?.name || ''}`,
+    `Audit     : ${wp?.auditName || ''}`,
+    `Generated : ${dateStr}`,
+    '═'.repeat(72),
+    '',
+  ];
+  sections.forEach(s => {
+    lines.push(`SAMPLE ${s.sampleNum}: ${s.sampleDesc}`);
+    lines.push('─'.repeat(60));
+    lines.push(`Result: ${(s.result || 'not tested').toUpperCase()}`);
+    lines.push(s.reasoning || s.note || '(No reasoning returned for this sample.)');
+    lines.push('');
+  });
+  lines.push('── END OF GUIDANCE ──────────────────────────────────────────────────────');
+  lines.push(`Generated by Wavefire ${dateStr}`);
+
+  const content = lines.join('\n');
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${ref || 'Analysis'}_Guidance_${attrLabel}_${ts}.txt`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 // Renders the "Delete selected" button into the section toolbar,
