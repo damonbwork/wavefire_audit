@@ -910,6 +910,18 @@
       <a class="wf-nav-item" id="nav-admin" href="#" onclick="activateAdmin();return false;" style="display:none">Admin</a>
     </nav>
     <div class="wf-user">
+      <!-- Ask Wavefire AI — moved here from the per-workpaper header so
+           it's available from anywhere in the app, per explicit request.
+           Its actual usefulness is still tied to a specific open
+           workpaper (that's what the assistant has real data about), so
+           _toggleWpChat() itself shows a plain, friendly "open a
+           workpaper first" state rather than pretending it has anything
+           to say with none open. -->
+      <button onclick="_toggleWpChat()" title="Ask Wavefire AI about the current workpaper"
+        style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px 0 6px;border-radius:6px">
+        <i class="ti ti-message-circle-2" style="font-size:22px;color:#fdba74"></i>
+        <span style="font-size:9px;font-weight:600;color:#fdba74;white-space:nowrap">Ask AI</span>
+      </button>
       <div class="wf-notif"><i class="ti ti-bell"></i></div>
       <div style="position:relative">
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
@@ -5988,6 +6000,29 @@ Testwork Grid" to build a blank grid and record each result yourself.
     <div style="padding:10px 14px;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
       <button class="btn-s" id="attr-guidance-download-btn" onclick="_downloadAttrGuidance()"><i class="ti ti-download"></i>Download .txt</button>
       <button class="btn-p" onclick="_closeAttrGuidanceModal()">OK</button>
+    </div>
+  </div>
+
+  <!-- Workpaper Chat Assistant — a floating, draggable/resizable window
+       (same pattern as Review Notes and the attribute Guidance window),
+       opened via the "Ask Wavefire AI" button in the workpaper header.
+       Per design-documents/workpaper-chat-assistant-plan.md: explains
+       existing Analyze results in plain language and coaches toward the
+       real, existing levers (Additional Information wording, or an
+       explicit override) rather than inventing new capability. -->
+  <div id="wp-chat-overlay" class="notes-window" style="display:none;width:400px;height:520px;top:100px;left:calc(50% - 200px)">
+    <div id="wp-chat-hdr" class="notes-window-hdr">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+        <i class="ti ti-message-circle-2" style="font-size:15px"></i>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ask Wavefire AI</span>
+      </div>
+      <button onclick="_closeWpChat()" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;flex-shrink:0" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
+    </div>
+    <div id="wp-chat-messages" style="flex:1;overflow-y:auto;padding:12px 14px;min-height:0;display:flex;flex-direction:column;gap:10px"></div>
+    <div id="wp-chat-chips" style="padding:0 14px 8px;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0"></div>
+    <div style="padding:10px 14px;display:flex;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <input id="wp-chat-input" type="text" placeholder="Ask about this workpaper's results…" onkeydown="if(event.key==='Enter')_submitWpChatInput()" style="flex:1;font-size:12px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
+      <button class="btn-p" onclick="_submitWpChatInput()"><i class="ti ti-send"></i></button>
     </div>
   </div>
 </div><!-- /app -->
@@ -11919,7 +11954,7 @@ function renderAnalysisResultsGrid(ref) {
     ${attributes.map((a, ai) => {
       const attrLabel = a.attrRef || a.num || String(ai + 1);
       return `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">
-        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
+        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_wpChatSetLastFocus('${ref}',${ai},null);_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
       </div>`;
     }).join('')}
     <div style="${headCellStyle}">Sample File(s)</div>
@@ -11974,7 +12009,11 @@ function renderAnalysisResultsGrid(ref) {
       // match that column's own values exactly, so the two entry points
       // can never disagree about which attribute they're opening.
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
-      const onClick = `_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
+      // Records what the user was just looking at, so if they open "Ask
+      // Wavefire" shortly after, its suggested chips can lead with THIS
+      // exact attribute+sample instead of a generic, workpaper-wide
+      // guess — see _wpChatSetLastFocus's own comment.
+      const onClick = `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
       return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}</div>`;
     }).join('');
 
@@ -12174,6 +12213,305 @@ function _downloadAttrGuidance() {
   a.download = `${ref || 'Analysis'}_Guidance_${attrLabel}_${ts}.txt`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ══════════════════════════════════════
+   WORKPAPER CHAT ASSISTANT
+   Per design-documents/workpaper-chat-assistant-plan.md — explains why
+   Analyze reached a given conclusion and coaches toward the existing
+   levers (Additional Information wording, or an explicit override)
+   rather than inventing new capability. Session-only history, one
+   floating window shared across whichever workpaper is currently open
+   (matching the notes-window/attr-guidance-window pattern already used
+   elsewhere), routed through the existing generic /api/claude proxy —
+   no new server endpoint needed, and AI-unit usage logging already
+   happens there for every call.
+══════════════════════════════════════ */
+const _wpChatHistory = {}; // { ref: [{role:'user'|'assistant', content}] }
+let _wpChatOpenRef = null;
+let _wpChatSending = false;
+
+// Tracks the last (attribute, sample) the user actually clicked into —
+// a tick in the Testwork Grid, or an attribute's own "G" guidance icon
+// (sampleRowIndex null there, since that's attribute-wide, not tied to
+// one sample). Lets the suggested chips lead with "what you were just
+// looking at" instead of a generic, workpaper-wide guess — answering
+// "how does the chat know where the user is" precisely: it doesn't
+// magically know the DOM the user is looking at, it's told, by these
+// explicit click-time calls, exactly the same way this app's other
+// state (e.g. currentAttrWPRef) already tracks "what's currently open."
+// Expires after a few minutes so a stale click from long ago (a
+// different train of thought) doesn't keep steering suggestions.
+let _wpChatLastFocus = null; // { ref, attributeIndex, sampleRowIndex, ts }
+const _WP_CHAT_FOCUS_TTL_MS = 5 * 60 * 1000;
+
+function _wpChatSetLastFocus(ref, attributeIndex, sampleRowIndex) {
+  _wpChatLastFocus = { ref, attributeIndex, sampleRowIndex, ts: Date.now() };
+}
+
+function _wpChatActiveFocus(ref) {
+  if (!_wpChatLastFocus || _wpChatLastFocus.ref !== ref) return null;
+  if (Date.now() - _wpChatLastFocus.ts > _WP_CHAT_FOCUS_TTL_MS) return null;
+  return _wpChatLastFocus;
+}
+
+const _WP_CHAT_SYSTEM_PROMPT = `You are Wavefire's audit workpaper assistant. You help an auditor understand why Analyze reached the conclusions it did on ONE specific workpaper, and coach them toward the real, existing ways to change future conclusions.
+
+Vocabulary, exactly as this app uses it:
+- Exception: a confirmed, sample-specific failure of the attribute's own stated pass criteria (or a stated failure criterion being met). The direct, reviewable cause of that attribute's Fail result for that one sample.
+- Finding: a sample-specific deviation or documentation gap that does NOT fail the attribute's own criteria — the sample can still legitimately Pass — but is worth recording.
+- Recommendation: a suggestion about the design or operation of the control/process itself, not about one sample's result.
+
+CRITICAL — do not blur this distinction:
+- You cannot change a sample's recorded pass/fail result yourself, and reclassifying or editing an Exception/Finding/Recommendation NEVER changes a result either — that would require a separate, deliberate override the user makes by clicking the tick itself in the Testwork Grid.
+- An attribute's own "Additional Information" field can carry a binding, attribute-specific rule (e.g. "if X, treat as a Finding not an Exception") that is weighed ahead of the general rule on every FUTURE Analyze run — this only affects results Analyze produces later, never an already-recorded result.
+- If the user's real ask is "make this existing result pass instead," tell them plainly that requires an override on that tick, not a wording change — do not imply that editing Additional Information will retroactively change it.
+- When the user wants to prevent a recurring issue going forward, propose one concise, specific sentence to add to that attribute's Additional Information, and ask if they'd like it added — never claim you added it yourself; you can only draft it for them to paste in or apply themselves.
+
+Answer using ONLY the workpaper data provided below — never invent facts, sample results, or attribute wording not present in it. Keep answers concise and specific.`;
+
+// Compact, single-string summary of this workpaper's current state —
+// attributes + their criteria, every sample's result per attribute (AI
+// result, with any active override layered on top exactly as the grid
+// itself displays it), and open Exceptions/Findings/Recommendations.
+// Capped in length as a simple safety net against an unusually large
+// grid driving an unnecessarily expensive request.
+function _buildWpChatContext(ref) {
+  const wp = WORKPAPERS.find(w => w.ref === ref);
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const exceptions = wpExceptions[ref] || [];
+
+  const lines = [];
+  lines.push(`Workpaper: ${ref} — ${wp?.name || ''}`);
+  lines.push(`Audit: ${wp?.auditName || ''}   Status: ${wp?.status || ''}`);
+  lines.push(`Preparer: ${wp?.preparer || ''}   Reviewer: ${wp?.reviewer || ''}`);
+  lines.push('');
+  lines.push(`ATTRIBUTES (${attributes.length}):`);
+  attributes.forEach((a, ai) => {
+    lines.push(`${a.attrRef || ai + 1}. ${a.title}`);
+    if (a.desc)            lines.push(`   Description: ${a.desc}`);
+    if (a.successCriteria) lines.push(`   Success criteria: ${a.successCriteria}`);
+    if (a.failureCriteria) lines.push(`   Failure criteria: ${a.failureCriteria}`);
+    if (a.additionalInfo)  lines.push(`   Additional Information (already in effect): ${a.additionalInfo}`);
+  });
+  lines.push('');
+  if (wpResults.length) {
+    lines.push(`TESTWORK RESULTS (${wpResults.length} sample(s) × ${attributes.length} attribute(s)):`);
+    wpResults.forEach((fr, fi) => {
+      lines.push(`Sample ${fi + 1}: ${fr.sampleDesc || ''}`);
+      attributes.forEach((a, ai) => {
+        const match = (fr.results || []).find(r => r.title === a.title);
+        const ov = _findOverrideFor(ref, ai, fi);
+        const result = ov?.override_result || match?.result || 'not tested';
+        const note = (ov?.override_note || match?.note || match?.reasoning || '').slice(0, 240);
+        const overrideFlag = ov?.override_result ? ' [person override]' : '';
+        lines.push(`  ${a.attrRef || ai + 1} (${a.title}): ${result}${overrideFlag}${note ? ' — ' + note : ''}`);
+      });
+    });
+  } else {
+    lines.push('The Testwork Grid has not been produced yet for this workpaper (no Analyze run, and no manually-created grid).');
+  }
+  lines.push('');
+  if (exceptions.length) {
+    lines.push(`EXCEPTIONS / FINDINGS / RECOMMENDATIONS (${exceptions.length}):`);
+    exceptions.forEach(e => {
+      lines.push(`${e.ref || ''} [${_typeLabel(e.type || 'exception')}] ${e.name || ''}: ${e.desc || ''}`);
+    });
+  } else {
+    lines.push('No Exceptions, Findings, or Recommendations recorded yet.');
+  }
+
+  let context = lines.join('\n');
+  const CAP = 12000;
+  if (context.length > CAP) {
+    context = context.slice(0, CAP) + '\n\n[...truncated — this workpaper has more data than fits here; ask about a specific attribute or sample for detail.]';
+  }
+  return context;
+}
+
+// Generates up to 4 suggested-question chips from the workpaper's
+// CURRENT state — same "look at what's actually true, don't ask the
+// user to already know it" approach _analysisOptionDataAvailability
+// already uses for the Analyze-options auto-detection feature. A blank
+// chat box is a bad first experience for a feature most users have
+// never used conversationally before; these give a concrete, clickable
+// first question instead of requiring one to be invented from scratch.
+function _buildWpChatSuggestions(ref) {
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults  = _wpAnalysisResults[ref] || [];
+  const exceptions = wpExceptions[ref] || [];
+  const chips = [];
+
+  if (!wpResults.length) {
+    chips.push('What does this workpaper still need before I can run Analyze?');
+    chips.push('What is Analyze going to test on this workpaper?');
+    return chips;
+  }
+
+  // Lead with exactly what the user was just looking at, if they clicked
+  // into a tick or a "G" icon recently — this is the precise-context
+  // case: rather than a workpaper-wide guess, the very first chip
+  // matches whatever attribute/sample they came from.
+  const focus = _wpChatActiveFocus(ref);
+  if (focus) {
+    const attr = attributes[focus.attributeIndex];
+    if (attr) {
+      if (focus.sampleRowIndex != null) {
+        const fr = wpResults[focus.sampleRowIndex];
+        const match = (fr?.results || []).find(r => r.title === attr.title);
+        const ov = _findOverrideFor(ref, focus.attributeIndex, focus.sampleRowIndex);
+        const result = ov?.override_result || match?.result || 'that result';
+        chips.push(`Why did "${attr.title}" ${result === 'fail' ? 'fail' : result === 'pass' ? 'pass' : 'get ' + result} on sample ${focus.sampleRowIndex + 1}?`);
+      } else {
+        chips.push(`Why does "${attr.title}" keep reaching the conclusions it does?`);
+      }
+    }
+  }
+
+  let worstAttr = null, worstFails = 0;
+  attributes.forEach((a, ai) => {
+    let fails = 0;
+    wpResults.forEach((fr, fi) => {
+      const match = (fr.results || []).find(r => r.title === a.title);
+      const ov = _findOverrideFor(ref, ai, fi);
+      const result = ov?.override_result || match?.result;
+      if (result === 'fail') fails++;
+    });
+    if (fails > worstFails) { worstFails = fails; worstAttr = a; }
+  });
+  if (worstAttr && worstFails >= 2) {
+    chips.push(`Why does "${worstAttr.title}" keep failing across samples?`);
+  } else if (worstAttr && worstFails === 1) {
+    chips.push(`Why did "${worstAttr.title}" fail?`);
+  }
+  if (exceptions.length) chips.push('Summarize the open Exceptions on this workpaper.');
+  chips.push('Summarize what is outstanding on this workpaper.');
+  chips.push('How do I stop a recurring issue from being flagged going forward?');
+
+  return chips.slice(0, 4);
+}
+
+function _toggleWpChat() {
+  const overlay = document.getElementById('wp-chat-overlay');
+  if (!overlay) return;
+  const isOpen = overlay.style.display !== 'none';
+  const ref = getWPRef();
+
+  // A second click on the trigger, regardless of whether a workpaper is
+  // open, just closes whatever's currently showing.
+  if (isOpen && (_wpChatOpenRef === ref || (!ref && !_wpChatOpenRef))) {
+    _closeWpChat();
+    return;
+  }
+
+  overlay.style.display = 'flex';
+  makeDraggable(document.getElementById('wp-chat-hdr'), overlay);
+
+  // Available from anywhere in the app (per explicit request, moved out
+  // of the per-workpaper header up into the persistent top bar), but its
+  // actual usefulness is still tied to one specific open workpaper —
+  // that's the only thing it has real data about. Rather than silently
+  // doing nothing when none is open, show a plain, friendly state
+  // explaining that, with no input/chips to interact with until one is.
+  const inputRow = document.getElementById('wp-chat-input')?.closest('div');
+  if (!ref) {
+    _wpChatOpenRef = null;
+    document.getElementById('wp-chat-messages').innerHTML = `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.6;text-align:center;padding:20px 6px">
+      <i class="ti ti-folder-open" style="font-size:22px;display:block;margin-bottom:8px"></i>
+      Open a workpaper to ask about its results — I need one open to know what to talk about.
+    </div>`;
+    document.getElementById('wp-chat-chips').innerHTML = '';
+    if (inputRow) inputRow.style.display = 'none';
+    return;
+  }
+
+  if (inputRow) inputRow.style.display = '';
+  _wpChatOpenRef = ref;
+  _renderWpChatMessages(ref);
+  _renderWpChatChips(ref);
+  setTimeout(() => document.getElementById('wp-chat-input')?.focus(), 30);
+}
+
+function _closeWpChat() {
+  const overlay = document.getElementById('wp-chat-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _wpChatOpenRef = null;
+}
+
+function _renderWpChatMessages(ref) {
+  const el = document.getElementById('wp-chat-messages');
+  if (!el) return;
+  const history = _wpChatHistory[ref] || [];
+  if (!history.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.6">
+      Ask me about why an attribute passed or failed on a specific sample, or how to adjust an attribute's wording so future Analyze runs judge similar facts differently. I can only draft a wording change for you to review — I never edit anything myself, and I can't change an already-recorded pass/fail result (that needs an explicit override on the tick itself).
+    </div>`;
+  } else {
+    el.innerHTML = history.map(m => `
+      <div style="align-self:${m.role === 'user' ? 'flex-end' : 'flex-start'};max-width:85%;background:${m.role === 'user' ? 'var(--wf-navy)' : 'var(--bg-secondary)'};color:${m.role === 'user' ? '#fff' : 'var(--text-primary)'};padding:8px 11px;border-radius:10px;font-size:12px;line-height:1.55;white-space:pre-wrap">${escHtml(m.content)}</div>
+    `).join('');
+  }
+  if (_wpChatSending) {
+    el.innerHTML += `<div style="align-self:flex-start;font-size:11px;color:var(--text-tertiary);font-style:italic;padding:2px 4px"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;margin-right:4px"></i>Thinking…</div>`;
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+function _renderWpChatChips(ref) {
+  const el = document.getElementById('wp-chat-chips');
+  if (!el) return;
+  // Chips are an onboarding aid for a still-empty conversation — once
+  // real messages exist, stop suggesting canned questions and let the
+  // assistant's own replies (which end with a natural follow-up) carry
+  // that job instead.
+  if ((_wpChatHistory[ref] || []).length) { el.innerHTML = ''; return; }
+  const chips = _buildWpChatSuggestions(ref);
+  el.innerHTML = chips.map(c => `<button class="btn-s" style="font-size:10px;padding:3px 8px;white-space:normal;text-align:left" onclick="_sendWpChatMessage('${ref}', ${JSON.stringify(c).replace(/'/g, "\\'")})">${escHtml(c)}</button>`).join('');
+}
+
+function _submitWpChatInput() {
+  const input = document.getElementById('wp-chat-input');
+  const ref = _wpChatOpenRef;
+  if (!input || !ref) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  _sendWpChatMessage(ref, text);
+}
+
+async function _sendWpChatMessage(ref, userText) {
+  if (!userText || !userText.trim() || _wpChatSending) return;
+  if (!_wpChatHistory[ref]) _wpChatHistory[ref] = [];
+  _wpChatHistory[ref].push({ role: 'user', content: userText });
+  _wpChatSending = true;
+  _renderWpChatMessages(ref);
+  _renderWpChatChips(ref);
+
+  try {
+    const context = _buildWpChatContext(ref);
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: _WP_CHAT_SYSTEM_PROMPT + '\n\nCURRENT WORKPAPER DATA:\n' + context,
+        messages: _wpChatHistory[ref].map(m => ({ role: m.role, content: m.content })),
+      }),
+    });
+    const data = await res.json();
+    const text = res.ok
+      ? ((data.content || []).find(b => b.type === 'text')?.text || 'I could not generate a response for that.')
+      : `Sorry, something went wrong reaching the assistant (${data?.error?.message || res.status}).`;
+    _wpChatHistory[ref].push({ role: 'assistant', content: text });
+  } catch (err) {
+    _wpChatHistory[ref].push({ role: 'assistant', content: 'Something went wrong reaching the assistant: ' + err.message });
+  }
+
+  _wpChatSending = false;
+  _renderWpChatMessages(ref);
+  _renderWpChatChips(ref);
 }
 
 // Renders the "Delete selected" button into the section toolbar,
@@ -22810,6 +23148,65 @@ function _findOverrideFor(ref, attributeIndex, sampleRowIndex) {
   return rows.find(r => r.attribute_index === attributeIndex && r.sample_row_index === sampleRowIndex) || null;
 }
 
+// Real, new fix for a genuine gap: the Testwork Grid itself
+// (_wpAnalysisResults[ref] — sample descriptions, cell snapshots, and
+// per-attribute results) was ONLY ever held in browser memory. It's
+// built in exactly two places — after a real Analyze run, and by the
+// manual "Create Testwork Grid" button — and neither one persisted that
+// structure anywhere, so reloading the page (or opening the same
+// workpaper in another session) made the entire grid disappear, even
+// though the AI's own per-cell result/marks/note (and any manual
+// entry/override, now that the override endpoint upserts — see its own
+// comment) were sitting unused in the attribute_sample_results table the
+// whole time. This reconstructs the grid FROM that table plus the
+// already-persisted Sample Data grid and Test Attributes, rather than
+// adding a new, separate, redundant JSONB blob to keep in sync — the
+// exact same "derive it from what's already saved" approach this app
+// already uses for the sample-data-driven columns elsewhere.
+async function _reconstructAnalysisResultsFromDB(ref) {
+  if ((_wpAnalysisResults[ref] || []).length) return; // already have it this session (e.g. Analyze just ran) — never clobber that with a stale reconstruction
+  const sampleRows = (_daSampleDataFor(ref)?.rows || []);
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  if (!sampleRows.length || !attributes.length) return; // nothing to rebuild yet
+
+  const dbRows = await _loadAttrSampleResults(ref);
+  if (!dbRows.length) return; // never analyzed AND nothing manually entered yet — genuinely nothing to reconstruct
+
+  const snapshot = sampleRows.map((row, fi) => {
+    const results = attributes.map((attr, ai) => {
+      const dbRow = dbRows.find(r => r.attribute_index === ai && r.sample_row_index === fi);
+      if (!dbRow) return { title: attr.title }; // no result persisted for this cell yet — renders as untested, same as a fresh manual grid
+      const marks = Array.isArray(dbRow.ai_marks) ? dbRow.ai_marks : [];
+      const firstMark = marks[0] || {};
+      // Deliberately the AI's OWN result/note/marks here, never the
+      // override columns — an active override is layered on top at
+      // render time via _findOverrideFor, exactly as it already is for
+      // a same-session grid. Reconstructing with the override baked in
+      // here would make it indistinguishable from an AI result and
+      // break that existing "OVR" badge/tooltip logic.
+      return {
+        title: attr.title,
+        result: dbRow.ai_result || undefined,
+        note: dbRow.ai_note || '',
+        marks,
+        sourceFile: firstMark.sourceFile || '',
+        page: firstMark.page || 1,
+        paragraph: firstMark.paragraph || 0,
+      };
+    });
+    return {
+      sampleDesc: _describeSampleGridRow(ref, row) || '',
+      sampleRowCells: Object.assign({}, row.cells || {}),
+      results,
+      fields: [],
+    };
+  });
+
+  _wpAnalysisResults[ref] = snapshot;
+  const wpObj = WORKPAPERS.find(w => w.ref === ref);
+  if (wpObj) wpObj._analysisResults = snapshot.slice();
+}
+
 
 // A direct port of the _describeSampleRow closure inside analyzeWithClaude
 // (private to that function, not reachable here) — builds the same
@@ -22903,7 +23300,7 @@ function _openOverridePopup(overlay, tickEl, opts) {
 // updated cached row, or null if the save failed (already alerted).
 async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
   try {
-    await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
+    const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         attributeIndex: ai, sampleRowIndex: fi,
@@ -22912,6 +23309,19 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
         exceptionText: overrideNote || null,
       }),
     });
+    // Real, confirmed fix — fetch() only rejects on a genuine network-
+    // level failure; a server-side rejection (this endpoint used to 404
+    // when no row existed yet, e.g. for a manually-created Testwork Grid
+    // cell that had never been through Analyze) resolved normally and
+    // was silently treated as success, updating the local cache below as
+    // if it had actually persisted. Without this check, a manual entry
+    // looked saved in the UI but was never actually in Postgres, and
+    // vanished on the next page load.
+    if (!res.ok) {
+      console.error('[Override] Save rejected by server:', res.status);
+      alert('Could not save this result — the server rejected the save. Please try again.');
+      return null;
+    }
     // Updates the cached row in place rather than refetching the whole
     // workpaper's rows just to reflect this one save.
     const rows = _attrSampleResultsCache[ref] || (_attrSampleResultsCache[ref] = []);
@@ -33315,6 +33725,21 @@ async function loadSampleDataFromDB(ref) {
   // attributes (avoids a stale, slow load clobbering a render for
   // whatever the user has since navigated to).
   if (currentAttrWPRef === ref) renderTestAttributes(ref);
+
+  // Now that this workpaper's Sample Data rows are freshly loaded (Test
+  // Attributes were already loaded earlier, during the initial full
+  // workpaper-list fetch), reconstruct the Testwork Grid from Postgres if
+  // it isn't already sitting in memory — see that function's own comment
+  // for why this was previously lost on every page reload.
+  try {
+    await _reconstructAnalysisResultsFromDB(ref);
+    // Guard against a slow load finishing after the user has since
+    // navigated to a different workpaper — same pattern as the
+    // renderTestAttributes guard just above.
+    if (WORKPAPERS[currentWPIndex]?.ref === ref) renderAnalysisResultsGrid(ref);
+  } catch (e) {
+    console.warn('[Testwork Grid] Could not reconstruct from saved results:', e.message);
+  }
 }
 
 // ── Sample Data grid as the source for Analyze & Create Workpaper ────────────
