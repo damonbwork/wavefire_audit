@@ -653,6 +653,22 @@ reusing infrastructure already in place:
      <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
    </select>
    ```
+   **[REVISED per explicit correction — see note below the original plan
+   text] The bullets immediately below describe the ORIGINAL design,
+   which is no longer how this works.** Reclassifying (or deleting) an
+   Exception/Finding/Recommendation never changes the attribute's own
+   pass/fail result, in either direction — that result only ever comes
+   from Analyze's own AI determination, or a separate, deliberate
+   pass/fail override made on the tick itself. The reasoning: an
+   Exception is a *record about* an already-existing Fail (Analyze's own
+   result), not what *causes* the Fail — so removing or relabeling that
+   record has no more business silently flipping the result back to Pass
+   than deleting a Finding should silently flip anything. If a user
+   genuinely believes a result is wrong, they override it directly
+   (a separate, deliberate action with its own confirmation) rather than
+   having that happen as a side effect of tidying up the grid. See
+   "Implemented and verified" note below for what actually shipped.
+
    `_reclassifyGridItem(ref, idx, newType)` keeps the row's global `#`
    (`num`) and all evidence fields (`sourceFile`/`page`/`paragraph`/
    `linkedFiles`/`desc`) exactly as-is, recomputes `ref`/`typeNum` via
@@ -661,23 +677,27 @@ reusing infrastructure already in place:
    most reclassifications (Finding ↔ Recommendation, or either one with
    no annotated files yet) apply instantly on selection, the same as
    picking a new Disposition Status does today:
-   - **Exception → Finding/Recommendation**: this removes the item's
+   - ~~**Exception → Finding/Recommendation**: this removes the item's
      Fail-driving status. Reuse Part 6's own exception-deletion pass/fail
      path — prompt whether to also override the attribute to Pass with
      an explanation ("Reclassified from Exception to Finding by user on
      `<date>`"), exactly as deleting an Exception already does — then
      re-burn: draw the new type's marker in place of the old one rather
      than removing and separately adding (one call to the applicable
-     burn function per affected file, not two).
-   - **Finding/Recommendation → Exception**: the reverse — this newly
+     burn function per affected file, not two).~~ **Superseded — no
+     pass/fail change; only re-burns the file to match the new label.**
+   - ~~**Finding/Recommendation → Exception**: the reverse — this newly
      makes the attribute Fail for that sample, so prompt for the
      analogous override (`overrideResult: 'fail'`, an explanation such
      as "Reclassified from Finding to Exception by user on `<date>`"),
      then re-burn with the Exception's own check/X + `[Ref]` marker in
-     place of the Finding/Recommendation's letter.
+     place of the Finding/Recommendation's letter.~~ **Superseded — same
+     as above: relabel + re-burn only, no pass/fail change. (Moving INTO
+     Exception still requires an attribute+sample link, refused
+     otherwise — that validation rule is unchanged.)**
    - **Finding ↔ Recommendation**: no pass/fail involved either way —
      just re-burn the marker's letter/color and update the row's `type`/
-     `ref`/`typeNum`.
+     `ref`/`typeNum`. (Unchanged — this was already correct.)
 2. **Auto-append the correction as durable guidance** — immediately
    after a successful reclassification (or, symmetrically, after a
    Part 6 exception-deletion where the explanation effectively says "I
@@ -761,3 +781,21 @@ Finding → Recommendation (no boundary — no override calls at all, silent
 `_reburnCandidatesForFile` only); and Finding-with-no-attribute-link →
 Exception (refused with a clear alert, the row's `type` left unchanged,
 `renderExceptions` called to reset the dropdown to its real value).
+
+**Revised per explicit correction (2026-09-11):** the boundary-crossing
+behavior above (`_postOverride`/`_syncOverrideToAnnotatedFiles` on
+Exception ↔ Finding/Recommendation) was removed entirely, for both
+`_reclassifyGridItem` and the equivalent path in `_deleteGridItem`
+(which previously reset an Exception's attribute to Pass on delete-and-
+update). Reclassifying or deleting an item now **only ever** relabels
+the row and, if it's linked to an already-annotated file, silently
+rebuilds that file via `_reburnCandidatesForFile` — never touches
+pass/fail, in either direction, for any type transition. The help-modal
+text for the Testwork Grid and the Exceptions/Findings/Recommendations
+grid, and the delete-confirmation dialog's own explanatory text, were
+all updated to match. Verified via synthetic data against the dev
+server: reclassifying an Exception (with an attribute+sample link) to
+Finding leaves `_findOverrideFor` returning null and the AI's own
+`result` field unchanged at `'fail'`; deleting that same Exception
+(via the plain-confirm path, no annotated files) likewise leaves the
+result at `'fail'` with no override created.
