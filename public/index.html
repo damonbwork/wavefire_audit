@@ -910,6 +910,18 @@
       <a class="wf-nav-item" id="nav-admin" href="#" onclick="activateAdmin();return false;" style="display:none">Admin</a>
     </nav>
     <div class="wf-user">
+      <!-- Ask Wavefire AI — moved here from the per-workpaper header so
+           it's available from anywhere in the app, per explicit request.
+           Its actual usefulness is still tied to a specific open
+           workpaper (that's what the assistant has real data about), so
+           _toggleWpChat() itself shows a plain, friendly "open a
+           workpaper first" state rather than pretending it has anything
+           to say with none open. -->
+      <button onclick="_toggleWpChat()" title="Ask Wavefire AI about the current workpaper"
+        style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px 0 6px;border-radius:6px">
+        <i class="ti ti-message-circle-2" style="font-size:22px;color:#fdba74"></i>
+        <span style="font-size:9px;font-weight:600;color:#fdba74;white-space:nowrap">Ask AI</span>
+      </button>
       <div class="wf-notif"><i class="ti ti-bell"></i></div>
       <div style="position:relative">
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
@@ -2672,7 +2684,6 @@
             </div>
           </div>
           <div class="row-actions">
-            <button class="btn-s" onclick="_toggleWpChat()" style="background:#ea580c;color:#fff;border-color:#ea580c"><i class="ti ti-message-circle-2"></i>Ask Wavefire AI</button>
             <button class="btn-s" onclick="duplicateWorkpaperInNewTab()"><i class="ti ti-copy"></i>Duplicate Workpaper</button>
             <button class="btn-s" onclick="exportWorkpaperXLSX()"><i class="ti ti-download"></i>Export</button>
             <button class="btn-s" onclick="openHistory()"><i class="ti ti-clock"></i>History</button>
@@ -12382,17 +12393,41 @@ function _buildWpChatSuggestions(ref) {
 }
 
 function _toggleWpChat() {
-  const ref = getWPRef();
-  if (!ref) return;
   const overlay = document.getElementById('wp-chat-overlay');
   if (!overlay) return;
-  if (_wpChatOpenRef === ref && overlay.style.display !== 'none') {
+  const isOpen = overlay.style.display !== 'none';
+  const ref = getWPRef();
+
+  // A second click on the trigger, regardless of whether a workpaper is
+  // open, just closes whatever's currently showing.
+  if (isOpen && (_wpChatOpenRef === ref || (!ref && !_wpChatOpenRef))) {
     _closeWpChat();
     return;
   }
-  _wpChatOpenRef = ref;
+
   overlay.style.display = 'flex';
   makeDraggable(document.getElementById('wp-chat-hdr'), overlay);
+
+  // Available from anywhere in the app (per explicit request, moved out
+  // of the per-workpaper header up into the persistent top bar), but its
+  // actual usefulness is still tied to one specific open workpaper —
+  // that's the only thing it has real data about. Rather than silently
+  // doing nothing when none is open, show a plain, friendly state
+  // explaining that, with no input/chips to interact with until one is.
+  const inputRow = document.getElementById('wp-chat-input')?.closest('div');
+  if (!ref) {
+    _wpChatOpenRef = null;
+    document.getElementById('wp-chat-messages').innerHTML = `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.6;text-align:center;padding:20px 6px">
+      <i class="ti ti-folder-open" style="font-size:22px;display:block;margin-bottom:8px"></i>
+      Open a workpaper to ask about its results — I need one open to know what to talk about.
+    </div>`;
+    document.getElementById('wp-chat-chips').innerHTML = '';
+    if (inputRow) inputRow.style.display = 'none';
+    return;
+  }
+
+  if (inputRow) inputRow.style.display = '';
+  _wpChatOpenRef = ref;
   _renderWpChatMessages(ref);
   _renderWpChatChips(ref);
   setTimeout(() => document.getElementById('wp-chat-input')?.focus(), 30);
