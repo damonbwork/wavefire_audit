@@ -3117,7 +3117,7 @@
           <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:6px"><i class="ti ti-table"></i>Sample Data</div>
           <div class="sect-card" id="sect-sample-data" style="overflow-x:auto">
             <div class="sect-hdr">
-              <div class="sect-hdr-title" style="flex:1;min-width:0" title="Enter or copy/paste sample data you already have from outside the application. Add rows or columns as needed."><i class="ti ti-table"></i>Sample Data</div>
+              <div class="sect-hdr-title" style="flex:1;min-width:0" title="Enter or copy/paste sample data you already have from outside the application. Add rows or columns as needed."><i class="ti ti-table"></i>Sample Data Grid</div>
               <div style="display:flex;gap:6px;flex-shrink:0">
               <span id="sd-bulk-delete-slot"></span>
               <button class="btn-s" onclick="addSampleDataColumn()" title="Add a new column to the right" style="font-size:10px;padding:2px 8px;white-space:nowrap">
@@ -3998,24 +3998,17 @@ auditor's assessment. Prefer to test manually instead? Use "Create
 Testwork Grid" to build a blank grid and record each result yourself.
             </p>
           </div></div><!-- /sect-analyze -->
-          <!-- Legend for the storage-status dot and Original badge shown
-               next to each file's name — explains what each real
-               indicator means, using the exact same colors/shapes as the
-               indicators themselves. -->
+          <!-- Legend explaining each annotation-type code that can appear on
+               an annotated sample file (see "Sample File Annotation
+               Type(s)" in the Analyze options modal) — replaces the old
+               storage-dot/Original legend, which is now covered by each
+               indicator's own hover tooltip instead. -->
           <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary);font-size:11px;color:var(--text-secondary)">
             <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
-            <span style="display:inline-flex;align-items:center;gap:5px">
-              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;border:1.5px solid #16a34a"></span>
-              Stored on server
-            </span>
-            <span style="display:inline-flex;align-items:center;gap:5px">
-              <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:transparent;border:1.5px solid #9ca3af"></span>
-              Not yet saved to server — this session only
-            </span>
-            <span style="display:inline-flex;align-items:center;gap:5px">
-              <span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:#0f766e;background:#f0fdfa;border:0.5px solid #99f6e4;border-radius:3px;padding:1px 5px"><i class="ti ti-shield-check" style="font-size:10px"></i>Original</span>
-              Pristine original — never modified
-            </span>
+            <span><strong>BI</strong> — Burned directly into the page (permanent, not movable)</span>
+            <span><strong>BI2</strong> — A movable stamp annotation that can be repositioned</span>
+            <span><strong>FF</strong> — Uses the PDF's own fillable form fields</span>
+            <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
           </div>
         </div><!-- /sect-card sample files -->
 
@@ -23296,9 +23289,11 @@ function _promptDeleteGridItemSync(ref, item, candidates, protectedFiles) {
         ${fileLink(f.name)}
         <span style="font-size:11px">manually edited — left as-is</span>
       </div>`).join('');
-    const explainText = isException
-      ? `Updating will also set this attribute to <strong>Pass</strong> for this sample, with an explanation noting the exception was deleted, and redraw the mark in each file below to match.`
-      : `Updating will remove this item's own marker from each file below.`;
+    // Per explicit correction: deleting an item — Exception included —
+    // never changes the attribute's own pass/fail result. Updating only
+    // ever rebuilds each file below so its marker/note text no longer
+    // references this item.
+    const explainText = `Updating will remove this item's own marker from each file below.`;
     const html = `<div id="${id}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
       <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
         <div style="padding:18px 20px 10px">
@@ -23450,23 +23445,21 @@ async function _deleteGridItem(ref, idx) {
 
   pushUndo();
 
-  if (choice === 'update' && isException && item.attributeIndex != null && item.sampleRowIndex != null) {
-    const today = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-    const explanation = `Exception deleted by user on ${today}`;
-    await _postOverride(ref, item.attributeIndex, item.sampleRowIndex, 'pass', explanation);
-    // skipPrompt: true — the three-way prompt above already covered this
-    // exact same set of files; asking again would be a redundant second
-    // confirmation for the same action.
-    await _syncOverrideToAnnotatedFiles(ref, item.attributeIndex, item.sampleRowIndex, 'pass', explanation, true);
-  }
-
-  // Remove the row FIRST — a Finding/Recommendation re-burn (below) and
-  // any future lookup of this workpaper's items must both see it as
-  // already gone, not still present a moment longer.
+  // Remove the row FIRST — the re-burn below, and any future lookup of
+  // this workpaper's items, must both see it as already gone, not still
+  // present a moment longer.
   const freshIdx = wpExceptions[ref].indexOf(item);
   if (freshIdx >= 0) wpExceptions[ref].splice(freshIdx, 1);
 
-  if (choice === 'update' && !isException && candidates.length) {
+  // Per explicit correction: deleting an Exception (or a Finding/
+  // Recommendation) never changes the attribute's own pass/fail result —
+  // that result stays exactly whatever Analyze determined (or whatever a
+  // separate, deliberate pass/fail override already set it to). Deleting
+  // only ever rebuilds an already-annotated file so its marker/note text
+  // no longer references the deleted item, using the SAME re-burn path
+  // for every type — there's no longer a special "reset to Pass" case
+  // for an Exception specifically.
+  if (choice === 'update' && candidates.length) {
     const failures = await _reburnCandidatesForFile(ref, candidates);
     if (failures.length) {
       alert(`${failures.length} annotated file${failures.length !== 1 ? 's' : ''} could not be updated after this deletion:\n\n` +
@@ -23485,29 +23478,26 @@ function _typeLabel(type) {
 }
 
 // Real, new, per Part 7 of the design doc — the Type column's own
-// dropdown (renderExceptions) calls this on change. Handles three
+// dropdown (renderExceptions) calls this on change. Per explicit
+// correction, reclassifying an item NEVER changes the attribute's own
+// pass/fail result for that sample — only Analyze's own AI result, or a
+// separate, deliberate pass/fail override, does that. Handles two
 // distinct cases:
-//   1. Crossing INTO or OUT OF 'exception', for an item tied to a real
-//      attribute+sample: this changes that attribute's own pass/fail
-//      status, so it's routed through the SAME override machinery a
-//      manual pass/fail override already uses (_postOverride +
-//      _syncOverrideToAnnotatedFiles) — which shows its own existing
-//      confirmation dialog when annotated files exist, so this doesn't
-//      need (or build) a second, competing sync prompt.
-//   2. Crossing INTO 'exception' for an item with no attribute/sample
-//      link: refused outright — an Exception must drive some specific
-//      attribute's result, and there's nothing here to drive.
-//   3. Everything else (Finding <-> Recommendation, or a boundary
-//      crossing with no attribute link to override) — no pass/fail
-//      consequence at all, so no prompt; just relabel the row and
-//      silently redraw its own marker in any already-annotated files.
+//   1. Crossing INTO 'exception' for an item with no attribute/sample
+//      link: refused outright — an Exception must be tied to some
+//      specific attribute's result to be meaningful here, and there's
+//      nothing here to tie it to.
+//   2. Everything else: just relabel the row (and, if it's linked to an
+//      already-annotated file, rebuild that file's marker/note text via
+//      _reburnCandidatesForFile so it reflects the new classification
+//      and the attribute's current language) — no pass/fail consequence,
+//      ever, so no override-style confirmation prompt.
 async function _reclassifyGridItem(ref, idx, newType) {
   const item = wpExceptions[ref]?.[idx];
   if (!item) return;
   const oldType = item.type || 'exception';
   if (newType === oldType) return; // dropdown re-selected its own current value
 
-  const crossesExceptionBoundary = (oldType === 'exception') !== (newType === 'exception');
   const hasAttrLink = item.attributeIndex != null && item.sampleRowIndex != null;
 
   if (newType === 'exception' && !hasAttrLink) {
@@ -23554,25 +23544,20 @@ async function _reclassifyGridItem(ref, idx, newType) {
     }
   }
 
-  if (crossesExceptionBoundary && hasAttrLink) {
-    const overrideResult = newType === 'exception' ? 'fail' : 'pass';
-    const explanation = `Reclassified from ${_typeLabel(oldType)} to ${_typeLabel(newType)} by user on ${today}`;
-    await _postOverride(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
-    // No skipPrompt — this is the first and only sync confirmation for
-    // this action; _syncOverrideToAnnotatedFiles shows its own existing
-    // dialog when annotated files exist, same as a manual override does.
-    await _syncOverrideToAnnotatedFiles(ref, item.attributeIndex, item.sampleRowIndex, overrideResult, explanation);
-  } else {
-    // No pass/fail consequence — nothing to confirm, just redraw
-    // whatever's already annotated so it matches the new type.
-    const originalName = _resolveOriginalFileForGridItem(ref, item);
-    const bucketArr = inMemoryFiles[ref]?.sample || [];
-    const candidates = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
-    if (candidates.length) {
-      const failures = await _reburnCandidatesForFile(ref, candidates);
-      if (failures.length) {
-        alert(`${item.ref} was reclassified, but the following file(s) could not be updated to match:\n\n` + failures.map(n => `  • ${n}`).join('\n'));
-      }
+  // Per explicit correction: reclassifying never changes the attribute's
+  // own pass/fail result, whether or not this crosses into/out of
+  // Exception — that result stays exactly whatever Analyze determined
+  // (or whatever a separate, deliberate pass/fail override already set
+  // it to). The only real consequence here is keeping any already-
+  // annotated file's own marker/note text in sync with the new
+  // classification and the attribute's current language.
+  const originalName = _resolveOriginalFileForGridItem(ref, item);
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
+  if (candidates.length) {
+    const failures = await _reburnCandidatesForFile(ref, candidates);
+    if (failures.length) {
+      alert(`${item.ref} was reclassified, but the following file(s) could not be updated to match:\n\n` + failures.map(n => `  • ${n}`).join('\n'));
     }
   }
 
@@ -25184,16 +25169,23 @@ const HELP_TOPICS = {
       does not require resolving or deleting any existing Exception
       first. In the Exceptions, Findings and Recommendations grid below,
       the Type column lets a person reclassify an item between Exception,
-      Finding, and Recommendation directly.</p>
+      Finding, and Recommendation directly — reclassifying (or deleting)
+      an item never changes the attribute's own pass/fail result by
+      itself; only Analyze's own AI result, or a separate, deliberate
+      override made on a tick above, ever does that.</p>
 
       <p><strong>What happens to already-annotated files.</strong> Every
       annotated file (burned-in, stamp, form-field, or sticky-note copy)
       is always fully rebuilt from the pristine original — nothing is
-      ever patched in place. If overriding a result or reclassifying an
-      item would affect a file that's already been annotated, a
-      confirmation lists exactly which files would change, with each
-      filename a clickable link so it can be opened and checked first.
-      Declining leaves every existing file exactly as it was.</p>
+      ever patched in place. Overriding a result on a tick above shows a
+      confirmation first, listing exactly which already-annotated files
+      would change, with each filename a clickable link so it can be
+      opened and checked before deciding — declining leaves every
+      existing file exactly as it was. Reclassifying or deleting an
+      Exception/Finding/Recommendation rebuilds any file it's linked to
+      automatically, so its marker and note text stay in sync with the
+      current classification and attribute wording (deleting still
+      offers a choice to update the file or leave it untouched).</p>
     `,
   },
   testAttributes: {
@@ -25292,22 +25284,25 @@ const HELP_TOPICS = {
 
       <p><strong>Reclassifying an item.</strong> The Type column is a
       dropdown — pick Exception, Finding, or Recommendation to change
-      what an item is. Moving between Finding and Recommendation applies
-      immediately, since neither affects any sample's pass/fail result.
-      Moving into or out of Exception changes that attribute's own
-      result for that sample (Exception → Fail; away from Exception →
-      Pass), so it shows the same confirmation described below before
-      anything changes.</p>
+      what an item is. This only ever relabels the item — it never
+      changes the attribute's own pass/fail result for that sample, even
+      when moving into or out of Exception. That result always comes
+      from Analyze's own AI determination, or from a separate, deliberate
+      pass/fail override — never from adding, reclassifying, or removing
+      an Exception/Finding/Recommendation. If the item is linked to an
+      already-annotated file, that file's marker and note text are
+      rebuilt automatically to match the new classification and the
+      attribute's current wording.</p>
 
-      <p><strong>Deleting an item.</strong> If it's linked to any
-      already-annotated file, a confirmation offers three choices:
-      <strong>Delete and update</strong> (removes the item and redraws
-      the affected files — for an Exception, also resets that attribute
-      to Pass with an explanation noting it was deleted), <strong>Delete
-      only</strong> (removes the item, touches no files), or
-      <strong>Cancel</strong>. Each affected file is shown as a clickable
-      link so it can be opened and checked before deciding. If nothing
-      is linked to an annotated file, deleting asks for a plain
+      <p><strong>Deleting an item.</strong> Same principle — deleting
+      never changes the attribute's pass/fail result either. If it's
+      linked to any already-annotated file, a confirmation offers three
+      choices: <strong>Delete and update</strong> (removes the item and
+      rebuilds the affected files so they no longer reference it),
+      <strong>Delete only</strong> (removes the item, touches no files),
+      or <strong>Cancel</strong>. Each affected file is shown as a
+      clickable link so it can be opened and checked before deciding. If
+      nothing is linked to an annotated file, deleting asks for a plain
       confirmation instead.</p>
     `,
   },
