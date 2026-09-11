@@ -28008,7 +28008,13 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
       if (isArtifactViewer) headers['anthropic-version'] = '2023-06-01';
 
       const controller = new AbortController();
-      const reqTimeout = setTimeout(() => controller.abort(), 90000); // 90s — multiple documents in one request, more than the old single-file 60s
+      // 180s — every sample row's request re-attaches ALL of the workpaper's
+      // sample files (plus any reference files), by design (see the note
+      // above sampleRows' own definition) — with a real, multi-file sample
+      // set this can genuinely take longer than the old 90s allowed,
+      // surfacing as a plain "The operation was aborted" error with no
+      // other indication it was just a timeout, not a real failure.
+      const reqTimeout = setTimeout(() => controller.abort(), 180000);
       const _realRequestBodyForThisCallFast = {
         model: 'claude-sonnet-4-6',
         max_tokens: 4000,
@@ -28054,6 +28060,42 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
       if (raw.length && raw[0] !== '{' && raw[0] !== '[') {
         const firstBrace = raw.indexOf('{');
         if (firstBrace > 0) raw = raw.slice(firstBrace);
+      }
+
+      // Real, confirmed fix, per direct report — a genuinely complete,
+      // valid JSON response followed by ANY trailing content (a stray
+      // sentence, a second/duplicated JSON blob, a closing remark)
+      // produces a distinct failure mode neither of the two repairs
+      // below can fix: "unexpected non-whitespace character after JSON
+      // data." The truncation repair below only ever ADDS closing
+      // brackets — it can't help when the JSON is already complete and
+      // balanced (opens === closes), so it just re-throws the identical
+      // error, then the final fallback appends even more trailing
+      // garbage on top of what's already there, guaranteeing failure.
+      // This scans forward from the start (respecting quoted strings and
+      // escapes, so a brace/bracket character inside a string value is
+      // never mistaken for real JSON structure) to find exactly where
+      // the first top-level JSON value actually closes, and trims
+      // anything after it — a no-op for a response that's already
+      // clean, since the end it finds is just the string's own end.
+      if (raw.length) {
+        let depth = 0, inStr = false, esc = false, started = false, endIdx = -1;
+        for (let i = 0; i < raw.length; i++) {
+          const c = raw[i];
+          if (inStr) {
+            if (esc) esc = false;
+            else if (c === '\\') esc = true;
+            else if (c === '"') inStr = false;
+            continue;
+          }
+          if (c === '"') { inStr = true; continue; }
+          if (c === '{' || c === '[') { depth++; started = true; }
+          else if (c === '}' || c === ']') {
+            depth--;
+            if (started && depth === 0) { endIdx = i; break; }
+          }
+        }
+        if (endIdx !== -1 && endIdx < raw.length - 1) raw = raw.slice(0, endIdx + 1);
       }
 
       // Attempt to repair truncated JSON — find last complete result object and close the array/object
@@ -28134,7 +28176,13 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
       if (!parsed.results?.length) throw new Error('No results in response');
       return { ok: true, results: parsed.results, findings: parsed.findings || [], recommendations: parsed.recommendations || [], commentary: '' };
     } catch(err) {
-      return { ok: false, error: err.message || String(err), commentary: '' };
+      // A raw "The operation was aborted" DOMException tells the user
+      // nothing about WHY — surface it as the timeout it actually is.
+      const isTimeout = err.name === 'AbortError';
+      const msg = isTimeout
+        ? 'Timed out waiting for a response (this sample’s request took longer than 3 minutes — this can happen with a large number of attached sample files). Use "Retry this file" below.'
+        : (err.message || String(err));
+      return { ok: false, error: msg, commentary: '' };
     }
   }
 
