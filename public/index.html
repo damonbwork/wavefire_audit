@@ -27666,7 +27666,7 @@ async function analyzeWithClaude() {
   // TIMEOUT_MS is now a check-in interval, not a hard stop: when it
   // elapses, the user is asked whether to keep waiting or cancel, rather
   // than the analysis being killed unconditionally.
-  const TIMEOUT_MS = 120000; // 2 minute check-in interval
+  const TIMEOUT_MS = 240000; // 4 minute check-in interval — per direct feedback, 2 minutes interrupted a normal multi-sample run too often; this is a check-in, not a hard stop, so a longer interval just means fewer needless "keep waiting?" prompts for a run that's simply taking a while
 
   // Open modal — guarded access only
   document.getElementById('analysis-overlay').style.display = 'flex';
