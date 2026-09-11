@@ -12268,7 +12268,9 @@ CRITICAL — do not blur this distinction:
 - If the user's real ask is "make this existing result pass instead," tell them plainly that requires an override on that tick, not a wording change — do not imply that editing Additional Information will retroactively change it.
 - When the user wants to prevent a recurring issue going forward, propose one concise, specific sentence to add to that attribute's Additional Information, and ask if they'd like it added — never claim you added it yourself; you can only draft it for them to paste in or apply themselves.
 
-Answer using ONLY the workpaper data provided below — never invent facts, sample results, or attribute wording not present in it. Keep answers concise and specific.`;
+Answer using ONLY the workpaper data provided below, or data returned by your tools — never invent facts, sample results, or attribute wording not present in either. Keep answers concise and specific.
+
+You have tools to LOCATE and SURFACE data beyond this one workpaper — searching Exceptions/Findings/Recommendations across every workpaper this user's tenant has, and listing workpapers by audit/status. Use them whenever the user's question reaches beyond the single workpaper described below (e.g. "which other workpapers have this issue," "show me every open Exception on this audit"). You also have a tool to export a table of data you've found into a real, downloadable CSV file — use it when the user asks to export, download, or get a list/report of something, rather than just pasting a large table into the chat.`;
 
 // Compact, single-string summary of this workpaper's current state —
 // attributes + their criteria, every sample's result per attribute (AI
@@ -12480,6 +12482,112 @@ function _submitWpChatInput() {
   _sendWpChatMessage(ref, text);
 }
 
+// Tool definitions given to Claude so it can LOCATE and SURFACE data
+// beyond the one open workpaper, and OUTPUT a real file — per explicit
+// request. Deliberately narrow: each tool only ever reads data this
+// client has already legitimately loaded for the CURRENT tenant
+// (WORKPAPERS / wpExceptions, populated at bootstrap by
+// _loadWorkpapersFromDB, which only ever fetches this tenant's own
+// rows) — there is no new server endpoint and no new tenant-isolation
+// surface here; the tools are a structured way for the assistant to
+// query data the browser already holds, not a door into anything new.
+const _WP_CHAT_TOOLS = [
+  {
+    name: 'search_exceptions',
+    description: "Search Exceptions, Findings, and Recommendations across every workpaper in the current tenant — not just the one currently open. Returns each match with which workpaper it came from.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        type:      { type: 'string', enum: ['exception', 'finding', 'recommendation'], description: 'Filter to one type; omit to search all three.' },
+        auditName: { type: 'string', description: 'Filter to one audit by its exact name; omit to search every audit.' },
+        keyword:   { type: 'string', description: "Case-insensitive substring to match against the item's name, description, or attribute reference." },
+      },
+    },
+  },
+  {
+    name: 'list_workpapers',
+    description: 'List workpapers across the current tenant, optionally filtered by audit name or status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        auditName: { type: 'string' },
+        status:    { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'export_to_csv',
+    description: 'Export a table of data you have gathered (from search_exceptions, list_workpapers, or the workpaper data already given to you) into a real, downloadable CSV file for the user. Use this instead of pasting a large table into the chat whenever the user asks to export, download, or get a report/list of something.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        filename: { type: 'string', description: 'A short, descriptive filename, without an extension.' },
+        columns:  { type: 'array', items: { type: 'string' }, description: 'Column headers, in order.' },
+        rows:     { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Row values — each row an array of strings matching the columns order.' },
+      },
+      required: ['filename', 'columns', 'rows'],
+    },
+  },
+];
+
+function _wpChatToolSearchExceptions(input) {
+  const type = input?.type;
+  const auditName = input?.auditName;
+  const keyword = (input?.keyword || '').toLowerCase();
+  const results = [];
+  WORKPAPERS.forEach(w => {
+    if (auditName && w.auditName !== auditName) return;
+    (wpExceptions[w.ref] || []).forEach(it => {
+      if (type && (it.type || 'exception') !== type) return;
+      if (keyword) {
+        const hay = `${it.name || ''} ${it.desc || ''} ${it.attrRef || ''}`.toLowerCase();
+        if (!hay.includes(keyword)) return;
+      }
+      results.push({
+        workpaperRef: w.ref, workpaperName: w.name, auditName: w.auditName,
+        ref: it.ref, type: it.type || 'exception', name: it.name || '', desc: it.desc || '',
+        owner: it.owner || '', resolutionDate: it.resolutionDate || '',
+      });
+    });
+  });
+  return { count: results.length, results: results.slice(0, 100) };
+}
+
+function _wpChatToolListWorkpapers(input) {
+  const auditName = input?.auditName;
+  const status = input?.status;
+  const results = WORKPAPERS
+    .filter(w => (!auditName || w.auditName === auditName) && (!status || w.status === status))
+    .map(w => ({ ref: w.ref, name: w.name, auditName: w.auditName, status: w.status, results: w.results, preparer: w.preparer, reviewer: w.reviewer }));
+  return { count: results.length, results: results.slice(0, 200) };
+}
+
+function _wpChatToolExportCsv(input) {
+  try {
+    const columns = input?.columns || [];
+    const rows = input?.rows || [];
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [columns.map(esc).join(','), ...rows.map(r => (r || []).map(esc).join(','))].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(input?.filename || 'export').replace(/[^a-z0-9_-]/gi, '_')}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return { ok: true, downloaded: a.download, rowCount: rows.length };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+function _wpChatExecuteTool(name, input) {
+  if (name === 'search_exceptions') return _wpChatToolSearchExceptions(input);
+  if (name === 'list_workpapers')   return _wpChatToolListWorkpapers(input);
+  if (name === 'export_to_csv')     return _wpChatToolExportCsv(input);
+  return { error: 'Unknown tool: ' + name };
+}
+
 async function _sendWpChatMessage(ref, userText) {
   if (!userText || !userText.trim() || _wpChatSending) return;
   if (!_wpChatHistory[ref]) _wpChatHistory[ref] = [];
@@ -12490,21 +12598,54 @@ async function _sendWpChatMessage(ref, userText) {
 
   try {
     const context = _buildWpChatContext(ref);
-    const res = await fetch('/api/claude', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: _WP_CHAT_SYSTEM_PROMPT + '\n\nCURRENT WORKPAPER DATA:\n' + context,
-        messages: _wpChatHistory[ref].map(m => ({ role: m.role, content: m.content })),
-      }),
-    });
-    const data = await res.json();
-    const text = res.ok
-      ? ((data.content || []).find(b => b.type === 'text')?.text || 'I could not generate a response for that.')
-      : `Sorry, something went wrong reaching the assistant (${data?.error?.message || res.status}).`;
-    _wpChatHistory[ref].push({ role: 'assistant', content: text });
+    const system = _WP_CHAT_SYSTEM_PROMPT + '\n\nCURRENT WORKPAPER DATA:\n' + context;
+    // Working message list for THIS turn's round-trips only — it can
+    // grow with tool_use/tool_result blocks mid-turn; _wpChatHistory[ref]
+    // itself stays the simple display log (user text + the final
+    // assistant reply only), rebuilt fresh into this shape every send so
+    // an earlier turn's tool plumbing never needs to be replayed.
+    let messages = _wpChatHistory[ref].map(m => ({ role: m.role, content: m.content }));
+    let finalText = null;
+    const MAX_TOOL_ROUNDS = 4; // a real cap against a runaway tool-call loop
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1200,
+          system,
+          tools: _WP_CHAT_TOOLS,
+          messages,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        finalText = `Sorry, something went wrong reaching the assistant (${data?.error?.message || res.status}).`;
+        break;
+      }
+      const blocks = data.content || [];
+      const toolUses = blocks.filter(b => b.type === 'tool_use');
+      if (data.stop_reason === 'tool_use' && toolUses.length) {
+        // A real tool round-trip: append the assistant's own tool-call
+        // turn verbatim, execute each requested tool against already-
+        // loaded, tenant-scoped client state (see each tool's own
+        // function — no new server surface), and feed the results back
+        // for the model to continue reasoning over.
+        messages.push({ role: 'assistant', content: blocks });
+        const toolResults = toolUses.map(tu => ({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(_wpChatExecuteTool(tu.name, tu.input)),
+        }));
+        messages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+      finalText = blocks.find(b => b.type === 'text')?.text || 'I could not generate a response for that.';
+      break;
+    }
+    _wpChatHistory[ref].push({ role: 'assistant', content: finalText || 'I could not generate a response for that — please try rephrasing.' });
   } catch (err) {
     _wpChatHistory[ref].push({ role: 'assistant', content: 'Something went wrong reaching the assistant: ' + err.message });
   }
