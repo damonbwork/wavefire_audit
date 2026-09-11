@@ -11943,7 +11943,7 @@ function renderAnalysisResultsGrid(ref) {
     ${attributes.map((a, ai) => {
       const attrLabel = a.attrRef || a.num || String(ai + 1);
       return `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">
-        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
+        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_wpChatSetLastFocus('${ref}',${ai},null);_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
       </div>`;
     }).join('')}
     <div style="${headCellStyle}">Sample File(s)</div>
@@ -11998,7 +11998,11 @@ function renderAnalysisResultsGrid(ref) {
       // match that column's own values exactly, so the two entry points
       // can never disagree about which attribute they're opening.
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
-      const onClick = `_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
+      // Records what the user was just looking at, so if they open "Ask
+      // Wavefire" shortly after, its suggested chips can lead with THIS
+      // exact attribute+sample instead of a generic, workpaper-wide
+      // guess — see _wpChatSetLastFocus's own comment.
+      const onClick = `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
       return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}</div>`;
     }).join('');
 
@@ -12216,6 +12220,30 @@ const _wpChatHistory = {}; // { ref: [{role:'user'|'assistant', content}] }
 let _wpChatOpenRef = null;
 let _wpChatSending = false;
 
+// Tracks the last (attribute, sample) the user actually clicked into —
+// a tick in the Testwork Grid, or an attribute's own "G" guidance icon
+// (sampleRowIndex null there, since that's attribute-wide, not tied to
+// one sample). Lets the suggested chips lead with "what you were just
+// looking at" instead of a generic, workpaper-wide guess — answering
+// "how does the chat know where the user is" precisely: it doesn't
+// magically know the DOM the user is looking at, it's told, by these
+// explicit click-time calls, exactly the same way this app's other
+// state (e.g. currentAttrWPRef) already tracks "what's currently open."
+// Expires after a few minutes so a stale click from long ago (a
+// different train of thought) doesn't keep steering suggestions.
+let _wpChatLastFocus = null; // { ref, attributeIndex, sampleRowIndex, ts }
+const _WP_CHAT_FOCUS_TTL_MS = 5 * 60 * 1000;
+
+function _wpChatSetLastFocus(ref, attributeIndex, sampleRowIndex) {
+  _wpChatLastFocus = { ref, attributeIndex, sampleRowIndex, ts: Date.now() };
+}
+
+function _wpChatActiveFocus(ref) {
+  if (!_wpChatLastFocus || _wpChatLastFocus.ref !== ref) return null;
+  if (Date.now() - _wpChatLastFocus.ts > _WP_CHAT_FOCUS_TTL_MS) return null;
+  return _wpChatLastFocus;
+}
+
 const _WP_CHAT_SYSTEM_PROMPT = `You are Wavefire's audit workpaper assistant. You help an auditor understand why Analyze reached the conclusions it did on ONE specific workpaper, and coach them toward the real, existing ways to change future conclusions.
 
 Vocabulary, exactly as this app uses it:
@@ -12308,6 +12336,26 @@ function _buildWpChatSuggestions(ref) {
     chips.push('What does this workpaper still need before I can run Analyze?');
     chips.push('What is Analyze going to test on this workpaper?');
     return chips;
+  }
+
+  // Lead with exactly what the user was just looking at, if they clicked
+  // into a tick or a "G" icon recently — this is the precise-context
+  // case: rather than a workpaper-wide guess, the very first chip
+  // matches whatever attribute/sample they came from.
+  const focus = _wpChatActiveFocus(ref);
+  if (focus) {
+    const attr = attributes[focus.attributeIndex];
+    if (attr) {
+      if (focus.sampleRowIndex != null) {
+        const fr = wpResults[focus.sampleRowIndex];
+        const match = (fr?.results || []).find(r => r.title === attr.title);
+        const ov = _findOverrideFor(ref, focus.attributeIndex, focus.sampleRowIndex);
+        const result = ov?.override_result || match?.result || 'that result';
+        chips.push(`Why did "${attr.title}" ${result === 'fail' ? 'fail' : result === 'pass' ? 'pass' : 'get ' + result} on sample ${focus.sampleRowIndex + 1}?`);
+      } else {
+        chips.push(`Why does "${attr.title}" keep reaching the conclusions it does?`);
+      }
+    }
   }
 
   let worstAttr = null, worstFails = 0;
