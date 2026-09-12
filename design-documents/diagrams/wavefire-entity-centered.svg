@@ -1,0 +1,109 @@
+<svg viewBox="0 0 1400 1040" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#39618b"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+    <marker id="arrowTealDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0f766e"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="1040" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="700" y="34" text-anchor="middle" font-size="21" font-weight="700" fill="#0f172a">Wavefire Data Model — One Assessment Entity, Many Audits &amp; Workpapers</text>
+  <text x="700" y="55" text-anchor="middle" font-size="12" fill="#64748b">A single Assessment Entity can be linked to many Audits, and separately, directly, to many Workpapers — even ones outside those Audits' own linkage</text>
+
+  <!-- ================= CENTER: ASSESSMENT ENTITY ================= -->
+  <rect x="555" y="455" width="290" height="96" rx="12" fill="#0f766e"/>
+  <text x="700" y="490" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">ASSESSMENT ENTITY</text>
+  <text x="700" y="508" text-anchor="middle" font-size="10.5" fill="#ccfbf1">e.g. one Business Unit, Location,</text>
+  <text x="700" y="522" text-anchor="middle" font-size="10.5" fill="#ccfbf1">System, Data Center, etc. — ONE instance</text>
+  <text x="700" y="540" text-anchor="middle" font-size="10.5" fill="#99f6e4">(from the Foundations library)</text>
+
+  <!-- ================= AUDIT <-> ENTITY (many-to-many) ================= -->
+  <!-- Audit A (top) -->
+  <rect x="600" y="60" width="200" height="58" rx="10" fill="#274e77"/>
+  <text x="700" y="85" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">AUDIT A</text>
+  <text x="700" y="102" text-anchor="middle" font-size="9.5" fill="#cbd5e1">FY26 SOX Audit</text>
+
+  <!-- Audit B (bottom-left) -->
+  <rect x="90" y="838" width="200" height="58" rx="10" fill="#274e77"/>
+  <text x="190" y="863" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">AUDIT B</text>
+  <text x="190" y="880" text-anchor="middle" font-size="9.5" fill="#cbd5e1">Vendor Risk Audit</text>
+
+  <!-- Audit C (bottom-right) -->
+  <rect x="1110" y="838" width="200" height="58" rx="10" fill="#274e77"/>
+  <text x="1210" y="863" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">AUDIT C</text>
+  <text x="1210" y="880" text-anchor="middle" font-size="9.5" fill="#cbd5e1">IT General Controls</text>
+
+  <!-- double-headed amber lines: many-to-many Audit <-> Entity -->
+  <line x1="700" y1="118" x2="700" y2="453" stroke="#c2410c" stroke-width="2.5" marker-end="url(#arrowAmber)" marker-start="url(#arrowAmber)"/>
+  <line x1="255" y1="845" x2="600" y2="535" stroke="#c2410c" stroke-width="2.5" marker-end="url(#arrowAmber)" marker-start="url(#arrowAmber)"/>
+  <line x1="1145" y1="845" x2="800" y2="535" stroke="#c2410c" stroke-width="2.5" marker-end="url(#arrowAmber)" marker-start="url(#arrowAmber)"/>
+
+  <text x="700" y="300" text-anchor="middle" font-size="11" font-weight="700" fill="#9a3412" transform="rotate(0 700 300)">many-to-many</text>
+  <text x="700" y="314" text-anchor="middle" font-size="10" fill="#9a3412">(an Entity can be in scope for</text>
+  <text x="700" y="327" text-anchor="middle" font-size="10" fill="#9a3412">several Audits, and vice versa)</text>
+
+  <!-- ================= AUDIT -> WORKPAPER (one-to-many, core hierarchy) ================= -->
+  <!-- Audit A's workpapers -->
+  <rect x="370" y="55" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="445" y="76" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper A1</text>
+  <text x="445" y="91" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit A)</text>
+  <line x1="600" y1="82" x2="524" y2="79" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="880" y="55" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="955" y="76" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper A2</text>
+  <text x="955" y="91" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit A)</text>
+  <line x1="800" y1="82" x2="876" y2="79" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Audit B's workpapers -->
+  <rect x="20" y="928" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="95" y="949" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper B1</text>
+  <text x="95" y="964" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit B)</text>
+  <line x1="150" y1="896" x2="115" y2="926" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="200" y="928" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="275" y="949" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper B2</text>
+  <text x="275" y="964" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit B)</text>
+  <line x1="230" y1="896" x2="265" y2="926" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Audit C's workpapers -->
+  <rect x="1050" y="928" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="1125" y="949" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper C1</text>
+  <text x="1125" y="964" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit C)</text>
+  <line x1="1170" y1="896" x2="1140" y2="926" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1230" y="928" width="150" height="48" rx="8" fill="#39618b"/>
+  <text x="1305" y="949" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Workpaper C2</text>
+  <text x="1305" y="964" text-anchor="middle" font-size="9" fill="#dbeafe">(under Audit C)</text>
+  <line x1="1250" y1="896" x2="1290" y2="926" stroke="#39618b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ================= WORKPAPER -> ENTITY (direct many-to-many, dashed teal) ================= -->
+  <path d="M445,103 C 480,220 560,340 590,458" fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="6,5" marker-end="url(#arrowTealDash)"/>
+  <path d="M95,928 C 260,760 420,620 560,530" fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="6,5" marker-end="url(#arrowTealDash)"/>
+  <path d="M1125,928 C 960,760 800,620 690,540" fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="6,5" marker-end="url(#arrowTealDash)"/>
+
+  <text x="700" y="670" text-anchor="middle" font-size="11" font-weight="700" fill="#0f766e">Workpapers ALSO link to the Entity directly — many-to-many</text>
+  <text x="700" y="686" text-anchor="middle" font-size="10" fill="#0f766e">(a workpaper's own scope, independent of which Audit it belongs to)</text>
+
+  <!-- ================= LEGEND ================= -->
+  <g font-size="11" fill="#475569">
+    <line x1="60" y1="720" x2="80" y2="720" stroke="#39618b" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="88" y="724">Audit → Workpaper — one-to-many (the core hierarchy; unchanged from the Company-level diagram)</text>
+
+    <line x1="60" y1="746" x2="80" y2="746" stroke="#c2410c" stroke-width="2.5" marker-end="url(#arrowAmber)" marker-start="url(#arrowAmber)"/>
+    <text x="88" y="750">Audit ↔ Assessment Entity — many-to-many (an Audit can cover several Entities; an Entity can be tested by several Audits)</text>
+
+    <line x1="60" y1="772" x2="80" y2="772" stroke="#0f766e" stroke-width="2" stroke-dasharray="6,5" marker-end="url(#arrowTealDash)"/>
+    <text x="88" y="776">Workpaper → Assessment Entity — many-to-many, direct (a Workpaper's own scope, not inherited automatically from its Audit's linkage)</text>
+  </g>
+
+  <rect x="40" y="700" width="1320" height="100" rx="10" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="1360" y="1020" text-anchor="end" font-size="9.5" fill="#94a3b8">Wavefire — entity-centered relationship view</text>
+</svg>
