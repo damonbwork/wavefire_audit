@@ -13235,7 +13235,16 @@ function makeDraggable(handle, win) {
     win.style.left = (e.clientX - _notesDragOffX) + 'px';
     win.style.top  = (e.clientY - _notesDragOffY) + 'px';
   });
-  document.addEventListener('mouseup', () => { _notesDragging = false; });
+  // Real, confirmed fix — resetting _notesDragging synchronously here
+  // meant it was already false by the time the browser's own following
+  // `click` event fired (mouseup and the resulting click are part of the
+  // same synchronous dispatch sequence, with no task boundary between
+  // them), so anything gating a click handler on this flag — e.g. the
+  // help popup's outside-click-closes listener — could never actually
+  // see it true and would close right out from under a drag release.
+  // Deferring the reset to a macrotask lets any click handler for THIS
+  // same release see the flag still true, then clears it right after.
+  document.addEventListener('mouseup', () => { setTimeout(() => { _notesDragging = false; }, 0); });
 }
 
 /* ══════════════════════════════════════
@@ -25750,9 +25759,14 @@ const HELP_TOPICS = {
 
       <p><strong>The columns:</strong></p>
       <ul style="margin:4px 0 4px 18px;padding:0">
-        <li style="margin-bottom:6px"><strong>Attr # / Title</strong> —
-        a short reference label and a plain-language name for what's
-        being tested.</li>
+        <li style="margin-bottom:6px"><strong>Attr #</strong> — a
+        user-assigned alphanumeric reference for each attribute (e.g.
+        1a, 1b, etc). This field is how attributes are referenced in an
+        Excel workpaper created by Wavefire, as well as in the Testwork
+        Grid.</li>
+        <li style="margin-bottom:6px"><strong>Title</strong> — a short
+        reference label and a plain-language name for what's being
+        tested.</li>
         <li style="margin-bottom:6px"><strong>Description</strong> — the
         core explanation of what this attribute tests for.</li>
         <li style="margin-bottom:6px"><strong>Additional Information</strong>
@@ -25948,10 +25962,14 @@ function _toggleHelpPopup(iconEl) {
   popup.className = 'wf-help-popup';
   // Most topics are plain prose and fit the default 520px; a topic
   // carrying tabular content (e.g. the annotation-type comparison
-  // table) can request a wider popup via its own `width`.
-  popup.style.cssText = `position:fixed;z-index:20000;width:min(${topic.width || '520px'},92vw);max-height:70vh;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25)`;
+  // table) can request a wider popup via its own `width`. Per explicit
+  // request, the popup is now draggable (by its header) and natively
+  // resizable — `resize:both` needs a non-visible overflow to take
+  // effect, which the existing overflow-y:auto already satisfies; a
+  // min-width/min-height stop it from being resized down to nothing.
+  popup.style.cssText = `position:fixed;z-index:20000;width:min(${topic.width || '520px'},92vw);max-height:70vh;min-width:280px;min-height:160px;overflow-y:auto;resize:both;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25)`;
   popup.innerHTML = `
-    <div style="position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md) var(--radius-md) 0 0">
+    <div class="wf-help-popup-hdr" style="position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md) var(--radius-md) 0 0;cursor:move;user-select:none">
       <div style="font-size:12px;font-weight:700;letter-spacing:0.3px">${escHtml(topic.title)}</div>
       <button onclick="_closeHelpPopup()" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">&#x00D7;</button>
     </div>
@@ -25961,6 +25979,12 @@ function _toggleHelpPopup(iconEl) {
     </div>
   `;
   document.body.appendChild(popup);
+  // Reuses the same drag helper the Review Notes/Guidance/Chat floating
+  // windows already use — it toggles the shared _notesDragging flag
+  // during a drag, which the outside-click-closes listener below checks
+  // so releasing a drag outside the popup never closes it out from
+  // under the user mid-drag.
+  makeDraggable(popup.querySelector('.wf-help-popup-hdr'), popup);
 
   // Position near the icon, staying on-screen — the same edge-aware
   // approach already used for positionTooltip/positionAuditTooltip
@@ -25989,6 +26013,11 @@ function _toggleHelpPopup(iconEl) {
 // calls stopPropagation, so this never fires for the click that just
 // opened a popup.
 document.addEventListener('click', e => {
+  // _notesDragging is the same shared flag makeDraggable() sets during
+  // an active drag — guards against releasing a drag outside the popup
+  // (dragging it near an edge, say) being misread as an outside click
+  // and closing the popup out from under the user mid-drag.
+  if (_notesDragging) return;
   if (_openHelpPopup && !_openHelpPopup.el.contains(e.target)) _closeHelpPopup();
 });
 
