@@ -2700,7 +2700,7 @@
           <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px;border-bottom:0.5px solid var(--border-light)">
             <!-- Results + Status column — far left -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Results</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:flex;align-items:center">Results<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkOverview" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How testwork, pass/fail, exceptions, and this Results field all fit together" style="cursor:pointer;color:var(--text-tertiary);font-size:14px;margin-left:5px;text-transform:none"></i></div>
               <select id="wpd-results" style="font-size: 12px; font-weight: 500; color: var(--text-primary); background: var(--bg-secondary); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; border-radius: var(--radius-md); padding: 4px 8px; outline: none; cursor: pointer;" onchange="updateResultsStyle(); logWPDropdownChange('wpd-results','Results')">
                 <option value="">—</option>
                   <option value="" selected="selected">— Select —</option>
@@ -25680,6 +25680,131 @@ function positionAuditTooltip(e) {
    asked for (a reference copy of the one explanation just read).
 ══════════════════════════════════════ */
 const HELP_TOPICS = {
+  testworkOverview: {
+    title: 'How Testwork Works — Overview',
+    width: '640px',
+    html: `
+      <p><strong>The big picture.</strong> A workpaper has one overall
+      <strong>Results</strong> conclusion in its header — but that field
+      is set <em>by the auditor</em>, not computed automatically.
+      Everything below it (attributes, samples, pass/fail, Exceptions/
+      Findings/Recommendations) informs that decision; none of it sets
+      the Results field for you.</p>
+
+      <p><strong>1. Attributes are what gets tested.</strong> Each
+      workpaper has one or more Test Attributes. Each attribute is
+      tested against every row of Sample Data, producing one pass/fail
+      conclusion per (attribute, sample) pair.</p>
+
+      <p><strong>2. Who reaches that pass/fail conclusion.</strong>
+      Either Wavefire AI (by running Analyze), or the auditor directly.
+      If the auditor disagrees with the AI's conclusion, they
+      <strong>override</strong> it — click the tick in the Testwork Grid
+      and change it there. An override always wins for display and for
+      any already-annotated files; it's never silently reverted by a
+      later Analyze run.</p>
+
+      <p><strong>3. Exceptions, Findings, and Recommendations can come
+      from either side.</strong> Testing an attribute can surface an
+      Exception, a Finding, or a Recommendation — produced by Wavefire
+      AI, entered by the auditor, or a combination of both. The auditor
+      can also change which of the three something is at any time,
+      using the Type column on the Exceptions, Findings and
+      Recommendations grid.</p>
+
+      <p><strong>4. The Exception-drives-Fail rule, and its
+      override.</strong> Wavefire will always fail an attribute for a
+      given sample when it determines there's an Exception — an
+      Exception is never allowed to coexist with a Pass. The auditor can
+      still override that Fail conclusion directly on the tick if they
+      disagree; per explicit design, reclassifying or deleting the
+      Exception itself does <em>not</em> silently flip the result back
+      to Pass — an actual override is always its own separate, deliberate
+      action.</p>
+
+      <p><strong>5. Steering future Analyze runs.</strong> Rather than
+      correcting the same conclusion over and over, evolve the
+      attribute's own language — its Additional Information, Success
+      Criteria, and Failure Criteria — so Analyze reaches the desired
+      result on its own next time. Wavefire specifically recognizes the
+      words <strong>Exception</strong>, <strong>Finding</strong>, and
+      <strong>Recommendation</strong> in an attribute's Additional
+      Information as binding, attribute-specific instructions — applied
+      ahead of the general rule described above. For example: "an
+      invoice missing a physician's signature should always be
+      considered an Exception" is a real, working instruction, not just
+      descriptive text.</p>
+
+      <p><strong>How it all connects:</strong></p>
+      <div style="text-align:center;margin:10px 0">
+        <svg viewBox="0 0 620 460" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto" font-family="inherit">
+          <defs>
+            <marker id="hlpArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+            </marker>
+            <marker id="hlpArrowDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+            </marker>
+          </defs>
+          <!-- Attribute + Sample -->
+          <rect x="30" y="10" width="240" height="52" rx="8" fill="#39618b"/>
+          <text x="150" y="32" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Attribute tested against a Sample</text>
+          <text x="150" y="48" text-anchor="middle" font-size="9.5" fill="#dbeafe">by Analyze (AI) or entered by the auditor</text>
+
+          <line x1="150" y1="62" x2="150" y2="88" stroke="#64748b" stroke-width="2" marker-end="url(#hlpArrow)"/>
+
+          <!-- Pass/Fail conclusion -->
+          <rect x="20" y="92" width="260" height="52" rx="8" fill="#1e3a5f"/>
+          <text x="150" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Pass / Fail conclusion</text>
+          <text x="150" y="130" text-anchor="middle" font-size="9.5" fill="#cbd5e1">the tick shown in the Testwork Grid</text>
+
+          <!-- Override loop back onto Pass/Fail -->
+          <path d="M280,118 C 340,118 340,160 280,168" fill="none" stroke="#0369a1" stroke-width="2" marker-end="url(#hlpArrow)"/>
+          <text x="345" y="145" font-size="9.5" fill="#0369a1" font-weight="600">auditor</text>
+          <text x="345" y="157" font-size="9.5" fill="#0369a1" font-weight="600">can override</text>
+
+          <line x1="150" y1="144" x2="150" y2="170" stroke="#64748b" stroke-width="2" marker-end="url(#hlpArrow)"/>
+          <text x="90" y="162" font-size="9.5" fill="#475569" font-style="italic">if Exception</text>
+
+          <!-- Exception / Finding / Recommendation -->
+          <rect x="20" y="174" width="260" height="58" rx="8" fill="#7c3aed"/>
+          <text x="150" y="196" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Exception, Finding, or</text>
+          <text x="150" y="211" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Recommendation</text>
+          <text x="150" y="225" text-anchor="middle" font-size="9" fill="#ede9fe">from AI, the auditor, or both — type can be changed</text>
+
+          <path d="M280,203 C 340,203 340,240 280,248" fill="none" stroke="#0369a1" stroke-width="2" marker-end="url(#hlpArrow)"/>
+          <text x="345" y="230" font-size="9.5" fill="#0369a1" font-weight="600">auditor can</text>
+          <text x="345" y="242" font-size="9.5" fill="#0369a1" font-weight="600">reclassify</text>
+
+          <text x="150" y="252" text-anchor="middle" font-size="9.5" fill="#dc2626" font-weight="700">an Exception ⇒ always Fail (above)</text>
+
+          <line x1="150" y1="232" x2="150" y2="300" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#hlpArrowDash)"/>
+
+          <!-- informs, not sets -->
+          <text x="150" y="278" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">informs — does NOT auto-set</text>
+
+          <!-- Workpaper Results -->
+          <rect x="150" y="384" width="320" height="60" rx="10" fill="#0f172a"/>
+          <text x="310" y="408" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">Workpaper RESULTS (header)</text>
+          <text x="310" y="424" text-anchor="middle" font-size="9.5" fill="#cbd5e1">set manually by the auditor — the one field this diagram</text>
+          <text x="310" y="436" text-anchor="middle" font-size="9.5" fill="#cbd5e1">never fills in for you</text>
+
+          <line x1="150" y1="304" x2="220" y2="384" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#hlpArrowDash)"/>
+
+          <!-- Steering language, feeding back up to attribute -->
+          <rect x="330" y="10" width="260" height="72" rx="8" fill="#0f766e"/>
+          <text x="460" y="30" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">Attribute language</text>
+          <text x="460" y="45" text-anchor="middle" font-size="9" fill="#ccfbf1">Additional Info, Success/Failure Criteria —</text>
+          <text x="460" y="58" text-anchor="middle" font-size="9" fill="#ccfbf1">can name "Exception," "Finding," or</text>
+          <text x="460" y="71" text-anchor="middle" font-size="9" fill="#ccfbf1">"Recommendation" as a binding rule</text>
+
+          <path d="M330,46 C 300,46 280,30 270,20" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#hlpArrow)"/>
+          <text x="300" y="95" text-anchor="middle" font-size="9.5" fill="#0f766e" font-weight="600">steers the NEXT Analyze run</text>
+        </svg>
+      </div>
+      <p style="font-size:11px;color:var(--text-tertiary);font-style:italic">Solid arrows: what feeds into what. Dashed arrows: informs a decision without automatically setting it. Blue loops: where the auditor can step in and override.</p>
+    `,
+  },
   testworkGrid: {
     title: 'Testwork Grid',
     html: `
