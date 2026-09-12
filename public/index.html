@@ -2697,7 +2697,7 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px;border-bottom:0.5px solid var(--border-light)">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px">
             <!-- Results + Status column — far left -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:flex;align-items:center">Results<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkOverview" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How testwork, pass/fail, exceptions, and this Results field all fit together" style="cursor:pointer;color:var(--text-tertiary);font-size:14px;margin-left:5px;text-transform:none"></i></div>
@@ -2714,6 +2714,35 @@
               <select id="wpd-status" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-status','Status'); setDogEarsVisible(this.value !== 'approved' &amp;&amp; this.value !== 'complete')">
                 <option value="">—</option>
               </select>
+            </div>
+            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- Test Description + Workpaper Category — moved here from
+                 their own section/field further down, per explicit
+                 request; Test Description now stands in for the old
+                 free-form Workpaper Description field entirely. -->
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:240px;max-width:320px">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Test Description</div>
+              <textarea id="wpd-test-desc" rows="2" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;resize:vertical;line-height:1.5;min-height:36px;box-sizing:border-box"></textarea>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Workpaper Category <span style="color:#dc2626">*</span></div>
+              <div style="position:relative">
+                <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
+                  style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:12px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left;box-sizing:border-box">
+                  <span id="wpd-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
+                  <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text-tertiary);flex-shrink:0"></i>
+                </button>
+                <div id="wpd-category-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:320px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+                  <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+                    <button type="button" onclick="openAddCategoryModal()" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
+                      <i class="ti ti-plus" style="font-size:13px"></i>Add new category
+                    </button>
+                  </div>
+                  <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                    <input type="text" id="wpd-category-search" placeholder="Search categories…" oninput="filterCategoryDropdown(this.value)"
+                      style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
+                  </div>
+                  <div id="wpd-category-list" style="padding:6px"></div>
+                </div>
+              </div>
             </div>
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
             <!-- Spacer pushes reviewer group to far right -->
@@ -2748,34 +2777,15 @@
               </div>
             </div>
           </div><!-- /fields wrapper -->
-          <div class="sect-body">
-            <!-- Description + Workpaper Category -->
-            <div style="display:flex;gap:14px;margin-bottom:10px">
-              <div class="fld" style="flex:1">
-                <div class="fl">Description <span style="color:#dc2626">*</span></div>
-                <textarea id="wpd-description" maxlength="2500" oninput="autoResizeTA(this)" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Description')" placeholder="Workpaper scope and objectives…" style="width: 100%; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 3px 6px; resize: none; outline: none; line-height: 1.5; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; min-height: 20px; height: 45px;"></textarea>
-              </div>
-              <div class="fld" style="width:260px;position:relative;flex-shrink:0">
-                <div class="fl">Workpaper Category <span style="color:#dc2626">*</span></div>
-                <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
-                  style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left">
-                  <span id="wpd-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
-                  <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text-tertiary);flex-shrink:0"></i>
-                </button>
-                <div id="wpd-category-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:320px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
-                  <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
-                    <button type="button" onclick="openAddCategoryModal()" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
-                      <i class="ti ti-plus" style="font-size:13px"></i>Add new category
-                    </button>
-                  </div>
-                  <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
-                    <input type="text" id="wpd-category-search" placeholder="Search categories…" oninput="filterCategoryDropdown(this.value)"
-                      style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
-                  </div>
-                  <div id="wpd-category-list" style="padding:6px"></div>
-                </div>
-              </div>
-            </div>
+          <!-- Explicit light rule between the header strip above (which
+               now holds Test Description) and the Population/Sample
+               fields below, per direct request — the header strip
+               already carries its own border-bottom, but this makes the
+               separation unambiguous regardless of that. -->
+          <div class="sect-body" style="border-top:0.5px solid var(--border-light)">
+            <!-- Description and Workpaper Category moved up into the
+                 header strip (Test Description now stands in for the
+                 old Description field entirely) — see that section. -->
             <!-- Population, Sample Method & Sample Size -->
             <div class="field-grid">
               <div class="fld">
@@ -3109,20 +3119,20 @@
           </div></div>
 
 
-        <!-- Section 4b: Test Description -->
-        <div class="sect-card" id="sect-test-description">
-          <div class="sect-hdr">
-            <div class="sect-hdr-title" style="position:relative;cursor:default" onmouseenter="document.getElementById('td-tooltip').style.display='block'" onmouseleave="document.getElementById('td-tooltip').style.display='none'">
-              <i class="ti ti-pencil"></i>test description <span style="font-size:10px;font-weight:400;opacity:0.65">(optional)</span>
-              <div id="td-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:300px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;pointer-events:none;text-transform:none;letter-spacing:normal">
-                Test description can be shared with Wavefire to guide the automated testwork.
-                <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
-              </div>
-            </div>
-          </div>
-          <div class="sect-body" style="padding:12px 16px">
-            <textarea id="wpd-test-desc" rows="5" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width: 100%; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: medium; outline: none; resize: vertical; line-height: 1.6; min-height: 80px; height: 104px;"></textarea>
-          </div></div>
+        <!-- Section 4b: Test Description — moved into the workpaper
+             header strip (Workpaper Information), alongside Workpaper
+             Category. See that section for the real wpd-test-desc
+             textarea and its explanation. -->
+
+        <!-- Major header: Build Testwork — spans Sample Data, Test
+             Attributes, Sample Files, and Analyze below. Carries the
+             same "How Testwork Works" help topic already anchored next
+             to the Results field in the workpaper header, so it's
+             reachable from right where a user actually starts building
+             a test, not only from the header. -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:18px 0 10px;padding-top:14px;border-top:1.5px solid var(--border-medium)">
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:7px"><i class="ti ti-hammer"></i>Build Testwork</div>
+        </div>
 
         <!-- Section 4c: Sample Data -->
         <div id="sect-sample-data-group">
@@ -4023,6 +4033,19 @@ Testwork Grid" to build a blank grid and record each result yourself.
             <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
           </div>
         </div><!-- /sect-card sample files -->
+
+        <!-- Major header: Execute Testwork — spans Analyze/Create
+             Testwork Grid and the Testwork Grid results below. Carries
+             the "Learn how to build a test" comment + "How Testwork
+             Works" help topic, moved here (per explicit request) from
+             the "Build Testwork" header above. -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:18px 0 10px;padding-top:14px;border-top:1.5px solid var(--border-medium)">
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:7px"><i class="ti ti-player-play"></i>Execute Testwork</div>
+          <div style="font-size:11px;color:var(--text-tertiary);font-style:italic;display:flex;align-items:center">
+            Learn how to build a test
+            <i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkOverview" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How testwork, pass/fail, exceptions, and this Results field all fit together" style="cursor:pointer;color:var(--text-tertiary);font-size:14px;margin-left:5px;font-style:normal"></i>
+          </div>
+        </div>
 
         <!-- Section: Testwork Grid — live replica of the exported workpaper's
              sample matrix + tickmark grid + legend, hidden until Analyze has
@@ -7400,7 +7423,7 @@ function openWP(i) {
 
   // Full-template-only sections — NOT requested for either M-Template
   // variant, stay exclusive to the long/full layout exactly as before.
-  const fullOnlySectIds = ['sect-risks-controls', 'sect-narrative', 'sect-test-description'];
+  const fullOnlySectIds = ['sect-risks-controls', 'sect-narrative']; // sect-test-description no longer exists as its own section — moved into the header strip
   fullOnlySectIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = (isFull && !isAnyMTemplate) ? '' : 'none';
