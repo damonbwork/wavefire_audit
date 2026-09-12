@@ -2650,10 +2650,11 @@
           <div style="flex:1;min-width:0">
             <!-- View mode -->
             <div id="wpd-header-view">
-              <div style="display:flex;align-items:baseline;gap:10px">
-                <div class="pt" id="wpd-title">PRS Invoice Testwork</div>
-                <div id="wpd-tag-view" style="font-size:13px;font-weight:700;color:var(--wf-navy);letter-spacing:1px;flex-shrink:0">FIN</div>
-              </div>
+              <!-- No longer repeats the 3-letter workpaper type (e.g.
+                   FIN) next to the title — it's already the segment 3
+                   of the reference shown directly below
+                   (WP-2026-FIN-002), so showing it twice was redundant. -->
+              <div class="pt" id="wpd-title">PRS Invoice Testwork</div>
               <div class="ps" id="wpd-sub">WP-2026-FIN-002</div>
             </div>
             <!-- Edit mode -->
