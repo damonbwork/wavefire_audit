@@ -2697,7 +2697,7 @@
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px;border-bottom:0.5px solid var(--border-light)">
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px">
             <!-- Results + Status column — far left -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:flex;align-items:center">Results<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkOverview" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How testwork, pass/fail, exceptions, and this Results field all fit together" style="cursor:pointer;color:var(--text-tertiary);font-size:14px;margin-left:5px;text-transform:none"></i></div>
@@ -2777,7 +2777,12 @@
               </div>
             </div>
           </div><!-- /fields wrapper -->
-          <div class="sect-body">
+          <!-- Explicit light rule between the header strip above (which
+               now holds Test Description) and the Population/Sample
+               fields below, per direct request — the header strip
+               already carries its own border-bottom, but this makes the
+               separation unambiguous regardless of that. -->
+          <div class="sect-body" style="border-top:0.5px solid var(--border-light)">
             <!-- Description and Workpaper Category moved up into the
                  header strip (Test Description now stands in for the
                  old Description field entirely) — see that section. -->
