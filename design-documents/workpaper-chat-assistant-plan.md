@@ -203,3 +203,64 @@ correctly cleared once a real conversation has started.
 version, per the design above): the app-wide navigation/help chat, and
 any action where the assistant would apply a change itself rather than
 drafting it for the user to apply through the real, existing controls.
+
+## Locate, surface, and output data beyond one workpaper (2026-09-11)
+
+Per explicit follow-up: the assistant can now reach beyond the single
+open workpaper's pre-assembled context, and produce a real downloadable
+file — via Claude's native tool-use (function calling), not by
+expanding the context bundle to include the whole tenant on every
+message.
+
+**Three tools**, each a thin client-side function over data already
+loaded for the current tenant — no new server endpoint, and no new
+tenant-isolation surface, since `WORKPAPERS`/`wpExceptions` were only
+ever populated with this tenant's own rows in the first place (by
+`_loadWorkpapersFromDB` at bootstrap):
+- `search_exceptions({type?, auditName?, keyword?})` — searches
+  Exceptions/Findings/Recommendations across every workpaper the tenant
+  has, not just the open one.
+- `list_workpapers({auditName?, status?})` — lists workpapers by audit/
+  status across the tenant.
+- `export_to_csv({filename, columns, rows})` — the assistant hands back
+  a table of data it has gathered (from either tool above, or the
+  already-given workpaper context), and this generates and triggers a
+  real download using the same Blob+anchor pattern every other export
+  in this app already uses.
+
+**The loop**: `/api/claude` already passes through Anthropic's raw
+Messages API, which natively supports `tools` — no server change
+needed. `_sendWpChatMessage` now runs a small agentic loop (capped at 4
+rounds, to guard against a runaway tool-call cycle): send the message
+with `tools` attached; if the response's `stop_reason` is `tool_use`,
+execute each requested tool against local client state, append the
+tool's own `tool_use`/`tool_result` blocks to the in-flight message
+list, and send again; once the model returns plain text instead, that's
+the final reply appended to the visible chat history. The tool-call
+round-trip itself is NOT shown as chat bubbles — only the user's
+question and the model's final answer are, keeping `_wpChatHistory[ref]`
+a simple display log rather than needing to replay prior tool plumbing
+on every future turn (each turn rebuilds its own working message list
+fresh, with the current context already re-attached via the system
+prompt).
+
+The system prompt was extended to tell the assistant plainly that it
+has these tools and when to use each one — including using
+`export_to_csv` instead of pasting a large table into the chat whenever
+the user asks to export/download/get a report.
+
+**Verified** against the dev server: `search_exceptions` correctly
+filters by audit/type/keyword across multiple workpapers (confirmed
+against synthetic cross-workpaper Exception/Finding data);
+`list_workpapers` correctly filters by audit; `export_to_csv` produces
+a real Blob-backed CSV download with a sanitized filename; a full,
+mocked two-round tool-use exchange (tool call → tool result → final
+text) renders the correct final answer in the chat; and a simulated
+runaway tool-call loop is correctly stopped by the round cap with a
+graceful fallback message rather than hanging.
+
+**Deliberately narrow for this version** — only these three read-only/
+export tools exist; no tool can modify any data (create/edit/delete an
+Exception, change an override, etc.). Per the design's own standing
+principle, the assistant surfaces and drafts; it never acts on the
+user's behalf through a tool either.

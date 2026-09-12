@@ -1,0 +1,167 @@
+<svg viewBox="0 0 1280 980" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="980" fill="#f8fafc"/>
+
+  <!-- Title -->
+  <text x="640" y="38" text-anchor="middle" font-size="22" font-weight="700" fill="#0f172a">Wavefire Data Model — Company to Workpaper Scope</text>
+  <text x="640" y="60" text-anchor="middle" font-size="12.5" fill="#64748b">How a Company's audits, workpapers, and everything a workpaper is scoped to fit together</text>
+
+  <!-- ============ CORE SPINE ============ -->
+  <!-- Company -->
+  <rect x="530" y="86" width="220" height="56" rx="10" fill="#1e3a5f"/>
+  <text x="640" y="110" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">COMPANY</text>
+  <text x="640" y="128" text-anchor="middle" font-size="10.5" fill="#cbd5e1">(tenant)</text>
+
+  <line x1="640" y1="142" x2="640" y2="176" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="656" y="163" font-size="10.5" fill="#64748b">has many</text>
+
+  <!-- Audit -->
+  <rect x="540" y="180" width="200" height="56" rx="10" fill="#274e77"/>
+  <text x="640" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">AUDIT</text>
+  <text x="640" y="222" text-anchor="middle" font-size="10.5" fill="#cbd5e1">name, period, owner, status</text>
+
+  <line x1="640" y1="236" x2="640" y2="270" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="656" y="257" font-size="10.5" fill="#64748b">has many</text>
+
+  <!-- Workpaper -->
+  <rect x="510" y="274" width="260" height="64" rx="10" fill="#39618b"/>
+  <text x="640" y="300" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">WORKPAPER</text>
+  <text x="640" y="318" text-anchor="middle" font-size="10.5" fill="#dbeafe">ref, type, preparer/reviewer, status,</text>
+  <text x="640" y="330" text-anchor="middle" font-size="10.5" fill="#dbeafe">attributes, sample data, testwork grid</text>
+
+  <!-- ============ SCOPE FAN-OUT FROM WORKPAPER ============ -->
+  <!-- three branch lines down to the three scope categories -->
+  <line x1="560" y1="338" x2="230" y2="400" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrowDash)"/>
+  <line x1="640" y1="338" x2="640" y2="400" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrowDash)"/>
+  <line x1="720" y1="338" x2="1050" y2="400" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrowDash)"/>
+  <text x="640" y="358" text-anchor="middle" font-size="11.5" font-weight="600" fill="#475569">is scoped / linked to</text>
+
+  <!-- ===== Category 1: Assessment Entities ===== -->
+  <rect x="70" y="404" width="330" height="54" rx="10" fill="#0f766e"/>
+  <text x="235" y="428" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">ASSESSMENT ENTITIES</text>
+  <text x="235" y="445" text-anchor="middle" font-size="10.5" fill="#ccfbf1">what part of the org this workpaper covers</text>
+
+  <line x1="235" y1="458" x2="235" y2="480" stroke="#0f766e" stroke-width="2"/>
+  <!-- entity type chips, 2 rows x 3 -->
+  <g font-size="11" font-weight="600" fill="#ffffff">
+    <rect x="55"  y="484" width="120" height="34" rx="8" fill="#14b8a6"/>
+    <text x="115" y="505" text-anchor="middle">Business Unit</text>
+
+    <rect x="185" y="484" width="110" height="34" rx="8" fill="#14b8a6"/>
+    <text x="240" y="505" text-anchor="middle">Location</text>
+
+    <rect x="305" y="484" width="140" height="34" rx="8" fill="#14b8a6"/>
+    <text x="375" y="505" text-anchor="middle">Function / Dept</text>
+
+    <rect x="55"  y="528" width="110" height="34" rx="8" fill="#14b8a6"/>
+    <text x="110" y="549" text-anchor="middle">System</text>
+
+    <rect x="175" y="528" width="130" height="34" rx="8" fill="#14b8a6"/>
+    <text x="240" y="549" text-anchor="middle">Data Center</text>
+
+    <rect x="315" y="528" width="130" height="34" rx="8" fill="#14b8a6"/>
+    <text x="380" y="549" text-anchor="middle">… (extensible)</text>
+  </g>
+  <!-- connector lines from category down to chips -->
+  <line x1="115" y1="480" x2="115" y2="484" stroke="#0f766e" stroke-width="1.5"/>
+  <line x1="235" y1="480" x2="235" y2="484" stroke="#0f766e" stroke-width="1.5"/>
+  <line x1="375" y1="480" x2="375" y2="484" stroke="#0f766e" stroke-width="1.5"/>
+  <path d="M235,480 L235,505 L110,505 L110,528" fill="none" stroke="#0f766e" stroke-width="1.5"/>
+  <path d="M235,505 L240,505 L240,528" fill="none" stroke="#0f766e" stroke-width="1.5"/>
+  <path d="M235,505 L380,505 L380,528" fill="none" stroke="#0f766e" stroke-width="1.5"/>
+
+  <text x="235" y="585" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">Assessment Entities also belong directly to the</text>
+  <text x="235" y="598" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">Company (its full org structure) — a workpaper</text>
+  <text x="235" y="611" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">just links to whichever ones are in scope for it.</text>
+
+  <!-- ===== Category 2: FS Accounts ===== -->
+  <rect x="500" y="404" width="280" height="54" rx="10" fill="#9a3412"/>
+  <text x="640" y="428" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">LINKED FS ACCOUNTS</text>
+  <text x="640" y="445" text-anchor="middle" font-size="10.5" fill="#fed7aa">financial statement accounts &amp; footnotes</text>
+
+  <line x1="640" y1="458" x2="640" y2="490" stroke="#9a3412" stroke-width="2"/>
+  <rect x="540" y="494" width="200" height="44" rx="8" fill="#c2410c"/>
+  <text x="640" y="512" text-anchor="middle" font-size="11" font-weight="600" fill="#ffffff">FS Account / Footnote</text>
+  <text x="640" y="528" text-anchor="middle" font-size="9.5" fill="#fed7aa">e.g. Cash, AP, Revenue…</text>
+
+  <text x="640" y="565" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">Ties the workpaper's testwork back to</text>
+  <text x="640" y="578" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">the specific line item(s) it supports.</text>
+
+  <!-- ===== Category 3: Risks & Controls (RCM) ===== -->
+  <rect x="900" y="404" width="330" height="54" rx="10" fill="#5b21b6"/>
+  <text x="1065" y="428" text-anchor="middle" font-size="13.5" font-weight="700" fill="#ffffff">LINKED RISKS &amp; CONTROLS</text>
+  <text x="1065" y="445" text-anchor="middle" font-size="10.5" fill="#e9d5ff">from the Foundations RCM library</text>
+
+  <line x1="1065" y1="458" x2="1065" y2="486" stroke="#5b21b6" stroke-width="2"/>
+
+  <!-- objective -> risk -> control chain -->
+  <rect x="910" y="490" width="110" height="46" rx="8" fill="#7c3aed"/>
+  <text x="965" y="510" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">Control</text>
+  <text x="965" y="524" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">Objective</text>
+
+  <line x1="1020" y1="513" x2="1050" y2="513" stroke="#5b21b6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1055" y="490" width="90" height="46" rx="8" fill="#8b5cf6"/>
+  <text x="1100" y="518" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">Risk</text>
+
+  <line x1="1145" y1="513" x2="1175" y2="513" stroke="#5b21b6" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1180" y="490" width="100" height="46" rx="8" fill="#a78bfa"/>
+  <text x="1230" y="518" text-anchor="middle" font-size="11" font-weight="700" fill="#3b0764">Control</text>
+
+  <text x="1065" y="565" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">A Control Objective is addressed by one or more</text>
+  <text x="1065" y="578" text-anchor="middle" font-size="10" fill="#64748b" font-style="italic">Risks, each mitigated by one or more Controls.</text>
+
+  <!-- ============ FOUNDATIONS LIBRARY (shared, company-level) ============ -->
+  <rect x="70" y="660" width="1140" height="130" rx="12" fill="#eef2f7" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="640" y="686" text-anchor="middle" font-size="13" font-weight="700" fill="#334155">FOUNDATIONS — shared, Company-wide libraries (not workpaper-specific)</text>
+  <text x="640" y="702" text-anchor="middle" font-size="10.5" fill="#64748b">Every Assessment Entity, FS Account, and Control Objective / Risk / Control lives here once, at the Company level —</text>
+  <text x="640" y="716" text-anchor="middle" font-size="10.5" fill="#64748b">a workpaper never owns its own copy, it only links to the ones relevant to its own scope.</text>
+
+  <g font-size="11" font-weight="600" fill="#ffffff">
+    <rect x="110" y="732" width="220" height="40" rx="8" fill="#0f766e"/>
+    <text x="220" y="757" text-anchor="middle">Assessment Entities Library</text>
+
+    <rect x="360" y="732" width="180" height="40" rx="8" fill="#c2410c"/>
+    <text x="450" y="757" text-anchor="middle">FS Accounts Library</text>
+
+    <rect x="570" y="732" width="180" height="40" rx="8" fill="#5b21b6"/>
+    <text x="660" y="757" text-anchor="middle">Risks &amp; Controls (RCM)</text>
+
+    <rect x="780" y="732" width="180" height="40" rx="8" fill="#334155"/>
+    <text x="870" y="757" text-anchor="middle">Company Structure</text>
+
+    <rect x="990" y="732" width="180" height="40" rx="8" fill="#334155"/>
+    <text x="1080" y="757" text-anchor="middle">Users &amp; Roles</text>
+  </g>
+
+  <!-- dashed connectors from foundations up to the scope categories, showing "supplies" -->
+  <line x1="220" y1="732" x2="235" y2="612" stroke="#0f766e" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <line x1="450" y1="732" x2="640" y2="580" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="3,3"/>
+  <line x1="660" y1="732" x2="1065" y2="580" stroke="#5b21b6" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+  <!-- ============ LEGEND ============ -->
+  <g font-size="10.5" fill="#475569">
+    <rect x="70" y="820" width="16" height="16" fill="#39618b" rx="3"/>
+    <text x="92" y="833">Core hierarchy (Company → Audit → Workpaper)</text>
+
+    <line x1="70" y1="856" x2="86" y2="856" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="92" y="860">1-to-many relationship</text>
+
+    <line x1="70" y1="880" x2="86" y2="880" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,4"/>
+    <text x="92" y="884">Many-to-many linkage (a workpaper links to any number of these)</text>
+
+    <line x1="70" y1="904" x2="86" y2="904" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="92" y="908">Sourced from a shared, Company-wide library — not owned by any one workpaper</text>
+  </g>
+
+  <text x="1210" y="960" text-anchor="end" font-size="9.5" fill="#94a3b8">Wavefire — data model overview</text>
+</svg>
