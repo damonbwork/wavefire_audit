@@ -2746,10 +2746,11 @@
                 </div>
               </div>
             </div>
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <!-- Spacer pushes reviewer group to far right -->
-            <div style="flex:1"></div>
-            <!-- Preparer + Date Started — immediately left of Reviewer -->
+            <!-- Preparer + Date Started — immediately right of Workpaper
+                 Category, per explicit request (the flex spacer that used
+                 to sit here, pushing Preparer/Reviewer/Review sign-off to
+                 the far right, is removed — Category now sits flush
+                 against both its neighbors). -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
