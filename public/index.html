@@ -2806,7 +2806,7 @@
                 </div>
               </div>
               <div class="fld">
-                <div class="fl">Population reference file</div>
+                <div class="fl">Population reference file<i class="ti ti-help-circle wf-help-icon" data-help-topic="populationReferenceFile" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
                 <div class="fv">
                   <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openPopRefDialog()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file(s)
@@ -25714,6 +25714,14 @@ function positionAuditTooltip(e) {
    asked for (a reference copy of the one explanation just read).
 ══════════════════════════════════════ */
 const HELP_TOPICS = {
+  populationReferenceFile: {
+    title: 'Population Reference File',
+    html: `
+      <p>If applicable, attach a file in the Workpaper Files section
+      below and select it here to provide linkage to the population.
+      No functionality is otherwise attributed to this field.</p>
+    `
+  },
   testworkOverview: {
     title: 'How Testwork Works — Overview',
     width: '640px',
