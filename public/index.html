@@ -2717,14 +2717,11 @@
               </select>
             </div>
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <!-- Test Description + Workpaper Category — moved here from
-                 their own section/field further down, per explicit
-                 request; Test Description now stands in for the old
-                 free-form Workpaper Description field entirely. -->
+            <!-- Workpaper Category — Test Description has since moved
+                 into its own full-width rectangle in the body below,
+                 per explicit request; Category stays here, untouched. -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:240px;max-width:320px">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Test Description</div>
-              <textarea id="wpd-test-desc" rows="2" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;resize:vertical;line-height:1.5;min-height:36px;box-sizing:border-box"></textarea>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-top:6px">Workpaper Category <span style="color:#dc2626">*</span></div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category <span style="color:#dc2626">*</span></div>
               <div style="position:relative">
                 <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
                   style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:12px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left;box-sizing:border-box">
@@ -2784,9 +2781,17 @@
                already carries its own border-bottom, but this makes the
                separation unambiguous regardless of that. -->
           <div class="sect-body" style="border-top:0.5px solid var(--border-light)">
-            <!-- Description and Workpaper Category moved up into the
-                 header strip (Test Description now stands in for the
-                 old Description field entirely) — see that section. -->
+            <!-- Description was moved up into the header strip
+                 (Workpaper Category) or into its own full-width
+                 rectangle below (Test Description) — see each. -->
+            <!-- Test Description — its own full-width rectangle, per
+                 explicit request, sitting between the header strip
+                 above and Population/Sample fields below, each side
+                 bounded by its own full-width light rule. -->
+            <div style="margin:-16px -16px 16px;padding:14px 16px;border-bottom:0.5px solid var(--border-light)">
+              <div class="fl">Test Description</div>
+              <textarea id="wpd-test-desc" rows="3" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);padding:3px 6px;outline:none;resize:vertical;line-height:1.5;min-height:20px;height:64px;box-sizing:border-box;transition:background 0.15s,border-color 0.15s" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Test Description')"></textarea>
+            </div>
             <!-- Population, Sample Method & Sample Size -->
             <div class="field-grid">
               <div class="fld">
