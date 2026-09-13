@@ -26178,17 +26178,30 @@ function _toggleHelpPopup(iconEl) {
   _openHelpPopup = { el: popup, anchorEl: iconEl };
 }
 // One shared dismiss-on-click-outside listener for every popup, rather
-// than one per instance. The triggering icon's own onclick already
-// calls stopPropagation, so this never fires for the click that just
-// opened a popup.
+// than one per instance. Runs in the CAPTURE phase (the trailing `true`)
+// so it fires before any element's own onclick — many buttons/cells
+// elsewhere in the app call event.stopPropagation() in their bubble-
+// phase handler, which used to swallow this listener entirely and made
+// a single click "outside" do nothing until a second click landed on
+// something that didn't stopPropagation. Capture runs first regardless,
+// so one click anywhere outside the popup now always closes it.
 document.addEventListener('click', e => {
   // _notesDragging is the same shared flag makeDraggable() sets during
   // an active drag — guards against releasing a drag outside the popup
   // (dragging it near an edge, say) being misread as an outside click
   // and closing the popup out from under the user mid-drag.
   if (_notesDragging) return;
-  if (_openHelpPopup && !_openHelpPopup.el.contains(e.target)) _closeHelpPopup();
-});
+  if (!_openHelpPopup) return;
+  if (_openHelpPopup.el.contains(e.target)) return;
+  // The icon that owns the currently-open popup manages its own
+  // open/close toggle in its bubble-phase onclick (_toggleHelpPopup) —
+  // skip it here so that handler alone decides the outcome, otherwise
+  // this capture-phase close would fire first and the toggle would just
+  // reopen the popup right after, making the icon unable to close it.
+  const iconTarget = e.target.closest && e.target.closest('.wf-help-icon');
+  if (iconTarget === _openHelpPopup.anchorEl) return;
+  _closeHelpPopup();
+}, true);
 
 function _downloadHelpTopic(topicKey) {
   const topic = HELP_TOPICS[topicKey];
