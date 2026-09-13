@@ -927,7 +927,7 @@
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
           style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px 0 6px;border-radius:6px 6px 0 0">
           <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
-          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
+          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
         </button>
         <!-- Real, actual, independently-clickable tenant label, per
              explicit request — split out of the button above, since it
@@ -935,14 +935,18 @@
              incorrectly opened the user switcher instead. Only
              genuinely interactive for a real superadmin — set by
              _applySuperAdminTenantSwitcherUI(), called everywhere
-             _currentDisplayUser is genuinely, correctly established. -->
+             _currentDisplayUser is genuinely, correctly established.
+             max-width raised from 90px to 160px — per direct report,
+             a superadmin's own "All Tenants (Superadmin)" label was
+             being truncated even though the topbar had visible room to
+             spare; nothing else in this row needed to shrink to fit it. -->
         <span id="wf-current-tenant-label" onclick="toggleTenantSwitcher(event)"
-          style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
+          style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
         <!-- Real, new AI Units display, per explicit request — right
              alongside the existing userID and tenant labels, matching
              their own established visual size and style. -->
         <span id="wf-ai-units-label" title="Your AI usage this month and this year"
-          style="display:block;text-align:center;font-size:8px;font-weight:500;color:rgba(255,255,255,0.55);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px"></span>
+          style="display:block;text-align:center;font-size:8px;font-weight:500;color:rgba(255,255,255,0.55);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px"></span>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
         <div id="wf-user-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
