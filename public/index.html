@@ -2725,7 +2725,7 @@
                  into its own full-width rectangle in the body below,
                  per explicit request; Category stays here, untouched. -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:240px;max-width:320px">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category <span style="color:#dc2626">*</span></div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category</div>
               <div style="position:relative">
                 <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
                   style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:12px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left;box-sizing:border-box">
@@ -4775,7 +4775,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
                    shared picker logic now resolves to whichever page's ids
                    are actually present. -->
               <div class="fld" style="width:260px;position:relative;flex-shrink:0">
-                <div class="fl">Workpaper Category <span style="color:#dc2626">*</span></div>
+                <div class="fl">Workpaper Category</div>
                 <button type="button" id="nwp-category-trigger" onclick="toggleCategoryDropdown()"
                   style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left">
                   <span id="nwp-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
@@ -27227,17 +27227,11 @@ async function submitNewWorkpaper() {
   const template = document.getElementById('nwp-type')?.value || 'Workpaper-Long Template';
   const seg4v    = document.getElementById('nwp-seg4')?.value || '0';
 
-  // Real, confirmed fix, per explicit request — the deprecated
-  // "derive from title if blank" fallback is genuinely gone; the tag
-  // now only ever comes from the selected Workpaper Category, so this
-  // is now an explicit, required check instead, matching the real,
-  // established pattern of the seg4 validation right below it.
+  // Workpaper Category is optional, per explicit request — no longer
+  // blocks workpaper creation. If left unselected, seg3 stays blank and
+  // the reference simply omits that segment's letters.
   const seg3El = document.getElementById('nwp-seg3');
   const seg3   = (seg3El?.value || '').toUpperCase();
-  if (!seg3) {
-    showDupDialog('Please select a Workpaper Category before creating this workpaper — it determines the 2-3 letter code used in the reference.');
-    return;
-  }
 
   // Validate seg4 — must be a positive number
   if (!seg4v || parseInt(seg4v, 10) < 1) {
