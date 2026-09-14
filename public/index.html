@@ -3304,6 +3304,9 @@
               <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="readSampleFilesIntoGrid()" id="sd-readfiles-btn" title="For each field listed above, the application will search all attached sample files and attempt to populate the data.">
                 <i class="ti ti-sparkles"></i>Extract Sample Data
               </button>
+              <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;flex-shrink:0;white-space:nowrap" onclick="_openMockExtractionResults()" id="sd-mockextract-btn" title="Free, instant preview of the column shape a real extraction would produce — synthetic example values only, no sample files are read and nothing is saved.">
+                <i class="ti ti-flask"></i>Mock Extraction Results
+              </button>
             </div>
           </div>
           <!-- Independent-mode results preview (checkbox unchecked) — shows
@@ -6067,6 +6070,33 @@ Testwork Grid" to build a blank grid and record each result yourself.
     <div style="padding:10px 14px;display:flex;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
       <input id="wp-chat-input" type="text" placeholder="Ask about this workpaper's results…" onkeydown="if(event.key==='Enter')_submitWpChatInput()" style="flex:1;font-size:12px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
       <button class="btn-p" onclick="_submitWpChatInput()"><i class="ti ti-send"></i></button>
+    </div>
+  </div>
+
+  <!-- Mock Extraction Results — a floating, draggable/resizable window
+       (same pattern as Review Notes, the attribute Guidance window, and
+       Ask Wavefire AI), opened via the "Mock Extraction Results" button
+       next to "Extract Sample Data". Per
+       design-documents/mock-extraction-results-plan.md (Option B):
+       shows one synthetic example row per defined field, with no AI
+       call, no file reads, and nothing saved — a free, instant preview
+       of the column shape only, kept deliberately separate from the
+       real, saved "Extraction results" table below the buttons. -->
+  <div id="mock-extract-overlay" class="notes-window" style="display:none;width:560px;height:380px;top:120px;left:calc(50% - 280px)">
+    <div id="mock-extract-hdr" class="notes-window-hdr">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+        <i class="ti ti-flask" style="font-size:15px"></i>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Mock Extraction Results</span>
+      </div>
+      <button onclick="_closeMockExtractionResults()" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;flex-shrink:0" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
+    </div>
+    <div style="padding:10px 14px;flex-shrink:0;background:#fefce8;border-bottom:0.5px solid #fde68a;font-size:12px;color:#854d0e;display:flex;align-items:flex-start;gap:8px">
+      <i class="ti ti-alert-triangle" style="flex-shrink:0;margin-top:1px"></i>
+      <span>Preview only — these are synthetic example values. Nothing has been saved to this workpaper.</span>
+    </div>
+    <div id="mock-extract-body" style="flex:1;overflow:auto;padding:14px;min-height:0"></div>
+    <div style="padding:10px 14px;display:flex;justify-content:flex-end;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <button class="btn-p" onclick="_closeMockExtractionResults()">Close</button>
     </div>
   </div>
 </div><!-- /app -->
@@ -12216,6 +12246,44 @@ function _closeAttrGuidanceModal() {
   const overlay = document.getElementById('attr-guidance-overlay');
   if (overlay) overlay.style.display = 'none';
   _attrGuidanceOpenKey = null;
+}
+
+// Mock Extraction Results — per design-documents/mock-extraction-results-plan.md
+// (Option B). A free, instant, zero-cost preview of the COLUMN SHAPE a real
+// extraction run would produce: one synthetic example value per defined
+// field, generated from the field's own Title alone. Deliberately never
+// reads sample files, never calls the AI, and never touches
+// wpExtractedDataRecords/Postgres — it renders into its own floating window,
+// entirely separate from the real "Extraction results" table.
+function _openMockExtractionResults() {
+  const ref = getWPRef();
+  if (!ref) return;
+  const fields = (wpExtractedData[ref] || []).filter(f => (f.title || '').trim());
+  const bodyEl = document.getElementById('mock-extract-body');
+  const overlay = document.getElementById('mock-extract-overlay');
+  if (!bodyEl || !overlay) return;
+
+  if (!fields.length) {
+    bodyEl.innerHTML = `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:20px 0;text-align:center">Define at least one field with a Title above (in "Data to Extract From Sample Files") to preview its shape here.</div>`;
+  } else {
+    const headerCells = fields.map(f => `<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light);white-space:nowrap">${escAttr(f.title)}</th>`).join('');
+    const dataCells   = fields.map(f => `<td style="padding:6px 12px;border-bottom:0.5px solid var(--border-light);color:var(--text-secondary);font-style:italic">${escAttr('[Example: ' + f.title + ']')}</td>`).join('');
+    bodyEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--bg-secondary)">${headerCells}</tr></thead>
+      <tbody><tr>${dataCells}</tr></tbody>
+    </table>`;
+  }
+
+  overlay.style.display = 'flex';
+  // Draggable-by-header + natively resizable (via the .notes-window class's
+  // CSS `resize: both`) — same floating-window pattern already used by
+  // Review Notes, the attribute Guidance window, and Ask Wavefire AI.
+  makeDraggable(document.getElementById('mock-extract-hdr'), overlay);
+}
+
+function _closeMockExtractionResults() {
+  const overlay = document.getElementById('mock-extract-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function _downloadAttrGuidance() {
@@ -39011,6 +39079,32 @@ function logWPDropdownChange(elId, label) {
     if (key) { w[key] = newVal; _saveWorkpaperToDB(w); }
   }
 }
+
+// Auto-stamp "Date started" with today's date the first time the user
+// enters any data outside the Workpaper Information header, if it
+// hasn't been set yet. Runs as one shared capture-phase listener on
+// input/change, rather than being wired into each of the many sections'
+// own save paths individually (Test Attributes, Sample Data, Sample
+// Files, Exceptions/Findings/Recommendations, Review Notes, Scope,
+// etc.) — it sees every such event on the workpaper detail page and
+// only acts the first time, since it no-ops once a date is present.
+function _maybeStampDateStarted(e) {
+  const detail = document.getElementById('page-wpdetail');
+  if (!detail || !detail.classList.contains('active')) return;
+  if (!detail.contains(e.target)) return;
+  const infoCard = document.getElementById('sect-wpinfo');
+  if (infoCard && infoCard.contains(e.target)) return; // header itself is exempt
+  const dsEl = document.getElementById('wpd-date-started');
+  if (!dsEl || dsEl.value) return; // already set
+  const ref = getWPRef();
+  if (!ref) return;
+  const today = new Date();
+  const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  dsEl.value = iso;
+  logWPDropdownChange('wpd-date-started', 'Date started');
+}
+document.addEventListener('input', _maybeStampDateStarted, true);
+document.addEventListener('change', _maybeStampDateStarted, true);
 
 function updateResultsStyle() {
   const sel = document.getElementById('wpd-results');

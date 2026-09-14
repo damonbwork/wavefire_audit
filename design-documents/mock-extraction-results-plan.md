@@ -137,3 +137,24 @@ All in `public/index.html`:
 3. Confirm clicking "Extract Sample Data" afterward still behaves
    exactly as it does today (real files, real save, inline table) —
    this feature must have zero effect on that existing path.
+
+## Built and verified (2026-09-13)
+
+Implemented per Option B, exactly as designed above:
+- New neutral `btn-s` "Mock Extraction Results" button (flask icon)
+  next to the orange "Extract Sample Data" button.
+- New `#mock-extract-overlay` floating window (`.notes-window` pattern
+  — draggable via `makeDraggable()`, natively resizable, non-modal),
+  with the required "Preview only..." banner and no Download/Add-to-
+  grid actions.
+- `_openMockExtractionResults()` / `_closeMockExtractionResults()`:
+  read `wpExtractedData[ref]`, render one synthetic
+  `"[Example: <Title>]"` row per field with a Title — no AI call, no
+  file reads, no writes to `wpExtractedDataRecords`/Postgres.
+- Verified with synthetic in-memory state (no live backend login
+  available in this environment): button renders correctly next to
+  Extract Sample Data; clicking it opens the window with the correct
+  banner and one example row per defined field; `wpExtractedDataRecords`
+  stays empty after opening; the header's `cursor:move` confirms
+  `makeDraggable` is wired; the empty-fields case shows the intended
+  "define at least one field" guidance text instead of an empty table.
