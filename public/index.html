@@ -171,8 +171,16 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
   .wf-subnav-inner {
+    /* width:100% is load-bearing: showPage() sets wf-subnav's own inline
+       display to 'flex' (as a visibility toggle, not intentionally for
+       layout), which makes this element a flex ITEM of that outer flex
+       container — without an explicit width it only sizes to fit its own
+       content instead of filling the bar, leaving justify-content:
+       space-between/margin-left:auto below with no extra space to push
+       against, so the right-anchored group silently sat right after the
+       left-anchored one instead of at the true right edge. */
     display: flex; align-items: center; justify-content: space-between;
-    height: 46px; gap: 16px;
+    width: 100%; height: 46px; gap: 16px;
   }
   .wf-subnav-left { display: flex; align-items: center; gap: 12px; }
   .wf-subnav-label {
@@ -1978,10 +1986,39 @@
       <div class="wf-subnav-left">
         <span class="wf-subnav-label">AUDITS</span>
       </div>
-      <!-- Audit name / Workpaper dropdowns — upper LEFT, right next to the
-           AUDITS label, per explicit request (previously pushed to the far
-           right via margin-left:auto). -->
+      <!-- Breadcrumb trail — upper LEFT, right next to the AUDITS label,
+           per explicit request (swapped with the dropdowns below, which
+           previously sat here and are now anchored upper right instead).
+           Was previously its own separate row inside each page
+           (page-workpapers/page-wpdetail/page-newwp) below this subnav;
+           lives here as three mutually-exclusive slots (one per page, same
+           ids/onclicks as before so no other JS needed to change) that
+           showPage() toggles alongside the page itself. -->
       <div style="display:flex;align-items:center">
+        <div class="bc" id="bc-slot-workpapers" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
+        </div>
+        <div class="bc" id="bc-slot-wpdetail" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
+        </div>
+        <div class="bc" id="bc-slot-newwp" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur">New workpaper</span>
+        </div>
+      </div>
+      <!-- Audit name / Workpaper dropdowns — upper RIGHT, anchored via
+           margin-left:auto so they stay pinned to the right edge of this
+           row regardless of how wide the breadcrumb on the left is. -->
+      <div style="margin-left:auto;display:flex;align-items:center">
         <div class="wf-auditcontrols">
         <div class="wf-ctl-group">
           <div class="wf-ctl-label">Audit name</div>
@@ -2003,33 +2040,6 @@
           </button>
         </div>
       </div>
-      </div>
-      <!-- Breadcrumb trail — upper RIGHT, same row as the dropdowns above,
-           per explicit request. Was previously its own separate row inside
-           each page (page-workpapers/page-wpdetail/page-newwp) below this
-           subnav; now lives here as three mutually-exclusive slots (one per
-           page, same ids/onclicks as before so no other JS needed to
-           change) that showPage() toggles alongside the page itself. -->
-      <div style="margin-left:auto;display:flex;align-items:center">
-        <div class="bc" id="bc-slot-workpapers" style="display:none">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
-        </div>
-        <div class="bc" id="bc-slot-wpdetail" style="display:none">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
-        </div>
-        <div class="bc" id="bc-slot-newwp" style="display:none">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur">New workpaper</span>
-        </div>
       </div>
     </div>
   </div>
