@@ -2703,8 +2703,13 @@
             <div class="sect-hdr-title"><i class="ti ti-file-description"></i>Workpaper information</div>
           </div>
           <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px;padding:10px 16px">
-            <!-- Results + Status column — far left -->
-            <div style="display:flex;flex-direction:column;gap:4px;min-width:150px">
+            <!-- Results + Status column — far left. flex:1 1 0 on all five
+                 of this row's column containers (Results/Status,
+                 Category, Preparer, Reviewer, Review sign-off) spaces
+                 them evenly across the row's full width, per explicit
+                 request — the vertical hairlines between them stay
+                 fixed-width. -->
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:150px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);display:flex;align-items:center">Results<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkOverview" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How testwork, pass/fail, exceptions, and this Results field all fit together" style="cursor:pointer;color:var(--text-tertiary);font-size:14px;margin-left:5px;text-transform:none"></i></div>
               <select id="wpd-results" style="font-size: 12px; font-weight: 500; color: var(--text-primary); background: var(--bg-secondary); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; border-radius: var(--radius-md); padding: 4px 8px; outline: none; cursor: pointer;" onchange="updateResultsStyle(); logWPDropdownChange('wpd-results','Results')">
                 <option value="">—</option>
@@ -2724,7 +2729,7 @@
             <!-- Workpaper Category — Test Description has since moved
                  into its own full-width rectangle in the body below,
                  per explicit request; Category stays here, untouched. -->
-            <div style="display:flex;flex-direction:column;gap:4px;min-width:240px;max-width:320px">
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:240px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category</div>
               <div style="position:relative">
                 <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
@@ -2752,7 +2757,7 @@
                  the far right, is removed — Category now sits flush
                  against both its neighbors). -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:130px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
               <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-preparer','Preparer')">
                 <option value="">—</option>
@@ -2762,7 +2767,7 @@
             </div>
             <!-- Reviewer + Date Submitted For Review — far right -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:130px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
               <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-reviewer','Reviewer')">
                 <option value="">—</option>
@@ -2772,7 +2777,7 @@
             </div>
             <!-- Workpaper Review Sign-off subsection -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <div style="display:flex;flex-direction:column;gap:4px;min-width:180px;max-width:240px;padding:4px 0">
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:180px;max-width:320px;padding:4px 0">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Review sign-off</div>
               <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;display:flex;flex-direction:column;gap:3px;min-width:180px">
                 <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 100%;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
