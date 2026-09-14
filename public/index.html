@@ -2725,7 +2725,7 @@
                 <option value="">—</option>
               </select>
             </div>
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <div style="flex:0 0 1px;width:1px;background:var(--border-light);align-self:stretch"></div>
             <!-- Workpaper Category — Test Description has since moved
                  into its own full-width rectangle in the body below,
                  per explicit request; Category stays here, untouched. -->
@@ -2756,7 +2756,7 @@
                  to sit here, pushing Preparer/Reviewer/Review sign-off to
                  the far right, is removed — Category now sits flush
                  against both its neighbors). -->
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <div style="flex:0 0 1px;width:1px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:130px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
               <select id="wpd-preparer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-preparer','Preparer')">
@@ -2766,7 +2766,7 @@
               <input type="date" id="wpd-date-started" onchange="logWPDropdownChange('wpd-date-started','Date started')" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
             </div>
             <!-- Reviewer + Date Submitted For Review — far right -->
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <div style="flex:0 0 1px;width:1px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:130px;max-width:320px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Reviewer</div>
               <select id="wpd-reviewer" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer" onchange="logWPDropdownChange('wpd-reviewer','Reviewer')">
@@ -2776,7 +2776,7 @@
               <input type="date" id="wpd-date-submitted" onchange="logWPDropdownChange('wpd-date-submitted','Date submitted for review')" style="font-size:12px;font-weight:500;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:4px 8px;outline:none;cursor:pointer">
             </div>
             <!-- Workpaper Review Sign-off subsection -->
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <div style="flex:0 0 1px;width:1px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:180px;max-width:320px;padding:4px 0">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Review sign-off</div>
               <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;display:flex;flex-direction:column;gap:3px;min-width:180px">
