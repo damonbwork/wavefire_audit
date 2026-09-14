@@ -1978,7 +1978,10 @@
       <div class="wf-subnav-left">
         <span class="wf-subnav-label">AUDITS</span>
       </div>
-      <div style="margin-left:auto;display:flex;align-items:center">
+      <!-- Audit name / Workpaper dropdowns — upper LEFT, right next to the
+           AUDITS label, per explicit request (previously pushed to the far
+           right via margin-left:auto). -->
+      <div style="display:flex;align-items:center">
         <div class="wf-auditcontrols">
         <div class="wf-ctl-group">
           <div class="wf-ctl-label">Audit name</div>
@@ -2000,6 +2003,33 @@
           </button>
         </div>
       </div>
+      </div>
+      <!-- Breadcrumb trail — upper RIGHT, same row as the dropdowns above,
+           per explicit request. Was previously its own separate row inside
+           each page (page-workpapers/page-wpdetail/page-newwp) below this
+           subnav; now lives here as three mutually-exclusive slots (one per
+           page, same ids/onclicks as before so no other JS needed to
+           change) that showPage() toggles alongside the page itself. -->
+      <div style="margin-left:auto;display:flex;align-items:center">
+        <div class="bc" id="bc-slot-workpapers" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
+        </div>
+        <div class="bc" id="bc-slot-wpdetail" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
+        </div>
+        <div class="bc" id="bc-slot-newwp" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur">New workpaper</span>
+        </div>
       </div>
     </div>
   </div>
@@ -2317,11 +2347,6 @@
            PAGE 2 — WORKPAPER LIST
       ══════════════════════════ -->
       <div class="page" id="page-workpapers">
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
-        </div>
         <div class="ph">
           <div>
             <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
@@ -2626,14 +2651,6 @@
            PAGE 3 — WORKPAPER DETAIL
       ══════════════════════════ -->
       <div class="page" id="page-wpdetail">
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
-        </div>
-
         <!-- Audit Information — compact header strip -->
         <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;position:relative">
           <div style="display:flex;align-items:center;gap:10px">
@@ -2788,7 +2805,7 @@
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:180px;max-width:320px;padding:4px 0">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Review sign-off</div>
               <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;display:flex;flex-direction:column;gap:3px;min-width:180px">
-                <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 100%;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
+                <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 92px; flex: 0 0 auto;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
                 <div id="wp-review-log" style="display:flex;flex-direction:column;gap:1px"></div>
               </div>
             </div>
@@ -3136,7 +3153,7 @@
       <div style="display:flex;align-items:center;gap:6px;width:100%">
         <button onclick="markFileReviewed('WP-2026-002_TestResults_20260627_1746.xlsx', this.dataset.fname)" data-fname="WP-2026-002_TestResults_20260627_1746.xlsx" id="review-btn-WP-2026-002_TestResults_20260627_1746.xlsx" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);
                  background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;
-                 transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetReviewBtnStyle('WP-2026-002_TestResults_20260627_1746.xlsx')">
+                 transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetReviewBtnStyle('WP-2026-002_TestResults_20260627_1746.xlsx')">
           Reviewed
         </button>
 
@@ -4701,15 +4718,6 @@ Testwork Grid" to build a blank grid and record each result yourself.
            PAGE 4 — NEW WORKPAPER
       ══════════════════════════ -->
       <div class="page" id="page-newwp">
-        <!-- Breadcrumb -->
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur">New workpaper</span>
-        </div>
-
         <!-- Audit info strip (same compact header as workpaper detail) -->
         <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:10px">
           <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
@@ -6118,6 +6126,43 @@ Testwork Grid" to build a blank grid and record each result yourself.
       </button>
       <div style="flex:1"></div>
       <button class="btn-p" onclick="_closeMockExtractionResults()">Close</button>
+    </div>
+  </div>
+
+  <!-- Extraction Results — the REAL, saved results of "Extract Sample
+       Data" (not the synthetic Mock preview above), in the same floating,
+       draggable/resizable window pattern. Per explicit request: this
+       replaces the inline "Extraction results" table as the primary way
+       to view real results — it opens automatically once a real
+       extraction run completes. The inline table stays present for now
+       (renderExtractedDataResults keeps both in sync) until this modal is
+       confirmed working, at which point the inline copy is slated for
+       removal. -->
+  <div id="extract-results-overlay" class="notes-window" style="display:none;width:640px;height:420px;top:110px;left:calc(50% - 320px)">
+    <div id="extract-results-hdr" class="notes-window-hdr">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+        <i class="ti ti-table" style="font-size:15px"></i>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Extraction Results</span>
+      </div>
+      <button onclick="_closeExtractResultsModal()" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;flex-shrink:0" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:14px;min-height:0">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr id="extract-modal-results-hdr" style="background:var(--bg-secondary)"></tr></thead>
+        <tbody id="extract-modal-results-body"></tbody>
+      </table>
+    </div>
+    <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <button class="btn-s" onclick="downloadExtractedDataXLSX()" style="font-size:12px;padding:7px 14px" title="Download all extracted results as an Excel file">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download extracted data (Excel)
+      </button>
+      <button class="btn-s" onclick="clearExtractedDataResults()" style="font-size:12px;padding:7px 14px" title="Remove all extraction results — does not affect the field definitions above or the Sample Data grid">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Clear extraction results
+      </button>
+      <div style="flex:1"></div>
+      <button class="btn-p" onclick="_closeExtractResultsModal()">Close</button>
     </div>
   </div>
 </div><!-- /app -->
@@ -7823,6 +7868,14 @@ function showPage(name) {
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
   if (pg) { pg.classList.add('active'); pg.style.display = ''; } // clear the inline 'none' so the .page/.active CSS can show it again
+
+  // Breadcrumb trail now lives in the subnav bar (upper right, alongside
+  // the Audit name/Workpaper dropdowns) rather than as its own row inside
+  // each page — one slot per page, shown only for the page just activated.
+  const bcSlotMap = { workpapers:'bc-slot-workpapers', wpdetail:'bc-slot-wpdetail', newwp:'bc-slot-newwp' };
+  document.querySelectorAll('[id^="bc-slot-"]').forEach(el => el.style.display = 'none');
+  const bcSlot = bcSlotMap[name] && document.getElementById(bcSlotMap[name]);
+  if (bcSlot) bcSlot.style.display = 'flex';
 
   pushNav(name);
   setWPNavEnabled(name === 'wpdetail' || name === 'workpapers');
@@ -12347,6 +12400,23 @@ function _clearMockExtractionResults() {
 
 function _closeMockExtractionResults() {
   const overlay = document.getElementById('mock-extract-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// Extraction Results — the REAL, saved results modal. renderExtractedDataResults()
+// keeps this modal's table in sync any time it runs; this function only opens
+// the window and wires up dragging, matching the pattern used by every other
+// floating window this session (Review Notes, attribute Guidance, Ask
+// Wavefire AI, Mock Extraction Results).
+function _openExtractResultsModal() {
+  const overlay = document.getElementById('extract-results-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  makeDraggable(document.getElementById('extract-results-hdr'), overlay);
+}
+
+function _closeExtractResultsModal() {
+  const overlay = document.getElementById('extract-results-overlay');
   if (overlay) overlay.style.display = 'none';
 }
 
@@ -33929,7 +33999,7 @@ function refreshFileList(ref, bucket) {
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;min-width:180px;margin-left:8px">
               <div style="display:flex;align-items:center;gap:6px;width:100%">
                 <button onclick="markFileReviewed('sf_rev_${i}', this.dataset.fname)" data-fname="${escAttr(f.name)}" id="review-btn-sf_rev_${i}"
-                  style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center"
+                  style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center"
                   onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
                   onmouseout="resetReviewBtnStyle('sf_rev_${i}')">
                   Reviewed
@@ -33996,7 +34066,7 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
         <button onclick="markFileReviewed('${reviewKey}', this.dataset.fname)" data-fname="${escAttr(name)}" id="review-btn-${reviewKey}"
           style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);
                  background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;
-                 transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center"
+                 transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center"
           onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
           onmouseout="resetReviewBtnStyle('${reviewKey}')">
           Reviewed
@@ -35460,6 +35530,7 @@ async function readSampleFilesIntoGrid(ref) {
     });
     saveExtractedDataRecordsToDB(ref);
     renderExtractedDataResults(ref);
+    _openExtractResultsModal();
 
     var dedupNote = duplicatesRemoved > 0 ? (' (' + duplicatesRemoved + ' exact duplicate' + (duplicatesRemoved!==1?'s':'') + ' removed.)') : '';
 
@@ -36746,20 +36817,38 @@ function renderExtractedDataResults(ref) {
   // sitting in the DOM.
   hdrRow.innerHTML = '';
   body.innerHTML = '';
+  const modalHdrEl  = document.getElementById('extract-modal-results-hdr');
+  const modalBodyEl = document.getElementById('extract-modal-results-body');
+  if (modalHdrEl)  modalHdrEl.innerHTML  = '';
+  if (modalBodyEl) modalBodyEl.innerHTML = '';
 
-  if (!records.length) { wrap.style.display = 'none'; return; }
+  if (!records.length) { wrap.style.display = 'none'; _closeExtractResultsModal(); return; }
   wrap.style.display = 'block';
 
   const fields = wpExtractedData[ref] || [];
   const titles = fields.map(f => f.title).filter(Boolean);
 
-  hdrRow.innerHTML = '<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Source file</th>' +
+  const hdrHtml = '<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">Source file</th>' +
     titles.map(t => `<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)">${escAttr(t)}</th>`).join('');
 
-  body.innerHTML = records.map(r => {
+  const bodyHtml = records.map(r => {
     const cells = titles.map(t => `<td style="padding:6px 12px;border-bottom:0.5px solid var(--border-light);color:var(--text-secondary)">${escAttr(r.cells && r.cells[t] !== undefined ? r.cells[t] : '')}</td>`).join('');
     return `<tr><td style="padding:6px 12px;border-bottom:0.5px solid var(--border-light);color:var(--text-tertiary);font-style:italic">${escAttr(r.sourceFile||'')}</td>${cells}</tr>`;
   }).join('');
+
+  hdrRow.innerHTML = hdrHtml;
+  body.innerHTML = bodyHtml;
+
+  // Mirror the exact same markup into the floating Extraction Results
+  // modal (see _openExtractResultsModal below) so both stay in sync while
+  // the inline table below the buttons is still present — per explicit
+  // plan, the inline copy is slated for removal once the modal is
+  // confirmed working, at which point this function will target the
+  // modal's elements only.
+  const modalHdr  = document.getElementById('extract-modal-results-hdr');
+  const modalBody = document.getElementById('extract-modal-results-body');
+  if (modalHdr)  modalHdr.innerHTML  = hdrHtml;
+  if (modalBody) modalBody.innerHTML = bodyHtml;
 }
 
 // Removes all extraction RESULTS (the records shown in the table below the
