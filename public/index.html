@@ -126,12 +126,14 @@
     color: #fff;
   }
   /* min-width:0 lets this flex item shrink below its content's natural
-     width instead of forcing the topbar wider than the viewport; when
-     the nav items genuinely don't fit, it scrolls horizontally instead
-     of pushing/clipping the user block on the right — which otherwise
-     silently lost space (or ran off-screen) on real, narrower windows
-     even though it has flex-shrink:0, per direct report. */
-  .wf-nav { display: flex; align-items: stretch; gap: 0; height: 52px; flex-shrink: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+     width instead of forcing the topbar wider than the viewport; if the
+     nav items genuinely don't fit, overflow:hidden lets it clip quietly
+     rather than pushing/clipping the user block on the right — which
+     otherwise silently lost space (or ran off-screen) on real, narrower
+     windows even though it has flex-shrink:0, per direct report.
+     Deliberately overflow:hidden, NOT auto/scroll — no scrollbar in
+     this header, per explicit direction. */
+  .wf-nav { display: flex; align-items: stretch; gap: 0; height: 52px; flex-shrink: 1; min-width: 0; overflow: hidden; }
   .wf-nav-item {
     display: flex; align-items: center;
     padding: 0 15px;
