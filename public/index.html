@@ -1978,7 +1978,10 @@
       <div class="wf-subnav-left">
         <span class="wf-subnav-label">AUDITS</span>
       </div>
-      <div style="margin-left:auto;display:flex;align-items:center">
+      <!-- Audit name / Workpaper dropdowns — upper LEFT, right next to the
+           AUDITS label, per explicit request (previously pushed to the far
+           right via margin-left:auto). -->
+      <div style="display:flex;align-items:center">
         <div class="wf-auditcontrols">
         <div class="wf-ctl-group">
           <div class="wf-ctl-label">Audit name</div>
@@ -2000,6 +2003,33 @@
           </button>
         </div>
       </div>
+      </div>
+      <!-- Breadcrumb trail — upper RIGHT, same row as the dropdowns above,
+           per explicit request. Was previously its own separate row inside
+           each page (page-workpapers/page-wpdetail/page-newwp) below this
+           subnav; now lives here as three mutually-exclusive slots (one per
+           page, same ids/onclicks as before so no other JS needed to
+           change) that showPage() toggles alongside the page itself. -->
+      <div style="margin-left:auto;display:flex;align-items:center">
+        <div class="bc" id="bc-slot-workpapers" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
+        </div>
+        <div class="bc" id="bc-slot-wpdetail" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
+        </div>
+        <div class="bc" id="bc-slot-newwp" style="display:none">
+          <span onclick="showPage('audits')">Audits</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span class="cur">New workpaper</span>
+        </div>
       </div>
     </div>
   </div>
@@ -2317,11 +2347,6 @@
            PAGE 2 — WORKPAPER LIST
       ══════════════════════════ -->
       <div class="page" id="page-workpapers">
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-audit-name">Q2 2026 Financial Audit</span>
-        </div>
         <div class="ph">
           <div>
             <div class="pt" id="wp-page-title">Q2 2026 Financial Audit</div>
@@ -2626,14 +2651,6 @@
            PAGE 3 — WORKPAPER DETAIL
       ══════════════════════════ -->
       <div class="page" id="page-wpdetail">
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="bc-audit-wp">PRS Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur" id="bc-wp-ref">WP-2026-FIN-002</span>
-        </div>
-
         <!-- Audit Information — compact header strip -->
         <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;position:relative">
           <div style="display:flex;align-items:center;gap:10px">
@@ -4701,15 +4718,6 @@ Testwork Grid" to build a blank grid and record each result yourself.
            PAGE 4 — NEW WORKPAPER
       ══════════════════════════ -->
       <div class="page" id="page-newwp">
-        <!-- Breadcrumb -->
-        <div class="bc">
-          <span onclick="showPage('audits')">Audits</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span onclick="showPage('workpapers')" id="nwp-bc-audit">Q2 2026 Financial Audit</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-          <span class="cur">New workpaper</span>
-        </div>
-
         <!-- Audit info strip (same compact header as workpaper detail) -->
         <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-lg);padding:10px 16px;display:flex;align-items:center;gap:10px">
           <i class="ti ti-info-circle" style="font-size:14px;color:var(--text-tertiary);flex-shrink:0"></i>
@@ -7823,6 +7831,14 @@ function showPage(name) {
   const pageMap = { audits:'page-audits', workpapers:'page-workpapers', wpdetail:'page-wpdetail', newwp:'page-newwp' };
   const pg = document.getElementById(pageMap[name]);
   if (pg) { pg.classList.add('active'); pg.style.display = ''; } // clear the inline 'none' so the .page/.active CSS can show it again
+
+  // Breadcrumb trail now lives in the subnav bar (upper right, alongside
+  // the Audit name/Workpaper dropdowns) rather than as its own row inside
+  // each page — one slot per page, shown only for the page just activated.
+  const bcSlotMap = { workpapers:'bc-slot-workpapers', wpdetail:'bc-slot-wpdetail', newwp:'bc-slot-newwp' };
+  document.querySelectorAll('[id^="bc-slot-"]').forEach(el => el.style.display = 'none');
+  const bcSlot = bcSlotMap[name] && document.getElementById(bcSlotMap[name]);
+  if (bcSlot) bcSlot.style.display = 'flex';
 
   pushNav(name);
   setWPNavEnabled(name === 'wpdetail' || name === 'workpapers');
