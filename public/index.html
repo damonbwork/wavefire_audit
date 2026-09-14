@@ -125,7 +125,13 @@
     font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
     color: #fff;
   }
-  .wf-nav { display: flex; align-items: stretch; gap: 0; height: 52px; }
+  /* min-width:0 lets this flex item shrink below its content's natural
+     width instead of forcing the topbar wider than the viewport; when
+     the nav items genuinely don't fit, it scrolls horizontally instead
+     of pushing/clipping the user block on the right — which otherwise
+     silently lost space (or ran off-screen) on real, narrower windows
+     even though it has flex-shrink:0, per direct report. */
+  .wf-nav { display: flex; align-items: stretch; gap: 0; height: 52px; flex-shrink: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
   .wf-nav-item {
     display: flex; align-items: center;
     padding: 0 15px;
