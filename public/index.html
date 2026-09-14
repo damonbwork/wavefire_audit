@@ -6094,8 +6094,18 @@ Testwork Grid" to build a blank grid and record each result yourself.
       <i class="ti ti-alert-triangle" style="flex-shrink:0;margin-top:1px"></i>
       <span>Preview only — these are synthetic example values. Nothing has been saved to this workpaper.</span>
     </div>
-    <div id="mock-extract-body" style="flex:1;overflow:auto;padding:14px;min-height:0"></div>
-    <div style="padding:10px 14px;display:flex;justify-content:flex-end;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+    <div style="padding:10px 14px 4px;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;flex-shrink:0">Extraction results</div>
+    <div id="mock-extract-body" style="flex:1;overflow:auto;padding:0 14px 14px;min-height:0"></div>
+    <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <button class="btn-s" onclick="_downloadMockExtractionResultsXLSX()" style="font-size:12px;padding:7px 14px" title="Download this synthetic preview, clearly labeled as example data, as an Excel file">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download extracted data (Excel)
+      </button>
+      <button class="btn-s" onclick="_clearMockExtractionResults()" style="font-size:12px;padding:7px 14px" title="Remove this preview's example values — does not affect the field definitions or any real, saved data">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Clear extraction results
+      </button>
+      <div style="flex:1"></div>
       <button class="btn-p" onclick="_closeMockExtractionResults()">Close</button>
     </div>
   </div>
@@ -12255,14 +12265,33 @@ function _closeAttrGuidanceModal() {
 // reads sample files, never calls the AI, and never touches
 // wpExtractedDataRecords/Postgres — it renders into its own floating window,
 // entirely separate from the real "Extraction results" table.
+// Tracks the synthetic fields/ref currently shown in the window, purely
+// so Download/Clear below can act on exactly what's on screen without
+// re-deriving it — never read as a source of truth anywhere else.
+let _mockExtractRef = null;
+let _mockExtractFields = [];
+
 function _openMockExtractionResults() {
   const ref = getWPRef();
   if (!ref) return;
-  const fields = (wpExtractedData[ref] || []).filter(f => (f.title || '').trim());
-  const bodyEl = document.getElementById('mock-extract-body');
+  _mockExtractRef = ref;
+  _mockExtractFields = (wpExtractedData[ref] || []).filter(f => (f.title || '').trim());
   const overlay = document.getElementById('mock-extract-overlay');
-  if (!bodyEl || !overlay) return;
+  if (!overlay) return;
 
+  _renderMockExtractionTable();
+
+  overlay.style.display = 'flex';
+  // Draggable-by-header + natively resizable (via the .notes-window class's
+  // CSS `resize: both`) — same floating-window pattern already used by
+  // Review Notes, the attribute Guidance window, and Ask Wavefire AI.
+  makeDraggable(document.getElementById('mock-extract-hdr'), overlay);
+}
+
+function _renderMockExtractionTable() {
+  const bodyEl = document.getElementById('mock-extract-body');
+  if (!bodyEl) return;
+  const fields = _mockExtractFields;
   if (!fields.length) {
     bodyEl.innerHTML = `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:20px 0;text-align:center">Define at least one field with a Title above (in "Data to Extract From Sample Files") to preview its shape here.</div>`;
   } else {
@@ -12273,12 +12302,36 @@ function _openMockExtractionResults() {
       <tbody><tr>${dataCells}</tr></tbody>
     </table>`;
   }
+}
 
-  overlay.style.display = 'flex';
-  // Draggable-by-header + natively resizable (via the .notes-window class's
-  // CSS `resize: both`) — same floating-window pattern already used by
-  // Review Notes, the attribute Guidance window, and Ask Wavefire AI.
-  makeDraggable(document.getElementById('mock-extract-hdr'), overlay);
+// Downloads exactly what's on screen — the synthetic example row — as an
+// Excel file. Clearly a preview export, not a substitute for the real
+// "Download extracted data (Excel)" button on the actual, saved results.
+function _downloadMockExtractionResultsXLSX() {
+  const fields = _mockExtractFields;
+  if (!fields.length) return;
+  const titles = fields.map(f => f.title);
+  const aoa = [
+    ['PREVIEW ONLY — synthetic example values, nothing saved to this workpaper'],
+    titles,
+    titles.map(t => '[Example: ' + t + ']'),
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = titles.map(() => ({ wch: 24 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Mock Extraction Preview');
+  const now = new Date();
+  const ts = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+  const hhmm = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  XLSX.writeFile(wb, (_mockExtractRef || 'MockExtraction') + '_MockExtractionPreview_' + ts + '_' + hhmm + '.xlsx');
+}
+
+// Clears only this preview window's own displayed example values — has no
+// effect on the field definitions above or on any real, saved extraction
+// data, since this window never wrote any to begin with.
+function _clearMockExtractionResults() {
+  _mockExtractFields = [];
+  _renderMockExtractionTable();
 }
 
 function _closeMockExtractionResults() {

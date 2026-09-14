@@ -158,3 +158,27 @@ Implemented per Option B, exactly as designed above:
   stays empty after opening; the header's `cursor:move` confirms
   `makeDraggable` is wired; the empty-fields case shows the intended
   "define at least one field" guidance text instead of an empty table.
+
+### Follow-up (same day): "Extraction results" label + Download/Clear
+
+Per explicit follow-up request, the window now also includes the same
+"Extraction results" label the real inline section uses, plus its own
+"Download extracted data (Excel)" and "Clear extraction results"
+buttons — a deliberate, explicit reversal of this doc's original "no
+Download/Clear" recommendation above, not an oversight. To keep the
+preview/real distinction intact despite that:
+- Both buttons act ONLY on the synthetic preview currently shown in
+  this window (tracked in `_mockExtractFields`/`_mockExtractRef`), never
+  on `wpExtractedDataRecords` or the real inline table.
+- The downloaded file is named `..._MockExtractionPreview_...xlsx`
+  (not `..._ExtractedData_...`) and its first row is a plain-text
+  "PREVIEW ONLY" banner, so a downloaded file can never be mistaken for
+  real extracted data even out of context.
+- "Clear" only resets this window's own table back to the empty-state
+  guidance text — it has no effect on the field definitions or any real
+  saved data, since this window never wrote any to begin with.
+- Verified: the window shows "EXTRACTION RESULTS" above the table and
+  all three footer buttons (Download, Clear, Close) in order; Clear
+  correctly resets the table to the "define at least one field" state;
+  Download produces a real .xlsx (same `XLSX` global the real button
+  already depends on, preloaded shortly after a workpaper opens).
