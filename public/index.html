@@ -4031,41 +4031,6 @@ to the facility name.  If not found return an empty cell</textarea>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
             <span>Drag files here or click to browse (PDF, Excel, Word, images)</span>
           </div>
-          <!-- Analyze & Create Workpaper — below upload zone -->
-          <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
-            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
-              <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
-            </button>
-            <!-- Real, new, per manual-testwork-grid-plan.md Part 1 — the
-                 one, explicit, deliberate action that brings the
-                 Testwork Grid into existence without ever running
-                 Analyze. Shown/hidden by createTestworkGridBtn's own
-                 visibility logic (see renderAnalysisResultsGrid), never
-                 both this AND the grid itself at once. -->
-            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#1e40af;color:#fff;border-color:#1e40af;flex-shrink:0;white-space:nowrap;display:none" onclick="createTestworkGrid()" id="create-testwork-grid-btn">
-              <i class="ti ti-table"></i>Create Testwork Grid
-            </button>
-            <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
-              Analyze each of the attached sample files according to
-each of the above documented attributes. The output will create a new
-Attached Workpaper File above with the results of the analysis. The
-results should be reviewed and modified as necessary based upon the
-auditor's assessment. Prefer to test manually instead? Use "Create
-Testwork Grid" to build a blank grid and record each result yourself.
-            </p>
-          </div></div><!-- /sect-analyze -->
-          <!-- Legend explaining each annotation-type code that can appear on
-               an annotated sample file (see "Sample File Annotation
-               Type(s)" in the Analyze options modal) — replaces the old
-               storage-dot/Original legend, which is now covered by each
-               indicator's own hover tooltip instead. -->
-          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary);font-size:11px;color:var(--text-secondary)">
-            <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
-            <span><strong>BI</strong> — Burned directly into the page (permanent, not movable)</span>
-            <span><strong>BI2</strong> — A movable stamp annotation that can be repositioned</span>
-            <span><strong>FF</strong> — Uses the PDF's own fillable form fields</span>
-            <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
-          </div>
         </div><!-- /sect-card sample files -->
 
         <!-- Major header: Execute Testwork — spans Analyze/Create
@@ -4102,6 +4067,42 @@ Testwork Grid" to build a blank grid and record each result yourself.
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Clear Testwork Grid
             </button>
+          </div>
+          <!-- Analyze & Create Workpaper — moved here, below the Testwork
+               Grid, per explicit request. -->
+          <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
+              <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
+            </button>
+            <!-- Real, new, per manual-testwork-grid-plan.md Part 1 — the
+                 one, explicit, deliberate action that brings the
+                 Testwork Grid into existence without ever running
+                 Analyze. Shown/hidden by createTestworkGridBtn's own
+                 visibility logic (see renderAnalysisResultsGrid), never
+                 both this AND the grid itself at once. -->
+            <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#1e40af;color:#fff;border-color:#1e40af;flex-shrink:0;white-space:nowrap;display:none" onclick="createTestworkGrid()" id="create-testwork-grid-btn">
+              <i class="ti ti-table"></i>Create Testwork Grid
+            </button>
+            <p style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin:0">
+              Analyze each of the attached sample files according to
+each of the above documented attributes. The output will create a new
+Attached Workpaper File above with the results of the analysis. The
+results should be reviewed and modified as necessary based upon the
+auditor's assessment. Prefer to test manually instead? Use "Create
+Testwork Grid" to build a blank grid and record each result yourself.
+            </p>
+          </div></div><!-- /sect-analyze -->
+          <!-- Legend explaining each annotation-type code that can appear on
+               an annotated sample file (see "Sample File Annotation
+               Type(s)" in the Analyze options modal) — replaces the old
+               storage-dot/Original legend, which is now covered by each
+               indicator's own hover tooltip instead. -->
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary);font-size:11px;color:var(--text-secondary)">
+            <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
+            <span><strong>BI</strong> — Burned directly into the page (permanent, not movable)</span>
+            <span><strong>BI2</strong> — A movable stamp annotation that can be repositioned</span>
+            <span><strong>FF</strong> — Uses the PDF's own fillable form fields</span>
+            <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
           </div>
         </div><!-- /sect-card analysis grid -->
 
