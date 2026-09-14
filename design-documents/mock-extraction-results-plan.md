@@ -137,3 +137,48 @@ All in `public/index.html`:
 3. Confirm clicking "Extract Sample Data" afterward still behaves
    exactly as it does today (real files, real save, inline table) —
    this feature must have zero effect on that existing path.
+
+## Built and verified (2026-09-13)
+
+Implemented per Option B, exactly as designed above:
+- New neutral `btn-s` "Mock Extraction Results" button (flask icon)
+  next to the orange "Extract Sample Data" button.
+- New `#mock-extract-overlay` floating window (`.notes-window` pattern
+  — draggable via `makeDraggable()`, natively resizable, non-modal),
+  with the required "Preview only..." banner and no Download/Add-to-
+  grid actions.
+- `_openMockExtractionResults()` / `_closeMockExtractionResults()`:
+  read `wpExtractedData[ref]`, render one synthetic
+  `"[Example: <Title>]"` row per field with a Title — no AI call, no
+  file reads, no writes to `wpExtractedDataRecords`/Postgres.
+- Verified with synthetic in-memory state (no live backend login
+  available in this environment): button renders correctly next to
+  Extract Sample Data; clicking it opens the window with the correct
+  banner and one example row per defined field; `wpExtractedDataRecords`
+  stays empty after opening; the header's `cursor:move` confirms
+  `makeDraggable` is wired; the empty-fields case shows the intended
+  "define at least one field" guidance text instead of an empty table.
+
+### Follow-up (same day): "Extraction results" label + Download/Clear
+
+Per explicit follow-up request, the window now also includes the same
+"Extraction results" label the real inline section uses, plus its own
+"Download extracted data (Excel)" and "Clear extraction results"
+buttons — a deliberate, explicit reversal of this doc's original "no
+Download/Clear" recommendation above, not an oversight. To keep the
+preview/real distinction intact despite that:
+- Both buttons act ONLY on the synthetic preview currently shown in
+  this window (tracked in `_mockExtractFields`/`_mockExtractRef`), never
+  on `wpExtractedDataRecords` or the real inline table.
+- The downloaded file is named `..._MockExtractionPreview_...xlsx`
+  (not `..._ExtractedData_...`) and its first row is a plain-text
+  "PREVIEW ONLY" banner, so a downloaded file can never be mistaken for
+  real extracted data even out of context.
+- "Clear" only resets this window's own table back to the empty-state
+  guidance text — it has no effect on the field definitions or any real
+  saved data, since this window never wrote any to begin with.
+- Verified: the window shows "EXTRACTION RESULTS" above the table and
+  all three footer buttons (Download, Clear, Close) in order; Clear
+  correctly resets the table to the "define at least one field" state;
+  Download produces a real .xlsx (same `XLSX` global the real button
+  already depends on, preloaded shortly after a workpaper opens).

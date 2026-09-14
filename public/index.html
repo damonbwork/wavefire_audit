@@ -927,7 +927,7 @@
         <button onclick="toggleUserSwitcher(event)" title="Switch user"
           style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;cursor:pointer;padding:4px 6px 0 6px;border-radius:6px 6px 0 0">
           <i class="ti ti-user-circle" style="font-size:26px;color:#fff"></i>
-          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
+          <span id="wf-current-userid-label" style="font-size:10px;font-weight:700;color:#fff;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</span>
         </button>
         <!-- Real, actual, independently-clickable tenant label, per
              explicit request — split out of the button above, since it
@@ -935,14 +935,18 @@
              incorrectly opened the user switcher instead. Only
              genuinely interactive for a real superadmin — set by
              _applySuperAdminTenantSwitcherUI(), called everywhere
-             _currentDisplayUser is genuinely, correctly established. -->
+             _currentDisplayUser is genuinely, correctly established.
+             max-width raised from 90px to 160px — per direct report,
+             a superadmin's own "All Tenants (Superadmin)" label was
+             being truncated even though the topbar had visible room to
+             spare; nothing else in this row needed to shrink to fit it. -->
         <span id="wf-current-tenant-label" onclick="toggleTenantSwitcher(event)"
-          style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
+          style="display:block;text-align:center;font-size:9px;font-weight:500;color:rgba(255,255,255,0.65);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px;cursor:default"></span>
         <!-- Real, new AI Units display, per explicit request — right
              alongside the existing userID and tenant labels, matching
              their own established visual size and style. -->
         <span id="wf-ai-units-label" title="Your AI usage this month and this year"
-          style="display:block;text-align:center;font-size:8px;font-weight:500;color:rgba(255,255,255,0.55);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px"></span>
+          style="display:block;text-align:center;font-size:8px;font-weight:500;color:rgba(255,255,255,0.55);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px 4px 6px"></span>
 
         <!-- User switcher dropdown — hidden by default, toggled by the button above -->
         <div id="wf-user-switcher-panel" style="display:none;position:absolute;top:100%;right:0;margin-top:6px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
@@ -2716,12 +2720,15 @@
                 <option value="">—</option>
               </select>
             </div>
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
+            <!-- 2px, not 1px: a 1px hairline at this weight/color rounds
+                 away to invisible on non-retina displays — confirmed via
+                 direct pixel inspection in the dev browser. -->
+            <div style="width:2px;background:#94a3b8;align-self:stretch"></div>
             <!-- Workpaper Category — Test Description has since moved
                  into its own full-width rectangle in the body below,
                  per explicit request; Category stays here, untouched. -->
             <div style="display:flex;flex-direction:column;gap:4px;min-width:240px;max-width:320px">
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category <span style="color:#dc2626">*</span></div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Workpaper Category</div>
               <div style="position:relative">
                 <button type="button" id="wpd-category-trigger" onclick="toggleCategoryDropdown()"
                   style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:12px;color:var(--text-primary);background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left;box-sizing:border-box">
@@ -2742,10 +2749,11 @@
                 </div>
               </div>
             </div>
-            <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
-            <!-- Spacer pushes reviewer group to far right -->
-            <div style="flex:1"></div>
-            <!-- Preparer + Date Started — immediately left of Reviewer -->
+            <!-- Preparer + Date Started — immediately right of Workpaper
+                 Category, per explicit request (the flex spacer that used
+                 to sit here, pushing Preparer/Reviewer/Review sign-off to
+                 the far right, is removed — Category now sits flush
+                 against both its neighbors). -->
             <div style="width:0.5px;background:var(--border-light);align-self:stretch"></div>
             <div style="display:flex;flex-direction:column;gap:4px;min-width:130px">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Preparer</div>
@@ -2790,7 +2798,7 @@
                  bounded by its own full-width light rule. -->
             <div style="margin:-16px -16px 16px;padding:14px 16px;border-bottom:0.5px solid var(--border-light)">
               <div class="fl">Test Description</div>
-              <textarea id="wpd-test-desc" rows="3" placeholder="Describe the test objectives, scope, and approach…" oninput="saveWPTestDesc(this.value)" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);padding:3px 6px;outline:none;resize:vertical;line-height:1.5;min-height:20px;height:64px;box-sizing:border-box;transition:background 0.15s,border-color 0.15s" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Test Description')"></textarea>
+              <textarea id="wpd-test-desc" rows="2" placeholder="Describe the test objectives, scope, and approach…" oninput="autoResizeTA(this);saveWPTestDesc(this.value)" style="width:100%;font-size:13px;font-family:inherit;color:var(--text-primary);background:transparent;border:0.5px solid transparent;border-radius:var(--radius-md);padding:3px 6px;outline:none;resize:vertical;line-height:1.5;min-height:45px;height:45px;overflow:hidden;box-sizing:border-box;transition:background 0.15s,border-color 0.15s" onfocus="inlineFieldFocused(this)" onblur="inlineFieldBlurred(this,'Test Description')"></textarea>
             </div>
             <!-- Population, Sample Method & Sample Size -->
             <div class="field-grid">
@@ -2801,11 +2809,18 @@
                 </div>
               </div>
               <div class="fld">
-                <div class="fl">Population reference file</div>
+                <div class="fl">Population reference file<i class="ti ti-help-circle wf-help-icon" data-help-topic="populationReferenceFile" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
                 <div class="fv">
-                  <button class="btn-s" style="font-size:11px;padding:3px 9px;margin-bottom:6px" onclick="openPopRefDialog()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file(s)
-                  </button>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+                    <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="openPopRefDialog()">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file(s)
+                    </button>
+                    <button class="btn-s" style="font-size:11px;padding:3px 9px" onclick="document.getElementById('wpd-pop-upload-input').click()">
+                      <i class="ti ti-upload"></i>Upload Population File
+                    </button>
+                    <input type="file" id="wpd-pop-upload-input" multiple style="display:none" onchange="handleFileUpload(event,'workpaper')">
+                  </div>
+                  <div style="font-size:11px;color:var(--text-tertiary);font-style:italic;margin-bottom:6px">Uploaded file will be added to the Workpaper Files section below.</div>
                   <div id="wpd-pop-ref-files" style="display:flex;flex-direction:column;gap:4px"></div>
                 </div>
               </div>
@@ -3288,6 +3303,9 @@
             <div style="display:flex;align-items:flex-start;gap:14px">
               <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="readSampleFilesIntoGrid()" id="sd-readfiles-btn" title="For each field listed above, the application will search all attached sample files and attempt to populate the data.">
                 <i class="ti ti-sparkles"></i>Extract Sample Data
+              </button>
+              <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;flex-shrink:0;white-space:nowrap" onclick="_openMockExtractionResults()" id="sd-mockextract-btn" title="Free, instant preview of the column shape a real extraction would produce — synthetic example values only, no sample files are read and nothing is saved.">
+                <i class="ti ti-flask"></i>Mock Extraction Results
               </button>
             </div>
           </div>
@@ -4763,7 +4781,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
                    shared picker logic now resolves to whichever page's ids
                    are actually present. -->
               <div class="fld" style="width:260px;position:relative;flex-shrink:0">
-                <div class="fl">Workpaper Category <span style="color:#dc2626">*</span></div>
+                <div class="fl">Workpaper Category</div>
                 <button type="button" id="nwp-category-trigger" onclick="toggleCategoryDropdown()"
                   style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:13px;color:var(--text-primary);background:transparent;border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:left">
                   <span id="nwp-category-display" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-tertiary)">Select category…</span>
@@ -6052,6 +6070,43 @@ Testwork Grid" to build a blank grid and record each result yourself.
     <div style="padding:10px 14px;display:flex;gap:6px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
       <input id="wp-chat-input" type="text" placeholder="Ask about this workpaper's results…" onkeydown="if(event.key==='Enter')_submitWpChatInput()" style="flex:1;font-size:12px;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:var(--radius-md);outline:none">
       <button class="btn-p" onclick="_submitWpChatInput()"><i class="ti ti-send"></i></button>
+    </div>
+  </div>
+
+  <!-- Mock Extraction Results — a floating, draggable/resizable window
+       (same pattern as Review Notes, the attribute Guidance window, and
+       Ask Wavefire AI), opened via the "Mock Extraction Results" button
+       next to "Extract Sample Data". Per
+       design-documents/mock-extraction-results-plan.md (Option B):
+       shows one synthetic example row per defined field, with no AI
+       call, no file reads, and nothing saved — a free, instant preview
+       of the column shape only, kept deliberately separate from the
+       real, saved "Extraction results" table below the buttons. -->
+  <div id="mock-extract-overlay" class="notes-window" style="display:none;width:560px;height:380px;top:120px;left:calc(50% - 280px)">
+    <div id="mock-extract-hdr" class="notes-window-hdr">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+        <i class="ti ti-flask" style="font-size:15px"></i>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Mock Extraction Results</span>
+      </div>
+      <button onclick="_closeMockExtractionResults()" title="Close" style="background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;flex-shrink:0" onmouseover="this.style.background='#c42b1c'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">✕</button>
+    </div>
+    <div style="padding:10px 14px;flex-shrink:0;background:#fefce8;border-bottom:0.5px solid #fde68a;font-size:12px;color:#854d0e;display:flex;align-items:flex-start;gap:8px">
+      <i class="ti ti-alert-triangle" style="flex-shrink:0;margin-top:1px"></i>
+      <span>Preview only — these are synthetic example values. Nothing has been saved to this workpaper.</span>
+    </div>
+    <div style="padding:10px 14px 4px;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;flex-shrink:0">Extraction results</div>
+    <div id="mock-extract-body" style="flex:1;overflow:auto;padding:0 14px 14px;min-height:0"></div>
+    <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-top:0.5px solid var(--border-light)">
+      <button class="btn-s" onclick="_downloadMockExtractionResultsXLSX()" style="font-size:12px;padding:7px 14px" title="Download this synthetic preview, clearly labeled as example data, as an Excel file">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download extracted data (Excel)
+      </button>
+      <button class="btn-s" onclick="_clearMockExtractionResults()" style="font-size:12px;padding:7px 14px" title="Remove this preview's example values — does not affect the field definitions or any real, saved data">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Clear extraction results
+      </button>
+      <div style="flex:1"></div>
+      <button class="btn-p" onclick="_closeMockExtractionResults()">Close</button>
     </div>
   </div>
 </div><!-- /app -->
@@ -7400,7 +7455,7 @@ function openWP(i) {
   initSFGridPaste();
   initSampleDataGridPaste();
   const tdEl = document.getElementById('wpd-test-desc');
-  if (tdEl) tdEl.value = w.testDesc || '';
+  if (tdEl) { tdEl.value = w.testDesc || ''; autoResizeTA(tdEl); }
   renderNarrativeRefFiles(w.ref);
   if (_attrCriteriaVisible) restoreAttrCriteriaValues();
   updateAttrCriteriaDot();
@@ -8055,6 +8110,8 @@ function _restoreSnapshot(snap) {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     setVal('wpd-narrative', wpObj.narrative);
     setVal('wpd-test-desc', wpObj.testDesc);
+    const tdResizeEl = document.getElementById('wpd-test-desc');
+    if (tdResizeEl) autoResizeTA(tdResizeEl);
     const resEl = document.getElementById('wpd-results');
     if (resEl) resEl.value = wpObj.results || '';
   }
@@ -12199,6 +12256,87 @@ function _closeAttrGuidanceModal() {
   const overlay = document.getElementById('attr-guidance-overlay');
   if (overlay) overlay.style.display = 'none';
   _attrGuidanceOpenKey = null;
+}
+
+// Mock Extraction Results — per design-documents/mock-extraction-results-plan.md
+// (Option B). A free, instant, zero-cost preview of the COLUMN SHAPE a real
+// extraction run would produce: one synthetic example value per defined
+// field, generated from the field's own Title alone. Deliberately never
+// reads sample files, never calls the AI, and never touches
+// wpExtractedDataRecords/Postgres — it renders into its own floating window,
+// entirely separate from the real "Extraction results" table.
+// Tracks the synthetic fields/ref currently shown in the window, purely
+// so Download/Clear below can act on exactly what's on screen without
+// re-deriving it — never read as a source of truth anywhere else.
+let _mockExtractRef = null;
+let _mockExtractFields = [];
+
+function _openMockExtractionResults() {
+  const ref = getWPRef();
+  if (!ref) return;
+  _mockExtractRef = ref;
+  _mockExtractFields = (wpExtractedData[ref] || []).filter(f => (f.title || '').trim());
+  const overlay = document.getElementById('mock-extract-overlay');
+  if (!overlay) return;
+
+  _renderMockExtractionTable();
+
+  overlay.style.display = 'flex';
+  // Draggable-by-header + natively resizable (via the .notes-window class's
+  // CSS `resize: both`) — same floating-window pattern already used by
+  // Review Notes, the attribute Guidance window, and Ask Wavefire AI.
+  makeDraggable(document.getElementById('mock-extract-hdr'), overlay);
+}
+
+function _renderMockExtractionTable() {
+  const bodyEl = document.getElementById('mock-extract-body');
+  if (!bodyEl) return;
+  const fields = _mockExtractFields;
+  if (!fields.length) {
+    bodyEl.innerHTML = `<div style="font-size:13px;color:var(--text-tertiary);font-style:italic;padding:20px 0;text-align:center">Define at least one field with a Title above (in "Data to Extract From Sample Files") to preview its shape here.</div>`;
+  } else {
+    const headerCells = fields.map(f => `<th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light);white-space:nowrap">${escAttr(f.title)}</th>`).join('');
+    const dataCells   = fields.map(f => `<td style="padding:6px 12px;border-bottom:0.5px solid var(--border-light);color:var(--text-secondary);font-style:italic">${escAttr('[Example: ' + f.title + ']')}</td>`).join('');
+    bodyEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--bg-secondary)">${headerCells}</tr></thead>
+      <tbody><tr>${dataCells}</tr></tbody>
+    </table>`;
+  }
+}
+
+// Downloads exactly what's on screen — the synthetic example row — as an
+// Excel file. Clearly a preview export, not a substitute for the real
+// "Download extracted data (Excel)" button on the actual, saved results.
+function _downloadMockExtractionResultsXLSX() {
+  const fields = _mockExtractFields;
+  if (!fields.length) return;
+  const titles = fields.map(f => f.title);
+  const aoa = [
+    ['PREVIEW ONLY — synthetic example values, nothing saved to this workpaper'],
+    titles,
+    titles.map(t => '[Example: ' + t + ']'),
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = titles.map(() => ({ wch: 24 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Mock Extraction Preview');
+  const now = new Date();
+  const ts = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+  const hhmm = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  XLSX.writeFile(wb, (_mockExtractRef || 'MockExtraction') + '_MockExtractionPreview_' + ts + '_' + hhmm + '.xlsx');
+}
+
+// Clears only this preview window's own displayed example values — has no
+// effect on the field definitions above or on any real, saved extraction
+// data, since this window never wrote any to begin with.
+function _clearMockExtractionResults() {
+  _mockExtractFields = [];
+  _renderMockExtractionTable();
+}
+
+function _closeMockExtractionResults() {
+  const overlay = document.getElementById('mock-extract-overlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 function _downloadAttrGuidance() {
@@ -25709,6 +25847,14 @@ function positionAuditTooltip(e) {
    asked for (a reference copy of the one explanation just read).
 ══════════════════════════════════════ */
 const HELP_TOPICS = {
+  populationReferenceFile: {
+    title: 'Population Reference File',
+    html: `
+      <p>If applicable, attach a file in the Workpaper Files section
+      below and select it here to provide linkage to the population.
+      No functionality is otherwise attributed to this field.</p>
+    `
+  },
   testworkOverview: {
     title: 'How Testwork Works — Overview',
     width: '640px',
@@ -26163,17 +26309,30 @@ function _toggleHelpPopup(iconEl) {
   _openHelpPopup = { el: popup, anchorEl: iconEl };
 }
 // One shared dismiss-on-click-outside listener for every popup, rather
-// than one per instance. The triggering icon's own onclick already
-// calls stopPropagation, so this never fires for the click that just
-// opened a popup.
+// than one per instance. Runs in the CAPTURE phase (the trailing `true`)
+// so it fires before any element's own onclick — many buttons/cells
+// elsewhere in the app call event.stopPropagation() in their bubble-
+// phase handler, which used to swallow this listener entirely and made
+// a single click "outside" do nothing until a second click landed on
+// something that didn't stopPropagation. Capture runs first regardless,
+// so one click anywhere outside the popup now always closes it.
 document.addEventListener('click', e => {
   // _notesDragging is the same shared flag makeDraggable() sets during
   // an active drag — guards against releasing a drag outside the popup
   // (dragging it near an edge, say) being misread as an outside click
   // and closing the popup out from under the user mid-drag.
   if (_notesDragging) return;
-  if (_openHelpPopup && !_openHelpPopup.el.contains(e.target)) _closeHelpPopup();
-});
+  if (!_openHelpPopup) return;
+  if (_openHelpPopup.el.contains(e.target)) return;
+  // The icon that owns the currently-open popup manages its own
+  // open/close toggle in its bubble-phase onclick (_toggleHelpPopup) —
+  // skip it here so that handler alone decides the outcome, otherwise
+  // this capture-phase close would fire first and the toggle would just
+  // reopen the popup right after, making the icon unable to close it.
+  const iconTarget = e.target.closest && e.target.closest('.wf-help-icon');
+  if (iconTarget === _openHelpPopup.anchorEl) return;
+  _closeHelpPopup();
+}, true);
 
 function _downloadHelpTopic(topicKey) {
   const topic = HELP_TOPICS[topicKey];
@@ -27192,17 +27351,11 @@ async function submitNewWorkpaper() {
   const template = document.getElementById('nwp-type')?.value || 'Workpaper-Long Template';
   const seg4v    = document.getElementById('nwp-seg4')?.value || '0';
 
-  // Real, confirmed fix, per explicit request — the deprecated
-  // "derive from title if blank" fallback is genuinely gone; the tag
-  // now only ever comes from the selected Workpaper Category, so this
-  // is now an explicit, required check instead, matching the real,
-  // established pattern of the seg4 validation right below it.
+  // Workpaper Category is optional, per explicit request — no longer
+  // blocks workpaper creation. If left unselected, seg3 stays blank and
+  // the reference simply omits that segment's letters.
   const seg3El = document.getElementById('nwp-seg3');
   const seg3   = (seg3El?.value || '').toUpperCase();
-  if (!seg3) {
-    showDupDialog('Please select a Workpaper Category before creating this workpaper — it determines the 2-3 letter code used in the reference.');
-    return;
-  }
 
   // Validate seg4 — must be a positive number
   if (!seg4v || parseInt(seg4v, 10) < 1) {
@@ -38979,6 +39132,32 @@ function logWPDropdownChange(elId, label) {
     if (key) { w[key] = newVal; _saveWorkpaperToDB(w); }
   }
 }
+
+// Auto-stamp "Date started" with today's date the first time the user
+// enters any data outside the Workpaper Information header, if it
+// hasn't been set yet. Runs as one shared capture-phase listener on
+// input/change, rather than being wired into each of the many sections'
+// own save paths individually (Test Attributes, Sample Data, Sample
+// Files, Exceptions/Findings/Recommendations, Review Notes, Scope,
+// etc.) — it sees every such event on the workpaper detail page and
+// only acts the first time, since it no-ops once a date is present.
+function _maybeStampDateStarted(e) {
+  const detail = document.getElementById('page-wpdetail');
+  if (!detail || !detail.classList.contains('active')) return;
+  if (!detail.contains(e.target)) return;
+  const infoCard = document.getElementById('sect-wpinfo');
+  if (infoCard && infoCard.contains(e.target)) return; // header itself is exempt
+  const dsEl = document.getElementById('wpd-date-started');
+  if (!dsEl || dsEl.value) return; // already set
+  const ref = getWPRef();
+  if (!ref) return;
+  const today = new Date();
+  const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  dsEl.value = iso;
+  logWPDropdownChange('wpd-date-started', 'Date started');
+}
+document.addEventListener('input', _maybeStampDateStarted, true);
+document.addEventListener('change', _maybeStampDateStarted, true);
 
 function updateResultsStyle() {
   const sel = document.getElementById('wpd-results');
