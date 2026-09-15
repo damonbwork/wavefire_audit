@@ -4133,9 +4133,10 @@ Testwork Grid" to build a blank grid and record each result yourself.
             <span style="font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-size:10px">Legend</span>
             <span style="font-weight:600;color:var(--text-tertiary)">Sample File Type:</span>
             <span><strong>BI</strong> — Audit annotations are external images added to the PDF</span>
-            <span><strong>BI2</strong> — A movable stamp annotation</span>
+            <span><strong>BI2</strong> — Audit annotations are Acrobat stamps</span>
             <span><strong>FF</strong> — Audit annotations are the Acrobat fillable form fields</span>
             <span><strong>SN</strong> — Audit annotations are sticky-note comments</span>
+            <i class="ti ti-help-circle wf-help-icon" data-help-topic="sampleFileTypeDetails" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain these file types in more detail" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;vertical-align:-2px"></i>
           </div>
         </div><!-- /sect-analyze -->
 
@@ -26330,6 +26331,89 @@ const HELP_TOPICS = {
           </tr>
         </tbody>
       </table>
+    `,
+  },
+  sampleFileTypeDetails: {
+    title: 'Sample File Type — Details',
+    width: '760px',
+    html: `
+      <p>Each annotated sample file uses one of four Acrobat mechanisms to
+      carry the tick mark, attribute reference, and explanation Wavefire
+      writes onto it. Which one a file uses affects what you can do with
+      that mark afterward in Acrobat — whether its text can be copied,
+      edited, or moved. This compares all four.</p>
+
+      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:18px">
+        <thead><tr style="background:var(--bg-secondary)">
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary);width:26%">Capability</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">BI</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">BI2</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">FF</th>
+          <th style="padding:8px 8px;text-align:left;font-weight:600;color:var(--text-tertiary)">SN</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Can copy/paste text out of the form</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">No</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes — all text is in Acrobat Comments</td>
+          </tr>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Modify tick mark text in the form</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes, after selecting the Edit Text tool in Acrobat</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Text is written both to the note in the PDF and in the Comments. Note text cannot be changed.</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">No</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes — all text is in Acrobat Comments</td>
+          </tr>
+          <tr style="border-top:0.5px solid var(--border-light)">
+            <td style="padding:8px 8px;font-weight:600">Can move the tick mark/text within the PDF</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes, but in three separate parts (the tick mark, the attribute reference, and the explanation).
+              <div style="font-style:italic;color:var(--text-tertiary);margin-top:3px">Note: no way found to select all three components and move them together as one (can't drag with the mouse, can't Ctrl/Shift-click).</div>
+            </td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">No</td>
+            <td style="padding:8px 8px;color:var(--text-secondary)">Yes — can move the sticky note anchor by dragging it</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="font-size:11px;color:var(--text-tertiary);font-style:italic;margin-bottom:18px">Note: Comments are visible within Acrobat, and can also be printed as an addendum (select "Summarize Comment" on the Print menu).</p>
+
+      <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">At a glance</div>
+      <svg viewBox="0 0 620 210" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+        <!-- Column headers -->
+        <text x="230" y="16" font-size="11" font-weight="700" text-anchor="middle" fill="#1e293b">BI</text>
+        <text x="340" y="16" font-size="11" font-weight="700" text-anchor="middle" fill="#1e293b">BI2</text>
+        <text x="450" y="16" font-size="11" font-weight="700" text-anchor="middle" fill="#1e293b">FF</text>
+        <text x="560" y="16" font-size="11" font-weight="700" text-anchor="middle" fill="#1e293b">SN</text>
+
+        <!-- Row 1: Copy/paste text -->
+        <text x="0" y="46" font-size="11" fill="#1e293b">Copy/paste text out</text>
+        <rect x="200" y="30" width="60" height="24" rx="4" fill="#16a34a"/><text x="230" y="46" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+        <rect x="310" y="30" width="60" height="24" rx="4" fill="#dc2626"/><text x="340" y="46" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">No</text>
+        <rect x="420" y="30" width="60" height="24" rx="4" fill="#16a34a"/><text x="450" y="46" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+        <rect x="530" y="30" width="60" height="24" rx="4" fill="#16a34a"/><text x="560" y="46" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+
+        <!-- Row 2: Modify tick mark text -->
+        <text x="0" y="86" font-size="11" fill="#1e293b">Modify tick mark text</text>
+        <rect x="200" y="70" width="60" height="24" rx="4" fill="#16a34a"/><text x="230" y="86" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+        <rect x="310" y="70" width="60" height="24" rx="4" fill="#d97706"/><text x="340" y="86" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Partial</text>
+        <rect x="420" y="70" width="60" height="24" rx="4" fill="#dc2626"/><text x="450" y="86" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">No</text>
+        <rect x="530" y="70" width="60" height="24" rx="4" fill="#16a34a"/><text x="560" y="86" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+
+        <!-- Row 3: Move tick mark/text -->
+        <text x="0" y="126" font-size="11" fill="#1e293b">Move tick mark/text</text>
+        <rect x="200" y="110" width="60" height="24" rx="4" fill="#d97706"/><text x="230" y="126" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Partial</text>
+        <rect x="310" y="110" width="60" height="24" rx="4" fill="#16a34a"/><text x="340" y="126" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Yes</text>
+        <rect x="420" y="110" width="60" height="24" rx="4" fill="#dc2626"/><text x="450" y="126" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">No</text>
+        <rect x="530" y="110" width="60" height="24" rx="4" fill="#d97706"/><text x="560" y="126" font-size="10" font-weight="600" text-anchor="middle" fill="#fff">Partial</text>
+
+        <!-- Legend -->
+        <rect x="0" y="160" width="14" height="14" rx="3" fill="#16a34a"/><text x="18" y="171" font-size="10" fill="#475569">Fully supported</text>
+        <rect x="140" y="160" width="14" height="14" rx="3" fill="#d97706"/><text x="158" y="171" font-size="10" fill="#475569">Partial / with caveats</text>
+        <rect x="320" y="160" width="14" height="14" rx="3" fill="#dc2626"/><text x="338" y="171" font-size="10" fill="#475569">Not supported</text>
+      </svg>
     `,
   },
 };
