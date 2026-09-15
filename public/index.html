@@ -4094,9 +4094,15 @@ to the facility name.  If not found return an empty cell</textarea>
               Clear Testwork Grid
             </button>
           </div>
-          <!-- Analyze & Create Workpaper — moved here, below the Testwork
-               Grid, per explicit request. -->
-          <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
+        </div><!-- /sect-card analysis grid -->
+
+        <!-- Analyze & Create Workpaper — below the Testwork Grid, per
+             explicit request. Deliberately a SIBLING of #sect-analysis-grid
+             (not nested inside it) — that card is display:none whenever
+             there's no grid yet, which is exactly when "Create Testwork
+             Grid" needs to be visible, so nesting it inside the card made
+             the button permanently unreachable. -->
+        <div class="sect-card" id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:var(--bg-secondary)">
             <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
               <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
             </button>
@@ -4117,7 +4123,7 @@ results should be reviewed and modified as necessary based upon the
 auditor's assessment. Prefer to test manually instead? Use "Create
 Testwork Grid" to build a blank grid and record each result yourself.
             </p>
-          </div></div><!-- /sect-analyze -->
+          </div>
           <!-- Legend explaining each annotation-type code that can appear on
                an annotated sample file (see "Sample File Annotation
                Type(s)" in the Analyze options modal) — replaces the old
@@ -4130,7 +4136,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
             <span><strong>FF</strong> — Uses the PDF's own fillable form fields</span>
             <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
           </div>
-        </div><!-- /sect-card analysis grid -->
+        </div><!-- /sect-analyze -->
 
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
