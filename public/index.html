@@ -171,8 +171,16 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
   .wf-subnav-inner {
+    /* width:100% is load-bearing: showPage() sets wf-subnav's own inline
+       display to 'flex' (as a visibility toggle, not intentionally for
+       layout), which makes this element a flex ITEM of that outer flex
+       container — without an explicit width it only sizes to fit its own
+       content instead of filling the bar, leaving justify-content:
+       space-between/margin-left:auto below with no extra space to push
+       against, so the right-anchored group silently sat right after the
+       left-anchored one instead of at the true right edge. */
     display: flex; align-items: center; justify-content: space-between;
-    height: 46px; gap: 16px;
+    width: 100%; height: 46px; gap: 16px;
   }
   .wf-subnav-left { display: flex; align-items: center; gap: 12px; }
   .wf-subnav-label {
@@ -1979,8 +1987,7 @@
         <span class="wf-subnav-label">AUDITS</span>
       </div>
       <!-- Audit name / Workpaper dropdowns — upper LEFT, right next to the
-           AUDITS label, per explicit request (previously pushed to the far
-           right via margin-left:auto). -->
+           AUDITS label. -->
       <div style="display:flex;align-items:center">
         <div class="wf-auditcontrols">
         <div class="wf-ctl-group">
@@ -2004,12 +2011,14 @@
         </div>
       </div>
       </div>
-      <!-- Breadcrumb trail — upper RIGHT, same row as the dropdowns above,
-           per explicit request. Was previously its own separate row inside
-           each page (page-workpapers/page-wpdetail/page-newwp) below this
-           subnav; now lives here as three mutually-exclusive slots (one per
-           page, same ids/onclicks as before so no other JS needed to
-           change) that showPage() toggles alongside the page itself. -->
+      <!-- Breadcrumb trail — upper RIGHT, anchored via margin-left:auto so
+           it stays pinned to the right edge of this row regardless of how
+           wide the dropdowns on the left are. Was previously its own
+           separate row inside each page (page-workpapers/page-wpdetail/
+           page-newwp) below this subnav; lives here as three mutually-
+           exclusive slots (one per page, same ids/onclicks as before so no
+           other JS needed to change) that showPage() toggles alongside the
+           page itself. -->
       <div style="margin-left:auto;display:flex;align-items:center">
         <div class="bc" id="bc-slot-workpapers" style="display:none">
           <span onclick="showPage('audits')">Audits</span>
@@ -4085,9 +4094,15 @@ to the facility name.  If not found return an empty cell</textarea>
               Clear Testwork Grid
             </button>
           </div>
-          <!-- Analyze & Create Workpaper — moved here, below the Testwork
-               Grid, per explicit request. -->
-          <div id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-top:0.5px solid var(--border-light);background:var(--bg-secondary)">
+        </div><!-- /sect-card analysis grid -->
+
+        <!-- Analyze & Create Workpaper — below the Testwork Grid, per
+             explicit request. Deliberately a SIBLING of #sect-analysis-grid
+             (not nested inside it) — that card is display:none whenever
+             there's no grid yet, which is exactly when "Create Testwork
+             Grid" needs to be visible, so nesting it inside the card made
+             the button permanently unreachable. -->
+        <div class="sect-card" id="sect-analyze"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:var(--bg-secondary)">
             <button class="btn-s" style="font-size:12px;padding:7px 14px;gap:6px;background:#ea580c;color:#fff;border-color:#ea580c;flex-shrink:0;white-space:nowrap" onclick="openAnalysisOptionsDialog()" id="analyze-btn">
               <i class="ti ti-sparkles"></i>Analyze &amp; Create Workpaper
             </button>
@@ -4108,7 +4123,7 @@ results should be reviewed and modified as necessary based upon the
 auditor's assessment. Prefer to test manually instead? Use "Create
 Testwork Grid" to build a blank grid and record each result yourself.
             </p>
-          </div></div><!-- /sect-analyze -->
+          </div>
           <!-- Legend explaining each annotation-type code that can appear on
                an annotated sample file (see "Sample File Annotation
                Type(s)" in the Analyze options modal) — replaces the old
@@ -4121,7 +4136,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
             <span><strong>FF</strong> — Uses the PDF's own fillable form fields</span>
             <span><strong>SN</strong> — A sticky-note style comment attached to the page</span>
           </div>
-        </div><!-- /sect-card analysis grid -->
+        </div><!-- /sect-analyze -->
 
         <!-- Section: Exceptions -->
         <div class="sect-card" id="sect-exceptions">
