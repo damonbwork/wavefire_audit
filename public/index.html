@@ -12324,12 +12324,16 @@ function renderAnalysisResultsGrid(ref) {
         evidenceTitle = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult || 'not yet tested'}` + (evidenceTitle ? ` — ${evidenceTitle}` : '');
       }
       const borderExtra = ai === 0 ? firstAttrBorder : '';
-      // Real, new, per explicit request — clicking a tick opens the
-      // exact same batch results modal the Test Attributes grid's own
-      // Result column already uses (_openAttrResultsModal), rather than
-      // building a second, separate override UI. attributeIndex/label
-      // match that column's own values exactly, so the two entry points
-      // can never disagree about which attribute they're opening.
+      // Real, new, per explicit request — clicking a tick opens
+      // _openAttrResultsModal, the same modal chrome the Test Attributes
+      // grid's own Result column already uses, rather than building a
+      // second, separate override UI. attributeIndex/label match that
+      // column's own values exactly, so the two entry points can never
+      // disagree about which attribute they're opening. The trailing fi
+      // argument scopes the modal to just this one (attribute, sample)
+      // pair — per a later explicit request, a Testwork Grid cell click
+      // no longer opens every sample for the attribute, only the one
+      // the user actually clicked.
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
       // Records what the user was just looking at, so if they open "Ask
       // Wavefire" shortly after, its suggested chips can lead with THIS
@@ -12339,14 +12343,14 @@ function renderAnalysisResultsGrid(ref) {
       // Real, new, per testwork-grid-cell-interaction-plan.md Part 1 —
       // an untested cell (no real result yet) gets a genuinely different
       // click behavior than one that already has a result: clicking it
-      // immediately records Pass (a real, persisted override — not a
-      // placeholder) and opens a small anchored quick popover to let the
-      // user flip to Fail and/or add an explanation, rather than opening
-      // the full batch results modal. A cell that already has a result
-      // keeps today's exact behavior (_openAttrResultsModal).
+      // opens a small anchored quick popover to let the user pick Pass/
+      // Fail and add a tick mark explanation, rather than opening the
+      // full results modal. A cell that already has a result opens that
+      // full modal instead, but scoped to just this one sample (see
+      // below).
       const cellKey = `${ai}:${fi}`;
       const onClick = result
-        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`
+        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}', ${fi})`
         : `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_handleEmptyCellClick(this, '${ref}', ${ai}, ${fi}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
       // Real, new, per testwork-grid-review-note-indicators-plan.md
       // Part B — a small triangle in the cell's upper-right corner marks
@@ -38269,7 +38273,14 @@ function _noteWithEvidence(note, evidence) {
 // with OK — or discard everything with Cancel (warning if anything was
 // actually changed). Nothing is written to the server or the cache
 // until OK is clicked.
-function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
+// onlySampleRowIndex: real, new, per explicit request — when a testwork
+// grid cell that already has a result is clicked, this modal now scopes
+// to that ONE (attribute, sample) pair instead of listing every sample
+// for the attribute. Passing it in restricts rendering to that single
+// row (auto-expanded) rather than the full sampleRows list; omitting it
+// (undefined) keeps the original all-samples behavior for any future
+// caller that still wants that view.
+function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onlySampleRowIndex) {
   document.querySelectorAll('.attr-results-modal-overlay').forEach(el => el.remove());
 
   // Real, confirmed fix, per a real reported bug — this previously built
@@ -38297,7 +38308,8 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   // Local, uncommitted working state: sampleRowIndex -> { result, note }.
   // Nothing here touches _attrSampleResultsCache or the server until OK.
   const pending = {};
-  const expanded = new Set();
+  const expanded = new Set(onlySampleRowIndex != null ? [onlySampleRowIndex] : []);
+  const rowIndices = onlySampleRowIndex != null ? [onlySampleRowIndex] : sampleRows.map((_, i) => i);
 
   const overlay = document.createElement('div');
   overlay.className = 'attr-results-modal-overlay';
@@ -38579,7 +38591,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
     if (!sampleRows.length) {
       listEl.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);font-size:12px;font-style:italic">No sample rows yet.</div>';
     } else {
-      sampleRows.forEach((row, fi) => listEl.appendChild(renderRow(row, fi)));
+      rowIndices.forEach(fi => listEl.appendChild(renderRow(sampleRows[fi], fi)));
     }
     listEl.scrollTop = scrollTop;
     if (okBtn) okBtn.textContent = isDirty() ? `OK (${Object.keys(pending).length} change${Object.keys(pending).length !== 1 ? 's' : ''})` : 'OK';
@@ -38588,7 +38600,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   modal.innerHTML = `
     <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
       <div style="font-size:14px;font-weight:600">${escHtml(attrRefLabel)}. ${escHtml(attrTitle)}</div>
-      <div style="font-size:11px;opacity:0.75;margin-top:2px">Results across all samples</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">${onlySampleRowIndex != null ? escHtml(rowLabel(sampleRows[onlySampleRowIndex], onlySampleRowIndex)) : 'Results across all samples'}</div>
     </div>
     <div class="attr-results-modal-list" style="overflow-y:auto;flex:1;padding:4px 0;min-height:80px"></div>
     <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
