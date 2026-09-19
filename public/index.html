@@ -12180,8 +12180,26 @@ function renderAnalysisResultsGrid(ref) {
       // Wavefire" shortly after, its suggested chips can lead with THIS
       // exact attribute+sample instead of a generic, workpaper-wide
       // guess — see _wpChatSetLastFocus's own comment.
-      const onClick = `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
-      return `<div style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}</div>`;
+      //
+      // Real, new, per testwork-grid-cell-interaction-plan.md Part 1 —
+      // an untested cell (no real result yet) gets a genuinely different
+      // click behavior than one that already has a result: clicking it
+      // immediately records Pass (a real, persisted override — not a
+      // placeholder) and opens a small anchored quick popover to let the
+      // user flip to Fail and/or add an explanation, rather than opening
+      // the full batch results modal. A cell that already has a result
+      // keeps today's exact behavior (_openAttrResultsModal).
+      const cellKey = `${ai}:${fi}`;
+      const onClick = result
+        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`
+        : `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_handleEmptyCellClick(this, '${ref}', ${ai}, ${fi}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
+      // Real, new, per Part 2's "Entry point" — a small dot marks a cell
+      // that has at least one non-blank, still-open review note, mirroring
+      // the "dot only counts non-blank notes" rule the section-level
+      // Review Notes dog-ears already use.
+      const hasOpenNote = (cellReviewNotes[ref]?.[cellKey] || []).some(n => (n.text || '').trim() && n.status !== 'cleared');
+      const noteDot = hasOpenNote ? `<span style="position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#ea580c" title="Has an open review note"></span>` : '';
+      return `<div data-cell-key="${escAttr(cellKey)}" style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer;position:relative" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}${noteDot}</div>`;
     }).join('');
 
     // The specific file(s) that actually evidenced this sample's marks —
@@ -12232,7 +12250,256 @@ function renderAnalysisResultsGrid(ref) {
   </div>`;
 
   container.innerHTML = headRow + bodyRows + legend;
+  // Re-apply the keyboard-selection highlight (if any) after a full
+  // re-render — the DOM node it was pointing at no longer exists.
+  _refreshGridSelectionHighlight();
 }
+
+/* ══════════════════════════════════════
+   TESTWORK GRID — cell click behavior, bulk override, keyboard nav,
+   per-cell review notes.
+   Per design-documents/testwork-grid-cell-interaction-plan.md.
+══════════════════════════════════════ */
+
+// Tracks which cell is "selected" for keyboard-navigation purposes —
+// set on every cell click (both the quick-popover path and the full
+// modal path), cleared when focus leaves the grid entirely.
+let _selectedGridCell = null; // { ref, attributeIndex, sampleRowIndex } | null
+
+function _gridCellEl(ref, ai, fi) {
+  const container = document.getElementById('analysis-grid-rows');
+  return container ? container.querySelector(`[data-cell-key="${ai}:${fi}"]`) : null;
+}
+
+function _refreshGridSelectionHighlight() {
+  document.querySelectorAll('#analysis-grid-rows [data-cell-key]').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; });
+  if (!_selectedGridCell) return;
+  const el = _gridCellEl(_selectedGridCell.ref, _selectedGridCell.attributeIndex, _selectedGridCell.sampleRowIndex);
+  if (el) { el.style.outline = '2px solid #2563eb'; el.style.outlineOffset = '-2px'; }
+}
+
+// Real, new, per Part 1 — an untested cell immediately records Pass (a
+// real, persisted override, not a placeholder) and opens a small
+// popover anchored to the clicked cell offering Pass/Fail + a short
+// explanation, rather than the full batch results modal used once a
+// cell already has a result.
+async function _handleEmptyCellClick(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
+  _selectedGridCell = { ref, attributeIndex: ai, sampleRowIndex: fi };
+  await _postOverride(ref, ai, fi, 'pass', '');
+  renderAnalysisResultsGrid(ref);
+  const freshCellEl = _gridCellEl(ref, ai, fi) || cellEl;
+  _openCellQuickPopover(freshCellEl, ref, ai, fi, attrRefLabel, attrTitle);
+}
+
+let _cellQuickPopoverState = null; // { ref, ai, fi } while open
+
+function _closeCellQuickPopover() {
+  const el = document.getElementById('cell-quick-popover');
+  if (el) el.remove();
+  _cellQuickPopoverState = null;
+}
+
+// Anchored, edge-aware positioning — the same getBoundingClientRect()
+// approach _toggleHelpPopup already uses for the "?" help popups
+// (public/index.html ~26435), reused here instead of any of the
+// centered .notes-window floating windows, per explicit design.
+function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
+  _closeCellQuickPopover();
+  if (!cellEl) return;
+  _cellQuickPopoverState = { ref, ai, fi };
+  _selectedGridCell = { ref, attributeIndex: ai, sampleRowIndex: fi };
+  _refreshGridSelectionHighlight();
+
+  const saved = _findOverrideFor(ref, ai, fi);
+  const currentResult = saved?.override_result || 'pass';
+  const currentNote = saved?.override_note || '';
+
+  const popup = document.createElement('div');
+  popup.id = 'cell-quick-popover';
+  popup.style.cssText = 'position:fixed;z-index:20000;width:240px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25);padding:10px';
+  popup.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);margin-bottom:6px">${escHtml(attrRefLabel)}. ${escHtml(attrTitle)}</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+      <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+    </div>
+    <textarea class="cqp-note" placeholder="Explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_closeCellQuickPopover();}">${escHtml(currentNote)}</textarea>
+  `;
+  document.body.appendChild(popup);
+
+  const commit = async (result) => {
+    await _postOverride(ref, ai, fi, result, popup.querySelector('.cqp-note').value || '');
+    renderAnalysisResultsGrid(ref);
+    // Keep the popover open, anchored to the (re-rendered) cell, so the
+    // user can keep adjusting without it closing on every keystroke —
+    // only the Pass/Fail highlight and the underlying tick need to
+    // reflect the new state.
+    const stillOpen = document.getElementById('cell-quick-popover');
+    if (stillOpen) {
+      stillOpen.querySelector('.cqp-pass').style.cssText = stillOpen.querySelector('.cqp-pass').style.cssText.replace(/border:[^;]+;background:[^;]+;/, `border:1px solid ${result === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${result === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};`);
+      stillOpen.querySelector('.cqp-fail').style.cssText = stillOpen.querySelector('.cqp-fail').style.cssText.replace(/border:[^;]+;background:[^;]+;/, `border:1px solid ${result === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${result === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};`);
+    }
+  };
+  popup.querySelector('.cqp-pass').onclick = () => commit('pass');
+  popup.querySelector('.cqp-fail').onclick = () => commit('fail');
+  popup.querySelector('.cqp-note').addEventListener('change', () => commit(popup.querySelector('.cqp-fail').style.background.includes('220,38,38') ? 'fail' : 'pass'));
+
+  const rect = cellEl.getBoundingClientRect();
+  const pad = 8;
+  popup.style.top = rect.top + 'px';
+  popup.style.left = (rect.right + 6) + 'px';
+  requestAnimationFrame(() => {
+    const pw = popup.offsetWidth, ph = popup.offsetHeight;
+    let left = rect.right + 6, top = rect.top;
+    if (left + pw > window.innerWidth - pad) left = rect.left - pw - 6; // flip to the left
+    if (left < pad) left = pad;
+    if (top + ph > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - ph - pad);
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+  });
+}
+
+// Shared "is anything modal-ish currently open" check — used by the
+// keyboard handler below to decide whether Enter means "OK" or "move
+// down a row."
+function _anyGridModalOpen() {
+  return !!(document.querySelector('.attr-results-modal-overlay') || document.getElementById('cell-quick-popover'));
+}
+
+// One shared dismiss-on-click-outside listener for the quick popover,
+// capture-phase for the same reason the help-popup one is (public/
+// index.html's _toggleHelpPopup listener) — many elements elsewhere
+// call event.stopPropagation() in their own bubble-phase onclick,
+// which would otherwise silently swallow this before it ever runs.
+document.addEventListener('click', e => {
+  const popup = document.getElementById('cell-quick-popover');
+  if (!popup || popup.contains(e.target)) return;
+  // Skip the cell that owns this popover — its own onclick manages it.
+  if (_cellQuickPopoverState) {
+    const ownerEl = _gridCellEl(_cellQuickPopoverState.ref, _cellQuickPopoverState.ai, _cellQuickPopoverState.fi);
+    if (ownerEl && ownerEl.contains(e.target)) return;
+  }
+  _closeCellQuickPopover();
+}, true);
+
+/* ── Part 1 (cont.) — bulk override pickers, reached from inside
+   _openAttrResultsModal's own per-row expanded body. ── */
+
+// mode: 'attributes' (apply to other attributes, same sample) or
+// 'samples' (apply to other samples, same attribute).
+function _openBulkOverridePicker(mode, ref, attributeIndex, sampleRowIndex, result, note) {
+  document.querySelectorAll('.bulk-override-overlay').forEach(el => el.remove());
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const items = mode === 'attributes'
+    ? attributes.map((a, i) => ({ idx: i, label: `${a.attrRef || a.num || (i + 1)}. ${a.title}` })).filter(it => it.idx !== attributeIndex)
+    : wpResults.map((r, i) => ({ idx: i, label: r.sampleDesc || `Sample ${i + 1}` })).filter(it => it.idx !== sampleRowIndex);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'bulk-override-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10020;display:flex;align-items:center;justify-content:center';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(420px,92vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
+  const title = mode === 'attributes' ? 'Override other attributes for this sample' : 'Override this attribute for other samples';
+  modal.innerHTML = `
+    <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+      <div style="font-size:13px;font-weight:600">${escHtml(title)}</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">Applies the current result (${escHtml(result === 'pass' ? 'Pass' : 'Fail')}) and explanation to every selected item below.</div>
+    </div>
+    <div class="bulk-list" style="overflow-y:auto;flex:1;padding:10px 18px;min-height:60px">
+      ${items.length ? items.map(it => `
+        <label style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="bulk-item-cb" data-idx="${it.idx}" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
+          ${escHtml(it.label)}
+        </label>`).join('') : '<div style="font-size:12px;color:var(--text-tertiary);font-style:italic">Nothing else to select.</div>'}
+    </div>
+    <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn-s bulk-cancel">Cancel</button>
+      <button class="btn-p bulk-apply">Apply</button>
+    </div>
+  `;
+  overlay.appendChild(modal);
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
+  modal.querySelector('.bulk-cancel').onclick = () => overlay.remove();
+  modal.querySelector('.bulk-apply').onclick = async () => {
+    const checked = Array.from(modal.querySelectorAll('.bulk-item-cb:checked')).map(cb => Number(cb.dataset.idx));
+    if (!checked.length) { overlay.remove(); return; }
+    const summary = `This will mark ${checked.length} cell${checked.length !== 1 ? 's' : ''} as ${result === 'pass' ? 'Pass' : 'Fail'} with the explanation: "${note || '(none)'}" — Continue?`;
+    if (!confirm(summary)) return;
+    const applyBtn = modal.querySelector('.bulk-apply');
+    applyBtn.disabled = true; applyBtn.textContent = 'Applying…';
+    for (const idx of checked) {
+      const targetAi = mode === 'attributes' ? idx : attributeIndex;
+      const targetFi = mode === 'attributes' ? sampleRowIndex : idx;
+      await _postOverride(ref, targetAi, targetFi, result, note);
+      try { await _syncOverrideToAnnotatedFiles(ref, targetAi, targetFi, result, note); } catch (err) { console.error('[BulkOverride] sync failed:', err.message); }
+    }
+    overlay.remove();
+    renderAnalysisResultsGrid(ref);
+  };
+  document.body.appendChild(overlay);
+}
+
+/* ── Part 3 — keyboard navigation of the Testwork Grid ── */
+
+document.addEventListener('keydown', e => {
+  const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'];
+  if (!NAV_KEYS.includes(e.key)) return;
+
+  // A modal (the full override modal, or the quick popover) is open —
+  // Enter means "OK," and arrow keys are left alone entirely so normal
+  // text-cursor movement inside any open textarea/input keeps working.
+  if (_anyGridModalOpen()) {
+    if (e.key !== 'Enter') return;
+    const active = document.activeElement;
+    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.closest('#cell-quick-popover')) return; // Enter already handled by the popover's own textarea keydown
+    const fullModalOk = document.querySelector('.attr-results-modal-overlay .attr-results-modal-ok');
+    if (fullModalOk) { e.preventDefault(); fullModalOk.click(); return; }
+    const popup = document.getElementById('cell-quick-popover');
+    if (popup && !(active && active.closest('#cell-quick-popover'))) { e.preventDefault(); _closeCellQuickPopover(); }
+    return;
+  }
+
+  if (!_selectedGridCell) return;
+  // Never hijack a keystroke meant for an actual text field elsewhere on
+  // the page (e.g. Test Attributes, Sample Data) — only act when the
+  // grid itself, not some other input, currently has the user's
+  // attention. A grid cell is a plain div (not focusable), so the
+  // simplest correct check is: bail if focus is inside any text input
+  // or textarea at all.
+  const active = document.activeElement;
+  if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) return;
+
+  const { ref, attributeIndex, sampleRowIndex } = _selectedGridCell;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const lastAi = attributes.length - 1;
+  const lastFi = wpResults.length - 1;
+  if (lastAi < 0 || lastFi < 0) return;
+
+  let targetAi = attributeIndex, targetFi = sampleRowIndex;
+  if (e.key === 'ArrowLeft')  { if (attributeIndex <= 0) return; targetAi = attributeIndex - 1; }
+  else if (e.key === 'ArrowRight') { if (attributeIndex >= lastAi) return; targetAi = attributeIndex + 1; }
+  else if (e.key === 'ArrowUp')    { if (sampleRowIndex <= 0) return; targetFi = sampleRowIndex - 1; }
+  else if (e.key === 'ArrowDown' || e.key === 'Enter') {
+    if (sampleRowIndex < lastFi) {
+      targetFi = sampleRowIndex + 1;
+    } else if (attributeIndex < lastAi) {
+      // Bottom row, but more columns remain — wrap to the top of the
+      // next column to the right, per explicit spec.
+      targetAi = attributeIndex + 1;
+      targetFi = 0;
+    } else {
+      // Bottom-right cell — nowhere left to go at all.
+      return;
+    }
+  }
+  e.preventDefault();
+  _selectedGridCell = { ref, attributeIndex: targetAi, sampleRowIndex: targetFi };
+  _refreshGridSelectionHighlight();
+  const el = _gridCellEl(ref, targetAi, targetFi);
+  if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+});
 
 /* ══════════════════════════════════════
    TESTWORK GRID — per-attribute Guidance modal ("G" icon in the header)
@@ -12320,6 +12587,16 @@ function _toggleAttrGuidanceModal(ref, attrIndex, attrLabel, attrTitle) {
       }).join('');
     }
     bodyEl.scrollTop = 0;
+    // Real, new, per testwork-grid-cell-interaction-plan.md Part 4 — a
+    // second section, appended below the per-sample reasoning above,
+    // surfacing this attribute's own past override rationales (the
+    // "why are you changing this?" field entered from the override
+    // modal). Fetched async so it never blocks the modal opening with
+    // the reasoning it already has.
+    const pastOverridesEl = document.createElement('div');
+    pastOverridesEl.id = 'attr-guidance-past-overrides';
+    bodyEl.appendChild(pastOverridesEl);
+    _loadPastOverrideRationales(ref, attrIndex, pastOverridesEl);
   }
   const dlBtn = document.getElementById('attr-guidance-download-btn');
   if (dlBtn) dlBtn.style.display = sections.length ? '' : 'none';
@@ -12337,6 +12614,35 @@ function _closeAttrGuidanceModal() {
   const overlay = document.getElementById('attr-guidance-overlay');
   if (overlay) overlay.style.display = 'none';
   _attrGuidanceOpenKey = null;
+}
+
+// Real, new, per testwork-grid-cell-interaction-plan.md Part 4 — fetches
+// and renders this attribute's own past override rationales into the
+// Guidance modal, below the per-sample reasoning it already shows.
+async function _loadPastOverrideRationales(ref, attrIndex, targetEl) {
+  if (!targetEl) return;
+  targetEl.innerHTML = `<div style="font-size:11px;color:var(--text-tertiary);font-style:italic;margin-top:6px">Loading past overrides…</div>`;
+  try {
+    const res = await fetch(`/api/workpapers/${encodeURIComponent(ref)}/attribute/${attrIndex}/override-rationales`);
+    if (!res.ok) { targetEl.innerHTML = ''; return; }
+    const rows = await res.json();
+    // Only guaranteed to still be showing the same attribute's modal —
+    // a fast click to a different "G" icon while this was in flight
+    // shouldn't paint stale content into the now-wrong section.
+    if (_attrGuidanceOpenKey !== `${ref}:${attrIndex}`) return;
+    if (!Array.isArray(rows) || !rows.length) { targetEl.innerHTML = ''; return; }
+    targetEl.innerHTML = `
+      <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light);font-size:11px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px">Past overrides on this attribute</div>
+      ${rows.map(r => `
+        <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border-light)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-primary)">${escHtml(r.old_result || '(none)')} → ${escHtml(r.new_result || '(none)')}</div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;margin-top:2px">${escHtml(r.rationale_text)}</div>
+        </div>`).join('')}
+    `;
+  } catch (err) {
+    console.error('[AttrGuidance] Could not load past override rationales:', err.message);
+    targetEl.innerHTML = '';
+  }
 }
 
 // Mock Extraction Results — per design-documents/mock-extraction-results-plan.md
@@ -13052,6 +13358,174 @@ function _rnFindNote(ref, sectionId, noteId) {
   return (reviewNotes[ref]?.[sectionId] || []).find(n => n.id === noteId) || null;
 }
 
+// Real, new, per testwork-grid-cell-interaction-plan.md Part 2/2b —
+// whether the CURRENT user may approve or reject a specific clearance
+// (a response object on an already-cleared note). Deliberately
+// narrower than _rnCanClearNote above: only the ORIGINAL note's own
+// author, or an admin/superadmin, may approve/reject how their own
+// note was cleared — this is not "whoever can clear," which already
+// includes admins clearing on someone else's behalf.
+function _rnCanApproveClearance(note) {
+  if (_currentDisplayUser?.is_superadmin || _currentDisplayUser?.role === 'admin') return true;
+  return !!(note.authorId && _currentDisplayUser && note.authorId === _currentDisplayUser.user_id);
+}
+
+// Marks one clearance response as approved or rejected. `approved` is
+// `true`/`false`; `reason` is only meaningful (and only shown) for a
+// rejection. Permission is enforced by every call site via
+// _rnCanApproveClearance — this function itself trusts its caller, the
+// same convention _rnToggleStatus/_rnAddResponse already follow.
+function _rnSetClearanceApproval(response, approved, reason) {
+  response.approved = approved;
+  response.approvedBy = _currentDisplayUser?.user_id || null;
+  response.approvedByName = _admCurrentUserName();
+  response.approvedAt = nowStamp();
+  response.rejectedReason = approved ? null : (reason || '');
+}
+
+// Renders one clearance-approval badge/action row for a single response
+// — shared by both the section-level Review Notes window (Part 2b) and
+// the per-cell notes section (Part 2) below, so the two never drift
+// apart visually. `onChanged` is called after a successful approve/
+// reject so the caller can re-render its own list.
+function _rnClearanceApprovalHtml(note, response) {
+  if (response.approved === true) {
+    return `<div style="font-size:10px;color:#166534;margin-top:2px">✓ Approved by ${escHtml(response.approvedByName || '')}</div>`;
+  }
+  if (response.approved === false) {
+    return `<div style="font-size:10px;color:#991b1b;margin-top:2px">✗ Rejected by ${escHtml(response.approvedByName || '')}${response.rejectedReason ? ' — ' + escHtml(response.rejectedReason) : ''}</div>`;
+  }
+  if (!_rnCanApproveClearance(note)) return '';
+  return `<div style="margin-top:2px;display:flex;gap:8px">
+    <span data-rn-approve="${response.id}" style="font-size:9px;color:#166534;text-decoration:underline;cursor:pointer">Approve clearance</span>
+    <span data-rn-reject="${response.id}" style="font-size:9px;color:#991b1b;text-decoration:underline;cursor:pointer">Reject clearance</span>
+  </div>`;
+}
+function _rnWireClearanceApprovalHandlers(container, note, onChanged) {
+  container.querySelectorAll('[data-rn-approve]').forEach(el => {
+    el.onclick = () => {
+      const resp = (note.responses || []).find(r => r.id === el.dataset.rnApprove);
+      if (!resp || !_rnCanApproveClearance(note)) return;
+      _rnSetClearanceApproval(resp, true);
+      onChanged();
+    };
+  });
+  container.querySelectorAll('[data-rn-reject]').forEach(el => {
+    el.onclick = () => {
+      const resp = (note.responses || []).find(r => r.id === el.dataset.rnReject);
+      if (!resp || !_rnCanApproveClearance(note)) return;
+      const reason = prompt('Reason for rejecting this clearance (optional):') || '';
+      _rnSetClearanceApproval(resp, false, reason);
+      onChanged();
+    };
+  });
+}
+
+/* ── Per-cell review notes (Testwork Grid), per Part 2 ──
+   { ref: { "attributeIndex:sampleRowIndex": [ noteObj, ... ] } } — reuses
+   the EXACT same noteObj shape as the section-level reviewNotes above
+   (_rnNewNote/_rnNewResponse are generic and already work unmodified),
+   client-memory-only for now, matching reviewNotes' own current
+   persistence (or lack of it) exactly — see the design doc's own note
+   that reviewNotes itself isn't persisted to the backend today either. */
+const cellReviewNotes = {};
+function _cellKey(ai, fi) { return `${ai}:${fi}`; }
+function _cellNotesFor(ref, ai, fi) {
+  if (!cellReviewNotes[ref]) cellReviewNotes[ref] = {};
+  const key = _cellKey(ai, fi);
+  if (!cellReviewNotes[ref][key]) cellReviewNotes[ref][key] = [];
+  return cellReviewNotes[ref][key];
+}
+function _cellFindNote(ref, ai, fi, noteId) {
+  return _cellNotesFor(ref, ai, fi).find(n => n.id === noteId) || null;
+}
+// Real, new, per testwork-grid-review-note-indicators-plan.md — whether
+// this cell has ever had a non-blank review note (used elsewhere to
+// decide whether to show any indicator at all on the tick cell).
+function _cellHasAnyNote(ref, ai, fi) {
+  return _cellNotesFor(ref, ai, fi).some(n => (n.text || '').trim());
+}
+
+function _renderCellNotesSection(ref, ai, fi, containerEl) {
+  if (!containerEl) return;
+  const notes = _cellNotesFor(ref, ai, fi);
+  const rerender = () => _renderCellNotesSection(ref, ai, fi, containerEl);
+
+  const notesHtml = notes.map(note => {
+    const canClear = _rnCanClearNote(note);
+    const responsesHtml = (note.responses || []).map(r => `
+      <div style="margin-left:16px;margin-top:6px;padding-left:8px;border-left:2px solid var(--border-light)">
+        <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(r.author)}</strong> · ${escHtml(r.ts)}</div>
+        <div style="font-size:11px;color:var(--text-primary);white-space:pre-wrap">${escHtml(r.text)}</div>
+        <div class="rn-clearance-approval" data-resp-id="${r.id}"></div>
+      </div>`).join('');
+    return `
+      <div class="cell-rn-note" data-note-id="${note.id}" style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;margin-bottom:8px;background:var(--bg-secondary)">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(note.author)}</strong> · ${escHtml(note.ts)}</div>
+          <span data-cell-rn-toggle="${note.id}" style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:0.3px;${canClear ? 'cursor:pointer;' : ''}background:${note.status === 'cleared' ? '#dbeafe' : '#fed7aa'};color:${note.status === 'cleared' ? '#1e40af' : '#9a3412'}">${note.status === 'cleared' ? 'Cleared' : 'Open'}</span>
+        </div>
+        <textarea data-cell-rn-text="${note.id}" placeholder="Enter a review note…" style="width:100%;margin-top:6px;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(note.text)}</textarea>
+        <div style="margin-top:4px">${responsesHtml}</div>
+        ${(note.text || '').trim() ? `<button class="btn-s" data-cell-rn-respond="${note.id}" style="font-size:9px;padding:2px 8px;margin-top:6px">Create Response</button>
+        <div data-cell-rn-response-wrap="${note.id}" style="margin-top:4px"></div>` : ''}
+      </div>`;
+  }).join('');
+
+  containerEl.innerHTML = `
+    <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin:4px 0 3px">Review Notes</div>
+    ${notesHtml || '<div style="font-size:11px;color:var(--text-tertiary);font-style:italic;margin-bottom:6px">No review notes on this cell yet.</div>'}
+    <button class="btn-s" data-cell-rn-add style="font-size:9px;padding:2px 8px">Add note</button>
+  `;
+
+  notes.forEach(note => {
+    (note.responses || []).forEach(r => {
+      const slot = containerEl.querySelector(`.rn-clearance-approval[data-resp-id="${r.id}"]`);
+      if (slot) { slot.innerHTML = _rnClearanceApprovalHtml(note, r); _rnWireClearanceApprovalHandlers(slot, note, rerender); }
+    });
+  });
+
+  containerEl.querySelectorAll('[data-cell-rn-toggle]').forEach(el => {
+    el.onclick = () => {
+      const note = _cellFindNote(ref, ai, fi, el.dataset.cellRnToggle);
+      if (!note || !_rnCanClearNote(note)) { if (note) alert('Only the person who wrote this review note, or an admin, can change its status.'); return; }
+      if (note.status === 'open') {
+        note.status = 'cleared'; note.clearedBy = _currentDisplayUser?.user_id || null; note.clearedByName = _admCurrentUserName(); note.clearedAt = nowStamp();
+      } else {
+        note.status = 'open'; note.clearedBy = null; note.clearedByName = null; note.clearedAt = null;
+      }
+      rerender();
+    };
+  });
+  containerEl.querySelectorAll('[data-cell-rn-text]').forEach(el => {
+    el.addEventListener('change', () => {
+      const note = _cellFindNote(ref, ai, fi, el.dataset.cellRnText);
+      if (note) { note.text = el.value; rerender(); }
+    });
+  });
+  containerEl.querySelectorAll('[data-cell-rn-respond]').forEach(el => {
+    el.onclick = () => {
+      const wrap = containerEl.querySelector(`[data-cell-rn-response-wrap="${el.dataset.cellRnRespond}"]`);
+      if (!wrap) return;
+      wrap.innerHTML = `<div style="display:flex;gap:4px">
+        <textarea data-cell-rn-response-input style="flex:1;min-height:32px;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical"></textarea>
+        <button class="btn-s" style="font-size:10px;padding:3px 8px" data-cell-rn-response-submit="${el.dataset.cellRnRespond}">Reply</button>
+      </div>`;
+      wrap.querySelector('[data-cell-rn-response-submit]').onclick = () => {
+        const ta = wrap.querySelector('[data-cell-rn-response-input]');
+        const text = (ta.value || '').trim();
+        if (!text) return;
+        const note = _cellFindNote(ref, ai, fi, el.dataset.cellRnRespond);
+        if (note) { note.responses.push(_rnNewResponse(text)); rerender(); }
+      };
+    };
+  });
+  containerEl.querySelector('[data-cell-rn-add]').onclick = () => {
+    _cellNotesFor(ref, ai, fi).push(_rnNewNote(''));
+    rerender();
+  };
+}
+
 const SECTION_NAMES = {
   'sect-wpinfo':          'Workpaper information',
   'sect-narrative':       'Process / control narrative',
@@ -13297,12 +13771,20 @@ function _rnAddResponse(ref, sectionId, noteId, taEl) {
 }
 
 function _rnResponseHtml(ref, sectionId, noteId, r) {
+  // Real, new, per Part 2b — a selection checkbox (for the bulk Approve/
+  // Reject action bar below) is only rendered when the current user is
+  // actually allowed to act on this clearance, so a mixed-authorship
+  // batch never shows a checkbox the click would just be rejected for.
+  const note = _rnFindNote(ref, sectionId, noteId);
+  const canAct = note && _rnCanApproveClearance(note) && r.approved === undefined;
+  const checkboxHtml = canAct ? `<input type="checkbox" class="rn-clearance-bulk-cb" data-note-id="${noteId}" data-resp-id="${r.id}" style="margin-right:6px;width:13px;height:13px;accent-color:var(--wf-navy);cursor:pointer;vertical-align:-2px">` : '';
   return `
     <div style="margin-left:18px;padding:6px 0 6px 10px;border-left:2px solid var(--border-light)">
-      <div style="font-size:10px;color:var(--text-secondary);margin-bottom:3px"><strong>${escHtml(r.author)}</strong> · ${escHtml(r.ts)}</div>
+      <div style="font-size:10px;color:var(--text-secondary);margin-bottom:3px">${checkboxHtml}<strong>${escHtml(r.author)}</strong> · ${escHtml(r.ts)}</div>
       <div style="font-size:11px;color:var(--text-primary);white-space:pre-wrap;line-height:1.5">${escHtml(r.text)}</div>
       ${_rnAttachmentsHtml(ref, r.attachments)}
       ${_rnAttachToolbarHtml(ref, sectionId, noteId, 'response', r.id)}
+      <div class="rn-clearance-approval" data-resp-id="${r.id}">${note ? _rnClearanceApprovalHtml(note, r) : ''}</div>
     </div>`;
 }
 
@@ -13356,6 +13838,10 @@ function _renderNoteBlock(ref, sectionId, note) {
   bodyTa.addEventListener('blur', () => _rnSaveNoteText(ref, sectionId, note.id, bodyTa.value));
   setTimeout(fitTA, 30);
 
+  // Real, new, per Part 2b — wires each response's own Approve/Reject
+  // clearance action (rendered inline by _rnResponseHtml above).
+  _rnWireClearanceApprovalHandlers(wrap, note, () => renderReviewNotesList(ref, sectionId));
+
   return wrap;
 }
 
@@ -13364,7 +13850,52 @@ function renderReviewNotesList(ref, sectionId) {
   if (!container) return;
   container.innerHTML = '';
   const notes = (ref && reviewNotes[ref]?.[sectionId]) || [];
+  // Real, new, per Part 2b — a bulk Approve/Reject bar for one or many
+  // selected clearances at once, across different notes/authors,
+  // plus one optional new top-level note posted in the same action.
+  // Only rendered once there's at least one clearance the current user
+  // could actually check (see the checkbox condition in _rnResponseHtml).
+  const bulkBar = document.createElement('div');
+  bulkBar.id = 'rn-bulk-approval-bar';
+  bulkBar.style.cssText = 'display:none;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;margin-bottom:8px;background:#fffbeb';
+  bulkBar.innerHTML = `
+    <div style="font-size:10px;font-weight:600;color:var(--text-tertiary);margin-bottom:6px" id="rn-bulk-count">0 selected</div>
+    <textarea id="rn-bulk-note-input" placeholder="Add a note (optional)" style="width:100%;min-height:32px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px"></textarea>
+    <div style="display:flex;gap:6px">
+      <button class="btn-s" id="rn-bulk-approve-btn" style="font-size:10px;padding:3px 10px;color:#166534">Approve selected</button>
+      <button class="btn-s" id="rn-bulk-reject-btn" style="font-size:10px;padding:3px 10px;color:#991b1b">Reject selected</button>
+    </div>`;
+  container.appendChild(bulkBar);
   notes.forEach(note => container.appendChild(_renderNoteBlock(ref, sectionId, note)));
+
+  const cbs = () => Array.from(container.querySelectorAll('.rn-clearance-bulk-cb'));
+  const refreshBar = () => {
+    const checked = cbs().filter(cb => cb.checked);
+    bulkBar.style.display = cbs().length ? 'block' : 'none';
+    document.getElementById('rn-bulk-count').textContent = `${checked.length} selected`;
+  };
+  cbs().forEach(cb => cb.addEventListener('change', refreshBar));
+  refreshBar();
+  const applyBulk = (approved) => {
+    const checked = cbs().filter(cb => cb.checked);
+    if (!checked.length) return;
+    const reason = approved ? null : (prompt('Reason for rejecting these clearances (optional):') || '');
+    checked.forEach(cb => {
+      const note = _rnFindNote(ref, sectionId, cb.dataset.noteId);
+      const resp = note && (note.responses || []).find(r => r.id === cb.dataset.respId);
+      if (note && resp && _rnCanApproveClearance(note)) _rnSetClearanceApproval(resp, approved, reason);
+    });
+    const bulkNoteText = (document.getElementById('rn-bulk-note-input')?.value || '').trim();
+    if (bulkNoteText) {
+      if (!reviewNotes[ref]) reviewNotes[ref] = {};
+      if (!reviewNotes[ref][sectionId]) reviewNotes[ref][sectionId] = [];
+      reviewNotes[ref][sectionId].push(_rnNewNote(bulkNoteText));
+    }
+    renderReviewNotesList(ref, sectionId);
+  };
+  document.getElementById('rn-bulk-approve-btn').onclick = () => applyBulk(true);
+  document.getElementById('rn-bulk-reject-btn').onclick = () => applyBulk(false);
+
   applyNotesFilter();
   _rnUpdateDot(ref, sectionId);
 }
@@ -23713,7 +24244,7 @@ function _openOverridePopup(overlay, tickEl, opts) {
 // tick popup and the Test Attributes grid's popup can share the same
 // network call + cache update without duplicating either. Returns the
 // updated cached row, or null if the save failed (already alerted).
-async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
+async function _postOverride(ref, ai, fi, overrideResult, overrideNote, overrideRationale) {
   try {
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -23722,6 +24253,13 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote) {
         overrideResult: overrideResult || null,
         overrideNote: overrideNote || null,
         exceptionText: overrideNote || null,
+        // Real, new, per testwork-grid-cell-interaction-plan.md Part 4 —
+        // a distinct field from overrideNote (the tick-mark's own
+        // explanation): why the USER is changing the result, embedded
+        // server-side into the app's existing pgvector infrastructure so
+        // it can later inform attribute-language guidance. Optional —
+        // most overrides won't carry one.
+        overrideRationale: overrideRationale || null,
       }),
     });
     // Real, confirmed fix — fetch() only rejects on a genuine network-
@@ -37591,6 +38129,17 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
         .concat(originalFiles.map(f => `<option value="${escAttr(f.name)}" ${f.name === evidenceDefaults.sourceFile ? 'selected' : ''}>${escHtml(f.name)}</option>`))
         .join('');
 
+      // Real, new, per testwork-grid-cell-interaction-plan.md Part 4 —
+      // when a saved explanation already exists, show it as read-only
+      // context above the editable textarea (now labeled as the
+      // new/revised text) rather than only ever showing one blended
+      // value the user can't tell is old vs. new.
+      const priorNote = saved?.override_note || '';
+      const priorNoteHtml = priorNote
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current explanation:</strong> ${escHtml(priorNote)}</div>`
+        : '';
+      const rationaleVal = change ? (change.rationale || '') : '';
+
       body.innerHTML = `
         <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>
         <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -37601,40 +38150,63 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
-        <textarea class="attr-modal-note" placeholder="Explanation (recorded as a user override)" style="width:100%;min-height:44px;
+        ${priorNoteHtml}
+        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised explanation' : 'Explanation (recorded as a user override)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
-        <div style="display:flex;gap:5px">
+        <div style="display:flex;gap:5px;margin-bottom:8px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
           <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
           <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
         </div>
+        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Why are you changing this? (optional)</div>
+        <textarea class="attr-modal-rationale" placeholder="e.g. I disagree with how Analyze read this document, because..." style="width:100%;min-height:36px;
+          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:8px">${escHtml(rationaleVal)}</textarea>
+        <div style="display:flex;gap:6px;margin-bottom:4px">
+          <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
+          <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
+        </div>
+        <div class="attr-modal-cell-notes"></div>
       `;
       const readEvidence = () => ({
         sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
         page: body.querySelector('.attr-modal-evidence-page')?.value || '',
         paragraph: body.querySelector('.attr-modal-evidence-para')?.value || '',
       });
-      const setPending = (result, note, evidence) => {
+      const setPending = (result, note, evidence, rationale) => {
         const eff = evidence || readEvidence();
+        const effRationale = rationale !== undefined ? rationale : (body.querySelector('.attr-modal-rationale')?.value || '');
         const evidenceUnchanged = eff.sourceFile === (evidenceDefaults.sourceFile || '') && String(eff.page || '') === String(evidenceDefaults.page || '') && String(eff.paragraph || '') === String(evidenceDefaults.paragraph || '');
         // Only actually pending if it genuinely differs from the saved
         // state — flipping back to the original value un-stages it,
-        // rather than leaving a no-op "change" queued.
-        if (result === savedEffective && note === (saved?.override_note || '') && evidenceUnchanged) {
+        // rather than leaving a no-op "change" queued. A rationale with
+        // no other change still counts as a real pending change, since
+        // it's meant to be captured even on a note-only edit.
+        if (result === savedEffective && note === (saved?.override_note || '') && evidenceUnchanged && !effRationale) {
           delete pending[fi];
         } else {
-          pending[fi] = { result, note, evidence: eff };
+          pending[fi] = { result, note, evidence: eff, rationale: effRationale };
         }
         renderList();
       };
       body.querySelector('.attr-modal-pass').onclick = () => setPending('pass', noteVal);
       body.querySelector('.attr-modal-fail').onclick = () => setPending('fail', noteVal);
       body.querySelector('.attr-modal-note').addEventListener('change', ev => setPending(selected || savedEffective || 'pass', ev.target.value));
+      body.querySelector('.attr-modal-rationale').addEventListener('change', () => setPending(selected || savedEffective || 'pass', body.querySelector('.attr-modal-note').value));
       ['attr-modal-evidence-file', 'attr-modal-evidence-page', 'attr-modal-evidence-para'].forEach(cls => {
         body.querySelector('.' + cls)?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', noteVal));
       });
+      body.querySelector('.attr-modal-bulk-attrs').onclick = () => {
+        const r = selected || savedEffective || 'pass';
+        _openBulkOverridePicker('attributes', ref, attributeIndex, fi, r, body.querySelector('.attr-modal-note').value);
+      };
+      body.querySelector('.attr-modal-bulk-samples').onclick = () => {
+        const r = selected || savedEffective || 'pass';
+        _openBulkOverridePicker('samples', ref, attributeIndex, fi, r, body.querySelector('.attr-modal-note').value);
+      };
+      _renderCellNotesSection(ref, attributeIndex, fi, body.querySelector('.attr-modal-cell-notes'));
       rowEl.appendChild(body);
     }
 
@@ -37675,7 +38247,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       okBtn.disabled = true;
       okBtn.textContent = 'Saving…';
       await Promise.all(entries.map(([fi, change]) =>
-        _postOverride(ref, attributeIndex, Number(fi), change.result, _noteWithEvidence(change.note, change.evidence))
+        _postOverride(ref, attributeIndex, Number(fi), change.result, _noteWithEvidence(change.note, change.evidence), change.rationale)
       ));
       // Real, new, per manual-testwork-grid-plan.md Part 3 — no schema
       // change to attribute_sample_results for this first pass (per the
