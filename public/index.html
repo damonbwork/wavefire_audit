@@ -12490,8 +12490,8 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
-    <textarea class="cqp-note" placeholder="Explanation (required)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
-    <div class="cqp-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">An explanation is required before this can be saved.</div>
+    <textarea class="cqp-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <div class="cqp-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
   `;
   document.body.appendChild(popup);
   // Note is set after innerHTML (not interpolated into the placeholder-
@@ -12572,7 +12572,7 @@ function _openBulkOverridePicker(mode, ref, attributeIndex, sampleRowIndex, resu
   // rather than letting the user pick targets for a copy that can never
   // actually be saved.
   if (!(note || '').trim()) {
-    alert('Add an explanation to this cell before applying it to other cells.');
+    alert('Add a tick mark explanation to this cell before applying it to other cells.');
     return;
   }
   document.querySelectorAll('.bulk-override-overlay').forEach(el => el.remove());
@@ -24498,10 +24498,10 @@ function _openOverridePopup(overlay, tickEl, opts) {
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
-        <textarea id="ovr-note" placeholder="Override note / exception text (required)" style="width:100%;min-height:44px;
+        <textarea id="ovr-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
-        <div id="ovr-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">An explanation is required before this can be saved.</div>
+        <div id="ovr-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
           ${hasOverride ? '<button id="ovr-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
           <button id="ovr-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
@@ -24556,7 +24556,7 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
   // (overrideResult === null/'') or createTestworkGrid's initial blank-
   // row seeding of a brand-new cell (also overrideResult === null).
   if (overrideResult && !(overrideNote || '').trim()) {
-    alert('An explanation is required before this result can be saved.');
+    alert('A tick mark explanation is required before this result can be saved.');
     return null;
   }
   try {
@@ -38493,7 +38493,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       // value the user can't tell is old vs. new.
       const priorNote = saved?.override_note || '';
       const priorNoteHtml = priorNote
-        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current explanation:</strong> ${escHtml(priorNote)}</div>`
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current tick mark explanation:</strong> ${escHtml(priorNote)}</div>`
         : '';
       const rationaleVal = change ? (change.rationale || '') : '';
 
@@ -38508,7 +38508,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${priorNoteHtml}
-        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised explanation' : 'Explanation (recorded as a user override)'}" style="width:100%;min-height:44px;
+        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (required)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
@@ -38612,7 +38612,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
           const row = sampleRows[Number(fi)];
           return row?.sampleDesc || `Sample ${Number(fi) + 1}`;
         });
-        alert('An explanation is required before saving. Missing for: ' + labels.join(', '));
+        alert('A tick mark explanation is required before saving. Missing for: ' + labels.join(', '));
         return;
       }
       okBtn.disabled = true;
