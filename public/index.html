@@ -12361,13 +12361,6 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   });
 }
 
-// Shared "is anything modal-ish currently open" check — used by the
-// keyboard handler below to decide whether Enter means "OK" or "move
-// down a row."
-function _anyGridModalOpen() {
-  return !!(document.querySelector('.attr-results-modal-overlay') || document.getElementById('cell-quick-popover'));
-}
-
 // One shared dismiss-on-click-outside listener for the quick popover,
 // capture-phase for the same reason the help-popup one is (public/
 // index.html's _toggleHelpPopup listener) — many elements elsewhere
@@ -12448,18 +12441,42 @@ document.addEventListener('keydown', e => {
   const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'];
   if (!NAV_KEYS.includes(e.key)) return;
 
-  // A modal (the full override modal, or the quick popover) is open —
-  // Enter means "OK," and arrow keys are left alone entirely so normal
-  // text-cursor movement inside any open textarea/input keeps working.
-  if (_anyGridModalOpen()) {
+  // The FULL override modal is open — Enter means "OK," and arrow keys
+  // are left alone entirely so normal text-cursor movement inside any
+  // open textarea/input keeps working. This modal has its own scrollable
+  // list, not grid-style cell navigation, so it keeps blocking arrows.
+  const fullModalOpen = !!document.querySelector('.attr-results-modal-overlay');
+  if (fullModalOpen) {
     if (e.key !== 'Enter') return;
     const active = document.activeElement;
-    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.closest('#cell-quick-popover')) return; // Enter already handled by the popover's own textarea keydown
+    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) return; // let Enter behave normally inside any modal text field
     const fullModalOk = document.querySelector('.attr-results-modal-overlay .attr-results-modal-ok');
-    if (fullModalOk) { e.preventDefault(); fullModalOk.click(); return; }
-    const popup = document.getElementById('cell-quick-popover');
-    if (popup && !(active && active.closest('#cell-quick-popover'))) { e.preventDefault(); _closeCellQuickPopover(); }
+    if (fullModalOk) { e.preventDefault(); fullModalOk.click(); }
     return;
+  }
+
+  // The small quick popover (Part 1's auto-Pass popover) is open — per
+  // direct report, an arrow key here previously fell all the way
+  // through to the browser's own default behavior (scrolling the page)
+  // instead of moving to another cell, because this case used to be
+  // lumped in with the full modal above and simply returned without
+  // ever reaching the grid-navigation logic below. Enter still closes
+  // the popover (its own textarea handles Enter itself, see its
+  // onkeydown); any arrow key — unless the popover's own explanation
+  // textarea currently has focus, where normal text-cursor movement
+  // must keep working — now closes the popover and falls through to the
+  // same grid navigation an arrow key does anywhere else.
+  const popup = document.getElementById('cell-quick-popover');
+  if (popup) {
+    const active = document.activeElement;
+    const inPopoverField = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT') && active.closest('#cell-quick-popover');
+    if (e.key === 'Enter') {
+      if (!inPopoverField) { e.preventDefault(); _closeCellQuickPopover(); }
+      return;
+    }
+    if (inPopoverField) return; // let arrow keys move the text cursor inside the popover's own field
+    _closeCellQuickPopover();
+    // falls through to grid navigation below
   }
 
   if (!_selectedGridCell) return;
@@ -12479,6 +12496,13 @@ document.addEventListener('keydown', e => {
   const lastFi = wpResults.length - 1;
   if (lastAi < 0 || lastFi < 0) return;
 
+  // A grid cell is selected and this keystroke is genuinely ours to
+  // handle from here on — prevent the browser's own default arrow-key
+  // page-scroll unconditionally, including the boundary/no-op cases
+  // below (moving off the grid's edge should do nothing, not scroll
+  // the page either).
+  e.preventDefault();
+
   let targetAi = attributeIndex, targetFi = sampleRowIndex;
   if (e.key === 'ArrowLeft')  { if (attributeIndex <= 0) return; targetAi = attributeIndex - 1; }
   else if (e.key === 'ArrowRight') { if (attributeIndex >= lastAi) return; targetAi = attributeIndex + 1; }
@@ -12496,7 +12520,6 @@ document.addEventListener('keydown', e => {
       return;
     }
   }
-  e.preventDefault();
   _selectedGridCell = { ref, attributeIndex: targetAi, sampleRowIndex: targetFi };
   _refreshGridSelectionHighlight();
   const el = _gridCellEl(ref, targetAi, targetFi);
@@ -37687,6 +37710,26 @@ async function createTestworkGrid(ref) {
 
   renderAnalysisResultsGrid(ref);
   logEvent(ref, `Testwork Grid created manually by user (${snapshot.length} sample${snapshot.length !== 1 ? 's' : ''} × ${attributes.length} attribute${attributes.length !== 1 ? 's' : ''})`);
+
+  // Real, new fix — a freshly-created grid previously existed only in
+  // this session's memory (_wpAnalysisResults) until the user touched
+  // at least one cell; _reconstructAnalysisResultsFromDB bails out
+  // entirely when attribute_sample_results has zero rows for this
+  // workpaper, so reloading (or just navigating away) before touching
+  // any cell silently lost the whole grid with no warning. Immediately
+  // persisting one blank (null-result) override row per cell makes the
+  // grid's own existence survive a reload right away — every cell
+  // still renders and behaves as genuinely untested (no override,
+  // real result, or OVR badge) until the user actually sets one.
+  const createBtn = document.getElementById('create-testwork-grid-btn');
+  if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Saving…'; }
+  try {
+    await Promise.all(
+      snapshot.flatMap((_, fi) => attributes.map((_, ai) => _postOverride(ref, ai, fi, null, null)))
+    );
+  } finally {
+    if (createBtn) { createBtn.disabled = false; createBtn.innerHTML = '<i class="ti ti-table"></i>Create Testwork Grid'; }
+  }
 }
 
 // Real, new, per direct request — the Testwork Grid's own equivalent of
