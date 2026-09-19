@@ -2814,7 +2814,14 @@
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 0;min-width:180px;max-width:320px;padding:4px 0">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Review sign-off</div>
               <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;display:flex;flex-direction:column;gap:3px;min-width:180px">
-                <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 92px; flex: 0 0 auto;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
+                <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+                  <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 92px; flex: 0 0 auto;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
+                  <!-- Real, new, per workpaper-review-lock-plan.md — a
+                       small persistent lock glyph, visible at a glance
+                       without needing to attempt an edit first. Shown/
+                       hidden by _updateWpLockIndicator(ref). -->
+                  <i id="wp-lock-indicator" class="ti ti-lock" title="This workpaper is locked — only the active reviewer or an admin can make changes" style="display:none;font-size:13px;color:#9a3412;flex-shrink:0"></i>
+                </div>
                 <div id="wp-review-log" style="display:flex;flex-direction:column;gap:1px"></div>
               </div>
             </div>
@@ -7952,6 +7959,90 @@ function updateWPDateReviewed(ref) {
   }
 }
 
+/* ══════════════════════════════════════
+   WORKPAPER REVIEW LOCK — per design-documents/workpaper-review-lock-plan.md
+   Driven entirely by wpReviewLog[ref]: once it has at least one entry,
+   the workpaper is locked to everyone except the active (index-0)
+   reviewer of record and an admin/superadmin. Two carve-outs stay fully
+   open regardless of lock state: clearing/reopening an existing review
+   note's status (not adding a new one), and the personal per-item
+   "Reviewed" buttons (markFileReviewed) — neither is guarded below, by
+   design.
+
+   Honest scope note: wpReviewLog (like reviewNotes) is front-end-only
+   today — confirmed by reading the code, no server.js route or
+   _saveWorkpaperToDB field touches it. This lock is therefore a
+   UI-level lock (prevents accidental/normal-flow edits within this
+   session) rather than a server-enforced one; every mutation endpoint
+   this guards is reachable directly via its own fetch() call with no
+   matching server-side check. Server-side enforcement is a real,
+   separate follow-up, not silently claimed as done here.
+══════════════════════════════════════ */
+function _isWpLocked(ref) {
+  return (wpReviewLog[ref] || []).length > 0;
+}
+function _canEditLockedWp(ref) {
+  if (!_isWpLocked(ref)) return true;
+  const active = wpReviewLog[ref][0];
+  const isActiveReviewer = active.reviewerId
+    ? active.reviewerId === _currentDisplayUser?.user_id
+    : active.reviewer === _admCurrentUserName();
+  return isActiveReviewer || _currentDisplayUser?.role === 'admin' || !!_currentDisplayUser?.is_superadmin;
+}
+// Only an admin/superadmin may clear a non-active (historical, already-
+// superseded) log entry — it has no "reviewer of record" role to defer
+// to, so this is a simpler, separate check from _canEditLockedWp above.
+function _isWpAdmin() {
+  return _currentDisplayUser?.role === 'admin' || !!_currentDisplayUser?.is_superadmin;
+}
+
+function _showLockedHardWarning(ref) {
+  document.getElementById('wp-locked-warning-overlay')?.remove();
+  const active = (wpReviewLog[ref] || [])[0];
+  const reviewerName = active ? active.reviewer : 'the reviewer';
+  const reviewedWhen = active ? active.ts : '';
+  const overlay = document.createElement('div');
+  overlay.id = 'wp-locked-warning-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10030;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-primary);border-radius:var(--radius-lg);width:min(440px,92vw);box-shadow:0 20px 48px rgba(0,0,0,0.22);overflow:hidden">
+      <div style="padding:20px 24px 14px;display:flex;gap:12px;align-items:flex-start">
+        <i class="ti ti-lock" style="font-size:22px;color:#dc2626;flex-shrink:0;margin-top:2px"></i>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Workpaper is locked</div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">This workpaper was reviewed and signed off by <strong>${escHtml(reviewerName)}</strong>${reviewedWhen ? ' on ' + escHtml(reviewedWhen) : ''}. It cannot be updated while in a reviewed state. Only ${escHtml(reviewerName)} or an admin can remove the review lock before changes can be made.</div>
+        </div>
+      </div>
+      <div style="padding:14px 24px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end">
+        <button class="btn-p" id="wp-locked-warning-ok">OK</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  document.getElementById('wp-locked-warning-ok').onclick = close;
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) close(); });
+}
+
+// Debounced per distinct attempt (not per keystroke) — repeated calls
+// within a short window while the user is, say, typing into a blocked
+// field only show one dialog rather than one per character.
+let _lastLockWarningAt = 0;
+function _guardWpEdit(ref) {
+  if (_canEditLockedWp(ref)) return true;
+  const now = Date.now();
+  if (now - _lastLockWarningAt > 800) {
+    _lastLockWarningAt = now;
+    _showLockedHardWarning(ref);
+  }
+  return false;
+}
+
+function _updateWpLockIndicator(ref) {
+  const el = document.getElementById('wp-lock-indicator');
+  if (!el) return;
+  el.style.display = _isWpLocked(ref) ? 'inline-flex' : 'none';
+}
+
 function addWPReview() {
   const ref = getWPRef();
   if (!ref) return;
@@ -7965,20 +8056,31 @@ function addWPReview() {
   const reviewer = _admCurrentUserName();
 
   if (!wpReviewLog[ref]) wpReviewLog[ref] = [];
-  // Always add a new row (no de-duplication by username)
-  wpReviewLog[ref].unshift({ reviewer, ts: `${date} ${time}` });
+  // Always add a new row (no de-duplication by username). reviewerId is
+  // a stable user_id (not just the rendered display name) so the
+  // review-lock permission check below can never be fooled by two users
+  // sharing a name, or broken by a later rename — see _canEditLockedWp.
+  wpReviewLog[ref].unshift({ reviewer, reviewerId: _currentDisplayUser?.user_id || null, ts: `${date} ${time}` });
 
   const wpName = WORKPAPERS[currentWPIndex]?.name || ref;
   logEvent(ref, `REVIEWED - <strong>${wpName}</strong> · ${reviewer} ${date} ${time}`);
 
   renderWPReviewLog(ref);
   updateWPDateReviewed(ref);
+  _updateWpLockIndicator(ref);
   const btn = document.getElementById('wp-review-btn');
   if (btn) {
     btn.innerHTML = '<i class="ti ti-check" style="font-size:12px;margin-right:2px"></i>Reviewed';
     btn.style.background  = '#dcfce7';
     btn.style.color       = '#166534';
     btn.style.borderColor = '#86efac';
+    // Fires once, at the moment of locking, for the person who just
+    // performed the sign-off — informational only, auto-dismissing, not
+    // the hard-warning modal (which is for everyone ELSE hitting the
+    // lock later). Reuses the existing showSubmitBubble helper.
+    if (typeof showSubmitBubble === 'function') {
+      showSubmitBubble(btn, `Workpaper locked. Only ${reviewer} or an admin can make further changes.`, '#166534', '#dcfce7', '#86efac');
+    }
   }
 
   // On first press — update the Reviewer dropdown to the current user, if
@@ -8019,37 +8121,83 @@ function renderWPReviewLog(ref) {
   if (!container) return;
   const log = wpReviewLog[ref] || [];
   if (!log.length) { container.innerHTML = ''; return; }
-  container.innerHTML = log.map((entry, i) =>
-    `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;${i === 0 ? 'border-top:0.5px solid var(--border-light);margin-top:3px;padding-top:4px' : ''}">
+  container.innerHTML = log.map((entry, i) => {
+    // Real, new, per workpaper-review-lock-plan.md — the "Clear" link on
+    // the ACTIVE entry (index 0) is gated by the same permission that
+    // governs editing a locked workpaper (active reviewer or an admin);
+    // a "Clear" link on any older, already-superseded entry is
+    // admin/superadmin-only, never the general edit permission, since a
+    // historical entry has no "reviewer of record" role to defer to.
+    // Everyone else does not see the control at all — hidden, not
+    // merely disabled, so no one is invited to click something that
+    // will just reject them.
+    const canClear = i === 0 ? _canEditLockedWp(ref) : _isWpAdmin();
+    const clearLink = canClear
+      ? `<span onclick="clearWPReviewEntry(${i})"
+        style="font-size:9px;color:var(--text-tertiary);cursor:pointer;text-decoration:underline dotted;white-space:nowrap;flex-shrink:0"
+        onmouseover="this.style.color='var(--red-700)'"
+        onmouseout="this.style.color='var(--text-tertiary)'">Clear</span>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:4px;padding:2px 0;${i === 0 ? 'border-top:0.5px solid var(--border-light);margin-top:3px;padding-top:4px' : ''}">
       <i class="ti ti-check" style="font-size:10px;color:#16a34a;flex-shrink:0"></i>
       <div style="font-size:9px;color:var(--text-secondary);line-height:1.4;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
         <strong>${entry.reviewer}</strong> · ${entry.ts}
       </div>
-      <span onclick="clearWPReviewEntry(${i})"
-        style="font-size:9px;color:var(--text-tertiary);cursor:pointer;text-decoration:underline dotted;white-space:nowrap;flex-shrink:0"
-        onmouseover="this.style.color='var(--red-700)'"
-        onmouseout="this.style.color='var(--text-tertiary)'">Clear</span>
-    </div>`
-  ).join('');
+      ${clearLink}
+    </div>`;
+  }).join('');
 }
 
-function clearWPReviewEntry(idx) {
+async function clearWPReviewEntry(idx) {
   const ref = getWPRef();
   if (!ref || !wpReviewLog[ref]) return;
+  // Real, new, per workpaper-review-lock-plan.md — permission gate,
+  // different for the active entry (index 0, which actually drives the
+  // lock) vs. a historical one (admin/superadmin only, since clearing it
+  // doesn't change the current lock state at all).
+  if (idx === 0 && !_canEditLockedWp(ref)) { _guardWpEdit(ref); return; }
+  if (idx > 0 && !_isWpAdmin()) { _guardWpEdit(ref); return; }
+  // Real, new, per workpaper-review-lock-plan.md's own flagged "Open
+  // question" (resolved: yes) — clearing the ACTIVE entry is a
+  // higher-stakes action than tidying a log; it also reopens the
+  // workpaper to edits, so it gets its own confirmation rather than a
+  // single accidental click silently unlocking a signed-off workpaper.
+  if (idx === 0) {
+    const confirmed = await _sdShowGenericConfirm(
+      'Remove review sign-off?',
+      'This removes the active review sign-off and unlocks the workpaper for edits (or reopens it under the next reviewer on the log, if one exists). This cannot be undone.',
+      'Remove sign-off'
+    );
+    if (!confirmed) return;
+  }
   const removed = wpReviewLog[ref].splice(idx, 1)[0];
   if (removed) {
-    const wpName = WORKPAPERS[currentWPIndex]?.name || ref;
-    logChange(ref, 'Review sign-off', `REVIEWED - ${wpName} · ${removed.reviewer} ${removed.ts}`, 'Review is cleared');
+    // Real, new, per workpaper-review-lock-plan.md — records the actual
+    // resulting state (not a fixed, uninformative literal), so the
+    // history is self-describing for every case: a straightforward
+    // unlock, a fall-through to an older reviewer still on the log, or
+    // pruning a non-active historical entry that doesn't change the
+    // workpaper's current state at all.
+    const beforeState = `Reviewed by ${removed.reviewer} (${removed.ts})`;
+    if (idx === 0) {
+      const afterEntry = wpReviewLog[ref][0];
+      const afterState = afterEntry ? `Reviewed by ${afterEntry.reviewer} (${afterEntry.ts})` : 'Not reviewed';
+      logChange(ref, 'Review sign-off', beforeState, afterState);
+    } else {
+      logEvent(ref, `Removed historical review sign-off — ${removed.reviewer} (${removed.ts})`);
+    }
   }
   renderWPReviewLog(ref);
   resetWPReviewBtn();
   updateWPDateReviewed(ref);
+  _updateWpLockIndicator(ref);
 }
 
 function loadWPReviewLog(ref) {
   renderWPReviewLog(ref);
   resetWPReviewBtn();
   updateWPDateReviewed(ref);
+  _updateWpLockIndicator(ref);
 }
 
 /* ══════════════════════════════════════
@@ -11726,6 +11874,7 @@ function _promptGridItemType() {
 async function addGridItem() {
   const ref = getWPRef();
   if (!ref) return;
+  if (!_guardWpEdit(ref)) return;
   const type = await _promptGridItemType();
   if (!type) return; // cancelled — nothing added
   pushUndo();
@@ -12287,6 +12436,11 @@ function _refreshGridSelectionHighlight() {
 // cell already has a result.
 async function _handleEmptyCellClick(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   _selectedGridCell = { ref, attributeIndex: ai, sampleRowIndex: fi };
+  // Checked here too (not just inside _postOverride) so a locked
+  // workpaper never even opens the quick popover pre-selected on Pass
+  // as if the write had succeeded — the hard-warning modal is shown and
+  // the cell stays genuinely untested.
+  if (!_guardWpEdit(ref)) return;
   await _postOverride(ref, ai, fi, 'pass', '');
   renderAnalysisResultsGrid(ref);
   const freshCellEl = _gridCellEl(ref, ai, fi) || cellEl;
@@ -24328,6 +24482,14 @@ function _openOverridePopup(overlay, tickEl, opts) {
 // network call + cache update without duplicating either. Returns the
 // updated cached row, or null if the save failed (already alerted).
 async function _postOverride(ref, ai, fi, overrideResult, overrideNote, overrideRationale) {
+  // Real, new, per workpaper-review-lock-plan.md — the true lowest-level
+  // chokepoint for every override write (the live-tick popup, the full
+  // results modal's OK handler, and the newer quick popover/bulk-override
+  // picker added by testwork-grid-cell-interaction-plan.md, none of
+  // which existed when the lock doc's own file list was written). Guarding
+  // here once, rather than only at each caller, means no future override
+  // entry point can accidentally bypass the lock.
+  if (!_guardWpEdit(ref)) return null;
   try {
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -24383,6 +24545,7 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
 // small corner badge is added/removed to mark it as overridden. Every
 // other tick on the page is untouched, since nothing else changed.
 async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult) {
+  if (!_guardWpEdit(ref)) return;
   const TICK_SYMS = { pass:'✓', fail:'✗', error:'–' };
   const TICK_COLS = { pass:'#16a34a', fail:'#dc2626', error:'#6b7280' };
   const TICK_BG   = { pass:'rgba(22,163,74,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
@@ -24871,6 +25034,7 @@ async function _reburnCandidatesForFile(ref, candidates) {
 // before doing anything; when it doesn't (nothing to sync), falls back
 // to a plain confirm, matching the previous behavior exactly.
 async function _deleteGridItem(ref, idx) {
+  if (!_guardWpEdit(ref)) return;
   const item = wpExceptions[ref]?.[idx];
   if (!item) return;
   const isException = (item.type || 'exception') === 'exception';
@@ -24939,6 +25103,7 @@ function _typeLabel(type) {
 //      and the attribute's current language) — no pass/fail consequence,
 //      ever, so no override-style confirmation prompt.
 async function _reclassifyGridItem(ref, idx, newType) {
+  if (!_guardWpEdit(ref)) return;
   const item = wpExceptions[ref]?.[idx];
   if (!item) return;
   const oldType = item.type || 'exception';
@@ -29219,6 +29384,7 @@ async function analyzeWithClaude() {
   // alerts "an analysis is already running." Reset it on every one of
   // these paths.
   if (!ref) { _analysisInProgress = false; return; }
+  if (!_guardWpEdit(ref)) { _analysisInProgress = false; return; }
 
   // Per explicit instruction: the very first real step of Analyze is
   // warning about — and, on consent, clearing — everything it's about
@@ -37631,6 +37797,7 @@ async function clearExtractedDataResults(ref) {
 async function clearAllSampleData(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
+  if (!_guardWpEdit(ref)) return;
 
   var gridData = _daSampleDataFor(ref);
   var hasGridData = gridData && (gridData.columns.length > 0 || gridData.rows.length > 0);
@@ -37679,6 +37846,7 @@ async function clearAllSampleData(ref) {
 async function createTestworkGrid(ref) {
   ref = ref || getWPRef?.();
   if (!ref) return;
+  if (!_guardWpEdit(ref)) return;
 
   if ((_wpAnalysisResults[ref] || []).length) return; // already exists — button shouldn't even be visible here
 
@@ -37750,6 +37918,7 @@ async function createTestworkGrid(ref) {
 async function clearTestworkGrid(ref, skipConfirm) {
   ref = ref || getWPRef?.();
   if (!ref) return;
+  if (!_guardWpEdit(ref)) return;
 
   const wpResults = _wpAnalysisResults[ref] || [];
   const overrideRows = _attrSampleResultsCache[ref] || [];
@@ -40018,6 +40187,15 @@ function logWPDropdownChange(elId, label) {
   };
   const key    = keyMap[elId];
   const oldVal = key ? (w[key] || '') : '';
+  // Real, new, per workpaper-review-lock-plan.md — every field this
+  // shared handler manages (including the designated-reviewer dropdown,
+  // per the design's explicit instruction that it's locked like
+  // everything else, not exempted) is blocked while the workpaper is
+  // locked. The browser already applied the new value to the <select>
+  // before onchange fired, so a blocked attempt must visibly revert it —
+  // otherwise the field would show the new value even though nothing
+  // was saved.
+  if (newVal !== oldVal && !_guardWpEdit(ref)) { el.value = oldVal; return; }
   if (newVal !== oldVal) {
     logChange(ref, label, oldVal, newVal);
     if (key) { w[key] = newVal; _saveWorkpaperToDB(w); }
