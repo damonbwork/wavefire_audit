@@ -12193,13 +12193,15 @@ function renderAnalysisResultsGrid(ref) {
       const onClick = result
         ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`
         : `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_handleEmptyCellClick(this, '${ref}', ${ai}, ${fi}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
-      // Real, new, per Part 2's "Entry point" — a small dot marks a cell
-      // that has at least one non-blank, still-open review note, mirroring
-      // the "dot only counts non-blank notes" rule the section-level
-      // Review Notes dog-ears already use.
-      const hasOpenNote = (cellReviewNotes[ref]?.[cellKey] || []).some(n => (n.text || '').trim() && n.status !== 'cleared');
-      const noteDot = hasOpenNote ? `<span style="position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#ea580c" title="Has an open review note"></span>` : '';
-      return `<div data-cell-key="${escAttr(cellKey)}" style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer;position:relative" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}${noteDot}</div>`;
+      // Real, new, per testwork-grid-review-note-indicators-plan.md
+      // Part B — a small triangle in the cell's upper-right corner marks
+      // a cell that has ever had a review note, colored/hollow by the
+      // same worst-case tier logic the section-level dots use. Once a
+      // cell has ever had one, the triangle persists (in whatever's the
+      // current tier) for the life of this Testwork Grid — see
+      // _cellNoteTriangleTier's own null-vs-tier distinction.
+      const noteTriangle = _cellNoteTriangleHtml(ref, ai, fi);
+      return `<div data-cell-key="${escAttr(cellKey)}" style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer;position:relative" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}${noteTriangle}</div>`;
     }).join('');
 
     // The specific file(s) that actually evidenced this sample's marks —
@@ -13446,6 +13448,33 @@ function _cellHasAnyNote(ref, ai, fi) {
   return _cellNotesFor(ref, ai, fi).some(n => (n.text || '').trim());
 }
 
+// Real, new, per testwork-grid-review-note-indicators-plan.md Part B —
+// reuses the exact same worst-case _rnNoteTier logic the section-level
+// dots use (0=approved, 1=cleared, 2=open), against this cell's own
+// notes instead of a section's. Returns null when this cell has never
+// had a non-blank note at all — the caller renders nothing in that case.
+function _cellNoteTriangleTier(ref, ai, fi) {
+  const notes = (cellReviewNotes[ref]?.[_cellKey(ai, fi)] || []).filter(n => (n.text || '').trim());
+  if (!notes.length) return null;
+  return notes.map(_rnNoteTier).reduce((worst, t) => Math.max(worst, t), 0);
+}
+
+// One small inline SVG triangle — the upper-right half of a square cut
+// along its top-left-to-bottom-right diagonal — in the tick cell's
+// corner. Solid orange/blue for open/cleared, a hollow (stroke-only)
+// outline for approved, matching the hollow section-level dot's own
+// "blue, but unfilled" treatment for the same tier.
+function _cellNoteTriangleHtml(ref, ai, fi) {
+  const tier = _cellNoteTriangleTier(ref, ai, fi);
+  if (tier === null) return '';
+  const fillFor = { 2: '#ea580c', 1: '#2563eb' };
+  const shape = tier === 0
+    ? `<polygon points="0,0 10,0 10,10" fill="none" stroke="#2563eb" stroke-width="1.2"/>`
+    : `<polygon points="0,0 10,0 10,10" fill="${fillFor[tier]}"/>`;
+  const label = tier === 2 ? 'Open review note on this cell' : tier === 1 ? 'Cleared review note on this cell' : 'Approved review note clearance on this cell';
+  return `<svg width="9" height="9" viewBox="0 0 10 10" style="position:absolute;top:1px;right:1px;pointer-events:none" role="img" aria-label="${escAttr(label)}"><title>${escAttr(label)}</title>${shape}</svg>`;
+}
+
 function _renderCellNotesSection(ref, ai, fi, containerEl) {
   if (!containerEl) return;
   const notes = _cellNotesFor(ref, ai, fi);
@@ -13900,13 +13929,38 @@ function renderReviewNotesList(ref, sectionId) {
   _rnUpdateDot(ref, sectionId);
 }
 
+// Real, new, per testwork-grid-review-note-indicators-plan.md Part A —
+// a note's most recent clearance response decides its tier, not just
+// its current status: a note can be cleared/reopened/re-cleared many
+// times, each clearance with its own independent approve/reject
+// decision. 0=approved (fully resolved), 1=cleared (awaiting a
+// decision), 2=open (including a rejected clearance — a live
+// disagreement reads exactly as urgently as never-cleared).
+function _rnLatestClearance(note) {
+  const responses = note.responses || [];
+  for (let i = responses.length - 1; i >= 0; i--) {
+    if (responses[i].approved !== undefined) return responses[i];
+  }
+  return responses.length ? responses[responses.length - 1] : null;
+}
+function _rnNoteTier(note) {
+  if (note.status !== 'cleared') return 2;
+  const latest = _rnLatestClearance(note);
+  if (!latest) return 1;
+  if (latest.approved === false) return 2;
+  if (latest.approved === true) return 0;
+  return 1;
+}
+
 function _rnUpdateDot(ref, sectionId) {
   // Only count notes that actually have text — the blank placeholder note
   // seeded when the window is first opened for a section (or created via
   // "New review note") shouldn't light up the corner dot until the user
   // has actually typed something into it.
   const notes = ((ref && reviewNotes[ref]?.[sectionId]) || []).filter(n => (n.text || '').trim());
-  updateDogEarDot(sectionId, notes.length, notes.filter(n => n.status === 'cleared').length);
+  if (!notes.length) { updateDogEarDot(sectionId, 0, null); return; }
+  const tier = notes.map(_rnNoteTier).reduce((worst, t) => Math.max(worst, t), 0);
+  updateDogEarDot(sectionId, notes.length, tier);
 }
 
 function addNewReviewNote() {
@@ -13965,7 +14019,12 @@ function closeNotesWindow() {
   _notesCurrentSection = null;
 }
 
-function updateDogEarDot(sectionId, total, clearedCount) {
+// Real, new, per testwork-grid-review-note-indicators-plan.md Part A —
+// `tier` is the worst-case _rnNoteTier() value across every non-blank
+// note (0=approved, 1=cleared, 2=open), or `null` when `total` is 0.
+// The approved tier renders as a hollow ring (blue, unfilled) rather
+// than a third solid color, so the palette stays exactly two hues.
+function updateDogEarDot(sectionId, total, tier) {
   const corner = document.querySelector(`#${sectionId} .notes-corner`);
   if (!corner) return;
   // Remove any existing dot
@@ -13973,19 +14032,20 @@ function updateDogEarDot(sectionId, total, clearedCount) {
   if (!dot) {
     dot = document.createElement('span');
     dot.className = 'notes-dot';
-    dot.style.cssText = 'position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;pointer-events:none;display:none;z-index:2';
+    dot.style.cssText = 'position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;pointer-events:none;display:none;z-index:2;box-sizing:border-box';
     corner.insertBefore(dot, corner.querySelector('i'));
   }
   if (total === 0) {
     dot.style.display = 'none';
-  } else if (clearedCount < total) {
-    // Has uncleared notes — orange
-    dot.style.display = 'block';
-    dot.style.background = '#ea580c';
+    return;
+  }
+  dot.style.display = 'block';
+  if (tier === 2) {
+    dot.style.background = '#ea580c'; dot.style.border = 'none';
+  } else if (tier === 1) {
+    dot.style.background = '#2563eb'; dot.style.border = 'none';
   } else {
-    // All cleared — blue
-    dot.style.display = 'block';
-    dot.style.background = '#2563eb';
+    dot.style.background = 'transparent'; dot.style.border = '1.5px solid #2563eb';
   }
 }
 
@@ -30084,6 +30144,12 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
   // Also store on the workpaper object itself for deeper persistence
   const _wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (_wpObj) _wpObj._analysisResults = analysisResults.slice();
+  // Real, new, per testwork-grid-review-note-indicators-plan.md — a
+  // real Analyze run rebuilds the grid from scratch (same as
+  // clearTestworkGrid), so any existing cell review notes/triangles no
+  // longer correspond to anything real — the combined overwrite-warning
+  // shown earlier in this same flow already covers this consent.
+  delete cellReviewNotes[ref];
 
   // Real, confirmed fix, per the numbering-consistency prerequisite the
   // pass-fail-override-and-sync plan calls out for Part 4 — this whole
@@ -37649,7 +37715,7 @@ async function clearTestworkGrid(ref, skipConfirm) {
   if (!skipConfirm) {
     const confirmed = await _sdShowGenericConfirm(
       'Clear Testwork Grid',
-      'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
+      'Clear the entire Testwork Grid for this workpaper? This removes every tested result and any pass/fail override for every sample and attribute. This also clears any review notes recorded on individual grid cells. Existing Exceptions, Findings, Recommendations, and attached/annotated files are NOT affected. This cannot be undone.',
       'Clear grid'
     );
     if (!confirmed) return;
@@ -37676,6 +37742,16 @@ async function clearTestworkGrid(ref, skipConfirm) {
   _wpAnalysisResults[ref] = [];
   const wpObj = WORKPAPERS.find(w => w.ref === ref);
   if (wpObj) wpObj._analysisResults = [];
+
+  // Real, new, per testwork-grid-review-note-indicators-plan.md — cell
+  // review notes are keyed by attributeIndex:sampleRowIndex against a
+  // grid that no longer exists once cleared; keeping them around would
+  // be meaningless (or could wrongly reattach to a different
+  // attribute/sample pair once a new grid is built). This is the
+  // triangle indicator's own persistence rule: it can't go away except
+  // by clearing or rebuilding the grid, which is exactly what's
+  // happening here.
+  delete cellReviewNotes[ref];
 
   renderAnalysisResultsGrid(ref);
   logEvent(ref, 'Testwork Grid cleared by user');
