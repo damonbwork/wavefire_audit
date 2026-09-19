@@ -3119,16 +3119,22 @@
         <div class="sect-card" id="sect-narrative">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative <span style="font-size:10px;font-weight:400;opacity:0.65">(optional)</span></div>
+            <!-- Moved up from its own row above the textarea, per explicit
+                 request, to save vertical space now that the textarea
+                 itself defaults to a single line. -->
+            <button class="btn-s" style="font-size:11px;padding:3px 9px;flex-shrink:0;white-space:nowrap" onclick="openNarrativeRefDialog()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file
+            </button>
           </div>
           <div class="sect-body">
-            <!-- File reference picker — top right above textarea -->
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px">
-              <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;flex:1;min-height:20px"></div>
-              <button class="btn-s" style="font-size:11px;padding:3px 9px;flex-shrink:0;white-space:nowrap" onclick="openNarrativeRefDialog()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file
-              </button>
-            </div>
-            <textarea id="narrative-textarea" oninput="autoResizeTA(this)" onfocus="narrativeFocused(this)" onblur="narrativeBlurred(this)" style="width: 100%; min-height: 120px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 6px 8px; resize: none; outline: none; line-height: 1.6; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; height: 119px;" placeholder="Describe the process and key controls being tested…"></textarea>
+            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;margin-bottom:6px"></div>
+            <!-- Real, new, per explicit request — defaults to one line
+                 (matching the Test Description field's own "start small,
+                 grow with content" pattern) instead of a fixed 120px
+                 block reserved up front regardless of how much text
+                 exists. autoResizeTA (already wired via oninput) grows it
+                 as the user types. -->
+            <textarea id="narrative-textarea" rows="1" oninput="autoResizeTA(this)" onfocus="narrativeFocused(this)" onblur="narrativeBlurred(this)" style="width: 100%; min-height: 33px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 6px 8px; resize: none; outline: none; line-height: 1.6; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; height: 33px;" placeholder="Describe the process and key controls being tested…"></textarea>
           </div></div>
 
         <!-- Section 4: Attached Workpaper Files -->
@@ -12318,12 +12324,16 @@ function renderAnalysisResultsGrid(ref) {
         evidenceTitle = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult || 'not yet tested'}` + (evidenceTitle ? ` — ${evidenceTitle}` : '');
       }
       const borderExtra = ai === 0 ? firstAttrBorder : '';
-      // Real, new, per explicit request — clicking a tick opens the
-      // exact same batch results modal the Test Attributes grid's own
-      // Result column already uses (_openAttrResultsModal), rather than
-      // building a second, separate override UI. attributeIndex/label
-      // match that column's own values exactly, so the two entry points
-      // can never disagree about which attribute they're opening.
+      // Real, new, per explicit request — clicking a tick opens
+      // _openAttrResultsModal, the same modal chrome the Test Attributes
+      // grid's own Result column already uses, rather than building a
+      // second, separate override UI. attributeIndex/label match that
+      // column's own values exactly, so the two entry points can never
+      // disagree about which attribute they're opening. The trailing fi
+      // argument scopes the modal to just this one (attribute, sample)
+      // pair — per a later explicit request, a Testwork Grid cell click
+      // no longer opens every sample for the attribute, only the one
+      // the user actually clicked.
       const attrNum = attr.attrRef || attr.num || String(ai + 1);
       // Records what the user was just looking at, so if they open "Ask
       // Wavefire" shortly after, its suggested chips can lead with THIS
@@ -12333,14 +12343,14 @@ function renderAnalysisResultsGrid(ref) {
       // Real, new, per testwork-grid-cell-interaction-plan.md Part 1 —
       // an untested cell (no real result yet) gets a genuinely different
       // click behavior than one that already has a result: clicking it
-      // immediately records Pass (a real, persisted override — not a
-      // placeholder) and opens a small anchored quick popover to let the
-      // user flip to Fail and/or add an explanation, rather than opening
-      // the full batch results modal. A cell that already has a result
-      // keeps today's exact behavior (_openAttrResultsModal).
+      // opens a small anchored quick popover to let the user pick Pass/
+      // Fail and add a tick mark explanation, rather than opening the
+      // full results modal. A cell that already has a result opens that
+      // full modal instead, but scoped to just this one sample (see
+      // below).
       const cellKey = `${ai}:${fi}`;
       const onClick = result
-        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`
+        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}', ${fi})`
         : `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_handleEmptyCellClick(this, '${ref}', ${ai}, ${fi}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
       // Real, new, per testwork-grid-review-note-indicators-plan.md
       // Part B — a small triangle in the cell's upper-right corner marks
@@ -12437,11 +12447,16 @@ function _refreshGridSelectionHighlight() {
 async function _handleEmptyCellClick(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   _selectedGridCell = { ref, attributeIndex: ai, sampleRowIndex: fi };
   // Checked here too (not just inside _postOverride) so a locked
-  // workpaper never even opens the quick popover pre-selected on Pass
-  // as if the write had succeeded — the hard-warning modal is shown and
-  // the cell stays genuinely untested.
+  // workpaper never even opens the quick popover as if editing were
+  // allowed — the hard-warning modal is shown and the cell stays
+  // genuinely untested.
   if (!_guardWpEdit(ref)) return;
-  await _postOverride(ref, ai, fi, 'pass', '');
+  // Real, changed, per explicit request — no longer auto-posts an
+  // immediate Pass with a blank explanation on click. Nothing is saved
+  // until the user actually provides an explanation and confirms
+  // Pass/Fail in the popover below — see its own commit() function,
+  // which now refuses to save with an empty note. The cell stays
+  // "not tested" until then.
   renderAnalysisResultsGrid(ref);
   const freshCellEl = _gridCellEl(ref, ai, fi) || cellEl;
   _openCellQuickPopover(freshCellEl, ref, ai, fi, attrRefLabel, attrTitle);
@@ -12479,12 +12494,31 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
-    <textarea class="cqp-note" placeholder="Explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_closeCellQuickPopover();}">${escHtml(currentNote)}</textarea>
+    <textarea class="cqp-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <div class="cqp-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
   `;
   document.body.appendChild(popup);
+  // Note is set after innerHTML (not interpolated into the placeholder-
+  // bearing template above) purely so the empty-vs-blank check below has
+  // one unambiguous source of truth — the live textarea value.
+  popup.querySelector('.cqp-note').value = currentNote;
 
   const commit = async (result) => {
-    await _postOverride(ref, ai, fi, result, popup.querySelector('.cqp-note').value || '');
+    const noteEl = popup.querySelector('.cqp-note');
+    const note = noteEl.value || '';
+    // Real rule, not a UI nicety: an override can never be saved with a
+    // blank explanation. Reject here, before _postOverride is ever
+    // called, rather than relying on its own guard so the user gets an
+    // inline message instead of a generic failure.
+    if (!note.trim()) {
+      popup.querySelector('.cqp-error').style.display = 'block';
+      noteEl.style.borderColor = '#dc2626';
+      noteEl.focus();
+      return;
+    }
+    popup.querySelector('.cqp-error').style.display = 'none';
+    noteEl.style.borderColor = 'rgba(0,0,0,0.15)';
+    await _postOverride(ref, ai, fi, result, note);
     renderAnalysisResultsGrid(ref);
     // Keep the popover open, anchored to the (re-rendered) cell, so the
     // user can keep adjusting without it closing on every keystroke —
@@ -12537,6 +12571,14 @@ document.addEventListener('click', e => {
 // mode: 'attributes' (apply to other attributes, same sample) or
 // 'samples' (apply to other samples, same attribute).
 function _openBulkOverridePicker(mode, ref, attributeIndex, sampleRowIndex, result, note) {
+  // Real, new — bulk-apply would otherwise propagate a blank explanation
+  // to every selected target cell. Block opening the picker at all
+  // rather than letting the user pick targets for a copy that can never
+  // actually be saved.
+  if (!(note || '').trim()) {
+    alert('Add a tick mark explanation to this cell before applying it to other cells.');
+    return;
+  }
   document.querySelectorAll('.bulk-override-overlay').forEach(el => el.remove());
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
   const wpResults = _wpAnalysisResults[ref] || [];
@@ -24460,9 +24502,10 @@ function _openOverridePopup(overlay, tickEl, opts) {
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
-        <textarea id="ovr-note" placeholder="Override note / exception text" style="width:100%;min-height:44px;
+        <textarea id="ovr-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
+        <div id="ovr-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
           ${hasOverride ? '<button id="ovr-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
           <button id="ovr-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
@@ -24477,7 +24520,17 @@ function _openOverridePopup(overlay, tickEl, opts) {
     const clearBtn = popup.querySelector('#ovr-clear');
     if (clearBtn) clearBtn.onclick = () => _saveOverride(ref, ai, fi, null, null, popup, tickEl, aiResult);
     popup.querySelector('#ovr-save').onclick = () => {
-      const note = popup.querySelector('#ovr-note').value;
+      const note = popup.querySelector('#ovr-note').value || '';
+      // Same "no blank explanation" rule as the grid's quick popover —
+      // this is a second, independent live UI entry point for saving an
+      // override, so it needs its own inline check rather than relying
+      // only on _postOverride's own guard.
+      if (!note.trim()) {
+        popup.querySelector('#ovr-error').style.display = 'block';
+        popup.querySelector('#ovr-note').style.borderColor = '#dc2626';
+        popup.querySelector('#ovr-note').focus();
+        return;
+      }
       _saveOverride(ref, ai, fi, selected, note, popup, tickEl, aiResult);
     };
   }
@@ -24501,6 +24554,15 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
   // here once, rather than only at each caller, means no future override
   // entry point can accidentally bypass the lock.
   if (!_guardWpEdit(ref)) return null;
+  // Real, new, per explicit request — no override asserting a Pass/Fail
+  // result may ever be saved with a blank explanation. Only gated when
+  // overrideResult is truthy, so this never blocks clearing an override
+  // (overrideResult === null/'') or createTestworkGrid's initial blank-
+  // row seeding of a brand-new cell (also overrideResult === null).
+  if (overrideResult && !(overrideNote || '').trim()) {
+    alert('A tick mark explanation is required before this result can be saved.');
+    return null;
+  }
   try {
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -38211,7 +38273,14 @@ function _noteWithEvidence(note, evidence) {
 // with OK — or discard everything with Cancel (warning if anything was
 // actually changed). Nothing is written to the server or the cache
 // until OK is clicked.
-function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
+// onlySampleRowIndex: real, new, per explicit request — when a testwork
+// grid cell that already has a result is clicked, this modal now scopes
+// to that ONE (attribute, sample) pair instead of listing every sample
+// for the attribute. Passing it in restricts rendering to that single
+// row (auto-expanded) rather than the full sampleRows list; omitting it
+// (undefined) keeps the original all-samples behavior for any future
+// caller that still wants that view.
+function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onlySampleRowIndex) {
   document.querySelectorAll('.attr-results-modal-overlay').forEach(el => el.remove());
 
   // Real, confirmed fix, per a real reported bug — this previously built
@@ -38239,7 +38308,8 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   // Local, uncommitted working state: sampleRowIndex -> { result, note }.
   // Nothing here touches _attrSampleResultsCache or the server until OK.
   const pending = {};
-  const expanded = new Set();
+  const expanded = new Set(onlySampleRowIndex != null ? [onlySampleRowIndex] : []);
+  const rowIndices = onlySampleRowIndex != null ? [onlySampleRowIndex] : sampleRows.map((_, i) => i);
 
   const overlay = document.createElement('div');
   overlay.className = 'attr-results-modal-overlay';
@@ -38435,7 +38505,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
       // value the user can't tell is old vs. new.
       const priorNote = saved?.override_note || '';
       const priorNoteHtml = priorNote
-        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current explanation:</strong> ${escHtml(priorNote)}</div>`
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current tick mark explanation:</strong> ${escHtml(priorNote)}</div>`
         : '';
       const rationaleVal = change ? (change.rationale || '') : '';
 
@@ -38450,7 +38520,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${priorNoteHtml}
-        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised explanation' : 'Explanation (recorded as a user override)'}" style="width:100%;min-height:44px;
+        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (required)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
@@ -38521,7 +38591,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
     if (!sampleRows.length) {
       listEl.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);font-size:12px;font-style:italic">No sample rows yet.</div>';
     } else {
-      sampleRows.forEach((row, fi) => listEl.appendChild(renderRow(row, fi)));
+      rowIndices.forEach(fi => listEl.appendChild(renderRow(sampleRows[fi], fi)));
     }
     listEl.scrollTop = scrollTop;
     if (okBtn) okBtn.textContent = isDirty() ? `OK (${Object.keys(pending).length} change${Object.keys(pending).length !== 1 ? 's' : ''})` : 'OK';
@@ -38530,7 +38600,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
   modal.innerHTML = `
     <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
       <div style="font-size:14px;font-weight:600">${escHtml(attrRefLabel)}. ${escHtml(attrTitle)}</div>
-      <div style="font-size:11px;opacity:0.75;margin-top:2px">Results across all samples</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">${onlySampleRowIndex != null ? escHtml(rowLabel(sampleRows[onlySampleRowIndex], onlySampleRowIndex)) : 'Results across all samples'}</div>
     </div>
     <div class="attr-results-modal-list" style="overflow-y:auto;flex:1;padding:4px 0;min-height:80px"></div>
     <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;flex-shrink:0">
@@ -38543,6 +38613,20 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle) {
     const okBtn = modal.querySelector('.attr-results-modal-ok');
     const entries = Object.entries(pending);
     if (entries.length) {
+      // Real rule, not a UI nicety — no override may be saved with a
+      // blank explanation. Check every pending change up front so one
+      // alert names every offending sample rather than failing silently
+      // partway through the batch (_postOverride would otherwise just
+      // reject each blank one individually mid-Promise.all).
+      const blankOnes = entries.filter(([fi, change]) => change.result && !(change.note || '').trim());
+      if (blankOnes.length) {
+        const labels = blankOnes.map(([fi]) => {
+          const row = sampleRows[Number(fi)];
+          return row?.sampleDesc || `Sample ${Number(fi) + 1}`;
+        });
+        alert('A tick mark explanation is required before saving. Missing for: ' + labels.join(', '));
+        return;
+      }
       okBtn.disabled = true;
       okBtn.textContent = 'Saving…';
       await Promise.all(entries.map(([fi, change]) =>
