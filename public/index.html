@@ -37687,6 +37687,26 @@ async function createTestworkGrid(ref) {
 
   renderAnalysisResultsGrid(ref);
   logEvent(ref, `Testwork Grid created manually by user (${snapshot.length} sample${snapshot.length !== 1 ? 's' : ''} × ${attributes.length} attribute${attributes.length !== 1 ? 's' : ''})`);
+
+  // Real, new fix — a freshly-created grid previously existed only in
+  // this session's memory (_wpAnalysisResults) until the user touched
+  // at least one cell; _reconstructAnalysisResultsFromDB bails out
+  // entirely when attribute_sample_results has zero rows for this
+  // workpaper, so reloading (or just navigating away) before touching
+  // any cell silently lost the whole grid with no warning. Immediately
+  // persisting one blank (null-result) override row per cell makes the
+  // grid's own existence survive a reload right away — every cell
+  // still renders and behaves as genuinely untested (no override,
+  // real result, or OVR badge) until the user actually sets one.
+  const createBtn = document.getElementById('create-testwork-grid-btn');
+  if (createBtn) { createBtn.disabled = true; createBtn.textContent = 'Saving…'; }
+  try {
+    await Promise.all(
+      snapshot.flatMap((_, fi) => attributes.map((_, ai) => _postOverride(ref, ai, fi, null, null)))
+    );
+  } finally {
+    if (createBtn) { createBtn.disabled = false; createBtn.innerHTML = '<i class="ti ti-table"></i>Create Testwork Grid'; }
+  }
 }
 
 // Real, new, per direct request — the Testwork Grid's own equivalent of
