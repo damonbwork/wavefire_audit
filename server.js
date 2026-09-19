@@ -2182,6 +2182,44 @@ async function ensureEmbeddingInfra() {
 }
 ensureEmbeddingInfra();
 
+// Real, new, per testwork-grid-cell-interaction-plan.md Part 4 —
+// `override_rationale` is a genuinely distinct field from
+// `override_note` (the tick-mark's own explanation): why the user
+// disagreed with the prior result, kept separate so it can be embedded
+// and later surfaced back through the attribute Guidance modal without
+// polluting the tick-mark text itself. A dedicated table (rather than
+// reusing attribute_current_embeddings/attribute_edit_history) since
+// this is a distinct kind of record — a reason for disagreeing with
+// Analyze on one sample, not an edit to the attribute's own language.
+async function ensureOverrideRationaleInfra() {
+  if (!pool) return;
+  try {
+    await pool.query(`ALTER TABLE attribute_sample_results ADD COLUMN IF NOT EXISTS override_rationale TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS override_rationale_embeddings (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL,
+        workpaper_ref TEXT NOT NULL,
+        attribute_index INTEGER NOT NULL,
+        sample_row_index INTEGER NOT NULL,
+        old_result TEXT,
+        new_result TEXT,
+        old_note TEXT,
+        new_note TEXT,
+        rationale_text TEXT NOT NULL,
+        embedding vector(1024),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_override_rationale_embedding ON override_rationale_embeddings USING ivfflat (embedding vector_cosine_ops)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_override_rationale_attr ON override_rationale_embeddings (tenant_id, workpaper_ref, attribute_index)`);
+    console.log('DB: attribute_sample_results.override_rationale + override_rationale_embeddings table confirmed ready (standalone check)');
+  } catch (err) {
+    console.error('DB: override-rationale infra setup FAILED:', err.message, err.code);
+  }
+}
+ensureOverrideRationaleInfra();
+
 // Real, embedding helper, per explicit request — calls the Voyage
 // API (Anthropic's own, recommended embeddings partner, since Claude
 // itself has no embeddings endpoint) using its real, established,
@@ -5916,21 +5954,94 @@ app.post('/api/workpapers/:ref/attribute-sample-results/override', async (req, r
   if (!Number.isInteger(attributeIndex) || !Number.isInteger(sampleRowIndex)) {
     return res.status(400).json({ error: 'attributeIndex and sampleRowIndex are required' });
   }
+  const overrideRationale = req.body?.overrideRationale || null;
   try {
+    // Real, new, per testwork-grid-cell-interaction-plan.md Part 4 —
+    // captured BEFORE the upsert below overwrites it, so the embedded
+    // record can show what actually changed (old→new), not just the
+    // new state alone.
+    const priorRes = overrideRationale
+      ? await pool.query(
+          `SELECT override_result, override_note FROM attribute_sample_results
+           WHERE tenant_id=$1 AND workpaper_ref=$2 AND attribute_index=$3 AND sample_row_index=$4`,
+          [req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex]
+        )
+      : null;
+    const priorRow = priorRes?.rows?.[0] || null;
+
     await pool.query(
       `INSERT INTO attribute_sample_results
          (tenant_id, workpaper_ref, attribute_index, sample_row_index,
-          override_result, override_note, exception_text, overridden_by, overridden_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+          override_result, override_note, exception_text, override_rationale, overridden_by, overridden_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
        ON CONFLICT (tenant_id, workpaper_ref, attribute_index, sample_row_index)
-       DO UPDATE SET override_result=$5, override_note=$6, exception_text=$7,
-                      overridden_by=$8, overridden_at=NOW(), updated_at=NOW()`,
+       DO UPDATE SET override_result=$5, override_note=$6, exception_text=$7, override_rationale=$8,
+                      overridden_by=$9, overridden_at=NOW(), updated_at=NOW()`,
       [req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex,
        req.body?.overrideResult || null, req.body?.overrideNote || null, req.body?.exceptionText || null,
-       req.currentUser?.login_id || '']
+       overrideRationale, req.currentUser?.login_id || '']
     );
     res.json({ ok: true });
+
+    // Real, new, per Part 4 — embeds the rationale (chunked together
+    // with enough surrounding context to be meaningful on its own:
+    // attribute title, old→new result, old→new note) into the app's
+    // existing pgvector infrastructure, fire-and-forget AFTER the
+    // response is already sent so a slow/unavailable embedding call
+    // never delays or fails the override save itself.
+    if (overrideRationale && PGVECTOR_AVAILABLE) {
+      (async () => {
+        try {
+          const wpRes = await pool.query(`SELECT test_attributes FROM workpapers WHERE tenant_id=$1 AND ref=$2`, [req.currentTenantId, req.params.ref]);
+          const attrs = wpRes.rows[0]?.test_attributes;
+          const attrList = Array.isArray(attrs) ? attrs : (typeof attrs === 'string' ? JSON.parse(attrs || '[]') : []);
+          const attrTitle = attrList[attributeIndex]?.title || '';
+          const oldResult = priorRow?.override_result || null;
+          const newResult = req.body?.overrideResult || null;
+          const oldNote = priorRow?.override_note || null;
+          const newNote = req.body?.overrideNote || null;
+          const chunkText = [
+            attrTitle ? `Attribute: ${attrTitle}` : null,
+            `Result: ${oldResult || '(none)'} → ${newResult || '(none)'}`,
+            oldNote || newNote ? `Explanation: ${oldNote || '(none)'} → ${newNote || '(none)'}` : null,
+            `Rationale: ${overrideRationale}`,
+          ].filter(Boolean).join('\n');
+          const embedding = await _embedText(chunkText, 'document');
+          if (embedding) {
+            await pool.query(
+              `INSERT INTO override_rationale_embeddings
+                 (tenant_id, workpaper_ref, attribute_index, sample_row_index, old_result, new_result, old_note, new_note, rationale_text, embedding)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [req.currentTenantId, req.params.ref, attributeIndex, sampleRowIndex, oldResult, newResult, oldNote, newNote, overrideRationale, `[${embedding.join(',')}]`]
+            );
+          }
+        } catch (embedErr) {
+          console.error('[OverrideRationale] Embedding failed (override itself already saved):', embedErr.message);
+        }
+      })();
+    }
   } catch(err) { return fail(res, err, 'POST /api/workpapers/:ref/attribute-sample-results/override:'); }
+});
+
+// Real, new, per Part 4 — past override rationales for one attribute in
+// this workpaper, surfaced back through the attribute Guidance modal.
+// A plain filtered SELECT (no vector similarity needed for "past
+// overrides on THIS attribute, in THIS workpaper") — the embedding
+// column exists so a future cross-workpaper similarity search (the
+// same pattern as the existing Tier 2 attribute-guidance retrieval)
+// can be layered on later without any schema change.
+app.get('/api/workpapers/:ref/attribute/:attributeIndex/override-rationales', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT old_result, new_result, old_note, new_note, rationale_text, created_at
+       FROM override_rationale_embeddings
+       WHERE tenant_id=$1 AND workpaper_ref=$2 AND attribute_index=$3
+       ORDER BY created_at DESC LIMIT 20`,
+      [req.currentTenantId, req.params.ref, Number(req.params.attributeIndex)]
+    );
+    res.json(rows);
+  } catch(err) { return fail(res, err, 'GET /api/workpapers/:ref/attribute/:attributeIndex/override-rationales:'); }
 });
 
 app.get('/api/workpapers', async (req, res) => {
