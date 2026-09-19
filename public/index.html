@@ -12491,6 +12491,16 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   const saved = _findOverrideFor(ref, ai, fi);
   const currentResult = saved?.override_result || 'pass';
   const currentNote = saved?.override_note || '';
+  const currentRationale = saved?.override_rationale || '';
+  // Real, new, per explicit request (reversing the earlier "required"
+  // rule) — a tick mark explanation is optional again. Instead, a
+  // separate rationale field appears, but ONLY when this cell already
+  // has a real Analyze-created result being overridden — saved.ai_result
+  // is the AI's own original determination, persisted server-side,
+  // distinct from any override layered on top of it. An untested cell
+  // (opened via _handleEmptyCellClick, never analyzed) has no ai_result,
+  // so it never shows this field — there's nothing to "override" yet.
+  const isOverridingAiResult = !!saved?.ai_result;
 
   const popup = document.createElement('div');
   popup.id = 'cell-quick-popover';
@@ -12501,31 +12511,20 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
-    <textarea class="cqp-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
-    <div class="cqp-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
+    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:${isOverridingAiResult ? '6px' : '0'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical"></textarea>` : ''}
   `;
   document.body.appendChild(popup);
-  // Note is set after innerHTML (not interpolated into the placeholder-
-  // bearing template above) purely so the empty-vs-blank check below has
-  // one unambiguous source of truth — the live textarea value.
+  // Note/rationale are set after innerHTML (not interpolated into the
+  // placeholder-bearing template above) purely so their values can't
+  // collide with the placeholder text.
   popup.querySelector('.cqp-note').value = currentNote;
+  if (isOverridingAiResult) popup.querySelector('.cqp-rationale').value = currentRationale;
 
   const commit = async (result) => {
-    const noteEl = popup.querySelector('.cqp-note');
-    const note = noteEl.value || '';
-    // Real rule, not a UI nicety: an override can never be saved with a
-    // blank explanation. Reject here, before _postOverride is ever
-    // called, rather than relying on its own guard so the user gets an
-    // inline message instead of a generic failure.
-    if (!note.trim()) {
-      popup.querySelector('.cqp-error').style.display = 'block';
-      noteEl.style.borderColor = '#dc2626';
-      noteEl.focus();
-      return;
-    }
-    popup.querySelector('.cqp-error').style.display = 'none';
-    noteEl.style.borderColor = 'rgba(0,0,0,0.15)';
-    await _postOverride(ref, ai, fi, result, note);
+    const note = popup.querySelector('.cqp-note').value || '';
+    const rationale = isOverridingAiResult ? (popup.querySelector('.cqp-rationale')?.value || '') : '';
+    await _postOverride(ref, ai, fi, result, note, rationale);
     renderAnalysisResultsGrid(ref);
     // Keep the popover open, anchored to the (re-rendered) cell, so the
     // user can keep adjusting without it closing on every keystroke —
@@ -12540,6 +12539,7 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   popup.querySelector('.cqp-pass').onclick = () => commit('pass');
   popup.querySelector('.cqp-fail').onclick = () => commit('fail');
   popup.querySelector('.cqp-note').addEventListener('change', () => commit(popup.querySelector('.cqp-fail').style.background.includes('220,38,38') ? 'fail' : 'pass'));
+  popup.querySelector('.cqp-rationale')?.addEventListener('change', () => commit(popup.querySelector('.cqp-fail').style.background.includes('220,38,38') ? 'fail' : 'pass'));
 
   const rect = cellEl.getBoundingClientRect();
   const pad = 8;
@@ -12578,14 +12578,6 @@ document.addEventListener('click', e => {
 // mode: 'attributes' (apply to other attributes, same sample) or
 // 'samples' (apply to other samples, same attribute).
 function _openBulkOverridePicker(mode, ref, attributeIndex, sampleRowIndex, result, note) {
-  // Real, new — bulk-apply would otherwise propagate a blank explanation
-  // to every selected target cell. Block opening the picker at all
-  // rather than letting the user pick targets for a copy that can never
-  // actually be saved.
-  if (!(note || '').trim()) {
-    alert('Add a tick mark explanation to this cell before applying it to other cells.');
-    return;
-  }
   document.querySelectorAll('.bulk-override-overlay').forEach(el => el.remove());
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
   const wpResults = _wpAnalysisResults[ref] || [];
@@ -24509,10 +24501,12 @@ function _openOverridePopup(overlay, tickEl, opts) {
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
-        <textarea id="ovr-note" placeholder="Tick mark explanation (required)" style="width:100%;min-height:44px;
+        <textarea id="ovr-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_note || '')}</textarea>
-        <div id="ovr-error" style="display:none;font-size:10px;color:#dc2626;margin-top:4px">A tick mark explanation is required before this can be saved.</div>
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:${aiResult ? '6px' : '0'}">${escHtml(row?.override_note || '')}</textarea>
+        ${aiResult ? `<textarea id="ovr-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;
+          box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_rationale || '')}</textarea>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
           ${hasOverride ? '<button id="ovr-clear" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;color:#64748b;font-size:10px">Clear override</button>' : ''}
           <button id="ovr-cancel" style="padding:4px 8px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,0.15);background:#fff;font-size:10px">Cancel</button>
@@ -24528,17 +24522,8 @@ function _openOverridePopup(overlay, tickEl, opts) {
     if (clearBtn) clearBtn.onclick = () => _saveOverride(ref, ai, fi, null, null, popup, tickEl, aiResult);
     popup.querySelector('#ovr-save').onclick = () => {
       const note = popup.querySelector('#ovr-note').value || '';
-      // Same "no blank explanation" rule as the grid's quick popover —
-      // this is a second, independent live UI entry point for saving an
-      // override, so it needs its own inline check rather than relying
-      // only on _postOverride's own guard.
-      if (!note.trim()) {
-        popup.querySelector('#ovr-error').style.display = 'block';
-        popup.querySelector('#ovr-note').style.borderColor = '#dc2626';
-        popup.querySelector('#ovr-note').focus();
-        return;
-      }
-      _saveOverride(ref, ai, fi, selected, note, popup, tickEl, aiResult);
+      const rationale = popup.querySelector('#ovr-rationale')?.value || '';
+      _saveOverride(ref, ai, fi, selected, note, popup, tickEl, aiResult, rationale);
     };
   }
 
@@ -24561,15 +24546,6 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
   // here once, rather than only at each caller, means no future override
   // entry point can accidentally bypass the lock.
   if (!_guardWpEdit(ref)) return null;
-  // Real, new, per explicit request — no override asserting a Pass/Fail
-  // result may ever be saved with a blank explanation. Only gated when
-  // overrideResult is truthy, so this never blocks clearing an override
-  // (overrideResult === null/'') or createTestworkGrid's initial blank-
-  // row seeding of a brand-new cell (also overrideResult === null).
-  if (overrideResult && !(overrideNote || '').trim()) {
-    alert('A tick mark explanation is required before this result can be saved.');
-    return null;
-  }
   try {
     const res = await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/override', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -24624,12 +24600,12 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
 // own symbol/color/background reflect the just-saved override, and a
 // small corner badge is added/removed to mark it as overridden. Every
 // other tick on the page is untouched, since nothing else changed.
-async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult) {
+async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, tickEl, aiResult, overrideRationale) {
   if (!_guardWpEdit(ref)) return;
   const TICK_SYMS = { pass:'✓', fail:'✗', error:'–' };
   const TICK_COLS = { pass:'#16a34a', fail:'#dc2626', error:'#6b7280' };
   const TICK_BG   = { pass:'rgba(22,163,74,0.15)', fail:'rgba(220,38,38,0.15)', error:'rgba(107,114,128,0.1)' };
-  const row = await _postOverride(ref, ai, fi, overrideResult, overrideNote);
+  const row = await _postOverride(ref, ai, fi, overrideResult, overrideNote, overrideRationale);
   if (row) {
     // Real, confirmed fix — clearing an override must revert the tick to
     // the AI's OWN result, not just strip the badge and leave whatever
@@ -38514,7 +38490,19 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       const priorNoteHtml = priorNote
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px"><strong>Current tick mark explanation:</strong> ${escHtml(priorNote)}</div>`
         : '';
-      const rationaleVal = change ? (change.rationale || '') : '';
+      const rationaleVal = change ? (change.rationale || '') : (saved?.override_rationale || '');
+      // Real, new, per explicit request — the rationale field only
+      // appears when this cell has a genuine Analyze-created result
+      // being overridden (saved.ai_result, or the AI's own live match
+      // when no persisted row exists yet). A manually-created grid cell
+      // with no AI result at all has nothing to "override," so there's
+      // no rationale to ask for.
+      const aiOriginalResult = saved?.ai_result || match?.result || null;
+      const rationaleHtml = aiOriginalResult ? `
+        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Override rationale (optional) — why are you changing the AI's result?</div>
+        <textarea class="attr-modal-rationale" placeholder="e.g. I disagree with how Analyze read this document, because..." style="width:100%;min-height:36px;
+          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:8px">${escHtml(rationaleVal)}</textarea>` : '';
 
       body.innerHTML = `
         <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>
@@ -38527,7 +38515,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${priorNoteHtml}
-        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (required)'}" style="width:100%;min-height:44px;
+        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
@@ -38536,10 +38524,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
           <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
         </div>
-        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Why are you changing this? (optional)</div>
-        <textarea class="attr-modal-rationale" placeholder="e.g. I disagree with how Analyze read this document, because..." style="width:100%;min-height:36px;
-          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:8px">${escHtml(rationaleVal)}</textarea>
+        ${rationaleHtml}
         <div style="display:flex;gap:6px;margin-bottom:4px">
           <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
           <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
@@ -38570,7 +38555,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       body.querySelector('.attr-modal-pass').onclick = () => setPending('pass', noteVal);
       body.querySelector('.attr-modal-fail').onclick = () => setPending('fail', noteVal);
       body.querySelector('.attr-modal-note').addEventListener('change', ev => setPending(selected || savedEffective || 'pass', ev.target.value));
-      body.querySelector('.attr-modal-rationale').addEventListener('change', () => setPending(selected || savedEffective || 'pass', body.querySelector('.attr-modal-note').value));
+      body.querySelector('.attr-modal-rationale')?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', body.querySelector('.attr-modal-note').value));
       ['attr-modal-evidence-file', 'attr-modal-evidence-page', 'attr-modal-evidence-para'].forEach(cls => {
         body.querySelector('.' + cls)?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', noteVal));
       });
@@ -38620,20 +38605,6 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
     const okBtn = modal.querySelector('.attr-results-modal-ok');
     const entries = Object.entries(pending);
     if (entries.length) {
-      // Real rule, not a UI nicety — no override may be saved with a
-      // blank explanation. Check every pending change up front so one
-      // alert names every offending sample rather than failing silently
-      // partway through the batch (_postOverride would otherwise just
-      // reject each blank one individually mid-Promise.all).
-      const blankOnes = entries.filter(([fi, change]) => change.result && !(change.note || '').trim());
-      if (blankOnes.length) {
-        const labels = blankOnes.map(([fi]) => {
-          const row = sampleRows[Number(fi)];
-          return row?.sampleDesc || `Sample ${Number(fi) + 1}`;
-        });
-        alert('A tick mark explanation is required before saving. Missing for: ' + labels.join(', '));
-        return;
-      }
       okBtn.disabled = true;
       okBtn.textContent = 'Saving…';
       await Promise.all(entries.map(([fi, change]) =>
