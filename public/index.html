@@ -12275,8 +12275,15 @@ function renderAnalysisResultsGrid(ref) {
     ${sdColumns.map(c => `<div style="${headCellStyle}" title="${escHtml(c.title || '')}">${escHtml(c.title || '(untitled column)')}</div>`).join('')}
     ${attributes.map((a, ai) => {
       const attrLabel = a.attrRef || a.num || String(ai + 1);
-      return `<div style="${headCellStyle}text-align:center${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">
-        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_wpChatSetLastFocus('${ref}',${ai},null);_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--wf-navy);color:var(--wf-navy);font-size:9px;font-weight:700;margin-left:4px;cursor:pointer;vertical-align:1px">G</span>
+      // Real, new, per explicit request — the attr ref is now truly
+      // centered in the column (flex + justify-content:center on the
+      // cell itself, not just text-align on a run of inline content that
+      // includes the G icon), with the G icon pinned to the cell's right
+      // edge via absolute positioning so it doesn't skew that centering.
+      // The G icon's own color is now the same light gray as the ref
+      // text (var(--text-tertiary)), not the darker navy it used to be.
+      return `<div style="${headCellStyle}display:flex;align-items:center;justify-content:center;position:relative${ai === 0 ? ';' + firstAttrBorder : ''}" title="${escHtml((a.attrRef ? a.attrRef + '. ' : (a.num ? a.num + '. ' : '')) + a.title)}">
+        <span>${escHtml(attrLabel)}</span><span onclick="event.stopPropagation();_wpChatSetLastFocus('${ref}',${ai},null);_toggleAttrGuidanceModal('${ref}',${ai},'${escAttr(attrLabel)}','${escAttr(a.title)}')" title="Show the AI's testwork guidance for this attribute" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--text-tertiary);color:var(--text-tertiary);font-size:9px;font-weight:700;cursor:pointer">G</span>
       </div>`;
     }).join('')}
     <div style="${headCellStyle}">Sample File(s)</div>
