@@ -13718,6 +13718,13 @@ function _renderCellNotesSection(ref, ai, fi, containerEl) {
         <button class="btn-s" style="font-size:10px;padding:3px 8px" data-cell-rn-response-submit="${el.dataset.cellRnRespond}">Reply</button>
       </div>`;
       wrap.querySelector('[data-cell-rn-response-submit]').onclick = () => {
+        // Real, new, per workpaper-review-lock-plan.md — a brand-new
+        // response is new content, not a status toggle, so it's blocked
+        // while locked (mirrors _rnAddResponse's own guard for the
+        // section-level Review Notes window). Clearing/reopening an
+        // EXISTING note stays fully open — that's the actual carve-out,
+        // handled separately above and left unguarded.
+        if (!_guardWpEdit(ref)) return;
         const ta = wrap.querySelector('[data-cell-rn-response-input]');
         const text = (ta.value || '').trim();
         if (!text) return;
@@ -13727,6 +13734,10 @@ function _renderCellNotesSection(ref, ai, fi, containerEl) {
     };
   });
   containerEl.querySelector('[data-cell-rn-add]').onclick = () => {
+    // Real, new, per workpaper-review-lock-plan.md — a brand-new note is
+    // new content, blocked while locked (mirrors addNewReviewNote's own
+    // guard for the section-level Review Notes window).
+    if (!_guardWpEdit(ref)) return;
     _cellNotesFor(ref, ai, fi).push(_rnNewNote(''));
     rerender();
   };
