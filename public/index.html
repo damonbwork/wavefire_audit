@@ -3119,16 +3119,22 @@
         <div class="sect-card" id="sect-narrative">
           <div class="sect-hdr">
             <div class="sect-hdr-title"><i class="ti ti-notes"></i>Process / Control Narrative <span style="font-size:10px;font-weight:400;opacity:0.65">(optional)</span></div>
+            <!-- Moved up from its own row above the textarea, per explicit
+                 request, to save vertical space now that the textarea
+                 itself defaults to a single line. -->
+            <button class="btn-s" style="font-size:11px;padding:3px 9px;flex-shrink:0;white-space:nowrap" onclick="openNarrativeRefDialog()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file
+            </button>
           </div>
           <div class="sect-body">
-            <!-- File reference picker — top right above textarea -->
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px">
-              <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;flex:1;min-height:20px"></div>
-              <button class="btn-s" style="font-size:11px;padding:3px 9px;flex-shrink:0;white-space:nowrap" onclick="openNarrativeRefDialog()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>Select file
-              </button>
-            </div>
-            <textarea id="narrative-textarea" oninput="autoResizeTA(this)" onfocus="narrativeFocused(this)" onblur="narrativeBlurred(this)" style="width: 100%; min-height: 120px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 6px 8px; resize: none; outline: none; line-height: 1.6; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; height: 119px;" placeholder="Describe the process and key controls being tested…"></textarea>
+            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;margin-bottom:6px"></div>
+            <!-- Real, new, per explicit request — defaults to one line
+                 (matching the Test Description field's own "start small,
+                 grow with content" pattern) instead of a fixed 120px
+                 block reserved up front regardless of how much text
+                 exists. autoResizeTA (already wired via oninput) grows it
+                 as the user types. -->
+            <textarea id="narrative-textarea" rows="1" oninput="autoResizeTA(this)" onfocus="narrativeFocused(this)" onblur="narrativeBlurred(this)" style="width: 100%; min-height: 33px; font-size: 13px; font-family: inherit; color: var(--text-primary); background: transparent; border: 0.5px solid transparent; border-radius: var(--radius-md); padding: 6px 8px; resize: none; outline: none; line-height: 1.6; overflow: hidden; transition: background 0.15s, border-color 0.15s; cursor: text; height: 33px;" placeholder="Describe the process and key controls being tested…"></textarea>
           </div></div>
 
         <!-- Section 4: Attached Workpaper Files -->
