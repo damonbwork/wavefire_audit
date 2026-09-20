@@ -861,3 +861,208 @@ reconstruction attempt; a workpaper with no persisted rows at all stays
 correctly empty (no crash, no phantom grid); and a simulated server
 rejection from `_postOverride` now surfaces an alert and leaves the
 local cache untouched rather than being silently swallowed.
+
+---
+
+## Part 8 — Detecting and reconciling drift between the four "sources of truth"
+
+### The problem, precisely
+
+There are genuinely **four separate places** the same underlying fact —
+"this attribute's tick mark explanation for this sample" or "this
+Exception/Finding/Recommendation" — is visible, and today they are kept
+in sync in only ONE direction, and only for changes WaveFire itself
+initiates:
+
+1. **Tick mark explanation in the Testwork Grid** — `override_note` /
+   `ai_note` in `attribute_sample_results`, shown in the grid's own
+   popups (`_openCellQuickPopover`, `_openAttrResultsModal`).
+2. **Tick mark explanation burned into a sample file PDF** — the note
+   text drawn/written by whichever of the four annotation mechanisms
+   (`bi`, `bi2`, `ff`, `sn`) produced that derivative.
+3. **Exception/Finding/Recommendation marker in a sample file PDF** —
+   the `[Ref]`-tagged check/X (Exception) or letter marker
+   (Finding/Recommendation) the same four mechanisms draw.
+4. **Exception/Finding/Recommendation row in the grid at the bottom of
+   the workpaper** — `wpExceptions[ref]`, persisted to
+   `workpapers.exceptions`.
+
+**What already exists (built, per Parts 4 and 6 above) only covers
+WaveFire → PDF, triggered by a WaveFire-initiated change:** when a
+person overrides a result or deletes/reclassifies a grid row *inside
+the app*, `_syncOverrideToAnnotatedFiles`/`_reburnCandidatesForFile`
+re-burns the affected file(s) so 1↔2 and 4↔3 stay consistent — but only
+because WaveFire itself knows a change happened. **Nothing today closes
+the loop in the other direction** — detecting that a PDF changed
+*outside* WaveFire and reconciling 2/3 back into 1/4. That gap is the
+subject of this Part, prompted directly by two concrete scenarios:
+
+- **Scenario A — edited in place, never re-uploaded.** A person opens
+  an already-annotated sample file in Acrobat (or any PDF editor),
+  changes or adds a tick mark explanation directly in the file, and
+  simply keeps working from that local copy — never uploading it back
+  to WaveFire. WaveFire's own copy of that file (in `inMemoryFiles`/the
+  backend `sample_files` table) is untouched, and the grid still shows
+  whatever it showed before. There is no genuine way to detect this
+  scenario at all — WaveFire has no visibility into a file sitting on
+  someone's local machine that was never given back to it. This is a
+  process/training gap, not a technical one: the honest answer is
+  WaveFire can only ever react to what it's been given, so the real
+  mitigation is a workflow expectation (a locally-edited file is not
+  "in" the workpaper until re-uploaded) rather than a detection feature.
+- **Scenario B — downloaded, edited, re-uploaded.** A person downloads
+  an annotated sample file, edits or adds a tick mark explanation in
+  it, and uploads that edited copy back into WaveFire (either replacing
+  the original, or as what WaveFire would treat as a new attachment).
+  **This one IS technically detectable and reconcilable, at least
+  partially** — the rest of this Part designs that.
+
+### What's directly reusable, mechanism by mechanism (same honest breakdown Part 4 already established)
+
+The three structurally-readable mechanisms — **`sn`** (Sticky Note
+`/Contents`), **`ff`** (form field value), **`bi2`** (Stamp annotation
+`/Contents`) — already have their current on-page text sitting in the
+PDF's own structure, reachable with the same parsing this app already
+does (pdf-lib is already a dependency; reading an existing annotation's
+`/Contents` or a form field's current value is a straightforward
+extension of code that already writes those same properties). **`bi`**
+remains the one mechanism with no structured content to read back —
+once burned, it's flattened vector shapes and text with no queryable
+"this says X" property — so it can only ever get the fingerprint
+treatment described in Part 4, never a true content diff.
+
+### Proposed design: a re-upload reconciliation check
+
+**Trigger:** whenever a file is uploaded into the `sample` bucket for a
+workpaper that already has an existing sample file of the **same
+name** (a genuine re-upload/replace, not a new, distinct attachment) —
+this is a real, existing decision point already in the upload flow
+(today it likely just replaces the entry; that replace is exactly where
+this check belongs).
+
+**Step 1 — is this actually a WaveFire-authored file being replaced by
+an edited version of itself?** Only meaningful for files WaveFire
+itself produced (`entry._annotatedFrom` set, or an original that
+WaveFire has previously burned derivatives from). A brand-new original
+sample file that happens to already contain someone else's
+pre-existing tick marks (never touched by WaveFire at all) is a
+**separate, currently entirely unbuilt problem** — see "Known
+non-goal" below — this check only concerns a file WaveFire has some
+prior record of.
+
+**Step 2 — did the content actually change?**
+- For `sn`/`ff`/`bi2`: parse the re-uploaded file's current
+  comments/form-field-values/stamp-contents the same way the burn
+  functions themselves already read `wpResults` to know what to write,
+  and diff each mark's current text against what `attribute_sample_
+  results`/`wpExceptions` currently believe that mark says. A
+  real, structured diff — added marks, removed marks, and changed note
+  text — not a guess.
+- For `bi`: compare the uploaded bytes' fingerprint (`_daSha256Hex`,
+  already used elsewhere for exactly this purpose) against the
+  fingerprint stored at the moment WaveFire last wrote that file
+  (extending the single-mechanism `_biFingerprint` field Part 4's
+  design already proposed to be recorded on every annotated-file write,
+  regardless of mechanism, not just `bi`). A mismatch here only proves
+  *something* changed — never what.
+
+**Step 3 — never silently reconcile; always surface a real choice.**
+Exactly the same principle Part 4 established for override-sync
+applies here, in reverse:
+- For a **structurally-diffable** mechanism with a genuine, specific
+  diff available (added/changed/removed mark text): show the actual
+  before/after text per affected (attribute, sample) cell, and let the
+  person choose, per item: **"Bring this into WaveFire"** (updates
+  `attribute_sample_results`/creates or updates the matching
+  `wpExceptions` row, exactly as if the person had typed the same
+  edit into the grid's own popup — reusing `_postOverride`/
+  `_placeManualTickMark`'s existing write paths, not a new one), or
+  **"Keep WaveFire's version"** (discards the uploaded file's edit;
+  the next re-burn will overwrite it back to what the grid already
+  says — the same outcome as if nothing had been uploaded).
+- For **`bi`** (fingerprint-only): no specific diff to show. The
+  honest, achievable UI is a plain warning — "This file no longer
+  matches what WaveFire last generated; it may have been edited
+  outside the app. Its tick marks and explanations cannot be
+  automatically compared. Review it manually, or replace it with a
+  fresh copy generated from the current grid data." — never a false
+  claim of having reconciled anything.
+
+**Step 4 — cross-check 3↔4 the same way.** An Exception/Finding/
+Recommendation marker is drawn from a `wpExceptions[ref]` row's own
+data (name/description, via its `[Ref]` tag and, for `sn`/`ff`/`bi2`,
+its full text). The same Step 2/3 diff, run against a re-uploaded
+file's markers instead of tick mark notes, surfaces drift here too —
+e.g., a person deleted an Exception's own annotation directly in
+Acrobat and re-uploaded, without deleting the corresponding grid row.
+Offered resolution: "Delete the matching grid row" (reusing
+`_deleteGridItem`) or "Restore the marker on next re-burn" (leaves the
+grid row; the next any-triggered re-burn puts the marker back).
+
+### A genuinely useful, honest addition: a standalone "Check for drift" action
+
+Rather than only checking at upload time, a **"Check for drift"**
+button (on the Testwork Grid, or per sample file) that runs Steps 2–4
+above on demand, against every currently-attached annotated file,
+without requiring a re-upload to trigger it. This catches the case
+where someone edited a file in place and DID eventually bring it back
+into WaveFire through some path other than a same-name replace (e.g.,
+"Attach to Workpaper Files" after editing an already-downloaded copy).
+Reports every detected mismatch as a list — grouped by file, each with
+its own resolve/dismiss choice — rather than auto-acting on any of
+them. This does **not** solve Scenario A (a file never brought back to
+WaveFire at all is invisible to it no matter what runs); it closes the
+gap for every case where the edited file eventually does reach WaveFire
+by some path other than a literal same-filename re-upload.
+
+### Known non-goal (named honestly, not silently dropped)
+
+**Reading tick marks out of a brand-new original file that already has
+some, pre-existing, before WaveFire ever touched it, is not covered by
+anything above** — there's no way to distinguish "this original PDF
+happens to already have someone's handwritten-in-Acrobat check marks
+on it" from "this original PDF has no marks at all" without genuinely
+reading and interpreting arbitrary existing PDF annotations/content as
+if they were WaveFire's own — a materially different, much harder
+problem (arbitrary-format ingestion, not diffing against a known
+WaveFire-authored baseline) that would need its own separate design if
+ever pursued. Naming it here so it isn't confused with the reconcilable
+Scenario B above.
+
+### Data model additions (once this is built)
+
+- `_annotatedFileFingerprint` (or similar): recorded on every
+  annotated-file write, for **all four** mechanisms, not just `bi` —
+  generalizing Part 4's `_biFingerprint` field so Step 2 above has a
+  cheap first check ("did anything at all change?") before attempting
+  the heavier structural diff for the three readable mechanisms.
+- No new server-side table — the structural diff reads directly from
+  the re-uploaded PDF's own bytes at upload time (or on-demand for
+  "Check for drift"), compared against the existing
+  `attribute_sample_results`/`wpExceptions` data already persisted;
+  nothing new needs to be stored to represent "what WaveFire currently
+  believes," since that's exactly what those two stores already are.
+
+### Suggested build order
+
+1. Extend fingerprint recording to all four mechanisms (cheap,
+   mechanical, and Step 2's fast-path for every mechanism).
+2. Structural read-back for `sn`/`ff`/`bi2` (three separate, small,
+   mechanism-specific parsers — each is the mirror image of that
+   mechanism's own existing write logic).
+3. The re-upload trigger + resolution dialog (Steps 3–4), reusing
+   existing write paths (`_postOverride`, `_placeManualTickMark`,
+   `_deleteGridItem`) for whichever resolution the person picks — no
+   new persistence mechanism, only a new UI moment that decides which
+   existing call to make.
+4. The standalone "Check for drift" action, once 1–3 exist — it's the
+   same Step 2–4 logic, just triggered on demand across every attached
+   file instead of only at re-upload time.
+
+### Status: designed, not yet built
+
+Nothing in this Part exists in the codebase today. This section is the
+design for the next, real piece of work in this space — the honest
+current state remains what Parts 4 and 6 already describe:
+WaveFire → PDF sync exists for app-initiated changes; PDF → WaveFire
+reconciliation does not exist at all yet.
