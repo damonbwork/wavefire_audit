@@ -5603,6 +5603,14 @@ Testwork Grid" to build a blank grid and record each result yourself.
           <button onclick="saveAnnotatedPDF()" id="ann-save-btn" style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;background:rgb(234,88,12);color:#fff;font-weight:600;display:flex;align-items:center;gap:6px"><i class="ti ti-device-floppy"></i> Save Annotations</button>
         </div>
       </div>
+      <!-- Real, new, per explicit request — a Testwork Grid tick mark
+           can now be placed by clicking directly on the rendered page,
+           right here in the open viewer, instead of only via a typed
+           page number in the grid's own popups. Populated/shown only
+           by _renderTwGridPlacementPanel, when the viewer was opened
+           FOR that purpose (_twGridPlacementCtx set) — invisible for
+           ordinary file browsing. -->
+      <div id="tw-grid-placement-panel" style="display:none"></div>
       <!-- Body -->
       <div id="file-preview-body" style="position:relative"><div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div></div>
     </div>
@@ -7841,8 +7849,10 @@ async function handleInitialHash() {
         const openOriginal = params.get('openSampleOriginal') !== '0';
         const openAttrIdxRaw = params.get('openSampleAttr');
         const openAttrIdx = openAttrIdxRaw != null && openAttrIdxRaw !== '' ? Number(openAttrIdxRaw) : null;
+        const openRowRaw = params.get('openSampleRow');
+        const openRow = openRowRaw != null && openRowRaw !== '' ? Number(openRowRaw) : null;
         try {
-          await _openSampleFileAtMark(wpRef, openFile, openPage, openOriginal, openAttrIdx);
+          await _openSampleFileAtMark(wpRef, openFile, openPage, openOriginal, openAttrIdx, openRow);
         } catch (e) {
           console.error('[handleInitialHash] Could not open deep-linked PDF:', e.message);
         }
@@ -12605,7 +12615,7 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   popup.querySelector('.cqp-open-pdf').onclick = () => {
     const file = popup.querySelector('.cqp-evidence-file').value;
     const page = popup.querySelector('.cqp-evidence-page').value;
-    _openPdfInNewTab(ref, file, Number(page) || 1, true, ai);
+    _openPdfInNewTab(ref, file, Number(page) || 1, true, ai, fi);
   };
   popup.querySelector('.cqp-place-tick').onclick = async () => {
     const btn = popup.querySelector('.cqp-place-tick');
@@ -32852,6 +32862,12 @@ function closeFilePreview() {
   document.getElementById('file-preview-body').innerHTML =
     `<div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div>`;
   previewPDFDoc = null;
+  // Real, new — never let a Testwork Grid click-to-place session leak
+  // into the next, unrelated file someone happens to open next.
+  _twGridPlacementCtx = null;
+  _twGridPlacementArmed = false;
+  const twPanel = document.getElementById('tw-grid-placement-panel');
+  if (twPanel) { twPanel.style.display = 'none'; twPanel.innerHTML = ''; }
 }
 // Keyboard arrow navigation for file preview
 document.addEventListener('keydown', function(ev) {
@@ -38941,7 +38957,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       body.querySelector('.attr-modal-open-pdf').onclick = () => {
         const file = body.querySelector('.attr-modal-evidence-file')?.value;
         const page = body.querySelector('.attr-modal-evidence-page')?.value;
-        _openPdfInNewTab(ref, file, Number(page) || 1, true, attributeIndex);
+        _openPdfInNewTab(ref, file, Number(page) || 1, true, attributeIndex, fi);
       };
       body.querySelector('.attr-modal-place-tick').onclick = async () => {
         const btn = body.querySelector('.attr-modal-place-tick');
@@ -39067,7 +39083,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
 // openSampleFile/openSamplePage/openSampleOriginal/openSampleAttr
 // params that handleInitialHash reads to auto-open the PDF viewer once
 // that fresh tab finishes loading the workpaper.
-function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex) {
+function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex, sampleRowIndex) {
   if (!filename) { alert('Select a sample file first.'); return; }
   const w = WORKPAPERS.find(x => x.ref === ref);
   const auditName = w?.auditName || currentAudit?.name || '';
@@ -39076,28 +39092,159 @@ function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex) {
     '&openSamplePage=' + encodeURIComponent(page || 1) +
     '&openSampleOriginal=' + (isOriginal === false ? '0' : '1');
   if (attributeIndex != null) url += '&openSampleAttr=' + encodeURIComponent(attributeIndex);
+  if (sampleRowIndex != null) url += '&openSampleRow=' + encodeURIComponent(sampleRowIndex);
   window.open(window.location.pathname + url, '_blank');
 }
 
-async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex) {
+// Real, new — while this is set, the PDF viewer's own "Testwork Grid
+// tick mark" panel (see _renderTwGridPlacementPanel) knows which
+// (ref, attributeIndex, sampleRowIndex) cell a click-to-place action
+// should write to. Set only when the viewer was opened FOR that
+// purpose (via _openPdfInNewTab/_openSampleFileAtMark's own
+// sampleRowIndex argument) — never for ordinary file browsing, so the
+// panel doesn't appear uninvited on every PDF someone happens to open.
+let _twGridPlacementCtx = null; // { ref, ai, fi } | null
+
+async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex, sampleRowIndex) {
   const idx = (inMemoryFiles[ref]?.sample || []).findIndex(f => f.name === filename);
   if (idx < 0) {
     alert('That file could not be found among the attached sample files — it may have been removed or renamed.');
     return;
   }
-  if (isOriginal) {
-    _currentAnnotationAttrIndex = attributeIndex;
-    await previewMemFile(ref, 'sample', idx);
-    return;
-  }
+  _currentAnnotationAttrIndex = attributeIndex;
+  _twGridPlacementCtx = (sampleRowIndex != null && attributeIndex != null) ? { ref, ai: attributeIndex, fi: sampleRowIndex } : null;
   await previewMemFile(ref, 'sample', idx);
+  _renderTwGridPlacementPanel();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const body = document.getElementById('file-preview-body');
     if (!body) return;
     const pageCount = Math.max(1, previewTotalPages || 1);
     const pageH = body.scrollHeight / pageCount;
-    body.scrollTo({ top: Math.max(0, (page - 1) * pageH), behavior: 'smooth' });
+    body.scrollTo({ top: Math.max(0, ((page || 1) - 1) * pageH), behavior: 'smooth' });
   }));
+}
+
+// Whether click-to-place is currently armed — while true, the next click
+// anywhere on the open PDF's own body places a tick there instead of
+// doing whatever a plain click normally would (panning, etc.).
+let _twGridPlacementArmed = false;
+
+// Real, new, per explicit request — lets a user place a real tick mark
+// by clicking directly on the rendered page of an already-open PDF,
+// rather than only via a typed page number in the Testwork Grid's own
+// popups. Shown only when this viewer session was opened specifically
+// for that purpose (_twGridPlacementCtx set by _openSampleFileAtMark);
+// hidden for ordinary file browsing.
+function _renderTwGridPlacementPanel() {
+  const panel = document.getElementById('tw-grid-placement-panel');
+  if (!panel) return;
+  const ctx = _twGridPlacementCtx;
+  if (!ctx) { panel.style.display = 'none'; panel.innerHTML = ''; _twGridPlacementArmed = false; return; }
+
+  const { ref, ai, fi } = ctx;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[ai];
+  if (!attr) { panel.style.display = 'none'; return; }
+  const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+  const row = (_wpAnalysisResults[ref] || [])[fi];
+  const sampleLabel = row?.sampleDesc || `Sample ${fi + 1}`;
+  const saved = _findOverrideFor(ref, ai, fi);
+  const currentResult = saved?.override_result || 'pass';
+
+  // Real, new — "select an existing explanation" per explicit request:
+  // offers the AI's own note for this cell (if any) plus every distinct
+  // note already used across this attribute's own marks for this
+  // sample, so a repeated citation doesn't have to be retyped.
+  const match = (row?.results || []).find(r => r.title === attr.title);
+  const existingNotes = [...new Set([
+    saved?.ai_note || '',
+    match?.note || '',
+    ...((match?.marks || []).map(m => m.note || '')),
+  ].filter(Boolean))];
+
+  panel.style.display = 'flex';
+  panel.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 14px;background:#eef2ff;border-bottom:0.5px solid var(--border-light)';
+  panel.innerHTML = `
+    <span style="font-size:11px;font-weight:700;color:#3730a3;white-space:nowrap">Testwork Grid: ${escHtml(attrLabel)}. ${escHtml(attr.title)} — ${escHtml(sampleLabel)}</span>
+    <button class="twp-pass" style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;cursor:pointer;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+    <button class="twp-fail" style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;cursor:pointer;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+    ${existingNotes.length ? `<select class="twp-existing-note" style="font-size:11px;padding:3px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;max-width:160px">
+      <option value="">— Select existing explanation —</option>
+      ${existingNotes.map(n => `<option value="${escAttr(n)}">${escHtml(n.slice(0, 60))}${n.length > 60 ? '…' : ''}</option>`).join('')}
+    </select>` : ''}
+    <input class="twp-note" type="text" placeholder="Tick mark explanation" style="flex:1;min-width:140px;font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+    <button class="twp-arm btn-s" style="font-size:11px;padding:3px 10px;font-weight:600">Click PDF to place tick</button>
+  `;
+
+  let selected = currentResult;
+  panel.querySelector('.twp-pass').onclick = () => { selected = 'pass'; _twpRestyle(panel, selected); };
+  panel.querySelector('.twp-fail').onclick = () => { selected = 'fail'; _twpRestyle(panel, selected); };
+  panel.querySelector('.twp-existing-note')?.addEventListener('change', function() {
+    if (this.value) panel.querySelector('.twp-note').value = this.value;
+  });
+
+  const armBtn = panel.querySelector('.twp-arm');
+  _twGridPlacementArmed = false;
+  armBtn.onclick = () => {
+    _twGridPlacementArmed = !_twGridPlacementArmed;
+    armBtn.textContent = _twGridPlacementArmed ? 'Click the PDF now… (click here to stop)' : 'Click PDF to place tick';
+    armBtn.style.background = _twGridPlacementArmed ? '#1e40af' : '';
+    armBtn.style.color = _twGridPlacementArmed ? '#fff' : '';
+    const body = document.getElementById('file-preview-body');
+    if (body) body.style.cursor = _twGridPlacementArmed ? 'crosshair' : '';
+  };
+
+  // Real, new — the actual click-to-place handler. Capture-phase so it
+  // sees the click before any existing drag/pan or annotation-tool
+  // handling on the body does, and only actually places anything while
+  // armed — otherwise it's a no-op and the click behaves normally.
+  const body = document.getElementById('file-preview-body');
+  if (body && !body._twPlacementHandlerAttached) {
+    body._twPlacementHandlerAttached = true;
+    body.addEventListener('click', async (e) => {
+      if (!_twGridPlacementArmed || !_twGridPlacementCtx) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { ref, ai, fi } = _twGridPlacementCtx;
+      const pageCount = Math.max(1, previewTotalPages || 1);
+      const pageH = body.scrollHeight / pageCount;
+      const clickY = body.scrollTop + (e.clientY - body.getBoundingClientRect().top);
+      const clickedPage = Math.max(1, Math.min(pageCount, Math.floor(clickY / pageH) + 1));
+      const note = panel.querySelector('.twp-note')?.value || '';
+      const currentFile = inMemoryFiles[ref]?.sample?.[_fpIdx]?.name || '';
+      const evidence = { sourceFile: currentFile, page: clickedPage, section: '', paragraph: 0 };
+      armBtn.disabled = true;
+      const ok = await _placeManualTickMark(ref, ai, fi, selected, note, evidence);
+      armBtn.disabled = false;
+      if (ok) {
+        // Real, live redraw — re-runs the exact same overlay function
+        // used when this file was first opened, now picking up the mark
+        // we just pushed, so the new tick appears immediately without
+        // needing to close and reopen the viewer.
+        const attrs = (wpTestAttributes[ref] || []).filter(a => a.title);
+        const wpResults = _wpAnalysisResults[ref] || [];
+        const fileResult = wpResults[fi];
+        if (fileResult) {
+          const exMap = _lookupExceptionRefMap(ref, wpResults, attrs);
+          placeInteractiveAnnotations(fileResult, attrs, exMap, fi, currentFile, ref);
+        }
+        // Rebuilds the panel fresh (Pass/Fail highlight reflects the
+        // just-saved result) — this naturally leaves placement mode
+        // OFF again, requiring a deliberate re-click of "Click PDF to
+        // place tick" before another one lands, rather than silently
+        // staying armed and risking an accidental extra tick from a
+        // stray click on the document.
+        _renderTwGridPlacementPanel();
+      }
+    }, true);
+  }
+}
+
+function _twpRestyle(panel, selected) {
+  const passBtn = panel.querySelector('.twp-pass');
+  const failBtn = panel.querySelector('.twp-fail');
+  if (passBtn) { passBtn.style.border = `1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'}`; passBtn.style.background = selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'; }
+  if (failBtn) { failBtn.style.border = `1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'}`; failBtn.style.background = selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'; }
 }
 
 // Tracks which attribute row (by index) is currently selected, per
