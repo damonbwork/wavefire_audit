@@ -3824,10 +3824,10 @@ signed by the appropriate parties before the check date.</textarea>
             <div class="sect-hdr-title" style="position:relative;cursor:default" onmouseenter="document.getElementById('sf-tooltip').style.display='block'" onmouseleave="document.getElementById('sf-tooltip').style.display='none'">
               <i class="ti ti-table-column"></i>Sample field extraction
               <div id="sf-tooltip" style="display:none;position:absolute;left:0;top:calc(100% + 8px);width:340px;background:#f8fafc;color:#475569;font-size:11px;line-height:1.6;padding:8px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.12);border:0.5px solid #e2e8f0;z-index:9999;font-weight:400;pointer-events:none;text-transform:none;letter-spacing:normal">
-                Wavefire will search the attached sample files for each 
-of the data elements entered below and include the results in the 
-workpaper when created. It will use any search guidance entered in the 
-search guidance field to locate the data in the sample files.
+                Wavefire will search the attached sample files for each
+of the data elements entered below and include the results in the
+workpaper when created. It will use any additional instructions entered
+in that field to locate the data in the sample files.
                 <div style="position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#f8fafc;border-left:0.5px solid #e2e8f0;border-top:0.5px solid #e2e8f0;transform:rotate(45deg)"></div>
               </div>
             </div>
@@ -3837,7 +3837,7 @@ search guidance field to locate the data in the sample files.
             <div style="display:grid;grid-template-columns:36px 1fr 2fr 36px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 8px;text-align:center">#</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Field Name</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Search Guidance <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 12px">Add additional instructions <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
               <div></div>
             </div>
             <!-- Sample field rows -->
@@ -3847,7 +3847,7 @@ search guidance field to locate the data in the sample files.
       <input class="sf-name-input" type="text" maxlength="120" value="COID" placeholder="Field name…" tabindex="1" oninput="saveSFRow(0)" onblur="saveSFRow(0)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="2" oninput="saveSFRow(0);autoResizeTA(this)" onblur="saveSFRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Use
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="2" oninput="saveSFRow(0);autoResizeTA(this)" onblur="saveSFRow(0)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Use
  the workpaper "COID" if it exists to look up the number corresponding 
 to the facility name.  If not found return an empty cell</textarea>
     </div>
@@ -3862,7 +3862,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Facility" placeholder="Field name…" tabindex="3" oninput="saveSFRow(1)" onblur="saveSFRow(1)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="4" oninput="saveSFRow(1);autoResizeTA(this)" onblur="saveSFRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the name of the hospital</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="4" oninput="saveSFRow(1);autoResizeTA(this)" onblur="saveSFRow(1)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the name of the hospital</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(1)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3875,7 +3875,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Vendor Name" placeholder="Field name…" tabindex="5" oninput="saveSFRow(2)" onblur="saveSFRow(2)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="6" oninput="saveSFRow(2);autoResizeTA(this)" onblur="saveSFRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the name of the vendor</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="6" oninput="saveSFRow(2);autoResizeTA(this)" onblur="saveSFRow(2)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the name of the vendor</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(2)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3888,7 +3888,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Check #" placeholder="Field name…" tabindex="7" oninput="saveSFRow(3)" onblur="saveSFRow(3)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="8" oninput="saveSFRow(3);autoResizeTA(this)" onblur="saveSFRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the check # of the check</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="8" oninput="saveSFRow(3);autoResizeTA(this)" onblur="saveSFRow(3)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the check # of the check</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(3)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3901,7 +3901,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Check Date" placeholder="Field name…" tabindex="9" oninput="saveSFRow(4)" onblur="saveSFRow(4)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="10" oninput="saveSFRow(4);autoResizeTA(this)" onblur="saveSFRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="10" oninput="saveSFRow(4);autoResizeTA(this)" onblur="saveSFRow(4)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(4)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3914,7 +3914,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Check Amount" placeholder="Field name…" tabindex="11" oninput="saveSFRow(5)" onblur="saveSFRow(5)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="12" oninput="saveSFRow(5);autoResizeTA(this)" onblur="saveSFRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the amount of the check</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="12" oninput="saveSFRow(5);autoResizeTA(this)" onblur="saveSFRow(5)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the amount of the check</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(5)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3927,7 +3927,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Contract Effective Date" placeholder="Field name…" tabindex="13" oninput="saveSFRow(6)" onblur="saveSFRow(6)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="14" oninput="saveSFRow(6);autoResizeTA(this)" onblur="saveSFRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the date of the first amendment, if any</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="14" oninput="saveSFRow(6);autoResizeTA(this)" onblur="saveSFRow(6)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the date of the first amendment, if any</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(6)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3940,7 +3940,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Date of Service" placeholder="Field name…" tabindex="15" oninput="saveSFRow(7)" onblur="saveSFRow(7)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="16" oninput="saveSFRow(7);autoResizeTA(this)" onblur="saveSFRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="16" oninput="saveSFRow(7);autoResizeTA(this)" onblur="saveSFRow(7)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(7)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3953,7 +3953,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="Need to look in DocuSign for auto renew approval?" placeholder="Field name…" tabindex="17" oninput="saveSFRow(8)" onblur="saveSFRow(8)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="18" oninput="saveSFRow(8);autoResizeTA(this)" onblur="saveSFRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="18" oninput="saveSFRow(8);autoResizeTA(this)" onblur="saveSFRow(8)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(8)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3966,7 +3966,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="OG/Amend Signed Date" placeholder="Field name…" tabindex="19" oninput="saveSFRow(9)" onblur="saveSFRow(9)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="20" oninput="saveSFRow(9);autoResizeTA(this)" onblur="saveSFRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the date of the first amendment, if any</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="20" oninput="saveSFRow(9);autoResizeTA(this)" onblur="saveSFRow(9)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the date of the first amendment, if any</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(9)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3979,7 +3979,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="OG/Amend Legal/Ops Approval Date" placeholder="Field name…" tabindex="21" oninput="saveSFRow(10)" onblur="saveSFRow(10)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="22" oninput="saveSFRow(10);autoResizeTA(this)" onblur="saveSFRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="22" oninput="saveSFRow(10);autoResizeTA(this)" onblur="saveSFRow(10)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;"></textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(10)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -3992,7 +3992,7 @@ to the facility name.  If not found return an empty cell</textarea>
       <input class="sf-name-input" type="text" maxlength="120" value="36 month renewal Calc" placeholder="Field name…" tabindex="23" oninput="saveSFRow(11)" onblur="saveSFRow(11)" style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…" tabindex="24" oninput="saveSFRow(11);autoResizeTA(this)" onblur="saveSFRow(11)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the calculation of renewal amounts</textarea>
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…" tabindex="24" oninput="saveSFRow(11);autoResizeTA(this)" onblur="saveSFRow(11)" style="width: 100%; resize: none; overflow: hidden; min-height: 24px; font-size: 12px; border: medium; outline: none; background: transparent; font-family: inherit; color: var(--text-primary); line-height: 1.5; height: 36px;">Search the sample document for the calculation of renewal amounts</textarea>
     </div>
     <div class="attr-cell" style="padding:6px 4px;align-self:flex-start">
       <button class="icon-btn" title="Remove field" onclick="removeSFRow(11)" tabindex="-1" style="width:24px;height:24px;font-size:12px">
@@ -26991,7 +26991,7 @@ function makeSampleFieldRowHtml(idx, num, name, desc) {
         style="width:100%;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary)">
     </div>
     <div class="attr-cell" style="padding:6px 12px">
-      <textarea class="sf-desc-input" maxlength="2500" placeholder="Search guidance…"
+      <textarea class="sf-desc-input" maxlength="2500" placeholder="Add additional instructions…"
         tabindex="${base + 1}"
         oninput="saveSFRow(${idx});autoResizeTA(this)" onblur="saveSFRow(${idx})"
         style="width:100%;resize:none;overflow:hidden;min-height:24px;font-size:12px;border:none;outline:none;background:transparent;font-family:inherit;color:var(--text-primary);line-height:1.5"
