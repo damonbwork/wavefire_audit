@@ -4121,8 +4121,8 @@ to the facility name.  If not found return an empty cell</textarea>
                  edit made outside the app (then re-attached by some
                  path other than a literal same-filename replace) gets
                  surfaced rather than silently drifting from the grid. -->
-            <button class="btn-s" onclick="_openDriftReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Check every annotated sample file for edits made outside WaveFire since it was generated">
-              <i class="ti ti-git-compare"></i> Check for Drift
+            <button class="btn-s" onclick="_openDriftReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Compare every annotated sample file's pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers against what WaveFire's own grid currently believes">
+              <i class="ti ti-git-compare"></i> Reconcile PDF to Wavefire (pass/fail, tick mark explanations, and exceptions, findings and recommendations)
             </button>
           </div>
         </div><!-- /sect-card analysis grid -->
@@ -24927,22 +24927,44 @@ function _mechanismFromFilename(name) {
   return m ? m[1] : null;
 }
 
-// Pulls the leading "[attrNum]" (and, immediately after, an optional
-// " [exRef]") off the front of one mark's own text — the exact, same
-// convention every burn mechanism already writes
-// ('[' + attrNum + ']' + (exTag||overridden tag) + ...). Returns
-// { attrNum, rest } or null if the text doesn't start with a bracket
-// at all (not one of WaveFire's own marks — e.g. a comment a person
-// added independently, which this feature has no baseline to compare
-// against and should simply ignore).
+// Pulls the leading "[attrNum]" and, immediately after, an optional
+// " [exRef]" (an Exception/Finding/Recommendation's own Ref, e.g.
+// "E3"/"F1"/"R2") off the front of one mark's own text — the exact,
+// same convention every burn mechanism already writes
+// ('[' + attrNum + ']' + exTag + ...). Returns
+// { attrNum, exRef, rest } or null if the text doesn't start with a
+// bracket at all (not one of WaveFire's own marks — e.g. a comment a
+// person added independently, which this feature has no baseline to
+// compare against and should simply ignore).
 function _parseMarkBracket(text) {
-  const m = /^\[([^\]]+)\]\s*(?:\[[^\]]+\]\s*)?([\s\S]*)$/.exec((text || '').trim());
-  return m ? { attrNum: m[1], rest: m[2].trim() } : null;
+  const m = /^\[([^\]]+)\]\s*(?:\[([^\]]+)\]\s*)?([\s\S]*)$/.exec((text || '').trim());
+  return m ? { attrNum: m[1], exRef: m[2] || '', rest: m[3].trim() } : null;
+}
+
+// Real, new, per explicit request — `sn`'s Text annotation sets a
+// genuine, structured /C (color) entry matching TICK_COLORS[result] at
+// write time (see _makeAcrobatAnnotatedCopyAfterAnalyze). Unlike the
+// mark's own text, this is the one place a pass/fail RESULT itself is
+// independently readable for any of the three structurally-readable
+// mechanisms — ff/bi2 draw their pass/fail symbol as page content or a
+// baked appearance stream, not as a separate readable property, so
+// this check only ever applies to sn.
+function _resultFromAnnotColor(dict, PDFName) {
+  const c = dict.get(PDFName.of('C'));
+  const arr = c && typeof c.asArray === 'function' ? c.asArray() : null;
+  if (!arr || arr.length < 3) return null;
+  const [r, g, b] = arr.map(n => (typeof n.asNumber === 'function' ? n.asNumber() : Number(n)));
+  const dist = (hex) => {
+    const rgb = [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255];
+    return Math.hypot(r - rgb[0], g - rgb[1], b - rgb[2]);
+  };
+  // TICK_COLORS.pass = '#16a34a', TICK_COLORS.fail = '#dc2626'
+  return dist('#16a34a') < dist('#dc2626') ? 'pass' : 'fail';
 }
 
 // Reads back every WaveFire-authored mark currently sitting in one
 // annotated PDF's own structure — real, structured content for sn/ff/
-// bi2 (comment text, form-field value, and stamp /Contents,
+// bi2 (comment text + color, form-field value, and stamp /Contents,
 // respectively), never a picture of text. Returns null for `bi` (or an
 // unrecognized mechanism) — nothing readable exists to return.
 async function _extractPdfMarkTexts(fileBytes, mechanism) {
@@ -24958,7 +24980,12 @@ async function _extractPdfMarkTexts(fileBytes, mechanism) {
       try {
         const text = typeof field.getText === 'function' ? field.getText() : null;
         const parsed = _parseMarkBracket(text);
-        if (parsed) marks.push(parsed);
+        // Real, honest limitation, named per explicit request — ff's
+        // own pass/fail symbol is drawn as separate page content, not
+        // stored in this field's own value, so `result` is left
+        // undefined here (never guessed at) — only its tick mark
+        // explanation and E/F/R ref are genuinely readable for ff.
+        if (parsed) marks.push({ ...parsed, result: undefined });
       } catch (e) { /* not a text field, or unreadable — skip it, not a fatal error */ }
     });
     return marks;
@@ -24982,7 +25009,13 @@ async function _extractPdfMarkTexts(fileBytes, mechanism) {
         const contents = dict.get(PDFName.of('Contents'));
         const text = contents && typeof contents.decodeText === 'function' ? contents.decodeText() : null;
         const parsed = _parseMarkBracket(text);
-        if (parsed) marks.push(parsed);
+        if (parsed) {
+          // bi2's Stamp appearance is a baked, embedded XObject — not
+          // independently readable the way sn's own /C entry is — so
+          // result stays undefined for bi2, same honest limitation as ff.
+          const result = mechanism === 'sn' ? _resultFromAnnotColor(dict, PDFName) : undefined;
+          marks.push({ ...parsed, result });
+        }
       } catch (e) { /* one malformed annotation shouldn't sink the whole read */ }
     });
   });
@@ -25017,21 +25050,55 @@ async function _checkFileForDrift(ref, entry) {
 
   const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
   const wpResults = _wpAnalysisResults[ref] || [];
+  // Real, new, per explicit request — every Exception/Finding/
+  // Recommendation currently in the grid, keyed by the exact same
+  // (sampleRowIndex, attributeIndex) pair a mark's own exRef tag names,
+  // covering all three types (not just Exceptions, unlike
+  // _lookupExceptionRefMap, which is scoped to Exceptions alone since
+  // that's the only type its own caller — the tick-mark renderer —
+  // ever needs).
+  const gridRefByCell = {};
+  (wpExceptions[ref] || []).forEach(ex => {
+    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+      gridRefByCell[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
+    }
+  });
+
   const diffs = [];
-  (currentMarks || []).forEach(({ attrNum, rest }) => {
+  (currentMarks || []).forEach(({ attrNum, exRef, rest, result }) => {
     const ai = attributes.findIndex(a => String(a.attrRef || a.num) === String(attrNum));
     if (ai < 0) return; // no matching attribute — not one of this workpaper's own marks
     wpResults.forEach((fileResult, fi) => {
       const match = (fileResult.results || []).find(r => r.title === attributes[ai].title);
       if (!match || match.sourceFile !== entry._annotatedFrom) return;
+      const attrLabel = attributes[ai].attrRef || attributes[ai].num || String(ai + 1);
       const saved = _findOverrideFor(ref, ai, fi);
-      const expectedNote = saved?.override_note || saved?.ai_note || match.note || '';
-      if (rest && rest !== expectedNote.trim()) {
-        diffs.push({ ai, fi, attrLabel: attributes[ai].attrRef || attributes[ai].num || String(ai + 1), currentPdfText: rest, expectedText: expectedNote });
+
+      // 1) Tick mark explanation.
+      const expectedNote = (saved?.override_note || saved?.ai_note || match.note || '').trim();
+      if (rest && rest !== expectedNote) {
+        diffs.push({ kind: 'note', ai, fi, attrLabel, currentPdfText: rest, expectedText: expectedNote });
+      }
+
+      // 2) Pass/Fail result — only ever checked when the mechanism
+      // actually has a genuinely readable result signal (sn's /C
+      // color; see _resultFromAnnotColor's own comment for why ff/bi2
+      // can't offer this).
+      if (result !== undefined) {
+        const expectedResult = saved?.override_result || saved?.ai_result || match.result || null;
+        if (expectedResult && result !== expectedResult) {
+          diffs.push({ kind: 'result', ai, fi, attrLabel, currentPdfResult: result, expectedResult });
+        }
+      }
+
+      // 3) Exception/Finding/Recommendation reference.
+      const expectedRef = gridRefByCell[`${fi}-${ai}`] || '';
+      if ((exRef || '') !== expectedRef) {
+        diffs.push({ kind: 'ref', ai, fi, attrLabel, currentPdfRef: exRef || '(none)', expectedRef: expectedRef || '(none)' });
       }
     });
   });
-  if (!diffs.length) return { entry, mechanism, diffs: [], fingerprintOnly: true }; // bytes changed but no mark text actually differs (e.g. cosmetic edit)
+  if (!diffs.length) return { entry, mechanism, diffs: [], fingerprintOnly: true }; // bytes changed but nothing this feature tracks actually differs (e.g. a cosmetic edit)
   return { entry, mechanism, diffs };
 }
 
@@ -25058,8 +25125,8 @@ async function _openDriftReport(ref) {
   modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
   modal.innerHTML = `
     <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
-      <div style="font-size:14px;font-weight:600">Check for Drift</div>
-      <div style="font-size:11px;opacity:0.75;margin-top:2px">Checking ${candidates.length} annotated file${candidates.length !== 1 ? 's' : ''} against what WaveFire last generated…</div>
+      <div style="font-size:14px;font-weight:600">Reconcile PDF to Wavefire</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">Comparing pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers across ${candidates.length} annotated file${candidates.length !== 1 ? 's' : ''} against WaveFire's own grid…</div>
     </div>
     <div class="drift-report-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px;font-size:12px;color:var(--text-tertiary)">Checking…</div>
     <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
@@ -25098,17 +25165,23 @@ async function _openDriftReport(ref) {
     }
     return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px">
       <div style="font-weight:600;font-size:12px;margin-bottom:6px">${escHtml(r.entry.name)}</div>
-      ${r.diffs.map((d, di) => `
+      ${r.diffs.map((d, di) => {
+        const label = { note: 'Tick mark explanation', result: 'Pass/Fail result', ref: 'Exception/Finding/Recommendation' }[d.kind];
+        const gridVal = d.kind === 'note' ? (d.expectedText || '(blank)') : d.kind === 'result' ? (d.expectedResult || '(none)') : d.expectedRef;
+        const pdfVal  = d.kind === 'note' ? (d.currentPdfText || '(blank)') : d.kind === 'result' ? (d.currentPdfResult || '(none)') : d.currentPdfRef;
+        const canAccept = d.kind !== 'ref'; // a bare ref string has no name/description to create a real grid row from — see the accept handler's own note
+        return `
         <div style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
-          <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)}</div>
-          <div style="color:var(--text-tertiary)">WaveFire's grid says: <span style="color:var(--text-primary)">${escHtml(d.expectedText || '(blank)')}</span></div>
-          <div style="color:var(--text-tertiary)">This PDF now says: <span style="color:var(--text-primary)">${escHtml(d.currentPdfText || '(blank)')}</span></div>
+          <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
+          <div style="color:var(--text-tertiary)">WaveFire's grid says: <span style="color:var(--text-primary)">${escHtml(String(gridVal))}</span></div>
+          <div style="color:var(--text-tertiary)">This PDF now says: <span style="color:var(--text-primary)">${escHtml(String(pdfVal))}</span></div>
+          ${d.kind === 'ref' ? `<div style="color:#9a3412;margin-top:3px">A Ref alone has no name/description to create or match a grid row automatically — add, delete, or reclassify the corresponding row in the Exceptions/Findings/Recommendations grid directly, or use "Keep WaveFire's version" below to restore this file's own marker.</div>` : ''}
           <div style="display:flex;gap:6px;margin-top:5px">
-            <button class="btn-s drift-accept" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Bring this into WaveFire</button>
+            ${canAccept ? `<button class="btn-s drift-accept" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Bring this into WaveFire</button>` : ''}
             <button class="btn-s drift-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button>
           </div>
-        </div>
-      `).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
   }).join('');
 
@@ -25117,13 +25190,20 @@ async function _openDriftReport(ref) {
       const r = changed[Number(btn.dataset.ri)];
       const d = r.diffs[Number(btn.dataset.di)];
       btn.disabled = true; btn.textContent = 'Applying…';
-      // Real, deliberate choice — brings in the PDF's own note text
-      // only, never the Pass/Fail result itself (a PDF edit is never
-      // allowed to silently flip a result; that stays a separate,
-      // explicit action a person takes in the grid itself).
       const saved = _findOverrideFor(ref, d.ai, d.fi);
-      const currentResult = saved?.override_result || saved?.ai_result || 'pass';
-      await _postOverride(ref, d.ai, d.fi, currentResult, d.currentPdfText);
+      if (d.kind === 'result') {
+        // Real, deliberate — per explicit request this button now DOES
+        // let a person bring a PDF-observed result change into the
+        // grid, but only via this explicit, per-item click; nothing
+        // here ever flips a result on its own.
+        const currentNote = saved?.override_note || saved?.ai_note || '';
+        await _postOverride(ref, d.ai, d.fi, d.currentPdfResult, currentNote);
+      } else {
+        // note: brings in the PDF's own explanation text only, keeping
+        // whatever result is already recorded.
+        const currentResult = saved?.override_result || saved?.ai_result || 'pass';
+        await _postOverride(ref, d.ai, d.fi, currentResult, d.currentPdfText);
+      }
       renderAnalysisResultsGrid(ref);
       btn.textContent = 'Applied';
     };
