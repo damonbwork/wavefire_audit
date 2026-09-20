@@ -30710,6 +30710,17 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
     });
   });
 
+  // Real, new, per a real reported bug — everything above builds
+  // wpExceptions[ref] purely in browser memory. Nothing in this entire
+  // function previously ever called _saveWorkpaperToDB to persist it to
+  // the workpapers.exceptions column, so a batch of Exceptions/Findings/
+  // Recommendations Analyze had just created could silently vanish on
+  // the next reload (or in another session) unless the user happened to
+  // also edit some unrelated exception field afterward — the only other
+  // code path that saves this column. Persisted here, right after the
+  // auto-populate block finishes, so it survives independently of that.
+  if (wp) _saveWorkpaperToDB(wp).catch(err => console.error('[Exceptions] Could not persist auto-created exceptions/findings/recommendations:', err.message));
+
   // Automatically create a burned-in annotated copy of every attached sample
   // file, added alongside its original in the Attached Sample Files list —
   // runs in the background and doesn't block the rest of this function from
