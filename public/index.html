@@ -12595,9 +12595,17 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
     ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px"></textarea>` : ''}
-    <div class="cqp-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px;${currentNote ? 'display:none' : ''}">Expand to place tickmarks in sample files</div>
-    <div class="cqp-place-wrap" style="${currentNote ? '' : 'display:none'}">
-      <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <!-- Real, new, per explicit request (reverses the earlier fold) —
+         the tick mark explanation itself is now ALWAYS visible and
+         editable here, showing any existing value, regardless of
+         whether this cell has ever been analyzed. Only the sample
+         file/page/section/paragraph placement fields below it stay
+         folded — those are specifically for physically placing a tick
+         on a PDF page, a separate, rarer action from simply recording
+         or revising the explanation text. -->
+    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <div class="cqp-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px">Expand to place tickmarks in sample files</div>
+    <div class="cqp-place-wrap" style="display:none">
       <select class="cqp-evidence-file" style="width:100%;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:4px">${fileOptionsHtml}</select>
       <div style="display:flex;gap:4px;margin-bottom:4px">
         <input class="cqp-evidence-page" type="number" min="1" placeholder="Page" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
@@ -39372,22 +39380,26 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong><br>${escHtml(aiNote)}</div>`
         : '';
 
-      // Real, new, per explicit request — the tick mark explanation
-      // (TME) textarea and its location fields (page/section/paragraph/
-      // source file) are now ONE folded unit, hidden until the user
-      // explicitly expands it via the label below, rather than always
-      // showing the TME textarea plainly and only folding Evidence on
-      // its own. Stays open by default whenever there's already a saved
-      // explanation or evidence on file (a prior manual entry, or an
-      // override that already recorded some) — existing content is
-      // never hidden from view without the user's own action.
-      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
-      const placeFoldedByDefault = !priorNote && !hasExistingEvidence;
-      const placeFieldsHtml = `
+      // Real, new, per explicit request (reverses the earlier fold) —
+      // the tick mark explanation itself is now ALWAYS visible and
+      // editable here, showing any existing value, regardless of
+      // whether this cell has ever been analyzed. Only the Evidence/
+      // placement fields (page/section/paragraph/source file, plus
+      // Open PDF and Place tick mark on PDF) stay folded — those are
+      // specifically for physically placing a tick on a PDF page, a
+      // separate, rarer action from simply recording or revising the
+      // explanation text. Still stays open by default whenever there's
+      // already evidence on file (a prior manual entry, or an override
+      // that already recorded some) — existing content is never hidden
+      // from view without the user's own action.
+      const noteFieldHtml = `
         ${priorNoteHtml}
         <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>`;
+      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
+      const placeFoldedByDefault = !hasExistingEvidence;
+      const placeFieldsHtml = `
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
         <div style="display:flex;gap:5px;margin-bottom:4px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
@@ -39415,6 +39427,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${sourceLabelHtml}
+        ${noteFieldHtml}
         ${rationaleHtml}
         <div style="display:flex;gap:6px;margin-bottom:8px">
           <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
