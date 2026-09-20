@@ -864,7 +864,7 @@ local cache untouched rather than being silently swallowed.
 
 ---
 
-## Part 8 — Detecting and reconciling drift between the four "sources of truth"
+## Part 8 — Detecting and reconciling sync mismatches between the four "sources of truth"
 
 ### The problem, precisely
 
@@ -992,16 +992,16 @@ applies here, in reverse:
 Recommendation marker is drawn from a `wpExceptions[ref]` row's own
 data (name/description, via its `[Ref]` tag and, for `sn`/`ff`/`bi2`,
 its full text). The same Step 2/3 diff, run against a re-uploaded
-file's markers instead of tick mark notes, surfaces drift here too —
+file's markers instead of tick mark notes, surfaces a sync mismatch here too —
 e.g., a person deleted an Exception's own annotation directly in
 Acrobat and re-uploaded, without deleting the corresponding grid row.
 Offered resolution: "Delete the matching grid row" (reusing
 `_deleteGridItem`) or "Restore the marker on next re-burn" (leaves the
 grid row; the next any-triggered re-burn puts the marker back).
 
-### A genuinely useful, honest addition: a standalone "Check for drift" action
+### A genuinely useful, honest addition: a standalone "Reconcile PDF to Wavefire" action
 
-Rather than only checking at upload time, a **"Check for drift"**
+Rather than only checking at upload time, a **"Reconcile PDF to Wavefire"**
 button (on the Testwork Grid, or per sample file) that runs Steps 2–4
 above on demand, against every currently-attached annotated file,
 without requiring a re-upload to trigger it. This catches the case
@@ -1038,7 +1038,7 @@ Scenario B above.
   the heavier structural diff for the three readable mechanisms.
 - No new server-side table — the structural diff reads directly from
   the re-uploaded PDF's own bytes at upload time (or on-demand for
-  "Check for drift"), compared against the existing
+  "Reconcile PDF to Wavefire"), compared against the existing
   `attribute_sample_results`/`wpExceptions` data already persisted;
   nothing new needs to be stored to represent "what WaveFire currently
   believes," since that's exactly what those two stores already are.
@@ -1055,7 +1055,7 @@ Scenario B above.
    `_deleteGridItem`) for whichever resolution the person picks — no
    new persistence mechanism, only a new UI moment that decides which
    existing call to make.
-4. The standalone "Check for drift" action, once 1–3 exist — it's the
+4. The standalone "Reconcile PDF to Wavefire" action, once 1–3 exist — it's the
    same Step 2–4 logic, just triggered on demand across every attached
    file instead of only at re-upload time.
 
@@ -1072,9 +1072,9 @@ Scenario B above.
   `PDFDict`/`PDFName` access, parsing the leading `[attrNum]` tag every
   burn mechanism already writes. `bi` correctly returns nothing
   readable, per the honest breakdown above.
-- **The standalone "Check for Drift" action (step 4)** — a new button on
-  the Testwork Grid runs `_checkFileForDrift` across every annotated
-  file and shows a report. Each drifted item offers "Bring this into
+- **The standalone "Reconcile PDF to Wavefire" action (step 4)** — a new button on
+  the Testwork Grid runs `_checkFileSyncStatus` across every annotated
+  file and shows a report. Each out-of-sync item offers "Bring this into
   WaveFire" (writes the PDF's current text into
   `attribute_sample_results` via the existing `_postOverride` path —
   note only, never the Pass/Fail result) or "Keep WaveFire's version"
@@ -1089,7 +1089,7 @@ an existing same-named one in place, so "re-upload with the same
 filename" isn't a clean single-entry-replace event to hook today — it
 would need its own, separate design for how same-name uploads are
 reconciled at the array level before an automatic trigger could be
-built on top of it. The standalone "Check for Drift" button (step 4,
+built on top of it. The standalone "Reconcile PDF to Wavefire" button (step 4,
 built) already covers the same underlying need without depending on
 that — per this Part's own original design note, it "closes the gap for
 every case where the edited file eventually does reach WaveFire by some
@@ -1099,9 +1099,9 @@ is every path this app's upload flow actually supports today.
 **Verified** against a real, live-generated PDF (not just unit logic):
 a genuine pdf-lib-built Sticky Note annotation round-trips correctly
 through `_extractPdfMarkTexts`; an in-place edit to its `/Contents`
-(simulating an Acrobat edit) is correctly detected as drift with the
+(simulating an Acrobat edit) is correctly detected as a sync mismatch with the
 exact before/after text, correctly attributed to the right attribute;
-an unedited file correctly reports no drift; and "Bring this into
+an unedited file correctly reports as still in sync; and "Bring this into
 WaveFire" correctly writes the edited text into
 `attribute_sample_results` without touching the stored Pass/Fail
 result.
@@ -1134,7 +1134,7 @@ not just tick mark explanations:
   Exceptions/Findings/Recommendations grid.
 
 **An automatic trigger, scoped deliberately narrowly.** `closeFilePreview`
-now silently runs the drift check on whichever file was just being
+now silently runs the sync check on whichever file was just being
 viewed, surfacing a small dismissable toast (never a blocking modal)
 only when something is actually found — clicking it opens the full
 report. This is the ONE trigger that makes sense for this direction of
@@ -1144,7 +1144,7 @@ triggers considered (adding/modifying a tick mark explanation or an
 Exception/Finding/Recommendation inside WaveFire) — those already flow
 the other direction (the existing WaveFire → PDF sync re-burns the file
 to match), and running this PDF → WaveFire check right after would only
-ever flag an expected, not-yet-re-burned file as if it were real drift.
+ever flag an expected, not-yet-re-burned file as if it were genuinely out of sync.
 
 **A real word/punctuation-level diff, and an editable resolution.**
 `_wordDiffHtml` (LCS-based, tokenizing on whitespace and punctuation
@@ -1154,7 +1154,7 @@ that. Note/result diffs now show an editable field (a textarea, or a
 Pass/Fail picker for the result case) pre-filled with the PDF's own
 current value, with three explicit resolutions — "Use WaveFire's
 version," "Use PDF's version," or "Save edited value" after freely
-rewriting it — and whichever is chosen (via `_applyDriftResolution`) is
+rewriting it — and whichever is chosen (via `_applySyncResolution`) is
 written to BOTH sides: the grid via the existing `_postOverride` path,
 then the file's own mechanism is immediately re-burned so the PDF is
 brought back into genuine agreement, not left stale until an unrelated
@@ -1166,5 +1166,5 @@ three independent, correctly-labeled diffs; the word-diff correctly
 isolates a single changed word and a single changed punctuation mark
 rather than flagging whole strings; "Save edited value" correctly
 writes custom text to the grid and triggers a real re-burn; and closing
-a viewer on a file with genuine drift shows the toast, while closing a
+a viewer on a file genuinely out of sync shows the toast, while closing a
 matching file does not.
