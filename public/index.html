@@ -34994,8 +34994,17 @@ function toggleWPHeaderEdit() {
     const refParts = currentRef.split('-');
     const seqNum   = refParts.pop() || '001';
     const prefixWithoutSeg3 = refParts.slice(0, 2).join('-'); // WP-2026
-    // Tag = segment 3 of current ref (before seq)
-    const currentTag = (refParts[2] || deriveWPTag(titleIn.value)).toUpperCase();
+    // Tag = segment 3 of current ref (before seq). Real, confirmed fix,
+    // per a real reported bug — this used to fall back to
+    // deriveWPTag(titleIn.value) whenever segment 3 was blank, silently
+    // fabricating a tag guessed from the title's own first letters (a
+    // workpaper titled "duplicate JIRA" got shown "DUPL" here) even
+    // though a blank category is a genuine, valid, intentional state
+    // (see submitNewWorkpaper's own comment: Workpaper Category is
+    // optional, and leaving it blank is what produces this exact
+    // double-dash ref shape in the first place). A blank segment now
+    // stays blank here — never guessed at from unrelated title text.
+    const currentTag = (refParts[2] || '').toUpperCase();
     tagIn.value = currentTag;
     // Prefix label shows everything up to and including the tag (will update when tag changes)
     const prefixEl = document.getElementById('wpd-ref-prefix');
@@ -35029,9 +35038,20 @@ function saveWPHeaderEdit() {
   const oldTitle = w.name;
   const oldRef   = w.ref;
 
-  // Validate tag: 2–4 letters only
-  let newTag = (tagIn.value.replace(/[^a-zA-Z]/g, '') || deriveWPTag(titleIn.value)).toUpperCase().slice(0, 4);
-  if (newTag.length < 2) newTag = (newTag + 'XX').slice(0, 2);
+  // Validate tag: 2–4 letters, but a genuinely blank tag is left blank
+  // rather than forced to a minimum length. Real, confirmed fix, per a
+  // real reported bug — this used to fall back to
+  // deriveWPTag(titleIn.value) whenever the tag field was empty,
+  // silently fabricating (and, on Ok, actually SAVING) a tag guessed
+  // from the title's own first letters — a workpaper titled
+  // "duplicate JIRA" would have its ref genuinely renamed to include
+  // "DUPL" as its category segment, even though the person never typed
+  // anything into the tag field at all. A blank category is a real,
+  // intentional, already-supported state (see submitNewWorkpaper's own
+  // comment on it) and must survive an edit untouched unless the person
+  // actually types something.
+  let newTag = tagIn.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 4);
+  if (newTag.length === 1) newTag = (newTag + 'X').slice(0, 2); // pad only a genuinely too-short, non-empty tag
 
   // Build new ref: WP-YEAR-TAG-SEQ
   const oldParts = oldRef.split('-');
