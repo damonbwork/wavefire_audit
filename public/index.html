@@ -4090,7 +4090,16 @@ to the facility name.  If not found return an empty cell</textarea>
              produced at least one result for this workpaper. -->
         <div class="sect-card" id="sect-analysis-grid" style="display:none">
           <div class="sect-hdr">
-            <div class="sect-hdr-title"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Testwork Grid<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkGrid" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
+            <div class="sect-hdr-title" style="flex:1;min-width:0"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Testwork Grid<i class="ti ti-help-circle wf-help-icon" data-help-topic="testworkGrid" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="Click to explain this section" style="cursor:pointer;color:var(--text-tertiary);font-size:15px;margin-left:6px;vertical-align:-2px"></i></div>
+            <!-- Real, new, per explicit request — review notes on a cell
+                 moved out of the per-cell override popup entirely, into
+                 this one toolbar button that acts on whichever cell is
+                 currently selected (_selectedGridCell, the same
+                 selection state arrow-key navigation and the override
+                 popup itself already share). -->
+            <button id="testwork-review-note-btn" onclick="_openSelectedCellReviewNotes()" title="Add or view a review note on the currently selected cell" class="btn-s" style="font-size:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0">
+              <i class="ti ti-message-circle" style="font-size:11px"></i> Review
+            </button>
           </div>
           <div class="sect-body" style="padding:0;overflow-x:auto">
             <div id="analysis-grid-rows"></div>
@@ -13792,6 +13801,51 @@ function _renderCellNotesSection(ref, ai, fi, containerEl) {
     _cellNotesFor(ref, ai, fi).push(_rnNewNote(''));
     rerender();
   };
+}
+
+// Real, new, per explicit request — review notes on a testwork grid cell
+// moved out of the per-cell override popup (which no longer has an "Add
+// note" section at all) into this one small modal, opened via the
+// "Review" button in the Testwork Grid's own header and acting on
+// whichever cell is currently selected (_selectedGridCell — the exact
+// same selection state arrow-key navigation and clicking a cell already
+// maintain, so "the selected cell" means the same thing everywhere).
+// Reuses _renderCellNotesSection's own rendering/wiring unmodified —
+// this is purely a different container for the exact same feature.
+function _openSelectedCellReviewNotes() {
+  if (!_selectedGridCell) {
+    alert('Select a cell in the Testwork Grid first, then click Review.');
+    return;
+  }
+  const { ref, attributeIndex, sampleRowIndex } = _selectedGridCell;
+  document.querySelectorAll('.cell-review-notes-overlay').forEach(el => el.remove());
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[attributeIndex];
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const row = wpResults[sampleRowIndex];
+  const attrLabel = attr ? (attr.attrRef || attr.num || String(attributeIndex + 1)) : String(attributeIndex + 1);
+  const sampleLabel = row?.sampleDesc || `Sample ${sampleRowIndex + 1}`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'cell-review-notes-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10025;display:flex;align-items:center;justify-content:center';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(420px,92vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
+  modal.innerHTML = `
+    <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
+      <div style="font-size:14px;font-weight:600">${escHtml(attrLabel)}. ${escHtml(attr?.title || '')}</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">${escHtml(sampleLabel)}</div>
+    </div>
+    <div class="cell-review-notes-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px"></div>
+    <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
+      <button class="btn-s cell-review-notes-close">Close</button>
+    </div>
+  `;
+  overlay.appendChild(modal);
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
+  modal.querySelector('.cell-review-notes-close').onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+  _renderCellNotesSection(ref, attributeIndex, sampleRowIndex, modal.querySelector('.cell-review-notes-body'));
 }
 
 const SECTION_NAMES = {
@@ -38629,18 +38683,17 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
+        ${rationaleHtml}
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
+          <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
+        </div>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
-        <div style="display:flex;gap:5px;margin-bottom:8px">
+        <div style="display:flex;gap:5px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
           <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
           <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
         </div>
-        ${rationaleHtml}
-        <div style="display:flex;gap:6px;margin-bottom:4px">
-          <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
-          <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
-        </div>
-        <div class="attr-modal-cell-notes"></div>
       `;
       const readEvidence = () => ({
         sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
@@ -38678,7 +38731,6 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         const r = selected || savedEffective || 'pass';
         _openBulkOverridePicker('samples', ref, attributeIndex, fi, r, body.querySelector('.attr-modal-note').value);
       };
-      _renderCellNotesSection(ref, attributeIndex, fi, body.querySelector('.attr-modal-cell-notes'));
       rowEl.appendChild(body);
     }
 
