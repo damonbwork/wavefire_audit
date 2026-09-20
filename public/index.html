@@ -25102,6 +25102,58 @@ async function _checkFileForDrift(ref, entry) {
   return { entry, mechanism, diffs };
 }
 
+// Real, new, per explicit request — a word/punctuation-level diff
+// (not just showing two whole strings side by side), so an edit as
+// small as one changed word or a swapped comma is actually visible,
+// not just "these two blocks of text differ somehow." Splits on
+// whitespace AND punctuation as their own tokens (so "approval." vs
+// "approval," shows only the punctuation itself as changed, not the
+// whole word), then a standard LCS-based diff over those tokens.
+// Returns { aHtml, bHtml } — `a` is WaveFire's current value, `b` is
+// the PDF's current value, each with <del>/<ins> spans marking exactly
+// what differs, and unchanged tokens rendered plainly on both sides.
+function _wordDiffHtml(a, b) {
+  const tokenize = s => (s || '').split(/(\s+|[.,;:!?()])/).filter(t => t !== '');
+  const aw = tokenize(a), bw = tokenize(b);
+  const n = aw.length, m = bw.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = aw[i] === bw[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  let i = 0, j = 0;
+  const aParts = [], bParts = [];
+  while (i < n && j < m) {
+    if (aw[i] === bw[j]) { aParts.push(escHtml(aw[i])); bParts.push(escHtml(bw[j])); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { aParts.push(`<del style="background:#fecaca;text-decoration:line-through">${escHtml(aw[i])}</del>`); i++; }
+    else { bParts.push(`<ins style="background:#bbf7d0;text-decoration:none">${escHtml(bw[j])}</ins>`); j++; }
+  }
+  while (i < n) { aParts.push(`<del style="background:#fecaca;text-decoration:line-through">${escHtml(aw[i])}</del>`); i++; }
+  while (j < m) { bParts.push(`<ins style="background:#bbf7d0;text-decoration:none">${escHtml(bw[j])}</ins>`); j++; }
+  return { aHtml: aParts.join('') || '<em>(blank)</em>', bHtml: bParts.join('') || '<em>(blank)</em>' };
+}
+
+// Writes one drift resolution's final chosen value to BOTH sides —
+// WaveFire's grid (via the existing _postOverride path) and the actual
+// PDF (by re-running the applicable burn mechanism against the now-
+// updated grid data) — so after this call the two are genuinely back
+// in agreement, not just "WaveFire's copy of the truth changed while
+// the PDF still shows something else until the next unrelated Analyze
+// run." `kind` is 'note' or 'result'; ref-kind diffs never reach this
+// (no accept path — see the report's own note on why).
+async function _applyDriftResolution(ref, d, finalValue) {
+  const saved = _findOverrideFor(ref, d.ai, d.fi);
+  if (d.kind === 'result') {
+    const currentNote = saved?.override_note || saved?.ai_note || '';
+    await _postOverride(ref, d.ai, d.fi, finalValue, currentNote);
+  } else {
+    const currentResult = saved?.override_result || saved?.ai_result || 'pass';
+    await _postOverride(ref, d.ai, d.fi, currentResult, finalValue);
+  }
+  renderAnalysisResultsGrid(ref);
+}
+
 // Runs the check above across every WaveFire-authored annotated file
 // currently attached, and shows a report — never acts on anything
 // automatically. Per explicit design: a person resolves each drifted
@@ -25167,47 +25219,82 @@ async function _openDriftReport(ref) {
       <div style="font-weight:600;font-size:12px;margin-bottom:6px">${escHtml(r.entry.name)}</div>
       ${r.diffs.map((d, di) => {
         const label = { note: 'Tick mark explanation', result: 'Pass/Fail result', ref: 'Exception/Finding/Recommendation' }[d.kind];
-        const gridVal = d.kind === 'note' ? (d.expectedText || '(blank)') : d.kind === 'result' ? (d.expectedResult || '(none)') : d.expectedRef;
-        const pdfVal  = d.kind === 'note' ? (d.currentPdfText || '(blank)') : d.kind === 'result' ? (d.currentPdfResult || '(none)') : d.currentPdfRef;
-        const canAccept = d.kind !== 'ref'; // a bare ref string has no name/description to create a real grid row from — see the accept handler's own note
+        const gridValRaw = d.kind === 'note' ? (d.expectedText || '') : d.kind === 'result' ? (d.expectedResult || '') : d.expectedRef;
+        const pdfValRaw  = d.kind === 'note' ? (d.currentPdfText || '') : d.kind === 'result' ? (d.currentPdfResult || '') : d.currentPdfRef;
+        const diffHtml = _wordDiffHtml(String(gridValRaw), String(pdfValRaw));
+        if (d.kind === 'ref') {
+          return `
+          <div style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+            <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
+            <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
+            <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
+            <div style="color:#9a3412;margin-top:3px">A Ref alone has no name/description to create or match a grid row automatically — add, delete, or reclassify the corresponding row in the Exceptions/Findings/Recommendations grid directly, or use "Keep WaveFire's version" below to restore this file's own marker.</div>
+            <div style="margin-top:5px"><button class="btn-s drift-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button></div>
+          </div>`;
+        }
+        // note / result — a real, editable resolution: the highlighted
+        // diff for context, an editable field pre-filled with the PDF's
+        // own current value (the presumed newer edit) that the person
+        // can freely change before saving, and three explicit ways to
+        // resolve it — whichever they pick becomes the ONE value
+        // written to both the grid and the file itself (via
+        // _applyDriftResolution + a re-burn), so the two are genuinely
+        // back in agreement afterward, not left to drift apart again.
+        const editorHtml = d.kind === 'result'
+          ? `<select class="drift-edit-value" data-ri="${ri}" data-di="${di}" style="font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+               <option value="pass" ${pdfValRaw === 'pass' ? 'selected' : ''}>Pass</option>
+               <option value="fail" ${pdfValRaw === 'fail' ? 'selected' : ''}>Fail</option>
+             </select>`
+          : `<textarea class="drift-edit-value" data-ri="${ri}" data-di="${di}" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-top:4px">${escHtml(pdfValRaw)}</textarea>`;
         return `
-        <div style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+        <div class="drift-diff-row" style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
           <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
-          <div style="color:var(--text-tertiary)">WaveFire's grid says: <span style="color:var(--text-primary)">${escHtml(String(gridVal))}</span></div>
-          <div style="color:var(--text-tertiary)">This PDF now says: <span style="color:var(--text-primary)">${escHtml(String(pdfVal))}</span></div>
-          ${d.kind === 'ref' ? `<div style="color:#9a3412;margin-top:3px">A Ref alone has no name/description to create or match a grid row automatically — add, delete, or reclassify the corresponding row in the Exceptions/Findings/Recommendations grid directly, or use "Keep WaveFire's version" below to restore this file's own marker.</div>` : ''}
-          <div style="display:flex;gap:6px;margin-top:5px">
-            ${canAccept ? `<button class="btn-s drift-accept" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Bring this into WaveFire</button>` : ''}
-            <button class="btn-s drift-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button>
+          <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
+          <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
+          <div style="color:var(--text-tertiary);margin-top:4px">Final value to save (edit freely before choosing):</div>
+          ${editorHtml}
+          <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
+            <button class="btn-s drift-save-grid" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use WaveFire's version</button>
+            <button class="btn-s drift-save-pdf" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use PDF's version</button>
+            <button class="btn-s drift-save-edited" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px;background:#1e40af;color:#fff;border-color:#1e40af">Save edited value</button>
           </div>
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
 
-  body.querySelectorAll('.drift-accept').forEach(btn => {
-    btn.onclick = async () => {
-      const r = changed[Number(btn.dataset.ri)];
-      const d = r.diffs[Number(btn.dataset.di)];
-      btn.disabled = true; btn.textContent = 'Applying…';
-      const saved = _findOverrideFor(ref, d.ai, d.fi);
-      if (d.kind === 'result') {
-        // Real, deliberate — per explicit request this button now DOES
-        // let a person bring a PDF-observed result change into the
-        // grid, but only via this explicit, per-item click; nothing
-        // here ever flips a result on its own.
-        const currentNote = saved?.override_note || saved?.ai_note || '';
-        await _postOverride(ref, d.ai, d.fi, d.currentPdfResult, currentNote);
-      } else {
-        // note: brings in the PDF's own explanation text only, keeping
-        // whatever result is already recorded.
-        const currentResult = saved?.override_result || saved?.ai_result || 'pass';
-        await _postOverride(ref, d.ai, d.fi, currentResult, d.currentPdfText);
-      }
-      renderAnalysisResultsGrid(ref);
-      btn.textContent = 'Applied';
-    };
-  });
+  const saveHandler = (finalValueFn) => async (ev) => {
+    const btn = ev.currentTarget;
+    const ri = Number(btn.dataset.ri), di = Number(btn.dataset.di);
+    const r = changed[ri];
+    const d = r.diffs[di];
+    const finalValue = finalValueFn(btn, d);
+    const buttonsRow = btn.parentElement.querySelectorAll('button');
+    buttonsRow.forEach(b => b.disabled = true);
+    btn.textContent = 'Saving…';
+    try {
+      await _applyDriftResolution(ref, d, finalValue);
+      // Real, new — the whole point of "reconcile," not just "record":
+      // re-burns this file's own mechanism immediately so the PDF is
+      // brought back into agreement with whatever value was just
+      // chosen, rather than leaving the file showing something stale
+      // until an unrelated future Analyze run happens to fix it.
+      if (r.mechanism === 'ff')  await _autoFormFieldFilesAfterAnalyze(ref);
+      if (r.mechanism === 'sn')  await _makeAcrobatAnnotatedCopyAfterAnalyze(ref);
+      if (r.mechanism === 'bi2') await _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref);
+      refreshFileList(ref, 'sample');
+      btn.textContent = 'Saved to both';
+    } catch (e) {
+      console.error('[DriftCheck] Could not apply resolution:', e.message);
+      btn.textContent = 'Failed — see console';
+    }
+  };
+  body.querySelectorAll('.drift-save-grid').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.expectedResult : d.expectedText)));
+  body.querySelectorAll('.drift-save-pdf').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.currentPdfResult : d.currentPdfText)));
+  body.querySelectorAll('.drift-save-edited').forEach(btn => btn.addEventListener('click', saveHandler(btn => {
+    const editor = btn.closest('.drift-diff-row').querySelector('.drift-edit-value');
+    return editor.value;
+  })));
   body.querySelectorAll('.drift-keep, .drift-restore').forEach(btn => {
     btn.onclick = async () => {
       const r = changed[Number(btn.dataset.ri || btn.dataset.idx)];
@@ -33183,6 +33270,11 @@ function openFilePreviewOverlay() {
   document.getElementById('file-preview-overlay').classList.add('open');
 }
 function closeFilePreview() {
+  // Real, new — captured before anything below resets state, so the
+  // silent drift check after this function returns still knows exactly
+  // which file was just closed.
+  const _closingRef = _fpRef, _closingBucket = _fpBucket, _closingIdx = _fpIdx;
+
   document.getElementById('file-preview-overlay').classList.remove('open');
   document.getElementById('file-preview-nav').style.display = 'none';
   document.getElementById('file-preview-zoom-bar').style.display = 'none';
@@ -33195,6 +33287,54 @@ function closeFilePreview() {
   _twGridPlacementArmed = false;
   const twPanel = document.getElementById('tw-grid-placement-panel');
   if (twPanel) { twPanel.style.display = 'none'; twPanel.innerHTML = ''; }
+
+  // Real, new, per explicit request — a silent check on every viewer
+  // close, since this is the one moment a person might genuinely have
+  // just edited the file itself (WaveFire's own annotation tools, or a
+  // re-opened downloaded-then-edited copy). Deliberately NOT the full
+  // "Reconcile" modal every time — only surfaces anything at all when
+  // this one file actually shows drift, via a small dismissable toast
+  // rather than interrupting every ordinary close with a dialog.
+  if (_closingBucket === 'sample' && _closingRef != null && _closingIdx != null) {
+    _checkDriftOnViewerClose(_closingRef, _closingIdx);
+  }
+}
+
+async function _checkDriftOnViewerClose(ref, idx) {
+  try {
+    const entry = inMemoryFiles[ref]?.sample?.[idx];
+    if (!entry || !entry._annotatedFrom || !entry._wfFingerprint) return; // not a WaveFire-authored annotated file — nothing to check
+    const result = await _checkFileForDrift(ref, entry);
+    if (!result) return; // unchanged
+    const hasRealFinding = result.mechanism === 'bi' || result.readError || (result.diffs && result.diffs.length);
+    if (!hasRealFinding) return;
+    _showDriftToast(ref, entry.name);
+  } catch (e) {
+    console.error('[DriftCheck] Silent check on close failed:', e.message);
+  }
+}
+
+// A small, dismissable, non-blocking notice — never a modal — so
+// closing a PDF that turns out to have drifted doesn't interrupt the
+// person's flow; clicking it opens the same full reconciliation report
+// the Testwork Grid's own button does.
+function _showDriftToast(ref, filename) {
+  document.querySelectorAll('.drift-toast').forEach(el => el.remove());
+  const toast = document.createElement('div');
+  toast.className = 'drift-toast';
+  toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10040;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.3);padding:12px 14px;max-width:320px;font-size:12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px';
+  toast.innerHTML = `
+    <i class="ti ti-git-compare" style="font-size:16px;margin-top:1px"></i>
+    <div style="flex:1">
+      <div style="font-weight:600">Possible drift detected</div>
+      <div style="opacity:0.85;margin-top:2px">${escHtml(filename)} no longer matches what WaveFire generated. Click to review.</div>
+    </div>
+    <span style="opacity:0.7;font-size:14px;line-height:1" title="Dismiss">&times;</span>
+  `;
+  toast.querySelector('span').onclick = (ev) => { ev.stopPropagation(); toast.remove(); };
+  toast.onclick = () => { toast.remove(); _openDriftReport(ref); };
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 20000);
 }
 // Keyboard arrow navigation for file preview
 document.addEventListener('keydown', function(ev) {
