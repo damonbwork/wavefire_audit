@@ -24755,6 +24755,33 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
     const rows = _attrSampleResultsCache[ref] || (_attrSampleResultsCache[ref] = []);
     let row = rows.find(r => r.attribute_index === ai && r.sample_row_index === fi);
     if (!row) { row = { attribute_index: ai, sample_row_index: fi }; rows.push(row); }
+
+    // Real, new, per explicit request — flagged onscreen (never in the
+    // PDF, per the earlier "OVR"/"Override" work this session) is
+    // already handled elsewhere by the existing override_result/
+    // ai_result distinction every badge/tag already checks. What was
+    // genuinely missing is a LOGGED record that a person overrode a
+    // result Wavefire AI itself set — computed here, in the one true
+    // chokepoint every override path (grid popups, bulk-apply, and the
+    // sync-reconciliation feature) already funnels through, so nothing
+    // needs its own separate logging call. row.ai_result may not be
+    // loaded yet this session (a fresh cache entry, never fetched from
+    // the DB) — falls back to this cell's own live match result, the
+    // same fallback every other AI-original lookup in this app already
+    // uses, so a same-session override right after Analyze still logs
+    // correctly even before a reload would have populated ai_result.
+    const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+    const attr = attributes[ai];
+    const sampleRow = (_wpAnalysisResults[ref] || [])[fi];
+    const match = attr ? (sampleRow?.results || []).find(r => r.title === attr.title) : null;
+    const aiResult = row.ai_result || match?.result || null;
+    const previousOverrideResult = row.override_result;
+    if (overrideResult && aiResult && overrideResult !== aiResult && overrideResult !== previousOverrideResult) {
+      const attrLabel = attr ? (attr.attrRef || attr.num || String(ai + 1)) : String(ai + 1);
+      const sampleLabel = sampleRow?.sampleDesc || `Sample ${fi + 1}`;
+      logEvent(ref, `Attribute ${attrLabel} (${sampleLabel}) overridden from Wavefire AI's "${aiResult}" to "${overrideResult}"`);
+    }
+
     row.override_result = overrideResult || null;
     row.override_note   = overrideNote || null;
     row.overridden_at   = overrideResult ? new Date().toISOString() : null;
