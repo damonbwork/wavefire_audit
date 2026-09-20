@@ -12322,7 +12322,14 @@ function renderAnalysisResultsGrid(ref) {
       const color  = TICK_COLOR[result] || '#9ca3af';
       const exRow  = exceptions.find(e => e.attributeIndex === ai && e.sampleRowIndex === fi);
       const refTag = exRow?.ref ? `<div style="font-size:9px;color:var(--text-tertiary)">[${escHtml(exRow.ref)}]</div>` : '';
-      const ovrTag = overrideRow?.override_result ? `<div style="font-size:8px;font-weight:700;color:#1e40af">OVR</div>` : '';
+      // Real, new, per explicit request — "OVR" -> "Override", and only
+      // shown when a real Analyze-created result (overrideRow.ai_result,
+      // persisted server-side) is actually being overridden — a
+      // manually-created grid cell that's never been analyzed has
+      // nothing AI-placed to override, so it never shows this tag even
+      // if it has its own override_result (a first manual answer, not
+      // an override of anything).
+      const ovrTag = (overrideRow?.override_result && overrideRow?.ai_result) ? `<div style="font-size:8px;font-weight:700;color:#1e40af">Override</div>` : '';
       // Each sample row is tested against every attached sample file
       // together (see analyzeOneFileFast's own comment on this), so
       // fileResult.fileName is deliberately the joined list of every
@@ -24621,10 +24628,13 @@ async function _saveOverride(ref, ai, fi, overrideResult, overrideNote, popup, t
     if (overrideResult) tickEl.dataset.overridden = '1';
     else delete tickEl.dataset.overridden;
     tickEl.querySelector('.ann-override-badge')?.remove();
-    if (tickEl.dataset.overridden) {
+    // Real, new, per explicit request — "OVR" -> "Override", shown only
+    // when a real Analyze-created result (row.ai_result) is actually
+    // being overridden, not for a manually-recorded first answer.
+    if (tickEl.dataset.overridden && row?.ai_result) {
       const badge = document.createElement('span');
       badge.className = 'ann-override-badge';
-      badge.textContent = 'OVR';
+      badge.textContent = 'Override';
       badge.style.cssText = 'position:absolute;top:-8px;right:-6px;font-size:7px;font-weight:700;' +
         'background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px';
       tickEl.style.position = 'absolute'; // already set, kept explicit so the badge's own absolute position anchors correctly
@@ -25385,12 +25395,16 @@ function placeInteractiveAnnotations(fileResult, attributes, exMap, fi, currentF
     if (overrideRow?.override_result && overrideRow.override_result !== aiResult) {
       tickEl.title = `Overridden to ${overrideRow.override_result} — AI's own current determination: ${aiResult}`;
     }
-    if (overrideRow?.override_result) {
+    // Real, new, per explicit request — "OVR" -> "Override", shown only
+    // when a real Analyze-created result (overrideRow.ai_result) is
+    // actually being overridden, not for a manually-recorded first
+    // answer with no AI result behind it.
+    if (overrideRow?.override_result && overrideRow?.ai_result) {
       const badge = document.createElement('span');
       badge.className = 'ann-override-badge';
-      badge.textContent = 'OVR';
+      badge.textContent = 'Override';
       badge.style.cssText = 'position:absolute;top:-8px;right:-6px;font-size:7px;font-weight:700;' +
-        'background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px';
+        'background:#1e40af;color:#fff;border-radius:3px;padding:0 3px;letter-spacing:0.3px;white-space:nowrap';
       tickEl.appendChild(badge);
     }
     overlay.appendChild(tickEl);
@@ -25534,7 +25548,10 @@ function placeLegendOverlay(fileResult, attributes, exMap, fi, ref) {
     const result  = overrideRow?.override_result || aiResult;
     const tick    = TICK_SYMS[result] || '–';
     const exRef   = exMap[`${fi}-${ai}`] ? ' [' + exMap[`${fi}-${ai}`] + ']' : '';
-    const ovrTag  = overrideRow?.override_result ? ' OVR' : '';
+    // Real, new, per explicit request — "OVR" -> "Override", shown only
+    // when a real Analyze-created result (overrideRow.ai_result) is
+    // actually being overridden.
+    const ovrTag  = (overrideRow?.override_result && overrideRow?.ai_result) ? ' Override' : '';
     const label   = (attr.attrRef || attr.num || String(ai+1)) + '. ' + attr.title;
     const pageNum = (match?.page && match.page > 0) ? '  Pg ' + match.page : '';
     const section = (match?.section || '').slice(0, 20);
@@ -26931,8 +26948,8 @@ const HELP_TOPICS = {
       that (sample, attribute) pair — pulled live from the most recent
       Analyze run, or from a person's own override when one exists. A
       <code>[Ref]</code> tag under a fail tick names the Exception it
-      drove; an <strong>OVR</strong> tag marks an attribute a person has
-      since overridden.</p>
+      drove; an <strong>Override</strong> tag marks an attribute where a
+      person has changed a result the AI originally placed.</p>
 
       <p><strong>Exception, Finding, and Recommendation — what each one means:</strong></p>
       <ul style="margin:4px 0 4px 18px;padding:0">
@@ -38407,9 +38424,12 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
     // designation reads as a label, not just a color someone has to
     // interpret.
     const resultWord = effective ? (effective.charAt(0).toUpperCase() + effective.slice(1)) : 'Not tested';
+    // Real, new, per explicit request — "OVR" -> "Override", shown only
+    // when a real Analyze-created result (saved.ai_result) is actually
+    // being overridden, not for a manually-recorded first answer.
     const statusBadge = isPending
       ? '<span style="font-size:9px;font-weight:700;background:#d97706;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">PENDING</span>'
-      : (saved?.override_result ? '<span style="font-size:9px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">OVR</span>' : '');
+      : ((saved?.override_result && saved?.ai_result) ? '<span style="font-size:9px;font-weight:700;background:#1e40af;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">Override</span>' : '');
 
     const rowEl = document.createElement('div');
     rowEl.style.cssText = 'border-bottom:0.5px solid var(--border-light)';
