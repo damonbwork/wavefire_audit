@@ -38532,7 +38532,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // real answer; before that, this is recording a first answer, not
       // overriding one.
       const overrideCopy = savedEffective
-        ? 'Select Pass or Fail below to override the AI\'s result — the current result is already selected.'
+        ? 'Select Pass or Fail below.'
         : 'Select Pass or Fail below to record the result for this sample.';
 
       // Real, new, per manual-testwork-grid-plan.md Part 3 — lets a
@@ -38570,6 +38570,23 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // with no AI result at all has nothing to "override," so there's
       // no rationale to ask for.
       const aiOriginalResult = saved?.ai_result || match?.result || null;
+      // Real, new, per explicit request — since the copy above no longer
+      // says "override the AI's result," this notes explicitly whether
+      // the currently-selected Pass/Fail came from a person or from
+      // Wavefire AI. A pending, not-yet-saved change in this modal
+      // always reads as the user's own (it's what they just clicked);
+      // otherwise it reflects the last thing actually saved for this
+      // cell — a saved override (named to whoever made it), the AI's
+      // own untouched result, or nothing at all if this cell has never
+      // been given an answer by either.
+      const sourceLabel = isPending
+        ? 'Selected by you (not yet saved)'
+        : (saved?.override_result
+            ? `Selected by ${escHtml(saved.overridden_by || 'a user')}`
+            : (aiOriginalResult ? 'Selected by Wavefire AI' : ''));
+      const sourceLabelHtml = sourceLabel
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">${sourceLabel}</div>`
+        : '';
       const rationaleHtml = aiOriginalResult ? `
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Override rationale (optional) — why are you changing the AI's result?</div>
         <textarea class="attr-modal-rationale" placeholder="e.g. I disagree with how Analyze read this document, because..." style="width:100%;min-height:36px;
@@ -38586,6 +38603,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
+        ${sourceLabelHtml}
         ${priorNoteHtml}
         <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
