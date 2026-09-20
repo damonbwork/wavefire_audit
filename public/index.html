@@ -3127,7 +3127,7 @@
             </button>
           </div>
           <div class="sect-body">
-            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;margin-bottom:6px"></div>
+            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px"></div>
             <!-- Real, new, per explicit request — defaults to one line
                  (matching the Test Description field's own "start small,
                  grow with content" pattern) instead of a fixed 120px
@@ -11739,7 +11739,13 @@ function renderNarrativeRefFiles(ref) {
   const container = document.getElementById('narrative-ref-files');
   if (!container) return;
   const sel = wpNarrativeRefFiles[ref] || new Set();
-  if (!sel.size) { container.innerHTML = ''; return; }
+  // Real, confirmed fix, per a real reported bug — this div's own
+  // min-height/margin-bottom used to be fixed inline styles, always
+  // reserving blank space above the narrative textarea even when no
+  // reference files were selected. Now sized only when it actually has
+  // chips to show.
+  if (!sel.size) { container.innerHTML = ''; container.style.marginBottom = '0'; return; }
+  container.style.marginBottom = '6px';
   container.innerHTML = [...sel].map(name => {
     const safe = name.replace(/'/g, "\\'");
     return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:5px;padding:2px 7px;color:var(--text-secondary)">
