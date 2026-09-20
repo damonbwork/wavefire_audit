@@ -12575,21 +12575,27 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
-    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
     ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px"></textarea>` : ''}
-    <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Sample file / location (optional)</div>
-    <select class="cqp-evidence-file" style="width:100%;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:4px">${fileOptionsHtml}</select>
-    <div style="display:flex;gap:4px;margin-bottom:4px">
-      <input class="cqp-evidence-page" type="number" min="1" placeholder="Page" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-      <input class="cqp-evidence-section" type="text" placeholder="Section (opt.)" style="width:0;flex:1.4;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-      <input class="cqp-evidence-para" type="number" min="1" placeholder="Para (opt.)" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span class="cqp-open-pdf" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">Open PDF</span>
-      <button class="cqp-place-tick btn-s" style="font-size:10px;padding:3px 8px">Place tick mark on PDF</button>
+    <div class="cqp-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px;${currentNote ? 'display:none' : ''}">Expand to place tickmarks in sample files</div>
+    <div class="cqp-place-wrap" style="${currentNote ? '' : 'display:none'}">
+      <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+      <select class="cqp-evidence-file" style="width:100%;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:4px">${fileOptionsHtml}</select>
+      <div style="display:flex;gap:4px;margin-bottom:4px">
+        <input class="cqp-evidence-page" type="number" min="1" placeholder="Page" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        <input class="cqp-evidence-section" type="text" placeholder="Section (opt.)" style="width:0;flex:1.4;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        <input class="cqp-evidence-para" type="number" min="1" placeholder="Para (opt.)" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="cqp-open-pdf" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">Open PDF</span>
+        <button class="cqp-place-tick btn-s" style="font-size:10px;padding:3px 8px">Place tick mark on PDF</button>
+      </div>
     </div>
   `;
   document.body.appendChild(popup);
+  popup.querySelector('.cqp-place-toggle').onclick = function() {
+    popup.querySelector('.cqp-place-wrap').style.display = '';
+    this.remove();
+  };
   // Note/rationale are set after innerHTML (not interpolated into the
   // placeholder-bearing template above) purely so their values can't
   // collide with the placeholder text.
@@ -38839,20 +38845,22 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong><br>${escHtml(aiNote)}</div>`
         : '';
 
-      // Real, new, per explicit request — Evidence (page/paragraph/
-      // source file) exists for the case AI didn't place a tick at all
-      // and a person is recording one manually. For a cell Wavefire AI
-      // DID analyze, it's rarely relevant (the AI's own evidence already
-      // lives in its tick mark explanation above) — folded shut by
-      // default so it doesn't clutter every AI-generated cell, but still
-      // reachable via a small toggle for the exception (someone wants to
-      // add an additional citation of their own). Stays open by default
-      // whenever evidence is already on file (a prior manual entry, or
-      // an override that already recorded some) — an existing value is
-      // never hidden from view.
+      // Real, new, per explicit request — the tick mark explanation
+      // (TME) textarea and its location fields (page/section/paragraph/
+      // source file) are now ONE folded unit, hidden until the user
+      // explicitly expands it via the label below, rather than always
+      // showing the TME textarea plainly and only folding Evidence on
+      // its own. Stays open by default whenever there's already a saved
+      // explanation or evidence on file (a prior manual entry, or an
+      // override that already recorded some) — existing content is
+      // never hidden from view without the user's own action.
       const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
-      const evidenceFoldedByDefault = !!aiOriginalResult && !hasExistingEvidence;
-      const evidenceFieldsHtml = `
+      const placeFoldedByDefault = !priorNote && !hasExistingEvidence;
+      const placeFieldsHtml = `
+        ${priorNoteHtml}
+        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
+          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
         <div style="display:flex;gap:5px;margin-bottom:4px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
@@ -38864,10 +38872,10 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           <span class="attr-modal-open-pdf" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">Open PDF</span>
           <button class="attr-modal-place-tick btn-s" style="font-size:10px;padding:3px 8px">Place tick mark on PDF</button>
         </div>`;
-      const evidenceHtml = evidenceFoldedByDefault
-        ? `<div class="attr-modal-evidence-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">+ Add evidence (optional)</div>
-           <div class="attr-modal-evidence-wrap" style="display:none;margin-top:6px">${evidenceFieldsHtml}</div>`
-        : `<div class="attr-modal-evidence-wrap">${evidenceFieldsHtml}</div>`;
+      const placeHtml = placeFoldedByDefault
+        ? `<div class="attr-modal-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px">Expand to place tickmarks in sample files</div>
+           <div class="attr-modal-place-wrap" style="display:none">${placeFieldsHtml}</div>`
+        : `<div class="attr-modal-place-wrap">${placeFieldsHtml}</div>`;
 
       body.innerHTML = `
         ${overrideCopy ? `<div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>` : ''}
@@ -38880,20 +38888,16 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${sourceLabelHtml}
-        ${priorNoteHtml}
-        <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
-          box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
         ${rationaleHtml}
         <div style="display:flex;gap:6px;margin-bottom:8px">
           <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
           <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
         </div>
         ${aiNoteHtml}
-        ${evidenceHtml}
+        ${placeHtml}
       `;
-      body.querySelector('.attr-modal-evidence-toggle')?.addEventListener('click', function() {
-        const wrap = body.querySelector('.attr-modal-evidence-wrap');
+      body.querySelector('.attr-modal-place-toggle')?.addEventListener('click', function() {
+        const wrap = body.querySelector('.attr-modal-place-wrap');
         wrap.style.display = '';
         this.remove();
       });
