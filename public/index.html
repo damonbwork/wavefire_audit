@@ -4115,6 +4115,15 @@ to the facility name.  If not found return an empty cell</textarea>
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Clear Testwork Grid
             </button>
+            <!-- Real, new, per pass-fail-override-and-sync-plan.md
+                 Part 8 — checks every already-generated annotated file
+                 against what WaveFire itself last wrote to it, so an
+                 edit made outside the app (then re-attached by some
+                 path other than a literal same-filename replace) gets
+                 surfaced rather than silently going out of sync with the grid. -->
+            <button class="btn-s" onclick="_openSyncReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Compare every annotated sample file's pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers against what WaveFire's own grid currently believes">
+              <i class="ti ti-git-compare"></i> Reconcile PDF to Wavefire (pass/fail, tick mark explanations, and exceptions, findings and recommendations)
+            </button>
           </div>
         </div><!-- /sect-card analysis grid -->
 
@@ -5603,6 +5612,14 @@ Testwork Grid" to build a blank grid and record each result yourself.
           <button onclick="saveAnnotatedPDF()" id="ann-save-btn" style="font-size:12px;padding:5px 14px;border-radius:6px;border:none;cursor:pointer;background:rgb(234,88,12);color:#fff;font-weight:600;display:flex;align-items:center;gap:6px"><i class="ti ti-device-floppy"></i> Save Annotations</button>
         </div>
       </div>
+      <!-- Real, new, per explicit request — a Testwork Grid tick mark
+           can now be placed by clicking directly on the rendered page,
+           right here in the open viewer, instead of only via a typed
+           page number in the grid's own popups. Populated/shown only
+           by _renderTwGridPlacementPanel, when the viewer was opened
+           FOR that purpose (_twGridPlacementCtx set) — invisible for
+           ordinary file browsing. -->
+      <div id="tw-grid-placement-panel" style="display:none"></div>
       <!-- Body -->
       <div id="file-preview-body" style="position:relative"><div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div></div>
     </div>
@@ -7841,8 +7858,10 @@ async function handleInitialHash() {
         const openOriginal = params.get('openSampleOriginal') !== '0';
         const openAttrIdxRaw = params.get('openSampleAttr');
         const openAttrIdx = openAttrIdxRaw != null && openAttrIdxRaw !== '' ? Number(openAttrIdxRaw) : null;
+        const openRowRaw = params.get('openSampleRow');
+        const openRow = openRowRaw != null && openRowRaw !== '' ? Number(openRowRaw) : null;
         try {
-          await _openSampleFileAtMark(wpRef, openFile, openPage, openOriginal, openAttrIdx);
+          await _openSampleFileAtMark(wpRef, openFile, openPage, openOriginal, openAttrIdx, openRow);
         } catch (e) {
           console.error('[handleInitialHash] Could not open deep-linked PDF:', e.message);
         }
@@ -12576,9 +12595,17 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
     ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px"></textarea>` : ''}
-    <div class="cqp-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px;${currentNote ? 'display:none' : ''}">Expand to place tickmarks in sample files</div>
-    <div class="cqp-place-wrap" style="${currentNote ? '' : 'display:none'}">
-      <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <!-- Real, new, per explicit request (reverses the earlier fold) —
+         the tick mark explanation itself is now ALWAYS visible and
+         editable here, showing any existing value, regardless of
+         whether this cell has ever been analyzed. Only the sample
+         file/page/section/paragraph placement fields below it stay
+         folded — those are specifically for physically placing a tick
+         on a PDF page, a separate, rarer action from simply recording
+         or revising the explanation text. -->
+    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    <div class="cqp-place-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline;margin-bottom:6px">Expand to place tickmarks in sample files</div>
+    <div class="cqp-place-wrap" style="display:none">
       <select class="cqp-evidence-file" style="width:100%;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:4px">${fileOptionsHtml}</select>
       <div style="display:flex;gap:4px;margin-bottom:4px">
         <input class="cqp-evidence-page" type="number" min="1" placeholder="Page" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
@@ -12605,7 +12632,7 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   popup.querySelector('.cqp-open-pdf').onclick = () => {
     const file = popup.querySelector('.cqp-evidence-file').value;
     const page = popup.querySelector('.cqp-evidence-page').value;
-    _openPdfInNewTab(ref, file, Number(page) || 1, true, ai);
+    _openPdfInNewTab(ref, file, Number(page) || 1, true, ai, fi);
   };
   popup.querySelector('.cqp-place-tick').onclick = async () => {
     const btn = popup.querySelector('.cqp-place-tick');
@@ -24736,6 +24763,33 @@ async function _postOverride(ref, ai, fi, overrideResult, overrideNote, override
     const rows = _attrSampleResultsCache[ref] || (_attrSampleResultsCache[ref] = []);
     let row = rows.find(r => r.attribute_index === ai && r.sample_row_index === fi);
     if (!row) { row = { attribute_index: ai, sample_row_index: fi }; rows.push(row); }
+
+    // Real, new, per explicit request — flagged onscreen (never in the
+    // PDF, per the earlier "OVR"/"Override" work this session) is
+    // already handled elsewhere by the existing override_result/
+    // ai_result distinction every badge/tag already checks. What was
+    // genuinely missing is a LOGGED record that a person overrode a
+    // result Wavefire AI itself set — computed here, in the one true
+    // chokepoint every override path (grid popups, bulk-apply, and the
+    // sync-reconciliation feature) already funnels through, so nothing
+    // needs its own separate logging call. row.ai_result may not be
+    // loaded yet this session (a fresh cache entry, never fetched from
+    // the DB) — falls back to this cell's own live match result, the
+    // same fallback every other AI-original lookup in this app already
+    // uses, so a same-session override right after Analyze still logs
+    // correctly even before a reload would have populated ai_result.
+    const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+    const attr = attributes[ai];
+    const sampleRow = (_wpAnalysisResults[ref] || [])[fi];
+    const match = attr ? (sampleRow?.results || []).find(r => r.title === attr.title) : null;
+    const aiResult = row.ai_result || match?.result || null;
+    const previousOverrideResult = row.override_result;
+    if (overrideResult && aiResult && overrideResult !== aiResult && overrideResult !== previousOverrideResult) {
+      const attrLabel = attr ? (attr.attrRef || attr.num || String(ai + 1)) : String(ai + 1);
+      const sampleLabel = sampleRow?.sampleDesc || `Sample ${fi + 1}`;
+      logEvent(ref, `Attribute ${attrLabel} (${sampleLabel}) overridden from Wavefire AI's "${aiResult}" to "${overrideResult}"`);
+    }
+
     row.override_result = overrideResult || null;
     row.override_note   = overrideNote || null;
     row.overridden_at   = overrideResult ? new Date().toISOString() : null;
@@ -24888,6 +24942,413 @@ const _SYNC_SUFFIX_LABELS = [
 function _syncMechanismLabel(name) {
   const found = _SYNC_SUFFIX_LABELS.find(([re]) => re.test(name || ''));
   return found ? found[1] : name;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SYNC CHECK — pass-fail-override-and-sync-plan.md Part 8
+
+   Detects when an annotated sample file has changed since WaveFire
+   last wrote it (edited outside the app, then re-attached) — WaveFire
+   and the PDF may no longer be in sync — and, for the three
+   structurally-readable mechanisms, shows exactly what changed so a
+   person can bring the edit into the grid or discard it. `bi`
+   (flattened pixels) can only ever report "this is no longer in
+   sync," never what changed, per the design doc's own honest
+   breakdown.
+══════════════════════════════════════════════════════════════════ */
+
+function _mechanismFromFilename(name) {
+  const found = _SYNC_SUFFIX_LABELS.find(([re]) => re.test(name || ''));
+  if (!found) return null;
+  const m = found[1].match(/\(([a-z0-9]+)\)$/i);
+  return m ? m[1] : null;
+}
+
+// Pulls the leading "[attrNum]" and, immediately after, an optional
+// " [exRef]" (an Exception/Finding/Recommendation's own Ref, e.g.
+// "E3"/"F1"/"R2") off the front of one mark's own text — the exact,
+// same convention every burn mechanism already writes
+// ('[' + attrNum + ']' + exTag + ...). Returns
+// { attrNum, exRef, rest } or null if the text doesn't start with a
+// bracket at all (not one of WaveFire's own marks — e.g. a comment a
+// person added independently, which this feature has no baseline to
+// compare against and should simply ignore).
+function _parseMarkBracket(text) {
+  const m = /^\[([^\]]+)\]\s*(?:\[([^\]]+)\]\s*)?([\s\S]*)$/.exec((text || '').trim());
+  return m ? { attrNum: m[1], exRef: m[2] || '', rest: m[3].trim() } : null;
+}
+
+// Real, new, per explicit request — `sn`'s Text annotation sets a
+// genuine, structured /C (color) entry matching TICK_COLORS[result] at
+// write time (see _makeAcrobatAnnotatedCopyAfterAnalyze). Unlike the
+// mark's own text, this is the one place a pass/fail RESULT itself is
+// independently readable for any of the three structurally-readable
+// mechanisms — ff/bi2 draw their pass/fail symbol as page content or a
+// baked appearance stream, not as a separate readable property, so
+// this check only ever applies to sn.
+function _resultFromAnnotColor(dict, PDFName) {
+  const c = dict.get(PDFName.of('C'));
+  const arr = c && typeof c.asArray === 'function' ? c.asArray() : null;
+  if (!arr || arr.length < 3) return null;
+  const [r, g, b] = arr.map(n => (typeof n.asNumber === 'function' ? n.asNumber() : Number(n)));
+  const dist = (hex) => {
+    const rgb = [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255];
+    return Math.hypot(r - rgb[0], g - rgb[1], b - rgb[2]);
+  };
+  // TICK_COLORS.pass = '#16a34a', TICK_COLORS.fail = '#dc2626'
+  return dist('#16a34a') < dist('#dc2626') ? 'pass' : 'fail';
+}
+
+// Reads back every WaveFire-authored mark currently sitting in one
+// annotated PDF's own structure — real, structured content for sn/ff/
+// bi2 (comment text + color, form-field value, and stamp /Contents,
+// respectively), never a picture of text. Returns null for `bi` (or an
+// unrecognized mechanism) — nothing readable exists to return.
+async function _extractPdfMarkTexts(fileBytes, mechanism) {
+  if (mechanism !== 'sn' && mechanism !== 'ff' && mechanism !== 'bi2') return null;
+  const PDFLib = await loadPdfLib();
+  const { PDFDocument, PDFName } = PDFLib;
+  const doc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const marks = [];
+
+  if (mechanism === 'ff') {
+    const form = doc.getForm();
+    form.getFields().forEach(field => {
+      try {
+        const text = typeof field.getText === 'function' ? field.getText() : null;
+        const parsed = _parseMarkBracket(text);
+        // Real, honest limitation, named per explicit request — ff's
+        // own pass/fail symbol is drawn as separate page content, not
+        // stored in this field's own value, so `result` is left
+        // undefined here (never guessed at) — only its tick mark
+        // explanation and E/F/R ref are genuinely readable for ff.
+        if (parsed) marks.push({ ...parsed, result: undefined });
+      } catch (e) { /* not a text field, or unreadable — skip it, not a fatal error */ }
+    });
+    return marks;
+  }
+
+  // sn / bi2 — both are real PDF annotation objects on a page's own
+  // /Annots array, distinguished by Subtype (/Text for sn, /Stamp for
+  // bi2), with their current text sitting in a real /Contents entry.
+  const wantSubtype = mechanism === 'sn' ? 'Text' : 'Stamp';
+  doc.getPages().forEach(page => {
+    const annotsKey = PDFName.of('Annots');
+    const annotsRaw = page.node.lookup(annotsKey);
+    if (!annotsRaw) return;
+    const refs = annotsRaw.asArray ? annotsRaw.asArray() : [];
+    refs.forEach(ref => {
+      try {
+        const dict = doc.context.lookup(ref);
+        if (!dict || typeof dict.get !== 'function') return;
+        const subtype = dict.get(PDFName.of('Subtype'));
+        if (!subtype || subtype.toString() !== '/' + wantSubtype) return;
+        const contents = dict.get(PDFName.of('Contents'));
+        const text = contents && typeof contents.decodeText === 'function' ? contents.decodeText() : null;
+        const parsed = _parseMarkBracket(text);
+        if (parsed) {
+          // bi2's Stamp appearance is a baked, embedded XObject — not
+          // independently readable the way sn's own /C entry is — so
+          // result stays undefined for bi2, same honest limitation as ff.
+          const result = mechanism === 'sn' ? _resultFromAnnotColor(dict, PDFName) : undefined;
+          marks.push({ ...parsed, result });
+        }
+      } catch (e) { /* one malformed annotation shouldn't sink the whole read */ }
+    });
+  });
+  return marks;
+}
+
+// Compares one annotated file's CURRENT bytes against what WaveFire
+// itself last wrote (its recorded fingerprint), and — for a
+// structurally-readable mechanism — against what the grid currently
+// believes each of its marks says. Returns null when there's nothing
+// to compare (no baseline fingerprint recorded — e.g. a file from
+// before this feature existed) or when nothing has changed.
+async function _checkFileSyncStatus(ref, entry) {
+  if (!entry?._wfFingerprint || !entry.file) return null;
+  const mechanism = _mechanismFromFilename(entry.name);
+  if (!mechanism) return null;
+  const buf = await entry.file.arrayBuffer();
+  const currentFp = await _daSha256Hex(buf);
+  if (currentFp === entry._wfFingerprint) return null; // unchanged since WaveFire last wrote it
+
+  if (mechanism === 'bi') {
+    return { entry, mechanism, diffs: null }; // changed, but genuinely unreadable — flag only
+  }
+
+  let currentMarks;
+  try {
+    currentMarks = await _extractPdfMarkTexts(buf, mechanism);
+  } catch (e) {
+    console.error('[SyncCheck] Could not read', entry.name, ':', e.message);
+    return { entry, mechanism, diffs: null, readError: e.message };
+  }
+
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults = _wpAnalysisResults[ref] || [];
+  // Real, new, per explicit request — every Exception/Finding/
+  // Recommendation currently in the grid, keyed by the exact same
+  // (sampleRowIndex, attributeIndex) pair a mark's own exRef tag names,
+  // covering all three types (not just Exceptions, unlike
+  // _lookupExceptionRefMap, which is scoped to Exceptions alone since
+  // that's the only type its own caller — the tick-mark renderer —
+  // ever needs).
+  const gridRefByCell = {};
+  (wpExceptions[ref] || []).forEach(ex => {
+    if (ex.attributeIndex != null && ex.sampleRowIndex != null && ex.ref) {
+      gridRefByCell[`${ex.sampleRowIndex}-${ex.attributeIndex}`] = ex.ref;
+    }
+  });
+
+  const diffs = [];
+  (currentMarks || []).forEach(({ attrNum, exRef, rest, result }) => {
+    const ai = attributes.findIndex(a => String(a.attrRef || a.num) === String(attrNum));
+    if (ai < 0) return; // no matching attribute — not one of this workpaper's own marks
+    wpResults.forEach((fileResult, fi) => {
+      const match = (fileResult.results || []).find(r => r.title === attributes[ai].title);
+      if (!match || match.sourceFile !== entry._annotatedFrom) return;
+      const attrLabel = attributes[ai].attrRef || attributes[ai].num || String(ai + 1);
+      const saved = _findOverrideFor(ref, ai, fi);
+
+      // 1) Tick mark explanation.
+      const expectedNote = (saved?.override_note || saved?.ai_note || match.note || '').trim();
+      if (rest && rest !== expectedNote) {
+        diffs.push({ kind: 'note', ai, fi, attrLabel, currentPdfText: rest, expectedText: expectedNote });
+      }
+
+      // 2) Pass/Fail result — only ever checked when the mechanism
+      // actually has a genuinely readable result signal (sn's /C
+      // color; see _resultFromAnnotColor's own comment for why ff/bi2
+      // can't offer this).
+      if (result !== undefined) {
+        const expectedResult = saved?.override_result || saved?.ai_result || match.result || null;
+        if (expectedResult && result !== expectedResult) {
+          diffs.push({ kind: 'result', ai, fi, attrLabel, currentPdfResult: result, expectedResult });
+        }
+      }
+
+      // 3) Exception/Finding/Recommendation reference.
+      const expectedRef = gridRefByCell[`${fi}-${ai}`] || '';
+      if ((exRef || '') !== expectedRef) {
+        diffs.push({ kind: 'ref', ai, fi, attrLabel, currentPdfRef: exRef || '(none)', expectedRef: expectedRef || '(none)' });
+      }
+    });
+  });
+  if (!diffs.length) return { entry, mechanism, diffs: [], fingerprintOnly: true }; // bytes changed but nothing this feature tracks actually differs (e.g. a cosmetic edit)
+  return { entry, mechanism, diffs };
+}
+
+// Real, new, per explicit request — a word/punctuation-level diff
+// (not just showing two whole strings side by side), so an edit as
+// small as one changed word or a swapped comma is actually visible,
+// not just "these two blocks of text differ somehow." Splits on
+// whitespace AND punctuation as their own tokens (so "approval." vs
+// "approval," shows only the punctuation itself as changed, not the
+// whole word), then a standard LCS-based diff over those tokens.
+// Returns { aHtml, bHtml } — `a` is WaveFire's current value, `b` is
+// the PDF's current value, each with <del>/<ins> spans marking exactly
+// what differs, and unchanged tokens rendered plainly on both sides.
+function _wordDiffHtml(a, b) {
+  const tokenize = s => (s || '').split(/(\s+|[.,;:!?()])/).filter(t => t !== '');
+  const aw = tokenize(a), bw = tokenize(b);
+  const n = aw.length, m = bw.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = aw[i] === bw[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  let i = 0, j = 0;
+  const aParts = [], bParts = [];
+  while (i < n && j < m) {
+    if (aw[i] === bw[j]) { aParts.push(escHtml(aw[i])); bParts.push(escHtml(bw[j])); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { aParts.push(`<del style="background:#fecaca;text-decoration:line-through">${escHtml(aw[i])}</del>`); i++; }
+    else { bParts.push(`<ins style="background:#bbf7d0;text-decoration:none">${escHtml(bw[j])}</ins>`); j++; }
+  }
+  while (i < n) { aParts.push(`<del style="background:#fecaca;text-decoration:line-through">${escHtml(aw[i])}</del>`); i++; }
+  while (j < m) { bParts.push(`<ins style="background:#bbf7d0;text-decoration:none">${escHtml(bw[j])}</ins>`); j++; }
+  return { aHtml: aParts.join('') || '<em>(blank)</em>', bHtml: bParts.join('') || '<em>(blank)</em>' };
+}
+
+// Writes one sync resolution's final chosen value to BOTH sides —
+// WaveFire's grid (via the existing _postOverride path) and the actual
+// PDF (by re-running the applicable burn mechanism against the now-
+// updated grid data) — so after this call the two are genuinely back
+// in agreement, not just "WaveFire's copy of the truth changed while
+// the PDF still shows something else until the next unrelated Analyze
+// run." `kind` is 'note' or 'result'; ref-kind diffs never reach this
+// (no accept path — see the report's own note on why).
+async function _applySyncResolution(ref, d, finalValue) {
+  const saved = _findOverrideFor(ref, d.ai, d.fi);
+  if (d.kind === 'result') {
+    const currentNote = saved?.override_note || saved?.ai_note || '';
+    await _postOverride(ref, d.ai, d.fi, finalValue, currentNote);
+  } else {
+    const currentResult = saved?.override_result || saved?.ai_result || 'pass';
+    await _postOverride(ref, d.ai, d.fi, currentResult, finalValue);
+  }
+  renderAnalysisResultsGrid(ref);
+}
+
+// Runs the check above across every WaveFire-authored annotated file
+// currently attached, and shows a report — never acts on anything
+// automatically. Per explicit design: a person resolves each
+// out-of-sync item individually, either bringing the PDF's own text into the grid
+// (reuses _postOverride, the exact same write path the grid's own
+// popups already use) or discarding it (re-runs the applicable burn
+// mechanism, restoring WaveFire's own version).
+async function _openSyncReport(ref) {
+  document.querySelectorAll('.sync-report-overlay').forEach(el => el.remove());
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates = bucketArr.filter(f => f._annotatedFrom && f._wfFingerprint);
+  if (!candidates.length) {
+    alert('No previously-generated annotated files to check yet — run Analyze or place a tick mark first.');
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sync-report-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10030;display:flex;align-items:center;justify-content:center';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
+  modal.innerHTML = `
+    <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
+      <div style="font-size:14px;font-weight:600">Reconcile PDF to Wavefire</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">Comparing pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers across ${candidates.length} annotated file${candidates.length !== 1 ? 's' : ''} against WaveFire's own grid…</div>
+    </div>
+    <div class="sync-report-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px;font-size:12px;color:var(--text-tertiary)">Checking…</div>
+    <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
+      <button class="btn-s sync-report-close">Close</button>
+    </div>
+  `;
+  overlay.appendChild(modal);
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
+  modal.querySelector('.sync-report-close').onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+
+  const results = [];
+  for (const entry of candidates) {
+    try {
+      const r = await _checkFileSyncStatus(ref, entry);
+      if (r) results.push(r);
+    } catch (e) {
+      console.error('[SyncCheck] Failed on', entry.name, ':', e.message);
+    }
+  }
+
+  const body = modal.querySelector('.sync-report-body');
+  const changed = results.filter(r => r.mechanism === 'bi' || (r.diffs && r.diffs.length) || r.readError);
+  if (!changed.length) {
+    body.innerHTML = `<div style="font-style:italic">Everything is in sync — every annotated file still matches what WaveFire last generated.</div>`;
+    return;
+  }
+
+  body.innerHTML = changed.map((r, ri) => {
+    if (r.mechanism === 'bi' || r.readError) {
+      return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px;background:#fff7ed">
+        <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escHtml(r.entry.name)}</div>
+        <div style="font-size:11px;color:#9a3412">This file no longer matches what WaveFire last generated${r.mechanism === 'bi' ? ' (burned-in — its tick marks cannot be automatically read back and compared)' : ' (could not be read: ' + escHtml(r.readError || '') + ')'}. Review it manually, or discard the edit below to restore WaveFire's own version.</div>
+        <div style="margin-top:6px"><button class="btn-s sync-restore" data-idx="${ri}" style="font-size:10px;padding:3px 8px">Discard edit — restore WaveFire's version</button></div>
+      </div>`;
+    }
+    return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px">
+      <div style="font-weight:600;font-size:12px;margin-bottom:6px">${escHtml(r.entry.name)}</div>
+      ${r.diffs.map((d, di) => {
+        const label = { note: 'Tick mark explanation', result: 'Pass/Fail result', ref: 'Exception/Finding/Recommendation' }[d.kind];
+        const gridValRaw = d.kind === 'note' ? (d.expectedText || '') : d.kind === 'result' ? (d.expectedResult || '') : d.expectedRef;
+        const pdfValRaw  = d.kind === 'note' ? (d.currentPdfText || '') : d.kind === 'result' ? (d.currentPdfResult || '') : d.currentPdfRef;
+        const diffHtml = _wordDiffHtml(String(gridValRaw), String(pdfValRaw));
+        if (d.kind === 'ref') {
+          return `
+          <div style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+            <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
+            <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
+            <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
+            <div style="color:#9a3412;margin-top:3px">A Ref alone has no name/description to create or match a grid row automatically — add, delete, or reclassify the corresponding row in the Exceptions/Findings/Recommendations grid directly, or use "Keep WaveFire's version" below to restore this file's own marker.</div>
+            <div style="margin-top:5px"><button class="btn-s sync-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button></div>
+          </div>`;
+        }
+        // note / result — a real, editable resolution: the highlighted
+        // diff for context, an editable field pre-filled with the PDF's
+        // own current value (the presumed newer edit) that the person
+        // can freely change before saving, and three explicit ways to
+        // resolve it — whichever they pick becomes the ONE value
+        // written to both the grid and the file itself (via
+        // _applySyncResolution + a re-burn), so the two are genuinely
+        // back in agreement afterward, not left out of sync again.
+        const editorHtml = d.kind === 'result'
+          ? `<select class="sync-edit-value" data-ri="${ri}" data-di="${di}" style="font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+               <option value="pass" ${pdfValRaw === 'pass' ? 'selected' : ''}>Pass</option>
+               <option value="fail" ${pdfValRaw === 'fail' ? 'selected' : ''}>Fail</option>
+             </select>`
+          : `<textarea class="sync-edit-value" data-ri="${ri}" data-di="${di}" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-top:4px">${escHtml(pdfValRaw)}</textarea>`;
+        return `
+        <div class="sync-diff-row" style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+          <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
+          <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
+          <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
+          <div style="color:var(--text-tertiary);margin-top:4px">Final value to save (edit freely before choosing):</div>
+          ${editorHtml}
+          <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
+            <button class="btn-s sync-save-grid" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use WaveFire's version</button>
+            <button class="btn-s sync-save-pdf" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use PDF's version</button>
+            <button class="btn-s sync-save-edited" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px;background:#1e40af;color:#fff;border-color:#1e40af">Save edited value</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  const saveHandler = (finalValueFn) => async (ev) => {
+    const btn = ev.currentTarget;
+    const ri = Number(btn.dataset.ri), di = Number(btn.dataset.di);
+    const r = changed[ri];
+    const d = r.diffs[di];
+    const finalValue = finalValueFn(btn, d);
+    const buttonsRow = btn.parentElement.querySelectorAll('button');
+    buttonsRow.forEach(b => b.disabled = true);
+    btn.textContent = 'Saving…';
+    try {
+      await _applySyncResolution(ref, d, finalValue);
+      // Real, new — the whole point of "reconcile," not just "record":
+      // re-burns this file's own mechanism immediately so the PDF is
+      // brought back into agreement with whatever value was just
+      // chosen, rather than leaving the file showing something stale
+      // until an unrelated future Analyze run happens to fix it.
+      if (r.mechanism === 'ff')  await _autoFormFieldFilesAfterAnalyze(ref);
+      if (r.mechanism === 'sn')  await _makeAcrobatAnnotatedCopyAfterAnalyze(ref);
+      if (r.mechanism === 'bi2') await _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref);
+      refreshFileList(ref, 'sample');
+      btn.textContent = 'Saved to both';
+    } catch (e) {
+      console.error('[SyncCheck] Could not apply resolution:', e.message);
+      btn.textContent = 'Failed — see console';
+    }
+  };
+  body.querySelectorAll('.sync-save-grid').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.expectedResult : d.expectedText)));
+  body.querySelectorAll('.sync-save-pdf').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.currentPdfResult : d.currentPdfText)));
+  body.querySelectorAll('.sync-save-edited').forEach(btn => btn.addEventListener('click', saveHandler(btn => {
+    const editor = btn.closest('.sync-diff-row').querySelector('.sync-edit-value');
+    return editor.value;
+  })));
+  body.querySelectorAll('.sync-keep, .sync-restore').forEach(btn => {
+    btn.onclick = async () => {
+      const r = changed[Number(btn.dataset.ri || btn.dataset.idx)];
+      btn.disabled = true; btn.textContent = 'Restoring…';
+      try {
+        if (r.mechanism === 'bi')  await _autoBurnAnnotatedFilesAfterAnalyze(ref);
+        if (r.mechanism === 'ff')  await _autoFormFieldFilesAfterAnalyze(ref);
+        if (r.mechanism === 'sn')  await _makeAcrobatAnnotatedCopyAfterAnalyze(ref);
+        if (r.mechanism === 'bi2') await _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref);
+        refreshFileList(ref, 'sample');
+        btn.textContent = 'Restored';
+      } catch (e) {
+        console.error('[SyncCheck] Could not restore', r.entry.name, ':', e.message);
+        btn.textContent = 'Failed — see console';
+      }
+    };
+  });
 }
 
 // Confirmation dialog before touching any already-annotated file — never
@@ -32846,12 +33307,71 @@ function openFilePreviewOverlay() {
   document.getElementById('file-preview-overlay').classList.add('open');
 }
 function closeFilePreview() {
+  // Real, new — captured before anything below resets state, so the
+  // silent sync check after this function returns still knows exactly
+  // which file was just closed.
+  const _closingRef = _fpRef, _closingBucket = _fpBucket, _closingIdx = _fpIdx;
+
   document.getElementById('file-preview-overlay').classList.remove('open');
   document.getElementById('file-preview-nav').style.display = 'none';
   document.getElementById('file-preview-zoom-bar').style.display = 'none';
   document.getElementById('file-preview-body').innerHTML =
     `<div id="file-preview-placeholder"><i class="ti ti-loader-2" style="font-size:32px;animation:spin 1s linear infinite"></i><span>Loading preview…</span></div>`;
   previewPDFDoc = null;
+  // Real, new — never let a Testwork Grid click-to-place session leak
+  // into the next, unrelated file someone happens to open next.
+  _twGridPlacementCtx = null;
+  _twGridPlacementArmed = false;
+  const twPanel = document.getElementById('tw-grid-placement-panel');
+  if (twPanel) { twPanel.style.display = 'none'; twPanel.innerHTML = ''; }
+
+  // Real, new, per explicit request — a silent check on every viewer
+  // close, since this is the one moment a person might genuinely have
+  // just edited the file itself (WaveFire's own annotation tools, or a
+  // re-opened downloaded-then-edited copy). Deliberately NOT the full
+  // "Reconcile" modal every time — only surfaces anything at all when
+  // this one file is actually out of sync, via a small dismissable toast
+  // rather than interrupting every ordinary close with a dialog.
+  if (_closingBucket === 'sample' && _closingRef != null && _closingIdx != null) {
+    _checkSyncOnViewerClose(_closingRef, _closingIdx);
+  }
+}
+
+async function _checkSyncOnViewerClose(ref, idx) {
+  try {
+    const entry = inMemoryFiles[ref]?.sample?.[idx];
+    if (!entry || !entry._annotatedFrom || !entry._wfFingerprint) return; // not a WaveFire-authored annotated file — nothing to check
+    const result = await _checkFileSyncStatus(ref, entry);
+    if (!result) return; // unchanged
+    const hasRealFinding = result.mechanism === 'bi' || result.readError || (result.diffs && result.diffs.length);
+    if (!hasRealFinding) return;
+    _showSyncToast(ref, entry.name);
+  } catch (e) {
+    console.error('[SyncCheck] Silent check on close failed:', e.message);
+  }
+}
+
+// A small, dismissable, non-blocking notice — never a modal — so
+// closing a PDF that turns out to be out of sync doesn't interrupt the
+// person's flow; clicking it opens the same full reconciliation report
+// the Testwork Grid's own button does.
+function _showSyncToast(ref, filename) {
+  document.querySelectorAll('.sync-toast').forEach(el => el.remove());
+  const toast = document.createElement('div');
+  toast.className = 'sync-toast';
+  toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10040;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.3);padding:12px 14px;max-width:320px;font-size:12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px';
+  toast.innerHTML = `
+    <i class="ti ti-git-compare" style="font-size:16px;margin-top:1px"></i>
+    <div style="flex:1">
+      <div style="font-weight:600">May be out of sync</div>
+      <div style="opacity:0.85;margin-top:2px">${escHtml(filename)} no longer matches what WaveFire generated. Click to review.</div>
+    </div>
+    <span style="opacity:0.7;font-size:14px;line-height:1" title="Dismiss">&times;</span>
+  `;
+  toast.querySelector('span').onclick = (ev) => { ev.stopPropagation(); toast.remove(); };
+  toast.onclick = () => { toast.remove(); _openSyncReport(ref); };
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 20000);
 }
 // Keyboard arrow navigation for file preview
 document.addEventListener('keydown', function(ev) {
@@ -34847,6 +35367,21 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     }
     const saved = await res.json();
     entry.fileId = saved.file_id; // links this in-memory entry to its durable backend record
+    // Real, new, per pass-fail-override-and-sync-plan.md Part 8 — records
+    // the exact byte-fingerprint of every WaveFire-authored annotated
+    // file at the moment it's written, so a later "Reconcile PDF to
+    // Wavefire" pass (_checkFileSyncStatus) can tell whether that file has since changed
+    // outside the app — the cheap first check before attempting any
+    // heavier structural diff. Only meaningful for WaveFire's own
+    // writes, never a real, ordinary user upload (which has no prior
+    // WaveFire-authored baseline to compare against in the first place).
+    if (uploaderName === 'Wavefire') {
+      try {
+        entry._wfFingerprint = await _daSha256Hex(await entry.file.arrayBuffer());
+      } catch (fpErr) {
+        console.error('[SyncCheck] Could not fingerprint', entry.name, ':', fpErr.message);
+      }
+    }
   } catch(e) {
     errorReason = e.message;
     console.error('[_persistSampleFileToBackend] Could not save', entry.name, 'to durable storage:', e.message);
@@ -38845,22 +39380,26 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong><br>${escHtml(aiNote)}</div>`
         : '';
 
-      // Real, new, per explicit request — the tick mark explanation
-      // (TME) textarea and its location fields (page/section/paragraph/
-      // source file) are now ONE folded unit, hidden until the user
-      // explicitly expands it via the label below, rather than always
-      // showing the TME textarea plainly and only folding Evidence on
-      // its own. Stays open by default whenever there's already a saved
-      // explanation or evidence on file (a prior manual entry, or an
-      // override that already recorded some) — existing content is
-      // never hidden from view without the user's own action.
-      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
-      const placeFoldedByDefault = !priorNote && !hasExistingEvidence;
-      const placeFieldsHtml = `
+      // Real, new, per explicit request (reverses the earlier fold) —
+      // the tick mark explanation itself is now ALWAYS visible and
+      // editable here, showing any existing value, regardless of
+      // whether this cell has ever been analyzed. Only the Evidence/
+      // placement fields (page/section/paragraph/source file, plus
+      // Open PDF and Place tick mark on PDF) stay folded — those are
+      // specifically for physically placing a tick on a PDF page, a
+      // separate, rarer action from simply recording or revising the
+      // explanation text. Still stays open by default whenever there's
+      // already evidence on file (a prior manual entry, or an override
+      // that already recorded some) — existing content is never hidden
+      // from view without the user's own action.
+      const noteFieldHtml = `
         ${priorNoteHtml}
         <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px">${escHtml(noteVal)}</textarea>`;
+      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
+      const placeFoldedByDefault = !hasExistingEvidence;
+      const placeFieldsHtml = `
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
         <div style="display:flex;gap:5px;margin-bottom:4px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
@@ -38888,6 +39427,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
         ${sourceLabelHtml}
+        ${noteFieldHtml}
         ${rationaleHtml}
         <div style="display:flex;gap:6px;margin-bottom:8px">
           <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
@@ -38941,7 +39481,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       body.querySelector('.attr-modal-open-pdf').onclick = () => {
         const file = body.querySelector('.attr-modal-evidence-file')?.value;
         const page = body.querySelector('.attr-modal-evidence-page')?.value;
-        _openPdfInNewTab(ref, file, Number(page) || 1, true, attributeIndex);
+        _openPdfInNewTab(ref, file, Number(page) || 1, true, attributeIndex, fi);
       };
       body.querySelector('.attr-modal-place-tick').onclick = async () => {
         const btn = body.querySelector('.attr-modal-place-tick');
@@ -39067,7 +39607,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
 // openSampleFile/openSamplePage/openSampleOriginal/openSampleAttr
 // params that handleInitialHash reads to auto-open the PDF viewer once
 // that fresh tab finishes loading the workpaper.
-function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex) {
+function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex, sampleRowIndex) {
   if (!filename) { alert('Select a sample file first.'); return; }
   const w = WORKPAPERS.find(x => x.ref === ref);
   const auditName = w?.auditName || currentAudit?.name || '';
@@ -39076,28 +39616,159 @@ function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex) {
     '&openSamplePage=' + encodeURIComponent(page || 1) +
     '&openSampleOriginal=' + (isOriginal === false ? '0' : '1');
   if (attributeIndex != null) url += '&openSampleAttr=' + encodeURIComponent(attributeIndex);
+  if (sampleRowIndex != null) url += '&openSampleRow=' + encodeURIComponent(sampleRowIndex);
   window.open(window.location.pathname + url, '_blank');
 }
 
-async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex) {
+// Real, new — while this is set, the PDF viewer's own "Testwork Grid
+// tick mark" panel (see _renderTwGridPlacementPanel) knows which
+// (ref, attributeIndex, sampleRowIndex) cell a click-to-place action
+// should write to. Set only when the viewer was opened FOR that
+// purpose (via _openPdfInNewTab/_openSampleFileAtMark's own
+// sampleRowIndex argument) — never for ordinary file browsing, so the
+// panel doesn't appear uninvited on every PDF someone happens to open.
+let _twGridPlacementCtx = null; // { ref, ai, fi } | null
+
+async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex, sampleRowIndex) {
   const idx = (inMemoryFiles[ref]?.sample || []).findIndex(f => f.name === filename);
   if (idx < 0) {
     alert('That file could not be found among the attached sample files — it may have been removed or renamed.');
     return;
   }
-  if (isOriginal) {
-    _currentAnnotationAttrIndex = attributeIndex;
-    await previewMemFile(ref, 'sample', idx);
-    return;
-  }
+  _currentAnnotationAttrIndex = attributeIndex;
+  _twGridPlacementCtx = (sampleRowIndex != null && attributeIndex != null) ? { ref, ai: attributeIndex, fi: sampleRowIndex } : null;
   await previewMemFile(ref, 'sample', idx);
+  _renderTwGridPlacementPanel();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const body = document.getElementById('file-preview-body');
     if (!body) return;
     const pageCount = Math.max(1, previewTotalPages || 1);
     const pageH = body.scrollHeight / pageCount;
-    body.scrollTo({ top: Math.max(0, (page - 1) * pageH), behavior: 'smooth' });
+    body.scrollTo({ top: Math.max(0, ((page || 1) - 1) * pageH), behavior: 'smooth' });
   }));
+}
+
+// Whether click-to-place is currently armed — while true, the next click
+// anywhere on the open PDF's own body places a tick there instead of
+// doing whatever a plain click normally would (panning, etc.).
+let _twGridPlacementArmed = false;
+
+// Real, new, per explicit request — lets a user place a real tick mark
+// by clicking directly on the rendered page of an already-open PDF,
+// rather than only via a typed page number in the Testwork Grid's own
+// popups. Shown only when this viewer session was opened specifically
+// for that purpose (_twGridPlacementCtx set by _openSampleFileAtMark);
+// hidden for ordinary file browsing.
+function _renderTwGridPlacementPanel() {
+  const panel = document.getElementById('tw-grid-placement-panel');
+  if (!panel) return;
+  const ctx = _twGridPlacementCtx;
+  if (!ctx) { panel.style.display = 'none'; panel.innerHTML = ''; _twGridPlacementArmed = false; return; }
+
+  const { ref, ai, fi } = ctx;
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[ai];
+  if (!attr) { panel.style.display = 'none'; return; }
+  const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+  const row = (_wpAnalysisResults[ref] || [])[fi];
+  const sampleLabel = row?.sampleDesc || `Sample ${fi + 1}`;
+  const saved = _findOverrideFor(ref, ai, fi);
+  const currentResult = saved?.override_result || 'pass';
+
+  // Real, new — "select an existing explanation" per explicit request:
+  // offers the AI's own note for this cell (if any) plus every distinct
+  // note already used across this attribute's own marks for this
+  // sample, so a repeated citation doesn't have to be retyped.
+  const match = (row?.results || []).find(r => r.title === attr.title);
+  const existingNotes = [...new Set([
+    saved?.ai_note || '',
+    match?.note || '',
+    ...((match?.marks || []).map(m => m.note || '')),
+  ].filter(Boolean))];
+
+  panel.style.display = 'flex';
+  panel.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 14px;background:#eef2ff;border-bottom:0.5px solid var(--border-light)';
+  panel.innerHTML = `
+    <span style="font-size:11px;font-weight:700;color:#3730a3;white-space:nowrap">Testwork Grid: ${escHtml(attrLabel)}. ${escHtml(attr.title)} — ${escHtml(sampleLabel)}</span>
+    <button class="twp-pass" style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;cursor:pointer;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
+    <button class="twp-fail" style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:4px;cursor:pointer;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
+    ${existingNotes.length ? `<select class="twp-existing-note" style="font-size:11px;padding:3px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;max-width:160px">
+      <option value="">— Select existing explanation —</option>
+      ${existingNotes.map(n => `<option value="${escAttr(n)}">${escHtml(n.slice(0, 60))}${n.length > 60 ? '…' : ''}</option>`).join('')}
+    </select>` : ''}
+    <input class="twp-note" type="text" placeholder="Tick mark explanation" style="flex:1;min-width:140px;font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+    <button class="twp-arm btn-s" style="font-size:11px;padding:3px 10px;font-weight:600">Click PDF to place tick</button>
+  `;
+
+  let selected = currentResult;
+  panel.querySelector('.twp-pass').onclick = () => { selected = 'pass'; _twpRestyle(panel, selected); };
+  panel.querySelector('.twp-fail').onclick = () => { selected = 'fail'; _twpRestyle(panel, selected); };
+  panel.querySelector('.twp-existing-note')?.addEventListener('change', function() {
+    if (this.value) panel.querySelector('.twp-note').value = this.value;
+  });
+
+  const armBtn = panel.querySelector('.twp-arm');
+  _twGridPlacementArmed = false;
+  armBtn.onclick = () => {
+    _twGridPlacementArmed = !_twGridPlacementArmed;
+    armBtn.textContent = _twGridPlacementArmed ? 'Click the PDF now… (click here to stop)' : 'Click PDF to place tick';
+    armBtn.style.background = _twGridPlacementArmed ? '#1e40af' : '';
+    armBtn.style.color = _twGridPlacementArmed ? '#fff' : '';
+    const body = document.getElementById('file-preview-body');
+    if (body) body.style.cursor = _twGridPlacementArmed ? 'crosshair' : '';
+  };
+
+  // Real, new — the actual click-to-place handler. Capture-phase so it
+  // sees the click before any existing drag/pan or annotation-tool
+  // handling on the body does, and only actually places anything while
+  // armed — otherwise it's a no-op and the click behaves normally.
+  const body = document.getElementById('file-preview-body');
+  if (body && !body._twPlacementHandlerAttached) {
+    body._twPlacementHandlerAttached = true;
+    body.addEventListener('click', async (e) => {
+      if (!_twGridPlacementArmed || !_twGridPlacementCtx) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { ref, ai, fi } = _twGridPlacementCtx;
+      const pageCount = Math.max(1, previewTotalPages || 1);
+      const pageH = body.scrollHeight / pageCount;
+      const clickY = body.scrollTop + (e.clientY - body.getBoundingClientRect().top);
+      const clickedPage = Math.max(1, Math.min(pageCount, Math.floor(clickY / pageH) + 1));
+      const note = panel.querySelector('.twp-note')?.value || '';
+      const currentFile = inMemoryFiles[ref]?.sample?.[_fpIdx]?.name || '';
+      const evidence = { sourceFile: currentFile, page: clickedPage, section: '', paragraph: 0 };
+      armBtn.disabled = true;
+      const ok = await _placeManualTickMark(ref, ai, fi, selected, note, evidence);
+      armBtn.disabled = false;
+      if (ok) {
+        // Real, live redraw — re-runs the exact same overlay function
+        // used when this file was first opened, now picking up the mark
+        // we just pushed, so the new tick appears immediately without
+        // needing to close and reopen the viewer.
+        const attrs = (wpTestAttributes[ref] || []).filter(a => a.title);
+        const wpResults = _wpAnalysisResults[ref] || [];
+        const fileResult = wpResults[fi];
+        if (fileResult) {
+          const exMap = _lookupExceptionRefMap(ref, wpResults, attrs);
+          placeInteractiveAnnotations(fileResult, attrs, exMap, fi, currentFile, ref);
+        }
+        // Rebuilds the panel fresh (Pass/Fail highlight reflects the
+        // just-saved result) — this naturally leaves placement mode
+        // OFF again, requiring a deliberate re-click of "Click PDF to
+        // place tick" before another one lands, rather than silently
+        // staying armed and risking an accidental extra tick from a
+        // stray click on the document.
+        _renderTwGridPlacementPanel();
+      }
+    }, true);
+  }
+}
+
+function _twpRestyle(panel, selected) {
+  const passBtn = panel.querySelector('.twp-pass');
+  const failBtn = panel.querySelector('.twp-fail');
+  if (passBtn) { passBtn.style.border = `1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'}`; passBtn.style.background = selected === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'; }
+  if (failBtn) { failBtn.style.border = `1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'}`; failBtn.style.background = selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'; }
 }
 
 // Tracks which attribute row (by index) is currently selected, per
