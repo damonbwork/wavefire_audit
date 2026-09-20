@@ -1059,10 +1059,53 @@ Scenario B above.
    same Step 2–4 logic, just triggered on demand across every attached
    file instead of only at re-upload time.
 
-### Status: designed, not yet built
+### Status: build order steps 1, 2, and 4 are done; step 3 is not
 
-Nothing in this Part exists in the codebase today. This section is the
-design for the next, real piece of work in this space — the honest
-current state remains what Parts 4 and 6 already describe:
-WaveFire → PDF sync exists for app-initiated changes; PDF → WaveFire
-reconciliation does not exist at all yet.
+**Implemented and verified (2026-09-20):**
+- **Fingerprint recording (step 1)** — every WaveFire-authored annotated
+  file gets a `_wfFingerprint` recorded in `_persistSampleFileToBackend`
+  the moment it's written, generalized across all four mechanisms via
+  that one shared chokepoint rather than instrumenting each separately.
+- **Structural read-back (step 2)** — `_extractPdfMarkTexts` reads real
+  content back out of `sn` (Sticky Note `/Contents`), `ff` (form field
+  values), and `bi2` (Stamp `/Contents`) via pdf-lib's low-level
+  `PDFDict`/`PDFName` access, parsing the leading `[attrNum]` tag every
+  burn mechanism already writes. `bi` correctly returns nothing
+  readable, per the honest breakdown above.
+- **The standalone "Check for Drift" action (step 4)** — a new button on
+  the Testwork Grid runs `_checkFileForDrift` across every annotated
+  file and shows a report. Each drifted item offers "Bring this into
+  WaveFire" (writes the PDF's current text into
+  `attribute_sample_results` via the existing `_postOverride` path —
+  note only, never the Pass/Fail result) or "Keep WaveFire's version"
+  (re-runs the applicable burn mechanism to restore it); `bi`'s
+  unreadable case gets a plain warning and a discard/restore option
+  instead of a false claim of having compared anything.
+
+**Not yet built: step 3, the automatic re-upload trigger.** Per a real
+architectural finding made while building this: file uploads in this
+app always push a NEW entry (`_addFilesToStore`) rather than replacing
+an existing same-named one in place, so "re-upload with the same
+filename" isn't a clean single-entry-replace event to hook today — it
+would need its own, separate design for how same-name uploads are
+reconciled at the array level before an automatic trigger could be
+built on top of it. The standalone "Check for Drift" button (step 4,
+built) already covers the same underlying need without depending on
+that — per this Part's own original design note, it "closes the gap for
+every case where the edited file eventually does reach WaveFire by some
+path other than a literal same-filename re-upload," which in practice
+is every path this app's upload flow actually supports today.
+
+**Verified** against a real, live-generated PDF (not just unit logic):
+a genuine pdf-lib-built Sticky Note annotation round-trips correctly
+through `_extractPdfMarkTexts`; an in-place edit to its `/Contents`
+(simulating an Acrobat edit) is correctly detected as drift with the
+exact before/after text, correctly attributed to the right attribute;
+an unedited file correctly reports no drift; and "Bring this into
+WaveFire" correctly writes the edited text into
+`attribute_sample_results` without touching the stored Pass/Fail
+result.
+
+Scenario A (edited outside the app and never brought back at all)
+remains, as designed, undetectable in principle — nothing above changes
+that, nor could it.
