@@ -4120,8 +4120,8 @@ to the facility name.  If not found return an empty cell</textarea>
                  against what WaveFire itself last wrote to it, so an
                  edit made outside the app (then re-attached by some
                  path other than a literal same-filename replace) gets
-                 surfaced rather than silently drifting from the grid. -->
-            <button class="btn-s" onclick="_openDriftReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Compare every annotated sample file's pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers against what WaveFire's own grid currently believes">
+                 surfaced rather than silently going out of sync with the grid. -->
+            <button class="btn-s" onclick="_openSyncReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Compare every annotated sample file's pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers against what WaveFire's own grid currently believes">
               <i class="ti ti-git-compare"></i> Reconcile PDF to Wavefire (pass/fail, tick mark explanations, and exceptions, findings and recommendations)
             </button>
           </div>
@@ -24910,14 +24910,16 @@ function _syncMechanismLabel(name) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   DRIFT DETECTION — pass-fail-override-and-sync-plan.md Part 8
+   SYNC CHECK — pass-fail-override-and-sync-plan.md Part 8
 
    Detects when an annotated sample file has changed since WaveFire
-   last wrote it (edited outside the app, then re-attached), and — for
-   the three structurally-readable mechanisms — shows exactly what
-   changed so a person can bring the edit into the grid or discard it.
-   `bi` (flattened pixels) can only ever report "this changed," never
-   what, per the design doc's own honest breakdown.
+   last wrote it (edited outside the app, then re-attached) — WaveFire
+   and the PDF may no longer be in sync — and, for the three
+   structurally-readable mechanisms, shows exactly what changed so a
+   person can bring the edit into the grid or discard it. `bi`
+   (flattened pixels) can only ever report "this is no longer in
+   sync," never what changed, per the design doc's own honest
+   breakdown.
 ══════════════════════════════════════════════════════════════════ */
 
 function _mechanismFromFilename(name) {
@@ -25028,7 +25030,7 @@ async function _extractPdfMarkTexts(fileBytes, mechanism) {
 // believes each of its marks says. Returns null when there's nothing
 // to compare (no baseline fingerprint recorded — e.g. a file from
 // before this feature existed) or when nothing has changed.
-async function _checkFileForDrift(ref, entry) {
+async function _checkFileSyncStatus(ref, entry) {
   if (!entry?._wfFingerprint || !entry.file) return null;
   const mechanism = _mechanismFromFilename(entry.name);
   if (!mechanism) return null;
@@ -25044,7 +25046,7 @@ async function _checkFileForDrift(ref, entry) {
   try {
     currentMarks = await _extractPdfMarkTexts(buf, mechanism);
   } catch (e) {
-    console.error('[DriftCheck] Could not read', entry.name, ':', e.message);
+    console.error('[SyncCheck] Could not read', entry.name, ':', e.message);
     return { entry, mechanism, diffs: null, readError: e.message };
   }
 
@@ -25134,7 +25136,7 @@ function _wordDiffHtml(a, b) {
   return { aHtml: aParts.join('') || '<em>(blank)</em>', bHtml: bParts.join('') || '<em>(blank)</em>' };
 }
 
-// Writes one drift resolution's final chosen value to BOTH sides —
+// Writes one sync resolution's final chosen value to BOTH sides —
 // WaveFire's grid (via the existing _postOverride path) and the actual
 // PDF (by re-running the applicable burn mechanism against the now-
 // updated grid data) — so after this call the two are genuinely back
@@ -25142,7 +25144,7 @@ function _wordDiffHtml(a, b) {
 // the PDF still shows something else until the next unrelated Analyze
 // run." `kind` is 'note' or 'result'; ref-kind diffs never reach this
 // (no accept path — see the report's own note on why).
-async function _applyDriftResolution(ref, d, finalValue) {
+async function _applySyncResolution(ref, d, finalValue) {
   const saved = _findOverrideFor(ref, d.ai, d.fi);
   if (d.kind === 'result') {
     const currentNote = saved?.override_note || saved?.ai_note || '';
@@ -25156,13 +25158,13 @@ async function _applyDriftResolution(ref, d, finalValue) {
 
 // Runs the check above across every WaveFire-authored annotated file
 // currently attached, and shows a report — never acts on anything
-// automatically. Per explicit design: a person resolves each drifted
-// item individually, either bringing the PDF's own text into the grid
+// automatically. Per explicit design: a person resolves each
+// out-of-sync item individually, either bringing the PDF's own text into the grid
 // (reuses _postOverride, the exact same write path the grid's own
 // popups already use) or discarding it (re-runs the applicable burn
 // mechanism, restoring WaveFire's own version).
-async function _openDriftReport(ref) {
-  document.querySelectorAll('.drift-report-overlay').forEach(el => el.remove());
+async function _openSyncReport(ref) {
+  document.querySelectorAll('.sync-report-overlay').forEach(el => el.remove());
   const bucketArr = inMemoryFiles[ref]?.sample || [];
   const candidates = bucketArr.filter(f => f._annotatedFrom && f._wfFingerprint);
   if (!candidates.length) {
@@ -25171,7 +25173,7 @@ async function _openDriftReport(ref) {
   }
 
   const overlay = document.createElement('div');
-  overlay.className = 'drift-report-overlay';
+  overlay.className = 'sync-report-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10030;display:flex;align-items:center;justify-content:center';
   const modal = document.createElement('div');
   modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
@@ -25180,30 +25182,30 @@ async function _openDriftReport(ref) {
       <div style="font-size:14px;font-weight:600">Reconcile PDF to Wavefire</div>
       <div style="font-size:11px;opacity:0.75;margin-top:2px">Comparing pass/fail, tick mark explanations, and Exception/Finding/Recommendation markers across ${candidates.length} annotated file${candidates.length !== 1 ? 's' : ''} against WaveFire's own grid…</div>
     </div>
-    <div class="drift-report-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px;font-size:12px;color:var(--text-tertiary)">Checking…</div>
+    <div class="sync-report-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px;font-size:12px;color:var(--text-tertiary)">Checking…</div>
     <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
-      <button class="btn-s drift-report-close">Close</button>
+      <button class="btn-s sync-report-close">Close</button>
     </div>
   `;
   overlay.appendChild(modal);
   overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
-  modal.querySelector('.drift-report-close').onclick = () => overlay.remove();
+  modal.querySelector('.sync-report-close').onclick = () => overlay.remove();
   document.body.appendChild(overlay);
 
   const results = [];
   for (const entry of candidates) {
     try {
-      const r = await _checkFileForDrift(ref, entry);
+      const r = await _checkFileSyncStatus(ref, entry);
       if (r) results.push(r);
     } catch (e) {
-      console.error('[DriftCheck] Failed on', entry.name, ':', e.message);
+      console.error('[SyncCheck] Failed on', entry.name, ':', e.message);
     }
   }
 
-  const body = modal.querySelector('.drift-report-body');
+  const body = modal.querySelector('.sync-report-body');
   const changed = results.filter(r => r.mechanism === 'bi' || (r.diffs && r.diffs.length) || r.readError);
   if (!changed.length) {
-    body.innerHTML = `<div style="font-style:italic">No drift detected — every annotated file still matches what WaveFire last generated.</div>`;
+    body.innerHTML = `<div style="font-style:italic">Everything is in sync — every annotated file still matches what WaveFire last generated.</div>`;
     return;
   }
 
@@ -25212,7 +25214,7 @@ async function _openDriftReport(ref) {
       return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px;background:#fff7ed">
         <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escHtml(r.entry.name)}</div>
         <div style="font-size:11px;color:#9a3412">This file no longer matches what WaveFire last generated${r.mechanism === 'bi' ? ' (burned-in — its tick marks cannot be automatically read back and compared)' : ' (could not be read: ' + escHtml(r.readError || '') + ')'}. Review it manually, or discard the edit below to restore WaveFire's own version.</div>
-        <div style="margin-top:6px"><button class="btn-s drift-restore" data-idx="${ri}" style="font-size:10px;padding:3px 8px">Discard edit — restore WaveFire's version</button></div>
+        <div style="margin-top:6px"><button class="btn-s sync-restore" data-idx="${ri}" style="font-size:10px;padding:3px 8px">Discard edit — restore WaveFire's version</button></div>
       </div>`;
     }
     return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px">
@@ -25229,7 +25231,7 @@ async function _openDriftReport(ref) {
             <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
             <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
             <div style="color:#9a3412;margin-top:3px">A Ref alone has no name/description to create or match a grid row automatically — add, delete, or reclassify the corresponding row in the Exceptions/Findings/Recommendations grid directly, or use "Keep WaveFire's version" below to restore this file's own marker.</div>
-            <div style="margin-top:5px"><button class="btn-s drift-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button></div>
+            <div style="margin-top:5px"><button class="btn-s sync-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button></div>
           </div>`;
         }
         // note / result — a real, editable resolution: the highlighted
@@ -25238,25 +25240,25 @@ async function _openDriftReport(ref) {
         // can freely change before saving, and three explicit ways to
         // resolve it — whichever they pick becomes the ONE value
         // written to both the grid and the file itself (via
-        // _applyDriftResolution + a re-burn), so the two are genuinely
-        // back in agreement afterward, not left to drift apart again.
+        // _applySyncResolution + a re-burn), so the two are genuinely
+        // back in agreement afterward, not left out of sync again.
         const editorHtml = d.kind === 'result'
-          ? `<select class="drift-edit-value" data-ri="${ri}" data-di="${di}" style="font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+          ? `<select class="sync-edit-value" data-ri="${ri}" data-di="${di}" style="font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
                <option value="pass" ${pdfValRaw === 'pass' ? 'selected' : ''}>Pass</option>
                <option value="fail" ${pdfValRaw === 'fail' ? 'selected' : ''}>Fail</option>
              </select>`
-          : `<textarea class="drift-edit-value" data-ri="${ri}" data-di="${di}" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-top:4px">${escHtml(pdfValRaw)}</textarea>`;
+          : `<textarea class="sync-edit-value" data-ri="${ri}" data-di="${di}" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-top:4px">${escHtml(pdfValRaw)}</textarea>`;
         return `
-        <div class="drift-diff-row" style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+        <div class="sync-diff-row" style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
           <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)} — ${escHtml(label)}</div>
           <div style="color:var(--text-tertiary)">WaveFire's grid: <span style="color:var(--text-primary)">${diffHtml.aHtml}</span></div>
           <div style="color:var(--text-tertiary)">This PDF: <span style="color:var(--text-primary)">${diffHtml.bHtml}</span></div>
           <div style="color:var(--text-tertiary);margin-top:4px">Final value to save (edit freely before choosing):</div>
           ${editorHtml}
           <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
-            <button class="btn-s drift-save-grid" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use WaveFire's version</button>
-            <button class="btn-s drift-save-pdf" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use PDF's version</button>
-            <button class="btn-s drift-save-edited" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px;background:#1e40af;color:#fff;border-color:#1e40af">Save edited value</button>
+            <button class="btn-s sync-save-grid" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use WaveFire's version</button>
+            <button class="btn-s sync-save-pdf" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Use PDF's version</button>
+            <button class="btn-s sync-save-edited" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px;background:#1e40af;color:#fff;border-color:#1e40af">Save edited value</button>
           </div>
         </div>`;
       }).join('')}
@@ -25273,7 +25275,7 @@ async function _openDriftReport(ref) {
     buttonsRow.forEach(b => b.disabled = true);
     btn.textContent = 'Saving…';
     try {
-      await _applyDriftResolution(ref, d, finalValue);
+      await _applySyncResolution(ref, d, finalValue);
       // Real, new — the whole point of "reconcile," not just "record":
       // re-burns this file's own mechanism immediately so the PDF is
       // brought back into agreement with whatever value was just
@@ -25285,17 +25287,17 @@ async function _openDriftReport(ref) {
       refreshFileList(ref, 'sample');
       btn.textContent = 'Saved to both';
     } catch (e) {
-      console.error('[DriftCheck] Could not apply resolution:', e.message);
+      console.error('[SyncCheck] Could not apply resolution:', e.message);
       btn.textContent = 'Failed — see console';
     }
   };
-  body.querySelectorAll('.drift-save-grid').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.expectedResult : d.expectedText)));
-  body.querySelectorAll('.drift-save-pdf').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.currentPdfResult : d.currentPdfText)));
-  body.querySelectorAll('.drift-save-edited').forEach(btn => btn.addEventListener('click', saveHandler(btn => {
-    const editor = btn.closest('.drift-diff-row').querySelector('.drift-edit-value');
+  body.querySelectorAll('.sync-save-grid').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.expectedResult : d.expectedText)));
+  body.querySelectorAll('.sync-save-pdf').forEach(btn => btn.addEventListener('click', saveHandler((_, d) => d.kind === 'result' ? d.currentPdfResult : d.currentPdfText)));
+  body.querySelectorAll('.sync-save-edited').forEach(btn => btn.addEventListener('click', saveHandler(btn => {
+    const editor = btn.closest('.sync-diff-row').querySelector('.sync-edit-value');
     return editor.value;
   })));
-  body.querySelectorAll('.drift-keep, .drift-restore').forEach(btn => {
+  body.querySelectorAll('.sync-keep, .sync-restore').forEach(btn => {
     btn.onclick = async () => {
       const r = changed[Number(btn.dataset.ri || btn.dataset.idx)];
       btn.disabled = true; btn.textContent = 'Restoring…';
@@ -25307,7 +25309,7 @@ async function _openDriftReport(ref) {
         refreshFileList(ref, 'sample');
         btn.textContent = 'Restored';
       } catch (e) {
-        console.error('[DriftCheck] Could not restore', r.entry.name, ':', e.message);
+        console.error('[SyncCheck] Could not restore', r.entry.name, ':', e.message);
         btn.textContent = 'Failed — see console';
       }
     };
@@ -33271,7 +33273,7 @@ function openFilePreviewOverlay() {
 }
 function closeFilePreview() {
   // Real, new — captured before anything below resets state, so the
-  // silent drift check after this function returns still knows exactly
+  // silent sync check after this function returns still knows exactly
   // which file was just closed.
   const _closingRef = _fpRef, _closingBucket = _fpBucket, _closingIdx = _fpIdx;
 
@@ -33293,46 +33295,46 @@ function closeFilePreview() {
   // just edited the file itself (WaveFire's own annotation tools, or a
   // re-opened downloaded-then-edited copy). Deliberately NOT the full
   // "Reconcile" modal every time — only surfaces anything at all when
-  // this one file actually shows drift, via a small dismissable toast
+  // this one file is actually out of sync, via a small dismissable toast
   // rather than interrupting every ordinary close with a dialog.
   if (_closingBucket === 'sample' && _closingRef != null && _closingIdx != null) {
-    _checkDriftOnViewerClose(_closingRef, _closingIdx);
+    _checkSyncOnViewerClose(_closingRef, _closingIdx);
   }
 }
 
-async function _checkDriftOnViewerClose(ref, idx) {
+async function _checkSyncOnViewerClose(ref, idx) {
   try {
     const entry = inMemoryFiles[ref]?.sample?.[idx];
     if (!entry || !entry._annotatedFrom || !entry._wfFingerprint) return; // not a WaveFire-authored annotated file — nothing to check
-    const result = await _checkFileForDrift(ref, entry);
+    const result = await _checkFileSyncStatus(ref, entry);
     if (!result) return; // unchanged
     const hasRealFinding = result.mechanism === 'bi' || result.readError || (result.diffs && result.diffs.length);
     if (!hasRealFinding) return;
-    _showDriftToast(ref, entry.name);
+    _showSyncToast(ref, entry.name);
   } catch (e) {
-    console.error('[DriftCheck] Silent check on close failed:', e.message);
+    console.error('[SyncCheck] Silent check on close failed:', e.message);
   }
 }
 
 // A small, dismissable, non-blocking notice — never a modal — so
-// closing a PDF that turns out to have drifted doesn't interrupt the
+// closing a PDF that turns out to be out of sync doesn't interrupt the
 // person's flow; clicking it opens the same full reconciliation report
 // the Testwork Grid's own button does.
-function _showDriftToast(ref, filename) {
-  document.querySelectorAll('.drift-toast').forEach(el => el.remove());
+function _showSyncToast(ref, filename) {
+  document.querySelectorAll('.sync-toast').forEach(el => el.remove());
   const toast = document.createElement('div');
-  toast.className = 'drift-toast';
+  toast.className = 'sync-toast';
   toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10040;background:var(--wf-navy);color:#fff;border-radius:var(--radius-md);box-shadow:0 8px 24px rgba(0,0,0,0.3);padding:12px 14px;max-width:320px;font-size:12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px';
   toast.innerHTML = `
     <i class="ti ti-git-compare" style="font-size:16px;margin-top:1px"></i>
     <div style="flex:1">
-      <div style="font-weight:600">Possible drift detected</div>
+      <div style="font-weight:600">May be out of sync</div>
       <div style="opacity:0.85;margin-top:2px">${escHtml(filename)} no longer matches what WaveFire generated. Click to review.</div>
     </div>
     <span style="opacity:0.7;font-size:14px;line-height:1" title="Dismiss">&times;</span>
   `;
   toast.querySelector('span').onclick = (ev) => { ev.stopPropagation(); toast.remove(); };
-  toast.onclick = () => { toast.remove(); _openDriftReport(ref); };
+  toast.onclick = () => { toast.remove(); _openSyncReport(ref); };
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 20000);
 }
@@ -35332,8 +35334,8 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     entry.fileId = saved.file_id; // links this in-memory entry to its durable backend record
     // Real, new, per pass-fail-override-and-sync-plan.md Part 8 — records
     // the exact byte-fingerprint of every WaveFire-authored annotated
-    // file at the moment it's written, so a later "Check for Drift" pass
-    // (_checkFileForDrift) can tell whether that file has since changed
+    // file at the moment it's written, so a later "Reconcile PDF to
+    // Wavefire" pass (_checkFileSyncStatus) can tell whether that file has since changed
     // outside the app — the cheap first check before attempting any
     // heavier structural diff. Only meaningful for WaveFire's own
     // writes, never a real, ordinary user upload (which has no prior
@@ -35342,7 +35344,7 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
       try {
         entry._wfFingerprint = await _daSha256Hex(await entry.file.arrayBuffer());
       } catch (fpErr) {
-        console.error('[DriftCheck] Could not fingerprint', entry.name, ':', fpErr.message);
+        console.error('[SyncCheck] Could not fingerprint', entry.name, ':', fpErr.message);
       }
     }
   } catch(e) {
