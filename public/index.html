@@ -7821,6 +7821,32 @@ async function handleInitialHash() {
       currentAudit = AUDITS.find(a => a.name === w.auditName) || currentAudit;
       openWP(idx);
       _suppressHistory = false;
+      // Real, new, per explicit request — a deep link can additionally
+      // ask to auto-open the PDF viewer to one specific sample file/
+      // page, used by the new "Open PDF" link in the Testwork Grid's
+      // per-cell popups to launch a genuinely separate browser tab that
+      // lands directly on the right evidence, rather than only on the
+      // workpaper page itself. _loadSampleFilesFromBackend is the same
+      // fire-and-forget merge openWP itself already triggers — awaited
+      // here specifically so the file is actually in memory before
+      // trying to preview it, since this fresh tab has none loaded yet.
+      const openFile = params.get('openSampleFile');
+      if (openFile) {
+        try {
+          await _loadSampleFilesFromBackend(wpRef);
+        } catch (e) {
+          console.error('[handleInitialHash] Could not load sample files for deep-linked PDF:', e.message);
+        }
+        const openPage = Number(params.get('openSamplePage')) || 1;
+        const openOriginal = params.get('openSampleOriginal') !== '0';
+        const openAttrIdxRaw = params.get('openSampleAttr');
+        const openAttrIdx = openAttrIdxRaw != null && openAttrIdxRaw !== '' ? Number(openAttrIdxRaw) : null;
+        try {
+          await _openSampleFileAtMark(wpRef, openFile, openPage, openOriginal, openAttrIdx);
+        } catch (e) {
+          console.error('[handleInitialHash] Could not open deep-linked PDF:', e.message);
+        }
+      }
       return true; // a real hash was present and successfully handled
     }
   }
@@ -12527,17 +12553,41 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   // so it never shows this field — there's nothing to "override" yet.
   const isOverridingAiResult = !!saved?.ai_result;
 
+  // Real, new, per explicit request — lets the user cite exactly where
+  // in the sample file a manually-placed tick mark belongs (which
+  // original file, page, and optionally section/paragraph), and place a
+  // real tick mark annotation there via "Place tick mark on PDF" below,
+  // rather than only ever recording a bare Pass/Fail with nothing drawn
+  // on the actual document. This is the ONLY place a genuinely untested
+  // cell can get a real, placed tick — matching the fact that, without
+  // an AI-run Analyze, nothing has ever put marks on this file at all.
+  const originalFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file && !f._annotatedFrom);
+  const fileOptionsHtml = ['<option value="">— Select a file —</option>']
+    .concat(originalFiles.map(f => `<option value="${escAttr(f.name)}">${escHtml(f.name)}</option>`))
+    .join('');
+
   const popup = document.createElement('div');
   popup.id = 'cell-quick-popover';
-  popup.style.cssText = 'position:fixed;z-index:20000;width:240px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25);padding:10px';
+  popup.style.cssText = 'position:fixed;z-index:20000;width:270px;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 12px 32px rgba(0,0,0,0.25);padding:10px';
   popup.innerHTML = `
     <div style="font-size:11px;font-weight:700;color:var(--text-tertiary);margin-bottom:6px">${escHtml(attrRefLabel)}. ${escHtml(attrTitle)}</div>
     <div style="display:flex;gap:6px;margin-bottom:6px">
       <button class="cqp-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'pass' ? 'rgba(22,163,74,0.15)' : '#fff'};color:#16a34a">Pass</button>
       <button class="cqp-fail" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;border:1px solid ${currentResult === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};background:${currentResult === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
     </div>
-    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:${isOverridingAiResult ? '6px' : '0'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
-    ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical"></textarea>` : ''}
+    <textarea class="cqp-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.dispatchEvent(new Event('change'));}"></textarea>
+    ${isOverridingAiResult ? `<textarea class="cqp-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:6px"></textarea>` : ''}
+    <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Sample file / location (optional)</div>
+    <select class="cqp-evidence-file" style="width:100%;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:4px">${fileOptionsHtml}</select>
+    <div style="display:flex;gap:4px;margin-bottom:4px">
+      <input class="cqp-evidence-page" type="number" min="1" placeholder="Page" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+      <input class="cqp-evidence-section" type="text" placeholder="Section (opt.)" style="width:0;flex:1.4;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+      <input class="cqp-evidence-para" type="number" min="1" placeholder="Para (opt.)" style="width:0;flex:1;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span class="cqp-open-pdf" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">Open PDF</span>
+      <button class="cqp-place-tick btn-s" style="font-size:10px;padding:3px 8px">Place tick mark on PDF</button>
+    </div>
   `;
   document.body.appendChild(popup);
   // Note/rationale are set after innerHTML (not interpolated into the
@@ -12545,6 +12595,28 @@ function _openCellQuickPopover(cellEl, ref, ai, fi, attrRefLabel, attrTitle) {
   // collide with the placeholder text.
   popup.querySelector('.cqp-note').value = currentNote;
   if (isOverridingAiResult) popup.querySelector('.cqp-rationale').value = currentRationale;
+
+  popup.querySelector('.cqp-open-pdf').onclick = () => {
+    const file = popup.querySelector('.cqp-evidence-file').value;
+    const page = popup.querySelector('.cqp-evidence-page').value;
+    _openPdfInNewTab(ref, file, Number(page) || 1, true, ai);
+  };
+  popup.querySelector('.cqp-place-tick').onclick = async () => {
+    const btn = popup.querySelector('.cqp-place-tick');
+    const result = popup.querySelector('.cqp-fail').style.background.includes('220,38,38') ? 'fail' : 'pass';
+    const note = popup.querySelector('.cqp-note').value || '';
+    const evidence = {
+      sourceFile: popup.querySelector('.cqp-evidence-file').value,
+      page: popup.querySelector('.cqp-evidence-page').value,
+      section: popup.querySelector('.cqp-evidence-section').value,
+      paragraph: popup.querySelector('.cqp-evidence-para').value,
+    };
+    const rationale = isOverridingAiResult ? (popup.querySelector('.cqp-rationale')?.value || '') : '';
+    btn.disabled = true; btn.textContent = 'Placing…';
+    const ok = await _placeManualTickMark(ref, ai, fi, result, note, evidence, rationale);
+    btn.disabled = false; btn.textContent = 'Place tick mark on PDF';
+    if (ok) _closeCellQuickPopover();
+  };
 
   const commit = async (result) => {
     const note = popup.querySelector('.cqp-note').value || '';
@@ -25133,6 +25205,74 @@ async function _reburnAnnotatedFilesForSample(ref, fi) {
   } catch (err) {
     console.error('[RetrySync] Could not refresh annotated files after retry:', err.message);
   }
+}
+
+// Real, new, per explicit request — places a genuinely real tick mark
+// on an actual PDF page for a cell, rather than only recording a Pass/
+// Fail result with no physical mark anywhere. Pushes a NEW mark onto
+// this (attribute, sample) cell's own marks array (never replacing any
+// prior mark already there), persists the result/note as this cell's
+// override the same way every other override path already does, then
+// re-runs the same per-mechanism annotation functions Analyze itself
+// calls (gated by the same _annotationTypeSelection) so the mark
+// actually appears on the real file. Because a NEW mark is always
+// pushed rather than an existing one edited, calling this a second time
+// for the same cell — even with the exact same explanation — draws a
+// second, distinct tick: the four burn mechanisms' own existing
+// multi-mark stacking (built for the AI's own multi-mark results) is
+// what keeps successive marks from ever landing directly on top of one
+// another, placing each new one next to/below the last instead.
+async function _placeManualTickMark(ref, ai, fi, result, note, evidence, rationale) {
+  if (!_guardWpEdit(ref)) return false;
+  if (!evidence?.sourceFile) {
+    alert('Select a sample file before placing a tick mark.');
+    return false;
+  }
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[ai];
+  if (!attr) return false;
+
+  _wpAnalysisResults[ref] = _wpAnalysisResults[ref] || [];
+  const fileResult = _wpAnalysisResults[ref][fi] || (_wpAnalysisResults[ref][fi] = { sampleDesc: '', sampleRowCells: {}, results: [], fields: [] });
+  fileResult.results = fileResult.results || [];
+  let entry = fileResult.results.find(r => r.title === attr.title);
+  if (!entry) { entry = { title: attr.title, marks: [] }; fileResult.results.push(entry); }
+  entry.marks = entry.marks || [];
+  const mark = {
+    result,
+    note: note || '',
+    sourceFile: evidence.sourceFile,
+    page: Number(evidence.page) || 1,
+    section: evidence.section || '',
+    paragraph: Number(evidence.paragraph) || 0,
+  };
+  entry.marks.push(mark);
+  // The cell's own representative fields mirror this newest placement —
+  // the same convention every other mark-producing path in this app
+  // already follows for a single, most-current answer.
+  entry.result     = mark.result;
+  entry.note       = mark.note;
+  entry.sourceFile = mark.sourceFile;
+  entry.page       = mark.page;
+  entry.section    = mark.section;
+  entry.paragraph  = mark.paragraph;
+
+  await _postOverride(ref, ai, fi, result, note, rationale);
+
+  try {
+    const jobs = [];
+    if (_annotationTypeSelection.bi)  jobs.push(_autoBurnAnnotatedFilesAfterAnalyze(ref));
+    if (_annotationTypeSelection.ff)  jobs.push(_autoFormFieldFilesAfterAnalyze(ref));
+    if (_annotationTypeSelection.sn)  jobs.push(_makeAcrobatAnnotatedCopyAfterAnalyze(ref));
+    if (_annotationTypeSelection.bi2) jobs.push(_autoBurnGroupedAnnotatedFilesAfterAnalyze(ref));
+    await Promise.allSettled(jobs);
+  } catch (err) {
+    console.error('[PlaceTickMark] Annotation failed:', err.message);
+  }
+
+  renderAnalysisResultsGrid(ref);
+  refreshFileList(ref, 'sample');
+  return true;
 }
 
 // Re-runs the applicable burn function(s) for a set of already-annotated
@@ -38390,6 +38530,7 @@ function _noteWithEvidence(note, evidence) {
   if (!evidence?.sourceFile) return note;
   const parts = [`Evidenced by: ${evidence.sourceFile}`];
   if (evidence.page) parts.push(`p. ${evidence.page}`);
+  if (evidence.section) parts.push(`section ${evidence.section}`);
   if (evidence.paragraph) parts.push(`para ${evidence.paragraph}`);
   const evidenceLine = parts.join(', ');
   return note ? `${evidenceLine}\n${note}` : evidenceLine;
@@ -38630,6 +38771,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       const evidenceDefaults = change?.evidence || {
         sourceFile: existingMatch?.sourceFile || '',
         page: existingMatch?.page || '',
+        section: existingMatch?.section || '',
         paragraph: existingMatch?.paragraph || '',
       };
       const originalFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file && !f._annotatedFrom);
@@ -38712,10 +38854,15 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       const evidenceFoldedByDefault = !!aiOriginalResult && !hasExistingEvidence;
       const evidenceFieldsHtml = `
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
-        <div style="display:flex;gap:5px">
+        <div style="display:flex;gap:5px;margin-bottom:4px">
           <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
           <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
           <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        </div>
+        <input class="attr-modal-evidence-section" type="text" placeholder="Section (optional)" value="${escAttr(evidenceDefaults.section || '')}" style="width:100%;box-sizing:border-box;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="attr-modal-open-pdf" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">Open PDF</span>
+          <button class="attr-modal-place-tick btn-s" style="font-size:10px;padding:3px 8px">Place tick mark on PDF</button>
         </div>`;
       const evidenceHtml = evidenceFoldedByDefault
         ? `<div class="attr-modal-evidence-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">+ Add evidence (optional)</div>
@@ -38753,12 +38900,13 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       const readEvidence = () => ({
         sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
         page: body.querySelector('.attr-modal-evidence-page')?.value || '',
+        section: body.querySelector('.attr-modal-evidence-section')?.value || '',
         paragraph: body.querySelector('.attr-modal-evidence-para')?.value || '',
       });
       const setPending = (result, note, evidence, rationale) => {
         const eff = evidence || readEvidence();
         const effRationale = rationale !== undefined ? rationale : (body.querySelector('.attr-modal-rationale')?.value || '');
-        const evidenceUnchanged = eff.sourceFile === (evidenceDefaults.sourceFile || '') && String(eff.page || '') === String(evidenceDefaults.page || '') && String(eff.paragraph || '') === String(evidenceDefaults.paragraph || '');
+        const evidenceUnchanged = eff.sourceFile === (evidenceDefaults.sourceFile || '') && String(eff.page || '') === String(evidenceDefaults.page || '') && String(eff.section || '') === String(evidenceDefaults.section || '') && String(eff.paragraph || '') === String(evidenceDefaults.paragraph || '');
         // Only actually pending if it genuinely differs from the saved
         // state — flipping back to the original value un-stages it,
         // rather than leaving a no-op "change" queued. A rationale with
@@ -38775,7 +38923,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       body.querySelector('.attr-modal-fail').onclick = () => setPending('fail', noteVal);
       body.querySelector('.attr-modal-note').addEventListener('change', ev => setPending(selected || savedEffective || 'pass', ev.target.value));
       body.querySelector('.attr-modal-rationale')?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', body.querySelector('.attr-modal-note').value));
-      ['attr-modal-evidence-file', 'attr-modal-evidence-page', 'attr-modal-evidence-para'].forEach(cls => {
+      ['attr-modal-evidence-file', 'attr-modal-evidence-page', 'attr-modal-evidence-section', 'attr-modal-evidence-para'].forEach(cls => {
         body.querySelector('.' + cls)?.addEventListener('change', () => setPending(selected || savedEffective || 'pass', noteVal));
       });
       body.querySelector('.attr-modal-bulk-attrs').onclick = () => {
@@ -38785,6 +38933,21 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       body.querySelector('.attr-modal-bulk-samples').onclick = () => {
         const r = selected || savedEffective || 'pass';
         _openBulkOverridePicker('samples', ref, attributeIndex, fi, r, body.querySelector('.attr-modal-note').value);
+      };
+      body.querySelector('.attr-modal-open-pdf').onclick = () => {
+        const file = body.querySelector('.attr-modal-evidence-file')?.value;
+        const page = body.querySelector('.attr-modal-evidence-page')?.value;
+        _openPdfInNewTab(ref, file, Number(page) || 1, true, attributeIndex);
+      };
+      body.querySelector('.attr-modal-place-tick').onclick = async () => {
+        const btn = body.querySelector('.attr-modal-place-tick');
+        const r = selected || savedEffective || 'pass';
+        const evidence = readEvidence();
+        const rationaleVal2 = body.querySelector('.attr-modal-rationale')?.value || '';
+        btn.disabled = true; btn.textContent = 'Placing…';
+        const ok = await _placeManualTickMark(ref, attributeIndex, fi, r, body.querySelector('.attr-modal-note').value, evidence, rationaleVal2);
+        btn.disabled = false; btn.textContent = 'Place tick mark on PDF';
+        if (ok) { delete pending[fi]; renderList(); }
       };
       rowEl.appendChild(body);
     }
@@ -38893,6 +39056,25 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
 //     mark is already burned/stamped directly into that copy's own page
 //     content, so page-level scrolling (the same pageH math
 //     placeInteractiveAnnotations itself uses) is all that's needed.
+// Real, new, per explicit request — opens a genuinely separate browser
+// tab (not just this same tab's PDF viewer) landing directly on the
+// given sample file/page, via the same deep-link hash mechanism
+// duplicateWorkpaperInNewTab already established, extended with new
+// openSampleFile/openSamplePage/openSampleOriginal/openSampleAttr
+// params that handleInitialHash reads to auto-open the PDF viewer once
+// that fresh tab finishes loading the workpaper.
+function _openPdfInNewTab(ref, filename, page, isOriginal, attributeIndex) {
+  if (!filename) { alert('Select a sample file first.'); return; }
+  const w = WORKPAPERS.find(x => x.ref === ref);
+  const auditName = w?.auditName || currentAudit?.name || '';
+  let url = '#wpdetail&audit=' + encodeURIComponent(auditName) + '&wp=' + encodeURIComponent(ref) +
+    '&openSampleFile=' + encodeURIComponent(filename) +
+    '&openSamplePage=' + encodeURIComponent(page || 1) +
+    '&openSampleOriginal=' + (isOriginal === false ? '0' : '1');
+  if (attributeIndex != null) url += '&openSampleAttr=' + encodeURIComponent(attributeIndex);
+  window.open(window.location.pathname + url, '_blank');
+}
+
 async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeIndex) {
   const idx = (inMemoryFiles[ref]?.sample || []).findIndex(f => f.name === filename);
   if (idx < 0) {
