@@ -24491,6 +24491,13 @@ function _openOverridePopup(overlay, tickEl, opts) {
 
   function render() {
     const hasOverride = !!row?.override_result;
+    // Real, confirmed fix, per explicit request — this previously showed
+    // the rationale field whenever this tick had ANY AI determination at
+    // all, even before the user had actually picked something different
+    // from it. Only relevant once `selected` genuinely differs from the
+    // AI's own result — i.e., an override is actually in effect or being
+    // staged right now.
+    const isOverridingAi = !!(aiResult && selected && selected !== aiResult);
     popup.innerHTML = `
       <div style="background:#39618b;color:#fff;padding:6px 10px;border-radius:4px 4px 0 0;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center">
         <span>Override — ${escHtml(label)}</span>
@@ -24513,8 +24520,8 @@ function _openOverridePopup(overlay, tickEl, opts) {
         </div>
         <textarea id="ovr-note" placeholder="Tick mark explanation (optional)" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
-          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:${aiResult ? '6px' : '0'}">${escHtml(row?.override_note || '')}</textarea>
-        ${aiResult ? `<textarea id="ovr-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;
+          border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:${isOverridingAi ? '6px' : '0'}">${escHtml(row?.override_note || '')}</textarea>
+        ${isOverridingAi ? `<textarea id="ovr-rationale" placeholder="Override rationale (optional) — why are you changing the AI's result?" style="width:100%;min-height:36px;
           box-sizing:border-box;font-size:10px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(row?.override_rationale || '')}</textarea>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
@@ -25009,6 +25016,45 @@ function _promptDeleteGridItemSync(ref, item, candidates, protectedFiles) {
 // reclassify. Never touches a file with no annotated derivative yet —
 // the NEXT full annotation pass (or a fresh Analyze run) creates that
 // normally with already-correct data, nothing to fix here.
+// Real, new, per a real reported bug — Analyze's own bulk persist of AI
+// determinations into attribute_sample_results (see analyzeWithClaude's
+// own comment on it, further down) fires exactly ONCE, right after the
+// initial batch finishes. A sample retried afterward (via "Retry this
+// file" or "Retry all failed" — both already fix _wpAnalysisResults[ref]
+// in place, which is why the live grid and an xlsx exported from THIS
+// same browser tab look correct) never re-triggers that persist call,
+// so the DB row for that sample is never actually updated. A page
+// reload (or a fresh tab) reconstructs the Testwork Grid from that
+// stale/missing DB row instead of the in-memory data, showing "not
+// tested" for a sample that was, in fact, successfully retried. Reusable
+// so both retry paths can call it for just the one sample that changed,
+// exactly the same fire-and-forget, never-block-the-UI pattern as the
+// original bulk persist.
+async function _persistAiResultForSampleToDb(ref, attributes, sampleRowIndex, fileResult) {
+  try {
+    const payload = [];
+    attributes.forEach((attr, attributeIndex) => {
+      const match = (fileResult.results || []).find(r => r.title === attr.title);
+      if (!match) return;
+      payload.push({
+        attributeIndex,
+        sampleRowIndex,
+        result: match.result || 'pass',
+        marks: match.marks || [],
+        note: match.note || '',
+      });
+    });
+    if (!payload.length) return;
+    await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: payload }),
+    });
+    delete _attrSampleResultsCache[ref];
+  } catch (err) {
+    console.error('[AttributeSampleResults] Could not persist retried AI determination:', err.message);
+  }
+}
+
 async function _reburnAnnotatedFilesForSample(ref, fi) {
   try {
     const fileResult = (_wpAnalysisResults[ref] || [])[fi];
@@ -30343,6 +30389,12 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
                   // old failure — re-burn it now that this sample's
                   // marks are genuinely correct.
                   await _reburnAnnotatedFilesForSample(ref, fi);
+                  // Real, new, per a real reported bug — the original
+                  // Analyze run's one-time bulk persist already happened
+                  // before this retry ever ran, so without this the DB's
+                  // own row for this sample stays stale/missing even
+                  // though the live grid now shows the correct result.
+                  await _persistAiResultForSampleToDb(ref, attributes, fi, analysisResults[fi]);
                 }
                 else updateResultRow(rowEl, 'error', retry.error, `${retryName}()`);
               };
@@ -30876,6 +30928,10 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
           analysisResults[fi] = { ...analysisResults[fi], results: retry.results, findings: retry.findings || [], recommendations: retry.recommendations || [] };
           if (_wpAnalysisResults[ref]) _wpAnalysisResults[ref][fi] = analysisResults[fi];
           await _reburnAnnotatedFilesForSample(ref, fi);
+          // Real, new, per a real reported bug — same gap as "Retry this
+          // file": the original bulk persist already ran once before any
+          // retry, so this sample's DB row is otherwise never updated.
+          await _persistAiResultForSampleToDb(ref, attributes, fi, analysisResults[fi]);
           updateResultRow(row, 'done', null, null);
         } else {
           updateResultRow(row, 'error', retry.error, null);
@@ -38483,7 +38539,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // real answer; before that, this is recording a first answer, not
       // overriding one.
       const overrideCopy = savedEffective
-        ? 'Select Pass or Fail below to override the AI\'s result — the current result is already selected.'
+        ? 'Select Pass or Fail below.'
         : 'Select Pass or Fail below to record the result for this sample.';
 
       // Real, new, per manual-testwork-grid-plan.md Part 3 — lets a
@@ -38521,7 +38577,32 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // with no AI result at all has nothing to "override," so there's
       // no rationale to ask for.
       const aiOriginalResult = saved?.ai_result || match?.result || null;
-      const rationaleHtml = aiOriginalResult ? `
+      // Real, confirmed fix, per explicit request — this previously
+      // showed the rationale field whenever this cell had EVER had an AI
+      // result, even if the currently-selected Pass/Fail still matches
+      // it exactly (nothing is actually being overridden yet). Now only
+      // shown once the effective result genuinely differs from the AI's
+      // own original — i.e., an override is actually in effect or being
+      // staged right now.
+      const isActuallyOverridingAi = !!(aiOriginalResult && effective && effective !== aiOriginalResult);
+      // Real, new, per explicit request — since the copy above no longer
+      // says "override the AI's result," this notes explicitly whether
+      // the currently-selected Pass/Fail came from a person or from
+      // Wavefire AI. A pending, not-yet-saved change in this modal
+      // always reads as the user's own (it's what they just clicked);
+      // otherwise it reflects the last thing actually saved for this
+      // cell — a saved override (named to whoever made it), the AI's
+      // own untouched result, or nothing at all if this cell has never
+      // been given an answer by either.
+      const sourceLabel = isPending
+        ? 'Selected by you (not yet saved)'
+        : (saved?.override_result
+            ? `Selected by ${escHtml(saved.overridden_by || 'a user')}`
+            : (aiOriginalResult ? 'Selected by Wavefire AI' : ''));
+      const sourceLabelHtml = sourceLabel
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">${sourceLabel}</div>`
+        : '';
+      const rationaleHtml = isActuallyOverridingAi ? `
         <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Override rationale (optional) — why are you changing the AI's result?</div>
         <textarea class="attr-modal-rationale" placeholder="e.g. I disagree with how Analyze read this document, because..." style="width:100%;min-height:36px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
@@ -38537,6 +38618,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
             border:1px solid ${selected === 'fail' ? '#dc2626' : 'rgba(0,0,0,0.15)'};
             background:${selected === 'fail' ? 'rgba(220,38,38,0.15)' : '#fff'};color:#dc2626">Fail</button>
         </div>
+        ${sourceLabelHtml}
         ${priorNoteHtml}
         <textarea class="attr-modal-note" placeholder="${priorNote ? 'New/revised tick mark explanation' : 'Tick mark explanation (optional)'}" style="width:100%;min-height:44px;
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
