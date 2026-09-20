@@ -2815,7 +2815,7 @@
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary)">Review sign-off</div>
               <div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;display:flex;flex-direction:column;gap:3px;min-width:180px">
                 <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-                  <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 92px; flex: 0 0 auto;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Reviewed</button>
+                  <button id="wp-review-btn" onclick="addWPReview()" style="font-size: 11px; padding: 2px 8px; border-radius: var(--radius-md); border-top-width: ; border-top-style: ; border-color: var(--border-light); border-right-width: ; border-right-style: ; border-bottom-width: ; border-bottom-style: ; border-left-width: ; border-left-style: ; border-image-outset: ; border-image-repeat: ; border-image-slice: ; border-image-source: ; border-image-width: ; background: rgb(255, 255, 255); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: 0.15s; display: flex; align-items: center; gap: 4px; justify-content: center; width: 92px; flex: 0 0 auto;" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetWPReviewBtn()">Mark as Reviewed</button>
                   <!-- Real, new, per workpaper-review-lock-plan.md — a
                        small persistent lock glyph, visible at a glance
                        without needing to attempt an edit first. Shown/
@@ -3176,7 +3176,7 @@
         <button onclick="markFileReviewed('WP-2026-002_TestResults_20260627_1746.xlsx', this.dataset.fname)" data-fname="WP-2026-002_TestResults_20260627_1746.xlsx" id="review-btn-WP-2026-002_TestResults_20260627_1746.xlsx" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);
                  background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;
                  transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetReviewBtnStyle('WP-2026-002_TestResults_20260627_1746.xlsx')">
-          Reviewed
+          Mark as Reviewed
         </button>
 
       </div>
@@ -4055,7 +4055,7 @@ to the facility name.  If not found return an empty cell</textarea>
             <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;flex-shrink:0;border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:5px 8px;background:#e2e8f0;min-width:180px;margin-left:8px">
               <div style="display:flex;align-items:center;gap:6px;width:100%">
                 <button onclick="markFileReviewed('sf_rev_0', this.dataset.fname)" data-fname="CHG0053245_CHG0053245-bookmark_annotated_20260627_1746.pdf" id="review-btn-sf_rev_0" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:4px;flex:1;justify-content:center" onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'" onmouseout="resetReviewBtnStyle('sf_rev_0')">
-                  Reviewed
+                  Mark as Reviewed
                 </button>
 
               </div>
@@ -8169,7 +8169,10 @@ function resetWPReviewBtn() {
     btn.style.color       = '#166534';
     btn.style.borderColor = '#86efac';
   } else {
-    btn.innerHTML = 'Reviewed';
+    // Real, confirmed fix, per a real reported bug — same "always says
+    // Reviewed" ambiguity as the per-file buttons, for the workpaper's
+    // own top-level sign-off button.
+    btn.innerHTML = 'Mark as Reviewed';
     btn.style.background  = '#fff';
     btn.style.color       = 'var(--text-secondary)';
     btn.style.borderColor = 'var(--border-light)';
@@ -34855,7 +34858,12 @@ function applyReviewedState(key) {
     btn.style.background  = '#fff';
     btn.style.color       = 'var(--text-secondary)';
     btn.style.borderColor = 'var(--border-light)';
-    btn.innerHTML         = 'Reviewed';
+    // Real, confirmed fix, per a real reported bug — this said
+    // "Reviewed" even for a file no one had actually reviewed yet,
+    // indistinguishable from the genuinely-reviewed state's own label
+    // except by color. "Mark as Reviewed" only for the not-yet-
+    // reviewed state removes that ambiguity.
+    btn.innerHTML         = 'Mark as Reviewed';
     if (stamp) { stamp.setAttribute('style', 'display:none'); stamp.innerHTML = ''; }
   }
 }
@@ -35819,7 +35827,7 @@ function refreshFileList(ref, bucket) {
                   style="font-size:11px;padding:2px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-light);background:#fff;color:var(--text-secondary);cursor:pointer;white-space:nowrap;transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center"
                   onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
                   onmouseout="resetReviewBtnStyle('sf_rev_${i}')">
-                  Reviewed
+                  Mark as Reviewed
                 </button>
 
               </div>
@@ -35836,6 +35844,18 @@ function refreshFileList(ref, bucket) {
       sfl.innerHTML = (staticRows + dynRows) || `<div style="padding:16px;font-size:13px;color:var(--text-tertiary);font-style:italic">No sample files attached yet.</div>`;
     }
   }
+
+  // Real, confirmed fix, per a real reported bug — every review button
+  // above is always (re)rendered in its default, not-yet-reviewed
+  // markup, even for a file this session already marked reviewed
+  // earlier (fileReviewState[key] already has an entry) — nothing ever
+  // re-applied that state after a re-render, so it looked reset to
+  // "Mark as Reviewed" until clicked again. Reconciles every review
+  // button actually in the DOM against fileReviewState right after
+  // rendering, regardless of which bucket/branch just ran.
+  document.querySelectorAll('[id^="review-btn-"]').forEach(btn => {
+    applyReviewedState(btn.id.slice('review-btn-'.length));
+  });
 }
 
 function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloadCall, previewCall) {
@@ -35886,7 +35906,7 @@ function fileRowHtml(icon, name, meta, isDynamic, deleteCall, iconColor, downloa
                  transition:all 0.15s;display:flex;align-items:center;gap:4px;width:92px;flex:0 0 auto;justify-content:center"
           onmouseover="this.style.background='#dcfce7';this.style.color='#166534';this.style.borderColor='#86efac'"
           onmouseout="resetReviewBtnStyle('${reviewKey}')">
-          Reviewed
+          Mark as Reviewed
         </button>
 
       </div>
