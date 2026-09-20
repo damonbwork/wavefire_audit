@@ -38538,8 +38538,14 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // (AI or a prior manual entry) has already given this cell a
       // real answer; before that, this is recording a first answer, not
       // overriding one.
+      // Real, new, per explicit request — removed entirely once this
+      // cell already has an answer (AI or prior manual entry); the
+      // Pass/Fail buttons plus the "Selected by..." notation below them
+      // already make that self-evident without a prompt sentence. Still
+      // shown for a genuinely untested cell, where it's the only cue
+      // that a first answer is being recorded here.
       const overrideCopy = savedEffective
-        ? 'Select Pass or Fail below.'
+        ? ''
         : 'Select Pass or Fail below to record the result for this sample.';
 
       // Real, new, per manual-testwork-grid-plan.md Part 3 — lets a
@@ -38609,7 +38615,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:8px">${escHtml(rationaleVal)}</textarea>` : '';
 
       body.innerHTML = `
-        <div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>
+        ${overrideCopy ? `<div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>` : ''}
         <div style="display:flex;gap:6px;margin-bottom:6px">
           <button class="attr-modal-pass" style="flex:1;padding:4px 0;border-radius:4px;cursor:pointer;font-weight:700;
             border:1px solid ${selected === 'pass' ? '#16a34a' : 'rgba(0,0,0,0.15)'};
