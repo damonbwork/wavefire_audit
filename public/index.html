@@ -38836,7 +38836,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
       // own tick mark explanation textarea above.
       const aiNote = saved?.ai_note || match?.note || '';
       const aiNoteHtml = aiNote
-        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong> ${escHtml(aiNote)}</div>`
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong><br>${escHtml(aiNote)}</div>`
         : '';
 
       // Real, new, per explicit request — Evidence (page/paragraph/
