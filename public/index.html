@@ -4115,6 +4115,15 @@ to the facility name.  If not found return an empty cell</textarea>
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Clear Testwork Grid
             </button>
+            <!-- Real, new, per pass-fail-override-and-sync-plan.md
+                 Part 8 — checks every already-generated annotated file
+                 against what WaveFire itself last wrote to it, so an
+                 edit made outside the app (then re-attached by some
+                 path other than a literal same-filename replace) gets
+                 surfaced rather than silently drifting from the grid. -->
+            <button class="btn-s" onclick="_openDriftReport(getWPRef())" style="font-size:12px;padding:3px 10px" title="Check every annotated sample file for edits made outside WaveFire since it was generated">
+              <i class="ti ti-git-compare"></i> Check for Drift
+            </button>
           </div>
         </div><!-- /sect-card analysis grid -->
 
@@ -24900,6 +24909,244 @@ function _syncMechanismLabel(name) {
   return found ? found[1] : name;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   DRIFT DETECTION — pass-fail-override-and-sync-plan.md Part 8
+
+   Detects when an annotated sample file has changed since WaveFire
+   last wrote it (edited outside the app, then re-attached), and — for
+   the three structurally-readable mechanisms — shows exactly what
+   changed so a person can bring the edit into the grid or discard it.
+   `bi` (flattened pixels) can only ever report "this changed," never
+   what, per the design doc's own honest breakdown.
+══════════════════════════════════════════════════════════════════ */
+
+function _mechanismFromFilename(name) {
+  const found = _SYNC_SUFFIX_LABELS.find(([re]) => re.test(name || ''));
+  if (!found) return null;
+  const m = found[1].match(/\(([a-z0-9]+)\)$/i);
+  return m ? m[1] : null;
+}
+
+// Pulls the leading "[attrNum]" (and, immediately after, an optional
+// " [exRef]") off the front of one mark's own text — the exact, same
+// convention every burn mechanism already writes
+// ('[' + attrNum + ']' + (exTag||overridden tag) + ...). Returns
+// { attrNum, rest } or null if the text doesn't start with a bracket
+// at all (not one of WaveFire's own marks — e.g. a comment a person
+// added independently, which this feature has no baseline to compare
+// against and should simply ignore).
+function _parseMarkBracket(text) {
+  const m = /^\[([^\]]+)\]\s*(?:\[[^\]]+\]\s*)?([\s\S]*)$/.exec((text || '').trim());
+  return m ? { attrNum: m[1], rest: m[2].trim() } : null;
+}
+
+// Reads back every WaveFire-authored mark currently sitting in one
+// annotated PDF's own structure — real, structured content for sn/ff/
+// bi2 (comment text, form-field value, and stamp /Contents,
+// respectively), never a picture of text. Returns null for `bi` (or an
+// unrecognized mechanism) — nothing readable exists to return.
+async function _extractPdfMarkTexts(fileBytes, mechanism) {
+  if (mechanism !== 'sn' && mechanism !== 'ff' && mechanism !== 'bi2') return null;
+  const PDFLib = await loadPdfLib();
+  const { PDFDocument, PDFName } = PDFLib;
+  const doc = await PDFDocument.load(fileBytes, { ignoreEncryption: true });
+  const marks = [];
+
+  if (mechanism === 'ff') {
+    const form = doc.getForm();
+    form.getFields().forEach(field => {
+      try {
+        const text = typeof field.getText === 'function' ? field.getText() : null;
+        const parsed = _parseMarkBracket(text);
+        if (parsed) marks.push(parsed);
+      } catch (e) { /* not a text field, or unreadable — skip it, not a fatal error */ }
+    });
+    return marks;
+  }
+
+  // sn / bi2 — both are real PDF annotation objects on a page's own
+  // /Annots array, distinguished by Subtype (/Text for sn, /Stamp for
+  // bi2), with their current text sitting in a real /Contents entry.
+  const wantSubtype = mechanism === 'sn' ? 'Text' : 'Stamp';
+  doc.getPages().forEach(page => {
+    const annotsKey = PDFName.of('Annots');
+    const annotsRaw = page.node.lookup(annotsKey);
+    if (!annotsRaw) return;
+    const refs = annotsRaw.asArray ? annotsRaw.asArray() : [];
+    refs.forEach(ref => {
+      try {
+        const dict = doc.context.lookup(ref);
+        if (!dict || typeof dict.get !== 'function') return;
+        const subtype = dict.get(PDFName.of('Subtype'));
+        if (!subtype || subtype.toString() !== '/' + wantSubtype) return;
+        const contents = dict.get(PDFName.of('Contents'));
+        const text = contents && typeof contents.decodeText === 'function' ? contents.decodeText() : null;
+        const parsed = _parseMarkBracket(text);
+        if (parsed) marks.push(parsed);
+      } catch (e) { /* one malformed annotation shouldn't sink the whole read */ }
+    });
+  });
+  return marks;
+}
+
+// Compares one annotated file's CURRENT bytes against what WaveFire
+// itself last wrote (its recorded fingerprint), and — for a
+// structurally-readable mechanism — against what the grid currently
+// believes each of its marks says. Returns null when there's nothing
+// to compare (no baseline fingerprint recorded — e.g. a file from
+// before this feature existed) or when nothing has changed.
+async function _checkFileForDrift(ref, entry) {
+  if (!entry?._wfFingerprint || !entry.file) return null;
+  const mechanism = _mechanismFromFilename(entry.name);
+  if (!mechanism) return null;
+  const buf = await entry.file.arrayBuffer();
+  const currentFp = await _daSha256Hex(buf);
+  if (currentFp === entry._wfFingerprint) return null; // unchanged since WaveFire last wrote it
+
+  if (mechanism === 'bi') {
+    return { entry, mechanism, diffs: null }; // changed, but genuinely unreadable — flag only
+  }
+
+  let currentMarks;
+  try {
+    currentMarks = await _extractPdfMarkTexts(buf, mechanism);
+  } catch (e) {
+    console.error('[DriftCheck] Could not read', entry.name, ':', e.message);
+    return { entry, mechanism, diffs: null, readError: e.message };
+  }
+
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const wpResults = _wpAnalysisResults[ref] || [];
+  const diffs = [];
+  (currentMarks || []).forEach(({ attrNum, rest }) => {
+    const ai = attributes.findIndex(a => String(a.attrRef || a.num) === String(attrNum));
+    if (ai < 0) return; // no matching attribute — not one of this workpaper's own marks
+    wpResults.forEach((fileResult, fi) => {
+      const match = (fileResult.results || []).find(r => r.title === attributes[ai].title);
+      if (!match || match.sourceFile !== entry._annotatedFrom) return;
+      const saved = _findOverrideFor(ref, ai, fi);
+      const expectedNote = saved?.override_note || saved?.ai_note || match.note || '';
+      if (rest && rest !== expectedNote.trim()) {
+        diffs.push({ ai, fi, attrLabel: attributes[ai].attrRef || attributes[ai].num || String(ai + 1), currentPdfText: rest, expectedText: expectedNote });
+      }
+    });
+  });
+  if (!diffs.length) return { entry, mechanism, diffs: [], fingerprintOnly: true }; // bytes changed but no mark text actually differs (e.g. cosmetic edit)
+  return { entry, mechanism, diffs };
+}
+
+// Runs the check above across every WaveFire-authored annotated file
+// currently attached, and shows a report — never acts on anything
+// automatically. Per explicit design: a person resolves each drifted
+// item individually, either bringing the PDF's own text into the grid
+// (reuses _postOverride, the exact same write path the grid's own
+// popups already use) or discarding it (re-runs the applicable burn
+// mechanism, restoring WaveFire's own version).
+async function _openDriftReport(ref) {
+  document.querySelectorAll('.drift-report-overlay').forEach(el => el.remove());
+  const bucketArr = inMemoryFiles[ref]?.sample || [];
+  const candidates = bucketArr.filter(f => f._annotatedFrom && f._wfFingerprint);
+  if (!candidates.length) {
+    alert('No previously-generated annotated files to check yet — run Analyze or place a tick mark first.');
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'drift-report-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10030;display:flex;align-items:center;justify-content:center';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--bg-primary);border-radius:var(--radius-lg);width:min(560px,94vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 48px rgba(0,0,0,0.22)';
+  modal.innerHTML = `
+    <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;border-radius:var(--radius-lg) var(--radius-lg) 0 0;flex-shrink:0">
+      <div style="font-size:14px;font-weight:600">Check for Drift</div>
+      <div style="font-size:11px;opacity:0.75;margin-top:2px">Checking ${candidates.length} annotated file${candidates.length !== 1 ? 's' : ''} against what WaveFire last generated…</div>
+    </div>
+    <div class="drift-report-body" style="overflow-y:auto;flex:1;padding:14px 18px;min-height:80px;font-size:12px;color:var(--text-tertiary)">Checking…</div>
+    <div style="padding:12px 18px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;flex-shrink:0">
+      <button class="btn-s drift-report-close">Close</button>
+    </div>
+  `;
+  overlay.appendChild(modal);
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
+  modal.querySelector('.drift-report-close').onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+
+  const results = [];
+  for (const entry of candidates) {
+    try {
+      const r = await _checkFileForDrift(ref, entry);
+      if (r) results.push(r);
+    } catch (e) {
+      console.error('[DriftCheck] Failed on', entry.name, ':', e.message);
+    }
+  }
+
+  const body = modal.querySelector('.drift-report-body');
+  const changed = results.filter(r => r.mechanism === 'bi' || (r.diffs && r.diffs.length) || r.readError);
+  if (!changed.length) {
+    body.innerHTML = `<div style="font-style:italic">No drift detected — every annotated file still matches what WaveFire last generated.</div>`;
+    return;
+  }
+
+  body.innerHTML = changed.map((r, ri) => {
+    if (r.mechanism === 'bi' || r.readError) {
+      return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px;background:#fff7ed">
+        <div style="font-weight:600;font-size:12px;margin-bottom:4px">${escHtml(r.entry.name)}</div>
+        <div style="font-size:11px;color:#9a3412">This file no longer matches what WaveFire last generated${r.mechanism === 'bi' ? ' (burned-in — its tick marks cannot be automatically read back and compared)' : ' (could not be read: ' + escHtml(r.readError || '') + ')'}. Review it manually, or discard the edit below to restore WaveFire's own version.</div>
+        <div style="margin-top:6px"><button class="btn-s drift-restore" data-idx="${ri}" style="font-size:10px;padding:3px 8px">Discard edit — restore WaveFire's version</button></div>
+      </div>`;
+    }
+    return `<div style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:10px;margin-bottom:10px">
+      <div style="font-weight:600;font-size:12px;margin-bottom:6px">${escHtml(r.entry.name)}</div>
+      ${r.diffs.map((d, di) => `
+        <div style="border-top:0.5px solid var(--border-light);padding-top:6px;margin-top:6px;font-size:11px">
+          <div style="font-weight:600;margin-bottom:3px">Attribute ${escHtml(d.attrLabel)}</div>
+          <div style="color:var(--text-tertiary)">WaveFire's grid says: <span style="color:var(--text-primary)">${escHtml(d.expectedText || '(blank)')}</span></div>
+          <div style="color:var(--text-tertiary)">This PDF now says: <span style="color:var(--text-primary)">${escHtml(d.currentPdfText || '(blank)')}</span></div>
+          <div style="display:flex;gap:6px;margin-top:5px">
+            <button class="btn-s drift-accept" data-ri="${ri}" data-di="${di}" style="font-size:10px;padding:3px 8px">Bring this into WaveFire</button>
+            <button class="btn-s drift-keep" data-ri="${ri}" style="font-size:10px;padding:3px 8px">Keep WaveFire's version</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+  }).join('');
+
+  body.querySelectorAll('.drift-accept').forEach(btn => {
+    btn.onclick = async () => {
+      const r = changed[Number(btn.dataset.ri)];
+      const d = r.diffs[Number(btn.dataset.di)];
+      btn.disabled = true; btn.textContent = 'Applying…';
+      // Real, deliberate choice — brings in the PDF's own note text
+      // only, never the Pass/Fail result itself (a PDF edit is never
+      // allowed to silently flip a result; that stays a separate,
+      // explicit action a person takes in the grid itself).
+      const saved = _findOverrideFor(ref, d.ai, d.fi);
+      const currentResult = saved?.override_result || saved?.ai_result || 'pass';
+      await _postOverride(ref, d.ai, d.fi, currentResult, d.currentPdfText);
+      renderAnalysisResultsGrid(ref);
+      btn.textContent = 'Applied';
+    };
+  });
+  body.querySelectorAll('.drift-keep, .drift-restore').forEach(btn => {
+    btn.onclick = async () => {
+      const r = changed[Number(btn.dataset.ri || btn.dataset.idx)];
+      btn.disabled = true; btn.textContent = 'Restoring…';
+      try {
+        if (r.mechanism === 'bi')  await _autoBurnAnnotatedFilesAfterAnalyze(ref);
+        if (r.mechanism === 'ff')  await _autoFormFieldFilesAfterAnalyze(ref);
+        if (r.mechanism === 'sn')  await _makeAcrobatAnnotatedCopyAfterAnalyze(ref);
+        if (r.mechanism === 'bi2') await _autoBurnGroupedAnnotatedFilesAfterAnalyze(ref);
+        refreshFileList(ref, 'sample');
+        btn.textContent = 'Restored';
+      } catch (e) {
+        console.error('[DriftCheck] Could not restore', r.entry.name, ':', e.message);
+        btn.textContent = 'Failed — see console';
+      }
+    };
+  });
+}
+
 // Confirmation dialog before touching any already-annotated file — never
 // automatic. `protectedFiles` (if any) are listed separately as already
 // excluded, so the person knows why fewer files than they might expect
@@ -34863,6 +35110,21 @@ async function _persistSampleFileToBackend(ref, entry, uploaderName, fileCategor
     }
     const saved = await res.json();
     entry.fileId = saved.file_id; // links this in-memory entry to its durable backend record
+    // Real, new, per pass-fail-override-and-sync-plan.md Part 8 — records
+    // the exact byte-fingerprint of every WaveFire-authored annotated
+    // file at the moment it's written, so a later "Check for Drift" pass
+    // (_checkFileForDrift) can tell whether that file has since changed
+    // outside the app — the cheap first check before attempting any
+    // heavier structural diff. Only meaningful for WaveFire's own
+    // writes, never a real, ordinary user upload (which has no prior
+    // WaveFire-authored baseline to compare against in the first place).
+    if (uploaderName === 'Wavefire') {
+      try {
+        entry._wfFingerprint = await _daSha256Hex(await entry.file.arrayBuffer());
+      } catch (fpErr) {
+        console.error('[DriftCheck] Could not fingerprint', entry.name, ':', fpErr.message);
+      }
+    }
   } catch(e) {
     errorReason = e.message;
     console.error('[_persistSampleFileToBackend] Could not save', entry.name, 'to durable storage:', e.message);
