@@ -1109,3 +1109,62 @@ result.
 Scenario A (edited outside the app and never brought back at all)
 remains, as designed, undetectable in principle — nothing above changes
 that, nor could it.
+
+### Extended (2026-09-20): all three comparison categories, an automatic trigger, and an editable, highlighted diff
+
+Per direct follow-up, this feature now genuinely covers all three
+things its own name (renamed to "Reconcile PDF to Wavefire") promises,
+not just tick mark explanations:
+
+- **Pass/Fail result** — `sn`'s Text annotation sets a real, structured
+  `/C` (color) entry matching the result at write time
+  (`_makeAcrobatAnnotatedCopyAfterAnalyze`). `_resultFromAnnotColor`
+  reads it back and compares against the grid's current result. Honest
+  limitation, named in code: `ff` and `bi2` draw their pass/fail symbol
+  as page content or a baked appearance stream, not a separately
+  readable property, so this specific check only ever applies to `sn`.
+- **Exception/Finding/Recommendation reference** — `_parseMarkBracket`
+  now also captures the optional `" [exRef]"` tag every mechanism
+  already writes, compared against every `wpExceptions[ref]` row (all
+  three types, not just Exceptions) keyed by the same
+  `(sampleRowIndex, attributeIndex)` pair. A Ref mismatch has no
+  one-click accept (a bare ref string carries no name/description to
+  create or match a real grid row from) — shown as an explicit,
+  honest limitation with a pointer to resolving it directly in the
+  Exceptions/Findings/Recommendations grid.
+
+**An automatic trigger, scoped deliberately narrowly.** `closeFilePreview`
+now silently runs the drift check on whichever file was just being
+viewed, surfacing a small dismissable toast (never a blocking modal)
+only when something is actually found — clicking it opens the full
+report. This is the ONE trigger that makes sense for this direction of
+sync: closing the viewer is the moment a person might genuinely have
+just edited the file itself. Explicitly NOT wired to the other two
+triggers considered (adding/modifying a tick mark explanation or an
+Exception/Finding/Recommendation inside WaveFire) — those already flow
+the other direction (the existing WaveFire → PDF sync re-burns the file
+to match), and running this PDF → WaveFire check right after would only
+ever flag an expected, not-yet-re-burned file as if it were real drift.
+
+**A real word/punctuation-level diff, and an editable resolution.**
+`_wordDiffHtml` (LCS-based, tokenizing on whitespace and punctuation
+separately) replaced the original whole-string before/after display,
+so a single changed word or punctuation mark is visible as exactly
+that. Note/result diffs now show an editable field (a textarea, or a
+Pass/Fail picker for the result case) pre-filled with the PDF's own
+current value, with three explicit resolutions — "Use WaveFire's
+version," "Use PDF's version," or "Save edited value" after freely
+rewriting it — and whichever is chosen (via `_applyDriftResolution`) is
+written to BOTH sides: the grid via the existing `_postOverride` path,
+then the file's own mechanism is immediately re-burned so the PDF is
+brought back into genuine agreement, not left stale until an unrelated
+future Analyze run happens to fix it.
+
+**Verified** against real, live-generated PDFs: a Sticky Note with
+simultaneously mismatched color, note text, and exception ref produces
+three independent, correctly-labeled diffs; the word-diff correctly
+isolates a single changed word and a single changed punctuation mark
+rather than flagging whole strings; "Save edited value" correctly
+writes custom text to the grid and triggers a real re-burn; and closing
+a viewer on a file with genuine drift shows the toast, while closing a
+matching file does not.
