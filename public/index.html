@@ -38697,6 +38697,31 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong> ${escHtml(aiNote)}</div>`
         : '';
 
+      // Real, new, per explicit request — Evidence (page/paragraph/
+      // source file) exists for the case AI didn't place a tick at all
+      // and a person is recording one manually. For a cell Wavefire AI
+      // DID analyze, it's rarely relevant (the AI's own evidence already
+      // lives in its tick mark explanation above) — folded shut by
+      // default so it doesn't clutter every AI-generated cell, but still
+      // reachable via a small toggle for the exception (someone wants to
+      // add an additional citation of their own). Stays open by default
+      // whenever evidence is already on file (a prior manual entry, or
+      // an override that already recorded some) — an existing value is
+      // never hidden from view.
+      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
+      const evidenceFoldedByDefault = !!aiOriginalResult && !hasExistingEvidence;
+      const evidenceFieldsHtml = `
+        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
+        <div style="display:flex;gap:5px">
+          <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
+          <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+          <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        </div>`;
+      const evidenceHtml = evidenceFoldedByDefault
+        ? `<div class="attr-modal-evidence-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">+ Add evidence (optional)</div>
+           <div class="attr-modal-evidence-wrap" style="display:none;margin-top:6px">${evidenceFieldsHtml}</div>`
+        : `<div class="attr-modal-evidence-wrap">${evidenceFieldsHtml}</div>`;
+
       body.innerHTML = `
         ${overrideCopy ? `<div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>` : ''}
         <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -38718,13 +38743,13 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
         </div>
         ${aiNoteHtml}
-        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
-        <div style="display:flex;gap:5px">
-          <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
-          <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-          <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-        </div>
+        ${evidenceHtml}
       `;
+      body.querySelector('.attr-modal-evidence-toggle')?.addEventListener('click', function() {
+        const wrap = body.querySelector('.attr-modal-evidence-wrap');
+        wrap.style.display = '';
+        this.remove();
+      });
       const readEvidence = () => ({
         sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
         page: body.querySelector('.attr-modal-evidence-page')?.value || '',
