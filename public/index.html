@@ -12513,7 +12513,10 @@ function _refreshGridSelectionHighlight() {
   document.querySelectorAll('#analysis-grid-rows [data-cell-key]').forEach(el => { el.style.outline = ''; el.style.outlineOffset = ''; });
   if (!_selectedGridCell) return;
   const el = _gridCellEl(_selectedGridCell.ref, _selectedGridCell.attributeIndex, _selectedGridCell.sampleRowIndex);
-  if (el) { el.style.outline = '2px solid #2563eb'; el.style.outlineOffset = '-2px'; }
+  // Real, new, per explicit request — a slight, light gray border
+  // instead of the previous bold blue outline, so the selected cell is
+  // still clearly marked without dominating the grid visually.
+  if (el) { el.style.outline = '1.5px solid #cbd5e1'; el.style.outlineOffset = '-1.5px'; }
 }
 
 // Real, new, per Part 1 — an untested cell immediately records Pass (a
@@ -12760,6 +12763,38 @@ function _openBulkOverridePicker(mode, ref, attributeIndex, sampleRowIndex, resu
   document.body.appendChild(overlay);
 }
 
+// Real, new, per explicit request — opens whichever popup a mouse
+// click on this cell would open (the full override modal for a cell
+// that already has a result, or the quick popover for an untested
+// one), so arrow-key navigation lands the user in the same place a
+// click would. Mirrors the exact same match/result-resolution logic
+// renderAnalysisResultsGrid's own cell template already uses, so the
+// two can never disagree about which popup a given cell should show.
+function _openPopoverForCell(ref, ai, fi) {
+  const attributes = (wpTestAttributes[ref] || []).filter(a => a.title);
+  const attr = attributes[ai];
+  if (!attr) return;
+  const attrLabel = attr.attrRef || attr.num || String(ai + 1);
+  const fileResult = (_wpAnalysisResults[ref] || [])[fi];
+  let match = (fileResult?.results || []).find(r => r.title === attr.title);
+  if (!match) {
+    const al = attr.title.toLowerCase();
+    match = (fileResult?.results || []).find(r =>
+      r.title.toLowerCase().startsWith(al) || al.startsWith(r.title.toLowerCase()) ||
+      r.title.toLowerCase().includes(al) || al.includes(r.title.toLowerCase())
+    );
+  }
+  const aiResult = match ? match.result : null;
+  const overrideRow = _findOverrideFor(ref, ai, fi);
+  const result = overrideRow?.override_result || aiResult;
+  if (result) {
+    _openAttrResultsModal(ref, ai, attrLabel, attr.title, fi);
+  } else {
+    const cellEl = _gridCellEl(ref, ai, fi);
+    _handleEmptyCellClick(cellEl, ref, ai, fi, attrLabel, attr.title);
+  }
+}
+
 /* ── Part 3 — keyboard navigation of the Testwork Grid ── */
 
 document.addEventListener('keydown', e => {
@@ -12849,6 +12884,11 @@ document.addEventListener('keydown', e => {
   _refreshGridSelectionHighlight();
   const el = _gridCellEl(ref, targetAi, targetFi);
   if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  // Real, new, per explicit request — arrow-key navigation now opens
+  // the same popup a mouse click on the newly-selected cell would,
+  // rather than leaving the cell merely highlighted with nothing
+  // shown until the user clicks it again.
+  _openPopoverForCell(ref, targetAi, targetFi);
 });
 
 /* ══════════════════════════════════════
@@ -39315,7 +39355,19 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         section: existingMatch?.section || '',
         paragraph: existingMatch?.paragraph || '',
       };
-      const originalFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file && !f._annotatedFrom);
+      // Real, new, per explicit request — only offer the sample file(s)
+      // that actually support THIS cell (named as sourceFile on one of
+      // its own marks), not every file attached to the workpaper. Falls
+      // back to the full attached list when this cell has no evidence
+      // yet to narrow by (nothing tested it, or a manually-created row).
+      const allOriginalFiles = (inMemoryFiles[ref]?.sample || []).filter(f => f.file && !f._annotatedFrom);
+      const supportingFileNames = new Set(
+        ((existingMatch?.marks?.length ? existingMatch.marks : [existingMatch]).filter(Boolean))
+          .map(m => m.sourceFile).filter(Boolean)
+      );
+      const originalFiles = supportingFileNames.size
+        ? allOriginalFiles.filter(f => supportingFileNames.has(f.name))
+        : allOriginalFiles;
       const fileOptionsHtml = ['<option value="">— Not specified —</option>']
         .concat(originalFiles.map(f => `<option value="${escAttr(f.name)}" ${f.name === evidenceDefaults.sourceFile ? 'selected' : ''}>${escHtml(f.name)}</option>`))
         .join('');
