@@ -3127,7 +3127,7 @@
             </button>
           </div>
           <div class="sect-body">
-            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;margin-bottom:6px"></div>
+            <div id="narrative-ref-files" style="display:flex;flex-wrap:wrap;gap:5px"></div>
             <!-- Real, new, per explicit request — defaults to one line
                  (matching the Test Description field's own "start small,
                  grow with content" pattern) instead of a fixed 120px
@@ -11739,7 +11739,13 @@ function renderNarrativeRefFiles(ref) {
   const container = document.getElementById('narrative-ref-files');
   if (!container) return;
   const sel = wpNarrativeRefFiles[ref] || new Set();
-  if (!sel.size) { container.innerHTML = ''; return; }
+  // Real, confirmed fix, per a real reported bug — this div's own
+  // min-height/margin-bottom used to be fixed inline styles, always
+  // reserving blank space above the narrative textarea even when no
+  // reference files were selected. Now sized only when it actually has
+  // chips to show.
+  if (!sel.size) { container.innerHTML = ''; container.style.marginBottom = '0'; return; }
+  container.style.marginBottom = '6px';
   container.innerHTML = [...sel].map(name => {
     const safe = name.replace(/'/g, "\\'");
     return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:5px;padding:2px 7px;color:var(--text-secondary)">
@@ -30704,6 +30710,17 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
     });
   });
 
+  // Real, new, per a real reported bug — everything above builds
+  // wpExceptions[ref] purely in browser memory. Nothing in this entire
+  // function previously ever called _saveWorkpaperToDB to persist it to
+  // the workpapers.exceptions column, so a batch of Exceptions/Findings/
+  // Recommendations Analyze had just created could silently vanish on
+  // the next reload (or in another session) unless the user happened to
+  // also edit some unrelated exception field afterward — the only other
+  // code path that saves this column. Persisted here, right after the
+  // auto-populate block finishes, so it survives independently of that.
+  if (wp) _saveWorkpaperToDB(wp).catch(err => console.error('[Exceptions] Could not persist auto-created exceptions/findings/recommendations:', err.message));
+
   // Automatically create a burned-in annotated copy of every attached sample
   // file, added alongside its original in the Attached Sample Files list —
   // runs in the background and doesn't block the rest of this function from
@@ -38668,6 +38685,43 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);
           border-radius:4px;padding:5px 7px;resize:vertical;margin-bottom:8px">${escHtml(rationaleVal)}</textarea>` : '';
 
+      // Real, new, per explicit request — Wavefire AI's own tick mark
+      // explanation (the persisted ai_note column when this cell's own
+      // cache row has loaded from the DB, falling back to the live AI
+      // match's own note within this same session) shown read-only,
+      // directly above Evidence, regardless of whether an override is
+      // in effect — this is the AI's finding, distinct from a person's
+      // own tick mark explanation textarea above.
+      const aiNote = saved?.ai_note || match?.note || '';
+      const aiNoteHtml = aiNote
+        ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px"><strong>Wavefire AI's tick mark explanation:</strong> ${escHtml(aiNote)}</div>`
+        : '';
+
+      // Real, new, per explicit request — Evidence (page/paragraph/
+      // source file) exists for the case AI didn't place a tick at all
+      // and a person is recording one manually. For a cell Wavefire AI
+      // DID analyze, it's rarely relevant (the AI's own evidence already
+      // lives in its tick mark explanation above) — folded shut by
+      // default so it doesn't clutter every AI-generated cell, but still
+      // reachable via a small toggle for the exception (someone wants to
+      // add an additional citation of their own). Stays open by default
+      // whenever evidence is already on file (a prior manual entry, or
+      // an override that already recorded some) — an existing value is
+      // never hidden from view.
+      const hasExistingEvidence = !!(evidenceDefaults.sourceFile || evidenceDefaults.page || evidenceDefaults.paragraph);
+      const evidenceFoldedByDefault = !!aiOriginalResult && !hasExistingEvidence;
+      const evidenceFieldsHtml = `
+        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
+        <div style="display:flex;gap:5px">
+          <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
+          <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+          <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
+        </div>`;
+      const evidenceHtml = evidenceFoldedByDefault
+        ? `<div class="attr-modal-evidence-toggle" style="font-size:10px;color:var(--wf-navy);cursor:pointer;text-decoration:underline">+ Add evidence (optional)</div>
+           <div class="attr-modal-evidence-wrap" style="display:none;margin-top:6px">${evidenceFieldsHtml}</div>`
+        : `<div class="attr-modal-evidence-wrap">${evidenceFieldsHtml}</div>`;
+
       body.innerHTML = `
         ${overrideCopy ? `<div style="font-size:10.5px;color:var(--text-tertiary);margin-bottom:5px">${overrideCopy}</div>` : ''}
         <div style="display:flex;gap:6px;margin-bottom:6px">
@@ -38688,13 +38742,14 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
           <button class="attr-modal-bulk-attrs btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other attributes (this sample)</button>
           <button class="attr-modal-bulk-samples btn-s" style="flex:1;font-size:10px;padding:4px 6px">Apply to other samples (this attribute)</button>
         </div>
-        <div style="font-size:9.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Evidence (optional)</div>
-        <div style="display:flex;gap:5px">
-          <select class="attr-modal-evidence-file" style="flex:2;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px;min-width:0">${fileOptionsHtml}</select>
-          <input class="attr-modal-evidence-page" type="number" min="1" placeholder="Page" value="${escAttr(String(evidenceDefaults.page || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-          <input class="attr-modal-evidence-para" type="number" min="1" placeholder="Para" value="${escAttr(String(evidenceDefaults.paragraph || ''))}" style="width:56px;font-size:11px;padding:4px 5px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-        </div>
+        ${aiNoteHtml}
+        ${evidenceHtml}
       `;
+      body.querySelector('.attr-modal-evidence-toggle')?.addEventListener('click', function() {
+        const wrap = body.querySelector('.attr-modal-evidence-wrap');
+        wrap.style.display = '';
+        this.remove();
+      });
       const readEvidence = () => ({
         sourceFile: body.querySelector('.attr-modal-evidence-file')?.value || '',
         page: body.querySelector('.attr-modal-evidence-page')?.value || '',
