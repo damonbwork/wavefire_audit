@@ -25009,6 +25009,45 @@ function _promptDeleteGridItemSync(ref, item, candidates, protectedFiles) {
 // reclassify. Never touches a file with no annotated derivative yet —
 // the NEXT full annotation pass (or a fresh Analyze run) creates that
 // normally with already-correct data, nothing to fix here.
+// Real, new, per a real reported bug — Analyze's own bulk persist of AI
+// determinations into attribute_sample_results (see analyzeWithClaude's
+// own comment on it, further down) fires exactly ONCE, right after the
+// initial batch finishes. A sample retried afterward (via "Retry this
+// file" or "Retry all failed" — both already fix _wpAnalysisResults[ref]
+// in place, which is why the live grid and an xlsx exported from THIS
+// same browser tab look correct) never re-triggers that persist call,
+// so the DB row for that sample is never actually updated. A page
+// reload (or a fresh tab) reconstructs the Testwork Grid from that
+// stale/missing DB row instead of the in-memory data, showing "not
+// tested" for a sample that was, in fact, successfully retried. Reusable
+// so both retry paths can call it for just the one sample that changed,
+// exactly the same fire-and-forget, never-block-the-UI pattern as the
+// original bulk persist.
+async function _persistAiResultForSampleToDb(ref, attributes, sampleRowIndex, fileResult) {
+  try {
+    const payload = [];
+    attributes.forEach((attr, attributeIndex) => {
+      const match = (fileResult.results || []).find(r => r.title === attr.title);
+      if (!match) return;
+      payload.push({
+        attributeIndex,
+        sampleRowIndex,
+        result: match.result || 'pass',
+        marks: match.marks || [],
+        note: match.note || '',
+      });
+    });
+    if (!payload.length) return;
+    await fetch('/api/workpapers/' + encodeURIComponent(ref) + '/attribute-sample-results/bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: payload }),
+    });
+    delete _attrSampleResultsCache[ref];
+  } catch (err) {
+    console.error('[AttributeSampleResults] Could not persist retried AI determination:', err.message);
+  }
+}
+
 async function _reburnAnnotatedFilesForSample(ref, fi) {
   try {
     const fileResult = (_wpAnalysisResults[ref] || [])[fi];
@@ -30343,6 +30382,12 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
                   // old failure — re-burn it now that this sample's
                   // marks are genuinely correct.
                   await _reburnAnnotatedFilesForSample(ref, fi);
+                  // Real, new, per a real reported bug — the original
+                  // Analyze run's one-time bulk persist already happened
+                  // before this retry ever ran, so without this the DB's
+                  // own row for this sample stays stale/missing even
+                  // though the live grid now shows the correct result.
+                  await _persistAiResultForSampleToDb(ref, attributes, fi, analysisResults[fi]);
                 }
                 else updateResultRow(rowEl, 'error', retry.error, `${retryName}()`);
               };
@@ -30876,6 +30921,10 @@ Format: {"results":[{"title":"<exact attribute title as provided>","marks":[{"re
           analysisResults[fi] = { ...analysisResults[fi], results: retry.results, findings: retry.findings || [], recommendations: retry.recommendations || [] };
           if (_wpAnalysisResults[ref]) _wpAnalysisResults[ref][fi] = analysisResults[fi];
           await _reburnAnnotatedFilesForSample(ref, fi);
+          // Real, new, per a real reported bug — same gap as "Retry this
+          // file": the original bulk persist already ran once before any
+          // retry, so this sample's DB row is otherwise never updated.
+          await _persistAiResultForSampleToDb(ref, attributes, fi, analysisResults[fi]);
           updateResultRow(row, 'done', null, null);
         } else {
           updateResultRow(row, 'error', retry.error, null);
