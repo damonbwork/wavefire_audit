@@ -38817,7 +38817,7 @@ function _openAttrResultsModal(ref, attributeIndex, attrRefLabel, attrTitle, onl
         ? 'Selected by you (not yet saved)'
         : (saved?.override_result
             ? `Selected by ${escHtml(saved.overridden_by || 'a user')}`
-            : (aiOriginalResult ? 'Selected by Wavefire AI' : ''));
+            : (aiOriginalResult ? 'Result determined by Wavefire AI' : ''));
       const sourceLabelHtml = sourceLabel
         ? `<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">${sourceLabel}</div>`
         : '';
