@@ -13097,6 +13097,20 @@ let _mockExtractFields = [];
 function _openMockExtractionResults() {
   const ref = getWPRef();
   if (!ref) return;
+  // Real, changed, per explicit request — if a real Extract Sample Data
+  // run has already completed for this workpaper (records genuinely
+  // saved to Postgres, loaded via loadExtractedDataRecordsFromDB on
+  // workpaper open), show THAT instead of a synthetic preview. Showing
+  // fabricated example values when real, current results already exist
+  // for the exact same fields is actively misleading, not merely
+  // redundant. The synthetic preview stays available, but only for the
+  // genuine "haven't run a real extraction yet" case it was actually
+  // built for.
+  if (wpExtractedDataRecords[ref] && wpExtractedDataRecords[ref].length) {
+    renderExtractedDataResults(ref);
+    _openExtractResultsModal();
+    return;
+  }
   _mockExtractRef = ref;
   _mockExtractFields = (wpExtractedData[ref] || []).filter(f => (f.title || '').trim());
   const overlay = document.getElementById('mock-extract-overlay');
