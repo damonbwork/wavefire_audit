@@ -28392,6 +28392,34 @@ function runAnalysisWithOptions() {
     document.getElementById('analysis-options-overlay').style.display = 'none';
     return;
   }
+
+  // Real, confirmed fix, per direct report ("Wavefire no longer
+  // produces any annotated files when it runs") — this selection is
+  // saved as the person's own standing preference (see below) and
+  // silently reapplied on every future Analyze run with no indication
+  // anything is off. If all four checkboxes end up unchecked — however
+  // that happened, including this exact preference having been saved
+  // once before with nothing selected — every run since would have
+  // silently produced zero annotated PDF copies, with no error and no
+  // annotation status ever shown. Caught here, before anything runs,
+  // with a chance to go back and pick at least one rather than
+  // proceeding (and re-saving the same all-off preference) unnoticed.
+  const pendingAnnSelection = {
+    bi: document.getElementById('aopt-ann-bi')?.checked,
+    ff: document.getElementById('aopt-ann-ff')?.checked,
+    sn: document.getElementById('aopt-ann-sn')?.checked,
+    bi2: document.getElementById('aopt-ann-bi2')?.checked,
+  };
+  if (!pendingAnnSelection.bi && !pendingAnnSelection.ff && !pendingAnnSelection.sn && !pendingAnnSelection.bi2) {
+    const proceedAnyway = confirm(
+      'No annotation type is selected (Burned-in, Movable Stamp, Form-field, or Sticky Note).\n\n' +
+      'Analyze will still run and produce results, but NO annotated PDF copies will be created — ' +
+      'and this "none selected" choice will be saved as your default for next time.\n\n' +
+      'Click Cancel to go back and select at least one, or OK to proceed without any annotated files.'
+    );
+    if (!proceedAnyway) return;
+  }
+
   _analysisInProgress = true;
 
   // Real, new, per direct request — the confirmed annotation-type
@@ -28402,12 +28430,7 @@ function runAnalysisWithOptions() {
   // already proven for xlsx_export_prefs — so it becomes their
   // default the next time this modal opens, on any real device they
   // sign into.
-  _annotationTypeSelection = {
-    bi: document.getElementById('aopt-ann-bi')?.checked,
-    ff: document.getElementById('aopt-ann-ff')?.checked,
-    sn: document.getElementById('aopt-ann-sn')?.checked,
-    bi2: document.getElementById('aopt-ann-bi2')?.checked,
-  };
+  _annotationTypeSelection = pendingAnnSelection;
   if (_currentDisplayUser) _currentDisplayUser.annotation_type_prefs = _annotationTypeSelection;
   fetch('/api/auth/annotation-type-prefs', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
