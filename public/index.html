@@ -4186,7 +4186,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
           </div>
           <div class="sect-body" style="padding:0">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
@@ -12203,7 +12203,7 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
@@ -14039,8 +14039,14 @@ function _openSelectedCellReviewNotes() {
     </div>
   `;
   overlay.appendChild(modal);
-  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) overlay.remove(); });
-  modal.querySelector('.cell-review-notes-close').onclick = () => overlay.remove();
+  // Real, confirmed fix, per direct report — closing this modal used to
+  // just remove it from the DOM with no re-render at all, so a
+  // brand-new note's own corner triangle (_cellNoteTriangleHtml, drawn
+  // by renderAnalysisResultsGrid's own cell template) never appeared on
+  // the grid until something else happened to redraw it later.
+  const closeAndRefresh = () => { overlay.remove(); renderAnalysisResultsGrid(ref); };
+  overlay.addEventListener('mousedown', ev => { if (ev.target === overlay) closeAndRefresh(); });
+  modal.querySelector('.cell-review-notes-close').onclick = closeAndRefresh;
   document.body.appendChild(overlay);
   _renderCellNotesSection(ref, attributeIndex, sampleRowIndex, modal.querySelector('.cell-review-notes-body'));
 }
