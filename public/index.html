@@ -37384,7 +37384,18 @@ async function readSampleFilesIntoGrid(ref) {
     allRecords = dedupedRecords;
 
     if (allRecords.length === 0) {
-      alert('Read ' + readableFiles.length + ' file(s), but no usable sample data was found.' + failureNote);
+      // Real, confirmed fix, per direct report — this used to only show
+      // a transient alert() and return, with no modal opened at all,
+      // which read as "nothing happened" (indistinguishable from the
+      // button not working). Opens the same Extraction Results modal a
+      // successful run uses, still empty, with the reason spelled out
+      // inline instead of only in a dialog that's gone the moment it's
+      // dismissed.
+      const modalHdr  = document.getElementById('extract-modal-results-hdr');
+      const modalBody = document.getElementById('extract-modal-results-body');
+      if (modalHdr)  modalHdr.innerHTML  = '';
+      if (modalBody) modalBody.innerHTML = `<tr><td style="padding:14px 12px;color:var(--text-tertiary);font-style:italic">Read ${readableFiles.length} file(s), but no usable sample data was found.${escHtml(failureNote)}</td></tr>`;
+      _openExtractResultsModal();
       return;
     }
 
