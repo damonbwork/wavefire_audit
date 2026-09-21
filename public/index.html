@@ -30324,7 +30324,15 @@ async function analyzeWithClaude() {
       // ascending would shift every later index out from under itself
       // mid-loop.
       const sortedDesc = [...annotatedIndices].sort((a, b) => b - a);
-      sortedDesc.forEach(i => deleteMemFile(ref, 'sample', i));
+      // Real, confirmed fix, per direct report — deleteMemFile is now
+      // async (it awaits the backend archive call before splicing —
+      // see its own comment), so firing all of these via a bare forEach
+      // let them race: splices could land out of the intended
+      // descending order depending on which fetch resolved first,
+      // shifting a later, still-pending index out from under itself
+      // and leaving it never actually deleted. Awaited in strict
+      // descending order instead, one at a time.
+      for (const i of sortedDesc) { await deleteMemFile(ref, 'sample', i); }
     }
     if (hasGridToClear) {
       // skipConfirm: true — the combined dialog above already covered
@@ -35645,8 +35653,19 @@ function deleteSelectedSampleFiles(ref) {
       // as checked even though the user never selected it.
       const sortedDesc = [..._sfSelected].sort((a,b) => b - a);
       _sfSelected.clear();
-      sortedDesc.forEach(i => deleteMemFile(ref, 'sample', i));
-      renderSampleFilesToolbar(ref);
+      // Real, confirmed fix, per direct report — "select all, delete"
+      // was leaving the last file in the list behind. deleteMemFile is
+      // now async (it awaits the backend archive call before splicing
+      // — see its own comment), so firing every call via a bare forEach
+      // let them race: whichever fetch happened to resolve first could
+      // splice out of the intended descending order, shifting a
+      // still-pending lower index out from under itself before its own
+      // splice ran, so it silently missed the file it meant to delete.
+      // Awaited in strict descending order instead, one at a time.
+      (async () => {
+        for (const i of sortedDesc) { await deleteMemFile(ref, 'sample', i); }
+        renderSampleFilesToolbar(ref);
+      })();
     }
   );
 }
