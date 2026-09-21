@@ -13916,6 +13916,21 @@ function _renderCellNotesSection(ref, ai, fi, containerEl) {
 
   const notesHtml = notes.map(note => {
     const canClear = _rnCanClearNote(note);
+    // Real, changed, per explicit request — matches the section-level
+    // Review Notes window's own segmented OPEN/CLEARED control exactly
+    // (see _renderNoteBlock), rather than a single toggle pill: both
+    // states are always visible as their own clickable segment, with
+    // the current one bolded/filled, so it reads as a real "press to
+    // clear" action instead of a status label that happens to react to
+    // clicks.
+    const isOpen = note.status !== 'cleared';
+    const openSegStyle    = isOpen  ? 'background:#c2410c;color:#fff;font-weight:700' : 'background:transparent;color:var(--text-tertiary);font-weight:500';
+    const clearedSegStyle = !isOpen ? 'background:#2563eb;color:#fff;font-weight:700' : 'background:transparent;color:var(--text-tertiary);font-weight:500';
+    const segCursor = canClear ? 'cursor:pointer' : 'cursor:default';
+    const segTitle = canClear ? 'Click to change status' : 'Only the author or an admin can change this';
+    const clearedFooter = note.status === 'cleared'
+      ? `<div style="font-size:8px;color:var(--text-tertiary);margin-top:2px;text-align:right">Cleared by ${escHtml(note.clearedByName || '')} · ${escHtml(note.clearedAt || '')}</div>`
+      : '';
     const responsesHtml = (note.responses || []).map(r => `
       <div style="margin-left:16px;margin-top:6px;padding-left:8px;border-left:2px solid var(--border-light)">
         <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(r.author)}</strong> · ${escHtml(r.ts)}</div>
@@ -13924,9 +13939,15 @@ function _renderCellNotesSection(ref, ai, fi, containerEl) {
       </div>`).join('');
     return `
       <div class="cell-rn-note" data-note-id="${note.id}" style="border:0.5px solid var(--border-light);border-radius:var(--radius-md);padding:8px;margin-bottom:8px;background:var(--bg-secondary)">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
           <div style="font-size:10px;color:var(--text-secondary)"><strong>${escHtml(note.author)}</strong> · ${escHtml(note.ts)}</div>
-          <span data-cell-rn-toggle="${note.id}" style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:0.3px;${canClear ? 'cursor:pointer;' : ''}background:${note.status === 'cleared' ? '#dbeafe' : '#fed7aa'};color:${note.status === 'cleared' ? '#1e40af' : '#9a3412'}">${note.status === 'cleared' ? 'Cleared' : 'Open'}</span>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="display:inline-flex;border:0.5px solid var(--border-light);border-radius:10px;overflow:hidden" title="${segTitle}">
+              <span data-cell-rn-toggle="${note.id}" style="font-size:9px;padding:2px 8px;letter-spacing:0.3px;${segCursor};${openSegStyle}">OPEN</span>
+              <span data-cell-rn-toggle="${note.id}" style="font-size:9px;padding:2px 8px;letter-spacing:0.3px;${segCursor};${clearedSegStyle}">CLEARED</span>
+            </div>
+            ${clearedFooter}
+          </div>
         </div>
         <textarea data-cell-rn-text="${note.id}" placeholder="Enter a review note…" style="width:100%;margin-top:6px;min-height:44px;box-sizing:border-box;font-size:11px;font-family:inherit;border:1px solid rgba(0,0,0,0.15);border-radius:4px;padding:5px 7px;resize:vertical">${escHtml(note.text)}</textarea>
         <div style="margin-top:4px">${responsesHtml}</div>
