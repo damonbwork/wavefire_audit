@@ -9424,6 +9424,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
         if (pgIdx >= pages.length) return;
         var page = pages[pgIdx];
         var ptH = page.getSize().height;
+        var ptW = page.getSize().width;
 
         var result = mark.result || 'error';
         var isPass = (result === 'pass');
@@ -9431,7 +9432,13 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
 
         var paraNum = Math.max(1, mark.paragraph || (ai + 1));
         var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-        var pdfY = ptH * (1 - paraFrac);
+        // Real, new — a mark placed via the PDF viewer's own click-to-
+        // place panel carries the exact spot the user clicked (nx/ny,
+        // fractions of the page's width/height); when present, it
+        // replaces the paragraph-based estimate entirely rather than
+        // just nudging it, since the whole point of clicking is to land
+        // exactly where the user pointed, not near it.
+        var pdfY = (mark.ny != null) ? ptH * mark.ny : ptH * (1 - paraFrac);
 
         // Real, confirmed redesign — one single field now, replacing the
         // three separate ones this used to create (wf_tick_, wf_attrnum_,
@@ -9459,7 +9466,7 @@ async function _formFieldAnnotationsForFileFromResults(PDFLib, fileBytes, fileNa
         // mechanism — this part isn't a form field at all, just a
         // visual indicator sitting beside the real field below.
         var symColor = isPass ? TICK_COLS.pass : TICK_COLS.fail;
-        var symX = 12, symY = finalY - 6;
+        var symX = (mark.nx != null) ? Math.max(2, Math.min(ptW - 40, mark.nx * ptW)) : 12, symY = finalY - 6;
         if (isPass) {
           page.drawLine({ start: { x: symX, y: symY }, end: { x: symX + 3, y: symY - 3 }, thickness: 1.6, color: symColor });
           page.drawLine({ start: { x: symX + 3, y: symY - 3 }, end: { x: symX + 8, y: symY + 5 }, thickness: 1.6, color: symColor });
@@ -9770,6 +9777,7 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
         if (pgIdx >= pages.length) return;
         var page = pages[pgIdx];
         var ptH = page.getSize().height;
+        var ptW = page.getSize().width;
 
         var result = mark.result || 'error';
         var isPass = (result === 'pass');
@@ -9777,7 +9785,10 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
 
         var paraNum = Math.max(1, mark.paragraph || (ai + 1));
         var paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-        var pdfY = ptH * (1 - paraFrac);
+        // Real, new — see the identical comment in the form-field
+        // mechanism above: an exact clicked spot (nx/ny) always wins
+        // over the paragraph-based estimate when present.
+        var pdfY = (mark.ny != null) ? ptH * mark.ny : ptH * (1 - paraFrac);
 
         var detailText = null;
         // Real, confirmed fix, per direct report — a flat 90-character cap
@@ -9807,7 +9818,8 @@ async function _burnAnnotationsForFileFromResults(PDFLib, fileBytes, fileName, w
           : geomTopRowH - 4;
         var finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
-        drawTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        var tickX = (mark.nx != null) ? Math.max(2, Math.min(ptW - 20, mark.nx * ptW)) : 13;
+        drawTickMark(page, { x: tickX, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
         anyPlaced = true;
       });
     });
@@ -10091,6 +10103,7 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
         if (pgIdx >= pages.length) continue;
         const page = pages[pgIdx];
         const ptH = page.getSize().height;
+        const ptW = page.getSize().width;
 
         const result = mark.result || 'error';
         const isPass = (result === 'pass');
@@ -10098,7 +10111,10 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
 
         const paraNum = Math.max(1, mark.paragraph || (ai + 1));
         const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-        const pdfY = ptH * (1 - paraFrac);
+        // Real, new — see the identical comment in the form-field
+        // mechanism: an exact clicked spot (nx/ny) always wins over the
+        // paragraph-based estimate when present.
+        const pdfY = (mark.ny != null) ? ptH * mark.ny : ptH * (1 - paraFrac);
 
         let detailText = null;
         // Real, confirmed fix, per direct report — same raised cap as the
@@ -10124,7 +10140,8 @@ async function _burnAnnotationsForFileFromResultsGrouped(PDFLib, fileBytes, file
           : geomTopRowH - 4;
         const finalY = reserveNonOverlappingY(pgIdx, pdfY, geomTotalH);
 
-        await drawGroupedTickMark(page, { x: 13, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
+        const tickX = (mark.nx != null) ? Math.max(2, Math.min(ptW - 20, mark.nx * ptW)) : 13;
+        await drawGroupedTickMark(page, { x: tickX, y: finalY, pass: isPass, attrNum: attrNum, detailText: detailText, detailFont: fontReg, overridden: !!mark.overridden });
         anyPlaced = true;
       }
     }
@@ -10537,10 +10554,12 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
       // exactly this — purely to read genuine per-page heights via
       // getSize().height, not to modify anything with it.
       let realPageHeights = [];
+      let realPageWidths = [];
       try {
         const PDFLibForDims = await loadPdfLib();
         const dimsDoc = await PDFLibForDims.PDFDocument.load(pristineBytes, { ignoreEncryption: true });
         realPageHeights = dimsDoc.getPages().map(p => p.getSize().height);
+        realPageWidths = dimsDoc.getPages().map(p => p.getSize().width);
       } catch (err) {
         console.error('[AcrobatAnnotate] Could not read real page dimensions for', origEntry.name, ':', err.message);
         continue; // without real page heights, positions can't be computed correctly — skip rather than guess
@@ -10631,18 +10650,23 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
             const pgIdx = Math.max(0, (mark.page || 1) - 1);
             if (pgIdx >= realPageHeights.length) return;
             const realPageHeight = realPageHeights[pgIdx];
+            const realPageWidth = realPageWidths[pgIdx] || 612;
 
             const result = mark.result || 'error';
 
             const paraNum = Math.max(1, mark.paragraph || (ai + 1));
             const paraFrac = Math.min(0.92, (paraNum + 1) / Math.max(attributes.length + 3, 10));
-            const pdfY = realPageHeight * (1 - paraFrac);
+            // Real, new — see the identical comment in the burn-in
+            // mechanism: an exact clicked spot (nx/ny) always wins over
+            // the paragraph-based estimate when present.
+            const pdfY = (mark.ny != null) ? realPageHeight * mark.ny : realPageHeight * (1 - paraFrac);
             const iconSize = 20;
             const stackIdx = stackCountByPage[pgIdx] || 0;
             stackCountByPage[pgIdx] = stackIdx + 1;
             const stackedY = pdfY - stackIdx * (iconSize + 4);
             const rectY1 = Math.max(0, stackedY - iconSize);
             const rectY2 = Math.max(iconSize, stackedY);
+            const rectX1 = (mark.nx != null) ? Math.max(2, Math.min(realPageWidth - iconSize - 2, mark.nx * realPageWidth)) : 10;
 
             // Real, new — "OVR" is an application/testwork-grid concept
             // only, per explicit request; it's never burned into the
@@ -10653,7 +10677,7 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
             try {
               factory.createTextAnnotation({
                 page: pgIdx,
-                rect: [10, rectY1, 10 + iconSize, rectY2],
+                rect: [rectX1, rectY1, rectX1 + iconSize, rectY2],
                 contents: contents,
                 author: 'Wavefire',
                 color: TICK_COLORS[result] || TICK_COLORS.error,
@@ -12429,9 +12453,16 @@ function renderAnalysisResultsGrid(ref) {
       // full modal instead, but scoped to just this one sample (see
       // below).
       const cellKey = `${ai}:${fi}`;
-      const onClick = result
-        ? `_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_openAttrResultsModal('${ref}', ${ai}, '${escAttr(attrNum)}', '${escAttr(attr.title)}', ${fi})`
-        : `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_handleEmptyCellClick(this, '${ref}', ${ai}, ${fi}, '${escAttr(attrNum)}', '${escAttr(attr.title)}')`;
+      // Real, changed, per explicit request — a single click no longer
+      // opens any popup at all (it was stealing focus from the rest of
+      // the page, e.g. the review button, the instant a cell was
+      // clicked). A single click now only selects/highlights the cell,
+      // exactly like arrow-key navigation already does; opening the
+      // override or empty-cell popup now requires either a double-click
+      // or, once a cell is selected, pressing Enter (see the keydown
+      // handler in Part 3 below).
+      const onClick = `event.stopPropagation();_wpChatSetLastFocus('${ref}', ${ai}, ${fi});_selectedGridCell={ref:'${ref}',attributeIndex:${ai},sampleRowIndex:${fi}};_refreshGridSelectionHighlight()`;
+      const onDblClick = `event.stopPropagation();_openPopoverForCell('${ref}', ${ai}, ${fi})`;
       // Real, new, per testwork-grid-review-note-indicators-plan.md
       // Part B — a small triangle in the cell's upper-right corner marks
       // a cell that has ever had a review note, colored/hollow by the
@@ -12440,7 +12471,7 @@ function renderAnalysisResultsGrid(ref) {
       // current tier) for the life of this Testwork Grid — see
       // _cellNoteTriangleTier's own null-vs-tier distinction.
       const noteTriangle = _cellNoteTriangleHtml(ref, ai, fi);
-      return `<div data-cell-key="${escAttr(cellKey)}" style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer;position:relative" title="${escHtml(evidenceTitle)}" onclick="${onClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}${noteTriangle}</div>`;
+      return `<div data-cell-key="${escAttr(cellKey)}" style="${cellStyle}text-align:center;font-weight:700;color:${color};${borderExtra};cursor:pointer;position:relative" title="${escHtml(evidenceTitle)}" onclick="${onClick}" ondblclick="${onDblClick}" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">${tick}${refTag}${ovrTag}${noteTriangle}</div>`;
     }).join('');
 
     // The specific file(s) that actually evidenced this sample's marks —
@@ -12866,11 +12897,22 @@ document.addEventListener('keydown', e => {
   // the page either).
   e.preventDefault();
 
+  // Real, changed, per explicit request — Enter no longer moves to the
+  // next cell (it used to be treated as a synonym for ArrowDown). It
+  // now opens the popup for whichever cell is ALREADY selected, exactly
+  // like a double-click would — the same "select with arrows/click,
+  // then Enter/double-click to open" pattern used everywhere else in
+  // this grid now.
+  if (e.key === 'Enter') {
+    _openPopoverForCell(ref, attributeIndex, sampleRowIndex);
+    return;
+  }
+
   let targetAi = attributeIndex, targetFi = sampleRowIndex;
   if (e.key === 'ArrowLeft')  { if (attributeIndex <= 0) return; targetAi = attributeIndex - 1; }
   else if (e.key === 'ArrowRight') { if (attributeIndex >= lastAi) return; targetAi = attributeIndex + 1; }
   else if (e.key === 'ArrowUp')    { if (sampleRowIndex <= 0) return; targetFi = sampleRowIndex - 1; }
-  else if (e.key === 'ArrowDown' || e.key === 'Enter') {
+  else if (e.key === 'ArrowDown') {
     if (sampleRowIndex < lastFi) {
       targetFi = sampleRowIndex + 1;
     } else if (attributeIndex < lastAi) {
@@ -12887,11 +12929,12 @@ document.addEventListener('keydown', e => {
   _refreshGridSelectionHighlight();
   const el = _gridCellEl(ref, targetAi, targetFi);
   if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  // Real, new, per explicit request — arrow-key navigation now opens
-  // the same popup a mouse click on the newly-selected cell would,
-  // rather than leaving the cell merely highlighted with nothing
-  // shown until the user clicks it again.
-  _openPopoverForCell(ref, targetAi, targetFi);
+  // Real, changed, per explicit request — arrow-key navigation now only
+  // moves the highlight; it no longer opens any popup on its own (that
+  // was stealing focus away from the rest of the page, e.g. the review
+  // button, on every arrow press). Opening the cell now always requires
+  // a deliberate Enter or double-click, matching the mouse-click change
+  // above.
 });
 
 /* ══════════════════════════════════════
@@ -25756,6 +25799,14 @@ async function _placeManualTickMark(ref, ai, fi, result, note, evidence, rationa
     section: evidence.section || '',
     paragraph: Number(evidence.paragraph) || 0,
   };
+  // Real, new — when this placement came from an actual click on the
+  // rendered page (evidence.nx/ny, fractions of that page's own width/
+  // height), carry the exact spot through onto the mark itself so every
+  // burn mechanism can draw the tick right where the user pointed,
+  // instead of only estimating a vertical position from a paragraph
+  // number.
+  if (evidence.nx != null) mark.nx = evidence.nx;
+  if (evidence.ny != null) mark.ny = evidence.ny;
   entry.marks.push(mark);
   // The cell's own representative fields mirror this newest placement —
   // the same convention every other mark-producing path in this app
@@ -39742,12 +39793,19 @@ async function _openSampleFileAtMark(ref, filename, page, isOriginal, attributeI
 
 // Whether click-to-place is currently armed — while true, the next click
 // anywhere on the open PDF's own body places a tick there instead of
-// doing whatever a plain click normally would (panning, etc.).
-let _twGridPlacementArmed = false;
+// doing whatever a plain click normally would (panning, etc.). Real,
+// changed per explicit request — defaults ON as soon as the panel opens
+// (a "just a single click" flow: open the PDF, click the spot, done)
+// rather than requiring a separate arm click first. The button now
+// reads as a live status toggle ("Pause clicking" / "Click PDF to
+// place tick") so a user who wants to scroll or select text without
+// risking an accidental tick can still turn it off.
+let _twGridPlacementArmed = true;
 
 // Real, new, per explicit request — lets a user place a real tick mark
-// by clicking directly on the rendered page of an already-open PDF,
-// rather than only via a typed page number in the Testwork Grid's own
+// with a single click directly on the rendered page of an already-open
+// PDF, at the EXACT spot clicked (not just an estimated position from a
+// typed page number), rather than only via the Testwork Grid's own
 // popups. Shown only when this viewer session was opened specifically
 // for that purpose (_twGridPlacementCtx set by _openSampleFileAtMark);
 // hidden for ordinary file browsing.
@@ -39789,7 +39847,8 @@ function _renderTwGridPlacementPanel() {
       ${existingNotes.map(n => `<option value="${escAttr(n)}">${escHtml(n.slice(0, 60))}${n.length > 60 ? '…' : ''}</option>`).join('')}
     </select>` : ''}
     <input class="twp-note" type="text" placeholder="Tick mark explanation" style="flex:1;min-width:140px;font-size:11px;padding:3px 6px;border:1px solid rgba(0,0,0,0.15);border-radius:4px">
-    <button class="twp-arm btn-s" style="font-size:11px;padding:3px 10px;font-weight:600">Click PDF to place tick</button>
+    <span style="font-size:10.5px;color:#3730a3;white-space:nowrap">Click anywhere on the page to place a tick there</span>
+    <button class="twp-arm btn-s" style="font-size:11px;padding:3px 10px;font-weight:600">Pause clicking</button>
   `;
 
   let selected = currentResult;
@@ -39800,15 +39859,23 @@ function _renderTwGridPlacementPanel() {
   });
 
   const armBtn = panel.querySelector('.twp-arm');
-  _twGridPlacementArmed = false;
-  armBtn.onclick = () => {
-    _twGridPlacementArmed = !_twGridPlacementArmed;
-    armBtn.textContent = _twGridPlacementArmed ? 'Click the PDF now… (click here to stop)' : 'Click PDF to place tick';
-    armBtn.style.background = _twGridPlacementArmed ? '#1e40af' : '';
-    armBtn.style.color = _twGridPlacementArmed ? '#fff' : '';
+  // Real, changed — starts ON (see _twGridPlacementArmed's own comment
+  // above), so the very first click on the page already places a tick;
+  // this button only PAUSES/resumes that live-click behavior, it no
+  // longer has to be pressed first.
+  _twGridPlacementArmed = true;
+  const _twpSyncArmBtn = () => {
+    armBtn.textContent = _twGridPlacementArmed ? 'Pause clicking' : 'Resume click-to-place';
+    armBtn.style.background = _twGridPlacementArmed ? '' : '#1e40af';
+    armBtn.style.color = _twGridPlacementArmed ? '' : '#fff';
     const body = document.getElementById('file-preview-body');
     if (body) body.style.cursor = _twGridPlacementArmed ? 'crosshair' : '';
   };
+  armBtn.onclick = () => {
+    _twGridPlacementArmed = !_twGridPlacementArmed;
+    _twpSyncArmBtn();
+  };
+  _twpSyncArmBtn();
 
   // Real, new — the actual click-to-place handler. Capture-phase so it
   // sees the click before any existing drag/pan or annotation-tool
@@ -39824,11 +39891,28 @@ function _renderTwGridPlacementPanel() {
       const { ref, ai, fi } = _twGridPlacementCtx;
       const pageCount = Math.max(1, previewTotalPages || 1);
       const pageH = body.scrollHeight / pageCount;
-      const clickY = body.scrollTop + (e.clientY - body.getBoundingClientRect().top);
+      const bodyRect = body.getBoundingClientRect();
+      const clickY = body.scrollTop + (e.clientY - bodyRect.top);
       const clickedPage = Math.max(1, Math.min(pageCount, Math.floor(clickY / pageH) + 1));
+      // Real, new — the exact spot within THAT page, as fractions of its
+      // own width/height (0 = left/top edge, 1 = right/bottom edge), so
+      // the tick can be burned at the precise point clicked rather than
+      // only at an estimated vertical position derived from a paragraph
+      // number. yWithinPage is measured from the page's own top edge,
+      // then flipped to PDF's bottom-left-origin convention (ny is the
+      // fraction DOWN from the top, matching how the burn mechanisms
+      // already read a "fraction of page height from the top").
+      const yWithinPage = clickY - (clickedPage - 1) * pageH;
+      const ny = Math.max(0.02, Math.min(0.98, 1 - (yWithinPage / pageH)));
+      const clickX = body.scrollLeft + (e.clientX - bodyRect.left);
+      const pageEl = document.elementFromPoint(e.clientX, e.clientY);
+      const pageBox = pageEl ? pageEl.closest('.pdf-page, canvas, [data-page]') : null;
+      const pageW = pageBox ? pageBox.getBoundingClientRect().width : body.clientWidth;
+      const pageLeft = pageBox ? (pageBox.getBoundingClientRect().left - bodyRect.left + body.scrollLeft) : 0;
+      const nx = Math.max(0.01, Math.min(0.95, (clickX - pageLeft) / pageW));
       const note = panel.querySelector('.twp-note')?.value || '';
       const currentFile = inMemoryFiles[ref]?.sample?.[_fpIdx]?.name || '';
-      const evidence = { sourceFile: currentFile, page: clickedPage, section: '', paragraph: 0 };
+      const evidence = { sourceFile: currentFile, page: clickedPage, section: '', paragraph: 0, nx, ny };
       armBtn.disabled = true;
       const ok = await _placeManualTickMark(ref, ai, fi, selected, note, evidence);
       armBtn.disabled = false;
@@ -39845,11 +39929,10 @@ function _renderTwGridPlacementPanel() {
           placeInteractiveAnnotations(fileResult, attrs, exMap, fi, currentFile, ref);
         }
         // Rebuilds the panel fresh (Pass/Fail highlight reflects the
-        // just-saved result) — this naturally leaves placement mode
-        // OFF again, requiring a deliberate re-click of "Click PDF to
-        // place tick" before another one lands, rather than silently
-        // staying armed and risking an accidental extra tick from a
-        // stray click on the document.
+        // just-saved result) and stays armed for the next click, per
+        // the single-click design — placing several ticks in a row (one
+        // per click) shouldn't require re-arming each time. Use "Pause
+        // clicking" to stop before scrolling or selecting text.
         _renderTwGridPlacementPanel();
       }
     }, true);
