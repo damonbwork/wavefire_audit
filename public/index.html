@@ -10690,7 +10690,23 @@ async function _makeAcrobatAnnotatedCopyForEntries(ref, originalEntries, wpResul
 
             const tickSym = TICK_SYMS[result] || '-';
             const pageTag = (mark.page && mark.page > 0) ? '  Pg ' + mark.page : '';
-            summaryLines.push(tickSym + '  [' + attrNum + ']' + ovrTag + exTag + ' ' + attr.title + pageTag);
+            // Real, confirmed fix, per direct report ("works with all
+            // types checked, not when only sn is checked") — this
+            // referenced an `ovrTag` variable that was never declared
+            // anywhere in this function's scope, throwing a
+            // ReferenceError the instant any mark actually matched this
+            // file. That exception was only ever caught by the OUTER
+            // try/catch around this whole origEntry (logged to console,
+            // then silently `continue`s to the next file) — so this
+            // mechanism aborted before ever reaching factory.write() or
+            // persisting anything, EVERY time it had real work to do.
+            // With bi/bi2/ff also selected, their own separate output
+            // masked this — sn alone made the total failure obvious. Per
+            // the comment just above ("OVR is an application/testwork-
+            // grid concept only... never burned into the PDF's own
+            // sticky-note contents"), it was never supposed to be here
+            // at all — removed rather than reintroduced.
+            summaryLines.push(tickSym + '  [' + attrNum + ']' + exTag + ' ' + attr.title + pageTag);
             if (mark.note) summaryLines.push('     ' + String(mark.note).slice(0, 90));
           });
         });
