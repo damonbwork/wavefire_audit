@@ -5167,12 +5167,6 @@ Testwork Grid" to build a blank grid and record each result yourself.
       </div>
       <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
         <div class="fld">
-          <div class="fl">Section</div>
-          <input type="text" id="acm-section" list="acm-section-options" placeholder="Select existing or type a new section…"
-            style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
-          <datalist id="acm-section-options"></datalist>
-        </div>
-        <div class="fld">
           <div class="fl">Category name</div>
           <input type="text" id="acm-category-name" placeholder="e.g. Vendor Risk Management"
             style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
@@ -41164,12 +41158,9 @@ function openAddCategoryModal(source) {
   const panelId = _addCategoryModalSource === 'code' ? _codeUiIds().panel : _categoryUiIds().panel;
   const panelEl = document.getElementById(panelId);
   if (panelEl) panelEl.style.display = 'none'; // close the real, underlying dropdown first
-  document.getElementById('acm-section').value = '';
   document.getElementById('acm-category-name').value = '';
   document.getElementById('acm-abbreviation').value = '';
   document.getElementById('acm-error').style.display = 'none';
-  const datalist = document.getElementById('acm-section-options');
-  datalist.innerHTML = (_wpSectionsCache || []).map(s => `<option value="${escAttr(s.name)}">`).join('');
   document.getElementById('add-category-overlay').style.display = 'flex';
 }
 
@@ -41178,14 +41169,13 @@ function closeAddCategoryModal() {
 }
 
 async function submitNewCategory() {
-  const sectionName = document.getElementById('acm-section').value.trim();
   const categoryName = document.getElementById('acm-category-name').value.trim();
   const abbreviation = document.getElementById('acm-abbreviation').value.trim();
   const errEl = document.getElementById('acm-error');
   errEl.style.display = 'none';
 
-  if (!sectionName || !categoryName || !abbreviation) {
-    errEl.textContent = 'All three fields are required.';
+  if (!categoryName || !abbreviation) {
+    errEl.textContent = 'Both fields are required.';
     errEl.style.display = 'block';
     return;
   }
@@ -41195,25 +41185,17 @@ async function submitNewCategory() {
     return;
   }
 
-  // Real, new warning, per explicit request — datalist inputs are
-  // genuinely just suggestions; they never actually prevent someone
-  // from typing anything, including a real, accidental typo that
-  // would silently create a real, near-duplicate section. A real,
-  // confirmable warning, not a hard block, since creating a genuinely
-  // new section is a legitimate, intended action this should still allow.
-  const existingSectionNames = (_wpSectionsCache || []).map(s => s.name.toLowerCase());
-  if (!existingSectionNames.includes(sectionName.toLowerCase())) {
-    const proceed = confirm(`"${sectionName}" is not an existing section. Are you sure you want to create it as a new section?`);
-    if (!proceed) return;
-  }
-
   const btn = document.getElementById('acm-submit-btn');
   const origHtml = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Adding…';
   try {
+    // Real, changed, per explicit request — Section is no longer a
+    // field the person fills in here at all (see the removed modal
+    // field); the backend now defaults it to a fixed "General" section
+    // on its own when none is sent.
     const res = await fetch('/api/workpaper-categories', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: categoryName, abbreviation, sectionName }),
+      body: JSON.stringify({ name: categoryName, abbreviation }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
