@@ -3184,9 +3184,14 @@ app.post('/api/workpaper-categories', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const name = (req.body.name || '').trim();
   const abbreviation = (req.body.abbreviation || '').trim().toUpperCase();
-  const sectionName = (req.body.sectionName || '').trim();
+  // Real, changed, per explicit request — Section is no longer a field
+  // the person fills in (the UI no longer asks for it at all; see the
+  // Add Category modal). workpaper_categories.section_name still has a
+  // NOT NULL-via-FK requirement at the schema level, so every category
+  // is filed under one fixed, auto-created "General" section instead of
+  // a real, meaningful grouping nobody was actually using.
+  const sectionName = (req.body.sectionName || '').trim() || 'General';
   if (!name) return res.status(400).json({ error: 'A category name is required.' });
-  if (!sectionName) return res.status(400).json({ error: 'A section is required.' });
   if (abbreviation.length < 2 || abbreviation.length > 3) {
     return res.status(400).json({ error: 'The abbreviation must genuinely be 2-3 characters.' });
   }
