@@ -971,7 +971,7 @@
               <i class="ti ti-logout" style="font-size:15px"></i>Log out
             </button>
           </div>
-          <div style="padding:10px 12px;border-bottom:0.5px solid var(--border-light)">
+          <div id="wf-user-switcher-search-wrap" style="padding:10px 12px;border-bottom:0.5px solid var(--border-light)">
             <input type="text" id="wf-user-switcher-search" placeholder="Search users…" oninput="filterUserSwitcherList(this.value)"
               style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
           </div>
@@ -18927,15 +18927,29 @@ async function toggleUserSwitcher(ev) {
   if (!panel) return;
   const isOpening = panel.style.display === 'none';
   panel.style.display = isOpening ? 'block' : 'none';
-  if (isOpening) {
-    document.getElementById('wf-user-switcher-search').value = '';
-    if (!_userSwitcherAllUsers) {
-      await loadUserSwitcherList();
-    } else {
-      renderUserSwitcherList(_userSwitcherAllUsers);
-    }
-    document.getElementById('wf-user-switcher-search')?.focus();
+  if (!isOpening) return;
+
+  // Real, confirmed fix, per explicit request — only a genuine
+  // superadmin can browse/search other users at all (the backend now
+  // enforces this too, at /api/admin/users, but the search box and list
+  // are hidden here as well so a non-superadmin never even sees UI that
+  // implies they could look up someone outside their own tenant). Every
+  // other user gets just the Log out option this panel already has.
+  const isSuperAdmin = !!(_currentDisplayUser && _currentDisplayUser.is_superadmin);
+  const searchWrapEl = document.getElementById('wf-user-switcher-search-wrap');
+  const searchEl = document.getElementById('wf-user-switcher-search');
+  const listEl   = document.getElementById('wf-user-switcher-list');
+  if (searchWrapEl) searchWrapEl.style.display = isSuperAdmin ? '' : 'none';
+  if (listEl)       listEl.style.display       = isSuperAdmin ? '' : 'none';
+  if (!isSuperAdmin) return;
+
+  searchEl.value = '';
+  if (!_userSwitcherAllUsers) {
+    await loadUserSwitcherList();
+  } else {
+    renderUserSwitcherList(_userSwitcherAllUsers);
   }
+  searchEl?.focus();
 }
 
 async function loadUserSwitcherList() {

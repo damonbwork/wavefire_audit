@@ -5163,12 +5163,19 @@ app.post('/api/auth/change-password', async (req, res) => {
   } catch(err) { return fail(res, err, 'POST /api/auth/change-password:'); }
 });
 
+// Real, confirmed fix, per explicit request — this returned every user
+// across every tenant to any authenticated caller, with no tenant
+// scoping and no superadmin gate at all. Only a genuine superadmin sees
+// users outside their own tenant now; everyone else gets exactly the
+// same tenant-scoped set the rest of the app already restricts them to.
 app.get('/api/admin/users', async (req, res) => {
   if (!pool) return res.json([]);
   try {
-    const { rows } = await pool.query(
-      'SELECT user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled, date_created, date_updated, last_activity_at FROM users ORDER BY last_name, first_name'
-    );
+    const isSuperAdmin = !!(req.currentUser && req.currentUser.is_superadmin);
+    const query = 'SELECT user_id, tenant_id, email, login_id, first_name, last_name, role, is_superadmin, is_active, security_disabled, date_created, date_updated, last_activity_at FROM users' +
+      (isSuperAdmin ? '' : ' WHERE tenant_id = $1') +
+      ' ORDER BY last_name, first_name';
+    const { rows } = await pool.query(query, isSuperAdmin ? [] : [req.currentTenantId]);
     res.json(rows);
   } catch(err) { return fail(res, err, 'GET /api/admin/users:'); }
 });
