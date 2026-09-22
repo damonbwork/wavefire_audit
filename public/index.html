@@ -2701,16 +2701,36 @@
                 <input id="wpd-title-input" type="text" maxlength="50" style="font-size:16px;font-weight:600;color:var(--text-primary);background:var(--bg-secondary);
                          border:0.5px solid var(--blue-600);border-radius:var(--radius-md);padding:4px 8px;
                          outline:none;flex:1;font-family:inherit" oninput="autoUpdateWPTag()">
-                <input id="wpd-tag-input" type="text" maxlength="4" readonly style="font-size:14px;font-weight:700;color:var(--wf-navy);background:var(--bg-secondary);
-                         border:0.5px solid var(--blue-600);border-radius:var(--radius-md);padding:4px 8px;
-                         outline:none;width:90px;text-align:center;letter-spacing:1px;font-family:inherit;cursor:default" title="Sourced from the Workpaper Category selected when this workpaper was created — set once and stable.">
-                <datalist id="wpd-tag-options">
-                  <option value="CC">CC</option>
-                  <option value="SEC">SEC</option>
-                  <option value="OPS">OPS</option>
-                  <option value="FIN">FIN</option>
-                  <option value="IPE">IPE</option>
-                </datalist>
+                <!-- Real, changed, per explicit request — the workpaper
+                     code was previously a read-only field with no way to
+                     enter or change it at all. Now a real dropdown
+                     (mirroring the Category picker), with "Create new
+                     code" pinned at top; renaming the ref itself still
+                     only happens on this header's own explicit Ok/Save
+                     step (saveWPHeaderEdit), same as the title and
+                     sequence number. -->
+                <div style="position:relative;flex-shrink:0">
+                  <button type="button" id="wpd-code-trigger" onclick="toggleCodeDropdown()"
+                    style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:14px;font-weight:700;color:var(--wf-navy);background:var(--bg-secondary);
+                             border:0.5px solid var(--blue-600);border-radius:var(--radius-md);padding:4px 8px;
+                             outline:none;width:90px;text-align:center;letter-spacing:1px;font-family:inherit;cursor:pointer" title="Select an existing workpaper code, or create a new one.">
+                    <span id="wpd-code-btn-display" style="flex:1;text-align:center">—</span>
+                    <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text-tertiary);flex-shrink:0"></i>
+                  </button>
+                  <input id="wpd-tag-input" type="hidden" value="">
+                  <div id="wpd-code-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:260px;max-height:320px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+                    <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+                      <button type="button" onclick="openAddCategoryModal('code')" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
+                        <i class="ti ti-plus" style="font-size:13px"></i>Create new code
+                      </button>
+                    </div>
+                    <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                      <input type="text" id="wpd-code-search" placeholder="Search codes…" oninput="filterCodeDropdown(this.value)"
+                        style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
+                    </div>
+                    <div id="wpd-code-list" style="padding:6px"></div>
+                  </div>
+                </div>
               </div>
               <div style="display:flex;align-items:center;gap:0">
                 <span id="wpd-ref-prefix" style="font-size:12px;color:var(--text-secondary);background:var(--bg-secondary);
@@ -4867,19 +4887,34 @@ Testwork Grid" to build a blank grid and record each result yourself.
                   <div id="nwp-category-list" style="padding:6px"></div>
                 </div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+              <!-- Real, changed, per explicit request — the workpaper code
+                   is now its own selectable dropdown (mirroring the
+                   Workpaper Category picker's own trigger+panel pattern),
+                   with "Create new code" pinned at the top, rather than a
+                   read-only field only ever settable indirectly by picking
+                   a Category first. Selecting a code here also keeps the
+                   Category picker above in sync (and vice versa), since
+                   the two are still the same underlying value. -->
+              <div class="fld" style="width:140px;position:relative;flex-shrink:0">
                 <div class="fl">Workpaper code</div>
-                <input id="nwp-seg3" type="text" maxlength="4" readonly placeholder="Select category…" style="font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);
-                         border:0.5px solid var(--border-light);border-radius:var(--radius-md);
-                         padding:6px 8px;outline:none;width:72px;text-align:center;
-                         letter-spacing:1px;font-family:inherit;cursor:default" title="Sourced automatically from the selected Workpaper Category.">
-                <datalist id="nwp-tag-options">
-                  <option value="CC">CC</option>
-                  <option value="SEC">SEC</option>
-                  <option value="OPS">OPS</option>
-                  <option value="FIN">FIN</option>
-                  <option value="IPE">IPE</option>
-                </datalist>
+                <button type="button" id="nwp-code-trigger" onclick="toggleCodeDropdown()"
+                  style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;font-size:14px;font-weight:700;color:#39618b;background:var(--bg-secondary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;text-align:center;letter-spacing:1px" title="Select an existing workpaper code, or create a new one.">
+                  <span id="nwp-seg3-btn-display" style="flex:1;text-align:center;color:var(--text-tertiary);font-weight:700">Select…</span>
+                  <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text-tertiary);flex-shrink:0"></i>
+                </button>
+                <input id="nwp-seg3" type="hidden" value="">
+                <div id="nwp-code-panel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;width:280px;max-height:360px;overflow-y:auto;background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.18);z-index:2000">
+                  <div style="padding:6px;border-bottom:0.5px solid var(--border-light)">
+                    <button type="button" onclick="openAddCategoryModal('code')" style="width:100%;display:flex;align-items:center;gap:6px;padding:7px 9px;background:var(--bg-secondary);border:none;border-radius:6px;font-size:12px;font-weight:600;color:var(--wf-navy);cursor:pointer;text-align:left">
+                      <i class="ti ti-plus" style="font-size:13px"></i>Create new code
+                    </button>
+                  </div>
+                  <div style="padding:8px 10px;border-bottom:0.5px solid var(--border-light)">
+                    <input type="text" id="nwp-code-search" placeholder="Search codes…" oninput="filterCodeDropdown(this.value)"
+                      style="width:100%;padding:6px 9px;border:0.5px solid var(--border-light);border-radius:6px;font-size:12px">
+                  </div>
+                  <div id="nwp-code-list" style="padding:6px"></div>
+                </div>
               </div>
             </div>
             <!-- Workpaper number -->
@@ -29127,6 +29162,8 @@ async function openNewWorkpaper(dupSourceRef) {
   _nwpSelectedCategoryAbbrev = '';
   const nwpCatDisplay = document.getElementById('nwp-category-display');
   if (nwpCatDisplay) { nwpCatDisplay.textContent = 'Select category…'; nwpCatDisplay.style.color = 'var(--text-tertiary)'; }
+  const nwpCodeDisplay = document.getElementById('nwp-seg3-btn-display');
+  if (nwpCodeDisplay) { nwpCodeDisplay.textContent = 'Select…'; nwpCodeDisplay.style.color = 'var(--text-tertiary)'; }
 
   // Segment 4 — default to highest existing sequence + 10
   const auditWPs = WORKPAPERS.filter(w => w.auditName === audit.name);
@@ -29204,6 +29241,15 @@ function autoFillNwpTag() {
   // selected yet, rather than silently falling back to the old
   // name-derived mechanism that's being deprecated here.
   if (tagEl) tagEl.value = _nwpSelectedCategoryAbbrev || '';
+  // Real, new — keeps the code dropdown's own trigger button display in
+  // sync whenever the tag changes via the Category picker, so the two
+  // controls (Category and Code) never show a stale value for each other.
+  const codeDisplay = document.getElementById('nwp-seg3-btn-display');
+  if (codeDisplay) {
+    const v = _nwpSelectedCategoryAbbrev || '';
+    codeDisplay.textContent = v || 'Select…';
+    codeDisplay.style.color = v ? 'var(--text-primary)' : 'var(--text-tertiary)';
+  }
   updateRefPreview();
 }
 
@@ -35046,6 +35092,10 @@ function toggleWPHeaderEdit() {
     // stays blank here — never guessed at from unrelated title text.
     const currentTag = (refParts[2] || '').toUpperCase();
     tagIn.value = currentTag;
+    // Real, new — keeps the code dropdown's own trigger button in sync
+    // with the hidden tagIn value it's now paired with.
+    const codeDisplayEl = document.getElementById('wpd-code-btn-display');
+    if (codeDisplayEl) { codeDisplayEl.textContent = currentTag || '—'; codeDisplayEl.style.color = currentTag ? 'var(--wf-navy)' : 'var(--text-tertiary)'; }
     // Prefix label shows everything up to and including the tag (will update when tag changes)
     const prefixEl = document.getElementById('wpd-ref-prefix');
     if (prefixEl) prefixEl.textContent = `${prefixWithoutSeg3}-${currentTag}-`;
@@ -40703,6 +40753,104 @@ function selectWorkpaperCategory(categoryName) {
 }
 
 // ══════════════════════════════════════
+//   WORKPAPER CODE picker — per explicit request, the workpaper code
+//   (a category's own abbreviation) is now directly selectable from its
+//   own dropdown, mirroring the Category picker's trigger+panel pattern,
+//   with "Create new code" pinned at the top — rather than only ever
+//   settable indirectly by picking a Category first. Same shared ids-
+//   resolution trick as _categoryUiIds, since this control also exists
+//   on two different pages with two different id sets.
+// ══════════════════════════════════════
+function _codeUiIds() {
+  const onNewWpPage = document.getElementById('page-newwp')?.classList.contains('active');
+  return onNewWpPage
+    ? { trigger: 'nwp-code-trigger', panel: 'nwp-code-panel', display: 'nwp-seg3-btn-display', search: 'nwp-code-search', list: 'nwp-code-list' }
+    : { trigger: 'wpd-code-trigger', panel: 'wpd-code-panel', display: 'wpd-code-btn-display', search: 'wpd-code-search', list: 'wpd-code-list' };
+}
+
+async function toggleCodeDropdown() {
+  const ids = _codeUiIds();
+  const panel = document.getElementById(ids.panel);
+  if (!panel) return;
+  const isOpening = panel.style.display === 'none';
+  panel.style.display = isOpening ? 'block' : 'none';
+  if (isOpening) {
+    await _ensureCategoriesLoaded();
+    const searchEl = document.getElementById(ids.search);
+    if (searchEl) searchEl.value = '';
+    _renderCodeDropdownList('');
+    setTimeout(() => document.getElementById(ids.search)?.focus(), 30);
+  }
+}
+
+function filterCodeDropdown(text) { _renderCodeDropdownList(text); }
+
+// Distinct codes only — several categories can share a section but never
+// a real abbreviation (the backend itself rejects a duplicate one, see
+// submitNewCategory's own error surfacing), so de-duping by abbreviation
+// here is always safe and never hides a genuinely different code.
+function _distinctWpCodes() {
+  const seen = new Map();
+  (_wpCategoriesCache || []).forEach(c => {
+    if (c.abbreviation && !seen.has(c.abbreviation)) seen.set(c.abbreviation, c);
+  });
+  return [...seen.values()].sort((a, b) => a.abbreviation.localeCompare(b.abbreviation));
+}
+
+function _renderCodeDropdownList(filterText) {
+  const listEl = document.getElementById(_codeUiIds().list);
+  if (!listEl) return;
+  const q = (filterText || '').trim().toLowerCase();
+  const codes = _distinctWpCodes().filter(c =>
+    !q || c.abbreviation.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+  );
+  if (!codes.length) {
+    listEl.innerHTML = `<div style="padding:12px;font-size:12px;color:var(--text-tertiary);font-style:italic">No codes match "${escAttr(filterText)}".</div>`;
+    return;
+  }
+  listEl.innerHTML = codes.map(c => `
+    <div onclick="selectWorkpaperCode('${escAttr(c.abbreviation)}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;cursor:pointer;border-radius:6px;font-size:13px;color:var(--text-primary)"
+      onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='transparent'">
+      <span style="font-weight:700;letter-spacing:0.5px">${escAttr(c.abbreviation)}</span>
+      <span style="font-size:11px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(c.name)}</span>
+    </div>`).join('');
+}
+
+// Selects a code directly (as opposed to selectWorkpaperCategory, which
+// selects by category name) — the two stay in sync since a code always
+// resolves back to the first category carrying that same abbreviation.
+function selectWorkpaperCode(abbreviation) {
+  const cat = (_wpCategoriesCache || []).find(c => c.abbreviation === abbreviation);
+  const catIds = _categoryUiIds();
+  const codeIds = _codeUiIds();
+  const onNewWpPage = document.getElementById('page-newwp')?.classList.contains('active');
+
+  if (onNewWpPage) {
+    _nwpSelectedCategoryAbbrev = abbreviation;
+    const catDisplayEl = document.getElementById(catIds.display);
+    if (catDisplayEl && cat) { catDisplayEl.textContent = cat.name; catDisplayEl.style.color = 'var(--text-primary)'; }
+    document.getElementById(codeIds.panel).style.display = 'none';
+    autoFillNwpTag();
+    return;
+  }
+
+  // Edit page — this control lives inside the header's own Edit mode
+  // (see toggleWPHeaderEdit/saveWPHeaderEdit), so selecting a code here
+  // only updates the fields on screen; the actual ref rename is
+  // deliberately deferred to that same explicit Ok/Save step every other
+  // header edit (title, sequence number) already goes through, rather
+  // than renaming the workpaper's real reference the instant a value is
+  // clicked in a dropdown.
+  const tagIn = document.getElementById('wpd-tag-input');
+  if (tagIn) tagIn.value = abbreviation;
+  const codeDisplayEl = document.getElementById(codeIds.display);
+  if (codeDisplayEl) { codeDisplayEl.textContent = abbreviation; codeDisplayEl.style.color = 'var(--text-primary)'; }
+  onTagInput();
+  const panelEl = document.getElementById(codeIds.panel);
+  if (panelEl) panelEl.style.display = 'none';
+}
+
+// ══════════════════════════════════════
 //   GUIDANCE — attribute wording, new attribute, and new risk suggestions
 // ══════════════════════════════════════
 let _guidanceTimerInterval = null; // real, tracks the active elapsed-time counter, so it can be correctly cleared from every, real exit path
@@ -41005,8 +41153,16 @@ function _applyGuidanceNewAttribute(suggestion) {
   closeGuidanceModal();
 }
 
-function openAddCategoryModal() {
-  const panelEl = document.getElementById(_categoryUiIds().panel);
+// Real, new — tracks whether "Create new..." was opened from the
+// Category picker or the Code picker, so submitNewCategory's own success
+// handler can select the new value back into whichever control actually
+// triggered it, rather than always assuming Category.
+let _addCategoryModalSource = 'category';
+
+function openAddCategoryModal(source) {
+  _addCategoryModalSource = source === 'code' ? 'code' : 'category';
+  const panelId = _addCategoryModalSource === 'code' ? _codeUiIds().panel : _categoryUiIds().panel;
+  const panelEl = document.getElementById(panelId);
   if (panelEl) panelEl.style.display = 'none'; // close the real, underlying dropdown first
   document.getElementById('acm-section').value = '';
   document.getElementById('acm-category-name').value = '';
@@ -41072,7 +41228,13 @@ async function submitNewCategory() {
     _wpSectionsCache = null;
     closeAddCategoryModal();
     await _ensureCategoriesLoaded();
-    selectWorkpaperCategory(categoryName); // real, auto-selects the real, newly-created category on the real, current workpaper, and correctly closes the dropdown itself
+    // Real, new — selects the newly-created value back into whichever
+    // picker (Category or Code) was actually used to open this modal.
+    if (_addCategoryModalSource === 'code') {
+      selectWorkpaperCode(abbreviation);
+    } else {
+      selectWorkpaperCategory(categoryName); // real, auto-selects the real, newly-created category on the real, current workpaper, and correctly closes the dropdown itself
+    }
   } catch(e) {
     errEl.textContent = 'Could not add this category: ' + e.message;
     errEl.style.display = 'block';
