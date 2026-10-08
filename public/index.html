@@ -4253,12 +4253,12 @@ Testwork Grid" to build a blank grid and record each result yourself.
           <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
           <div class="sect-body" style="padding:0 16px 18px 0;overflow-x:auto">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
+            <div style="display:grid;grid-template-columns:36px 80px 44px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master #</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master item</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Unassigned, Assigned, In Progress or Completed">Status</div>
@@ -12192,15 +12192,15 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Master Item', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
+    ['Master #', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
   // Data rows
   list.forEach(ex => {
     wsData.push([
-      ex.num,
       ex.masterItem != null ? String(ex.masterItem) + (ex.origin === 'uploaded' ? '*' : '') : '',
+      ex.num,
       ex.ref           || '',
       ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase()),
       ex.status        || 'Unassigned',
@@ -12223,7 +12223,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 12 }, { wch: 5 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -12410,12 +12410,12 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 80px 44px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
         <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
@@ -18417,10 +18417,10 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['Master #', 'Audit', 'Workpaper name', 'Workpaper', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '80px 160px 200px 150px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18442,10 +18442,10 @@ function renderAuditResults() {
       const sel = (f, v, opts) => `<select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'${f}',this.value)" ${focus}><option value="">— Select —</option>${opts.map(o => `<option value="${o}"${v === o ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
       return `
       <div style="display:grid;grid-template-columns:${colsFixed}">
+        <div style="${cell};font-weight:600;text-align:center" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.auditName || '<blank>') : (w.auditName || ''))}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.wpName || '<blank>') : (w.name || ''))}</div>
         <div style="${cell}">${standalone ? `<span style="color:var(--text-tertiary)">${escHtml(ex.wpRef || '<blank>')}</span>` : `<a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a>`}</div>
-        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
@@ -18534,13 +18534,13 @@ async function _audResReclassify(wi, ei, newType) {
 // (the selected audit/workpaper/filters); the template is just the format and
 // header rows. Import adds every row as a NEW item (Type required), attached
 // to the workpaper named in its Workpaper column or, if that is blank, to no
-// workpaper. Master item, # and Ref are numbers Wavefire assigns itself, so
+// workpaper. Master #, # and Ref are numbers Wavefire assigns itself, so
 // whatever the file has in those columns is ignored.
 const _AUD_RES_FIELDS = [
+  { key: 'master', label: 'Master #',           fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
   { key: 'audit',  label: 'Audit',              fmt: "Text. Must be an existing audit (and the workpaper's audit); a value that isn't is removed. Blank shows as <blank>" },
   { key: 'wpName', label: 'Workpaper name',     fmt: 'Text. Must be an existing workpaper name (and the workpaper\'s name); a value that isn\'t is removed. Blank shows as <blank>' },
   { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
-  { key: 'master', label: 'Master item',        fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
   { key: 'num',    label: '#',                  fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored' },
   { key: 'ref',    label: 'Ref',                fmt: 'Assigned by Wavefire (E1, F1, R1 ...). Leave blank: anything entered here is ignored' },
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
@@ -18690,7 +18690,7 @@ async function _audResProcessImportRows(rows) {
   const noBlank = v => { const t = String(v || '').trim(); return t.toLowerCase() === '<blank>' ? '' : t; };
 
   const errors = [], valid = [];
-  const ignoredNumberRows = []; // rows that had a Master item, # or Ref filled in
+  const ignoredNumberRows = []; // rows that had a Master #, # or Ref filled in
   // Audit / Workpaper name / Workpaper values that don't exist in the
   // application. These do not block the import: if the person goes ahead, the
   // offending value is stripped out and the item is imported without it.
@@ -18776,7 +18776,7 @@ async function _audResProcessImportRows(rows) {
       }
     }
 
-    // Master item, # and Ref are numbers Wavefire assigns itself; whatever the
+    // Master #, # and Ref are numbers Wavefire assigns itself; whatever the
     // file has in them is ignored, and every row is added as a new item.
     if (get('master') || get('num') || get('ref')) ignoredNumberRows.push(rowNo);
 
@@ -18814,7 +18814,7 @@ async function _audResProcessImportRows(rows) {
   const noWp = valid.filter(v => !v.w).length;
   const counts =
     `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added, numbered by Wavefire (marked * after the master item number)</div>` +
-    (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master item, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
+    (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master #, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
     (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : '');
 
   if (!soft.size) {
