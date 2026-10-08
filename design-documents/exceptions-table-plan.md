@@ -270,3 +270,16 @@ immediately follows Status), is in both Excel exports and in the Audit Findings
 import template (optional column; blank means Unassigned). A whole-workpaper
 save from a browser that omits status keeps the row's stored status. Status is
 independent of Owner: setting or clearing an owner does not change it.
+
+## Follow-up: import ignores Wavefire-assigned numbers (supersedes earlier notes)
+
+Master item, `#` and Ref are numbers Wavefire assigns itself, so the Audit
+Findings import ignores whatever the file has in those three columns (row 1 of
+the template says so). **Every uploaded row is now added as a new item** with
+freshly assigned numbers: importing no longer updates an existing item by its
+Ref or master item number, and a Ref or master item that doesn't exist is no
+longer an error. If rows have these columns filled in (for example a file that
+was exported and re-imported), the confirmation dialog says they are ignored
+and that the rows will be added as new items, so duplicates are not a surprise.
+Existing items are edited in the grid. Earlier sections of this document that
+describe updating by Ref or master item on import no longer apply.
