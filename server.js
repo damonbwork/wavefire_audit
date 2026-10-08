@@ -773,6 +773,7 @@ async function initDB() {
         status      TEXT DEFAULT 'planned',
         description TEXT DEFAULT '',
         year        INTEGER,
+        cycle       TEXT DEFAULT '',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, name)
@@ -1187,6 +1188,7 @@ async function initDB() {
       }
       // company_settings uses tenant_id as PK — handle separately
       await pool.query(`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`).catch(()=>{});
+      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS cycle TEXT DEFAULT ''`).catch(()=>{});
       console.log('DB: tenant_id columns added to all tables');
 
       // tenant_id columns were added to these tables via the migration loop
@@ -5062,16 +5064,17 @@ app.get('/api/audits', async (req, res) => {
 
 app.post('/api/audits', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { name, period, owner, type, status, description, desc, year } = req.body;
+  const { name, period, owner, type, status, description, desc, year, cycle } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
+  const cyc = ['Prelim', 'Rollforward', 'Final'].includes(cycle) ? cycle : '';
   const descVal = description != null ? description : (desc || '');
   console.log('[API] POST /api/audits name=', name, 'desc length=', descVal.length);
   try {
-    await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-      VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+    await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+      VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
       ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
-        type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
-      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, req.currentTenantId]);
+        type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, req.currentTenantId, cyc]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, '[API] audit save error:'); }
 });
@@ -5079,8 +5082,9 @@ app.post('/api/audits', async (req, res) => {
 app.patch('/api/audits/:oldName', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const oldName = req.params.oldName;
-  const { name, period, owner, type, status, description, year } = req.body;
+  const { name, period, owner, type, status, description, year, cycle } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
+  const cyc = ['Prelim', 'Rollforward', 'Final'].includes(cycle) ? cycle : '';
   try {
     // Rename = insert new row + reassign workpapers + delete old (if name
     // changed), else just update. Wrapped in a real transaction — without
@@ -5092,12 +5096,12 @@ app.patch('/api/audits/:oldName', async (req, res) => {
     // UI even though its own row is still sitting in Postgres untouched.
     await pool.query('BEGIN');
     if (name !== oldName) {
-      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
-          year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
+          year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId, cyc]);
       // Update workpapers that referenced the old audit name
       await pool.query(`UPDATE workpapers SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
         [name, req.currentTenantId, oldName]);
@@ -5110,12 +5114,12 @@ app.patch('/api/audits/:oldName', async (req, res) => {
         [name, req.currentTenantId, oldName]);
       await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [req.currentTenantId, oldName]);
     } else {
-      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
-          year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
+          year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId, cyc]);
     }
     await pool.query('COMMIT');
     res.json({ ok:true });
