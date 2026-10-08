@@ -18218,7 +18218,7 @@ function renderAuditResults() {
   auditWps.forEach(w => {
     if (fWp && w.ref !== fWp) return;
     const idx = WORKPAPERS.indexOf(w);
-    (wpExceptions[w.ref] || []).forEach(ex => rows.push({ w, idx, ex, type: ex.type || 'exception' }));
+    (wpExceptions[w.ref] || []).forEach((ex, ei) => rows.push({ w, idx, ex, ei, type: ex.type || 'exception' }));
   });
 
   const shown = rows.filter(r => {
@@ -18249,26 +18249,81 @@ function renderAuditResults() {
   }
   host.innerHTML =
     `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
-    shown.map(({ w, idx, ex, type }) => `
+    shown.map(({ w, idx, ex, ei, type }) => {
+      const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
+      const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
+      const edit = f => `oninput="_audResEdit(${idx},${ei},'${f}',this.value)"`;
+      const ta = (f, v, rows) => `<textarea rows="${rows}" style="${inp}resize:none" oninput="autoResizeTA(this);_audResEdit(${idx},${ei},'${f}',this.value)" ${focus}>${escHtml(v || '')}</textarea>`;
+      const sel = (f, v, opts) => `<select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'${f}',this.value)" ${focus}><option value="">— Select —</option>${opts.map(o => `<option value="${o}"${v === o ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+      return `
       <div style="display:grid;grid-template-columns:${colsFixed}">
         <div style="${cell}">${escHtml(w.auditName || '')}</div>
         <div style="${cell}">${escHtml(w.name || '')}</div>
         <div style="${cell}"><a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a></div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
-        <div style="${cell};font-weight:600;color:${typeColor[type]}">${typeLabel[type]}</div>
+        <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.attrRef || '—')}</div>
-        <div style="${cell}">${escHtml(ex.name || '')}</div>
-        <div style="${cell};white-space:pre-wrap">${escHtml(ex.desc || '')}</div>
-        <div style="${cell};font-size:11px">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
-        <div style="${cell}">${escHtml(ex.owner || '')}</div>
-        <div style="${cell};white-space:pre-wrap">${escHtml(ex.mgmtResponse || '')}</div>
-        <div style="${cell}">${escHtml(ex.resolutionDate || '')}</div>
-        <div style="${cell};text-align:center">${ex.retested ? '&#10003;' + (ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary)">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate || '')}</div>` : '') : ''}</div>
-        <div style="${cell}">${escHtml(ex.disposition || '')}</div>
-        <div style="${cell}">${escHtml(ex.dispositionType || '')}</div>
-        <div style="${cell}">${escHtml(ex.dispositionStatus || '')}</div>
-      </div>`).join('');
+        <div style="${cell}">${ta('name', ex.name, 1)}</div>
+        <div style="${cell}">${ta('desc', ex.desc, 2)}</div>
+        <div style="${cell};font-size:11px" title="Linked files are changed from the workpaper itself">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
+        <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
+        <div style="${cell}">${ta('mgmtResponse', ex.mgmtResponse, 2)}</div>
+        <div style="${cell}"><input type="date" value="${escAttr(ex.resolutionDate || '')}" style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'resolutionDate',this.value)"></div>
+        <div style="${cell};flex-direction:column;align-items:center"><input type="checkbox" ${ex.retested ? 'checked' : ''} onchange="_audResRetested(${idx},${ei},this)" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">${ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary);text-align:center">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate || '')}</div>` : ''}</div>
+        <div style="${cell}">${ta('disposition', ex.disposition, 1)}</div>
+        <div style="${cell}">${sel('dispositionType', ex.dispositionType, ['Exception', 'Deficiency', 'Significant Deficiency', 'Material Weakness'])}</div>
+        <div style="${cell}">${sel('dispositionStatus', ex.dispositionStatus, ['Open', 'Closed', 'Final', 'Remediated'])}</div>
+      </div>`;
+    }).join('');
+  setTimeout(() => host.querySelectorAll('textarea').forEach(t => autoResizeTA(t)), 0);
+}
+
+// Inline editing for the Audit Results table. Edits go straight to the same
+// wpExceptions[ref] objects the workpaper page's grid uses (so both views
+// always agree), honour the workpaper edit lock, are written to the change
+// log, and are saved to Postgres a moment after the last edit per workpaper.
+const _audResSaveTimers = {};
+function _audResScheduleSave(w) {
+  clearTimeout(_audResSaveTimers[w.ref]);
+  _audResSaveTimers[w.ref] = setTimeout(() => {
+    _saveWorkpaperToDB(w).catch(e => console.error('[AuditResults] Could not save', w.ref, e.message));
+  }, 600);
+}
+
+const _AUD_RES_EDIT_LABELS = {
+  name: 'Name', desc: 'Description', owner: 'Owner', mgmtResponse: 'Management response',
+  resolutionDate: 'Expected resolution date', disposition: 'Disposition',
+  dispositionType: 'Disposition type', dispositionStatus: 'Disposition status',
+};
+
+function _audResEdit(wi, ei, field, value) {
+  const w = WORKPAPERS[wi];
+  const ex = w && wpExceptions[w.ref]?.[ei];
+  if (!ex) return;
+  const old = ex[field] ?? '';
+  if (String(old) === String(value)) return;
+  if (!_guardWpEdit(w.ref)) { renderAuditResults(); return; }
+  logChange(w.ref, `${_typeLabel(ex.type || 'exception')} #${ex.num} — ${_AUD_RES_EDIT_LABELS[field] || field}`, String(old), String(value));
+  ex[field] = value;
+  _audResScheduleSave(w);
+}
+
+function _audResRetested(wi, ei, checkbox) {
+  const w = WORKPAPERS[wi];
+  if (!w || !wpExceptions[w.ref]?.[ei]) return;
+  if (!_guardWpEdit(w.ref)) { checkbox.checked = !checkbox.checked; return; }
+  onExceptionRetested(w.ref, ei, checkbox);
+  _audResScheduleSave(w);
+  renderAuditResults();
+}
+
+async function _audResReclassify(wi, ei, newType) {
+  const w = WORKPAPERS[wi];
+  if (!w) return;
+  await _reclassifyGridItem(w.ref, ei, newType);
+  _audResScheduleSave(w);
+  renderAuditResults();
 }
 
 // ── Audit Results: import / export ─────────────────────────────────────────
