@@ -18400,7 +18400,7 @@ function renderAuditResults() {
     `<option value="&lt;blank&gt;"${fAudit === '<blank>' ? ' selected' : ''}>&lt;blank&gt;</option>`;
 
   // Audit year is the 20xx in an audit's period text (as on the Audits page).
-  const yearOf = a => (String(a.period || '').match(/(20\d{2})/) || [])[1] || '';
+  const yearOf = a => (String(a.period || '').match(/\b(20\d{2})\b/) || [])[1] || '';
   const liveAudits = AUDITS.filter(a => a.status !== 'archive');
   const years = [...new Set(liveAudits.map(yearOf).filter(Boolean))].sort().reverse();
   const periods = [...new Set(liveAudits.map(a => a.period).filter(Boolean))].sort((a, b) => a.localeCompare(b));
