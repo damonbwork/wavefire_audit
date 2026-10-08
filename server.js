@@ -3360,6 +3360,83 @@ function _rowToException(r) {
   return o;
 }
 
+const _EXC_INSERT_SQL = `INSERT INTO workpaper_exceptions
+   (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
+    name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
+    disposition, disposition_type, disposition_status, extra)
+ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`;
+
+// ── Per-item operations ────────────────────────────────────────────────────
+// Each runs in a transaction that first locks the workpaper row, so two
+// people adding items at once get distinct numbers and two people editing
+// different fields of one item merge instead of overwriting each other.
+// The old workpapers.exceptions JSONB column is rebuilt from the table at the
+// end of every operation (it is still dual-written until the table has been
+// verified in production).
+const _EXC_PREFIX = { exception: 'E', finding: 'F', recommendation: 'R' };
+
+async function _withWorkpaperItemsLock(tenantId, refOrId, fn) {
+  const wpId = await _resolveWorkpaperId(tenantId, refOrId);
+  if (!wpId) { const e = new Error('Workpaper not found: ' + refOrId); e.status = 404; throw e; }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, wpId]);
+    const result = await fn(client, wpId);
+    const { rows } = await client.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 ORDER BY position', [tenantId, wpId]);
+    await client.query('UPDATE workpapers SET exceptions=$1, updated_at=NOW() WHERE tenant_id=$2 AND id=$3', [JSON.stringify(rows.map(_rowToException)), tenantId, wpId]);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Merges `fields` into one item (addressed by its ref, e.g. "E1"); only the
+// fields sent change. Returns the full updated item, or null if not found.
+async function _excUpdateItem(tenantId, wpRef, itemRef, fields) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const { rows } = await client.query(
+      'SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3 ORDER BY position LIMIT 1',
+      [tenantId, wpId, itemRef]);
+    if (!rows.length) return null;
+    const merged = Object.assign(_rowToException(rows[0]), fields);
+    await client.query(
+      `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
+         sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
+         retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
+         extra=$21, updated_at=NOW() WHERE id=$22`,
+      [..._exceptionToRow(merged, rows[0].position), rows[0].id]);
+    return merged;
+  });
+}
+
+// Adds an item; the server assigns num, typeNum and ref so concurrent adds
+// can never collide. Returns the full saved item.
+async function _excAddItem(tenantId, wpRef, item) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const type = _EXC_PREFIX[item.type] ? item.type : 'exception';
+    const { rows } = await client.query(
+      `SELECT COALESCE(MAX(num),0) AS n, COALESCE(MAX(position),-1) AS p,
+              COALESCE(MAX(type_num) FILTER (WHERE type=$3),0) AS tn
+         FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2`, [tenantId, wpId, type]);
+    const typeNum = Number(rows[0].tn) + 1;
+    const saved = Object.assign({}, item, { type, num: Number(rows[0].n) + 1, typeNum, ref: _EXC_PREFIX[type] + typeNum });
+    await client.query(_EXC_INSERT_SQL, [tenantId, wpId, ..._exceptionToRow(saved, Number(rows[0].p) + 1)]);
+    return saved;
+  });
+}
+
+async function _excDeleteItem(tenantId, wpRef, itemRef) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const r = await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3', [tenantId, wpId, itemRef]);
+    return r.rowCount;
+  });
+}
+
 // Replaces one workpaper's items with exactly `exceptions`, atomically — a
 // failure leaves the previous rows untouched rather than half-written.
 async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
@@ -3369,14 +3446,7 @@ async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
     await client.query('BEGIN');
     await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
     for (let i = 0; i < items.length; i++) {
-      await client.query(
-        `INSERT INTO workpaper_exceptions
-           (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
-            name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
-            disposition, disposition_type, disposition_status, extra)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
-        [tenantId, workpaperId, ..._exceptionToRow(items[i], i)]
-      );
+      await client.query(_EXC_INSERT_SQL, [tenantId, workpaperId, ..._exceptionToRow(items[i], i)]);
     }
     await client.query('COMMIT');
   } catch (err) {
@@ -6480,6 +6550,45 @@ app.post('/api/workpapers', async (req, res) => {
     }
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+// Per-item exception/finding/recommendation endpoints. Items are addressed by
+// their ref (E1/F1/R1), which is how every other part of the app finds them.
+app.put('/api/workpapers/:ref/exceptions/:itemRef', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const fields = req.body && req.body.fields;
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return res.status(400).json({ error: 'fields object required' });
+  try {
+    const item = await _excUpdateItem(req.currentTenantId, req.params.ref, req.params.itemRef, fields);
+    if (!item) return res.status(404).json({ error: 'Item not found: ' + req.params.itemRef });
+    res.json(item);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'PUT /api/workpapers/:ref/exceptions/:itemRef:');
+  }
+});
+
+app.post('/api/workpapers/:ref/exceptions', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const item = req.body && req.body.item;
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return res.status(400).json({ error: 'item object required' });
+  try {
+    res.json(await _excAddItem(req.currentTenantId, req.params.ref, item));
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'POST /api/workpapers/:ref/exceptions:');
+  }
+});
+
+app.delete('/api/workpapers/:ref/exceptions/:itemRef', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const deleted = await _excDeleteItem(req.currentTenantId, req.params.ref, req.params.itemRef);
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'DELETE /api/workpapers/:ref/exceptions/:itemRef:');
+  }
 });
 
 app.delete('/api/workpapers/:ref', async (req, res) => {

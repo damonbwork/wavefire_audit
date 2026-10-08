@@ -1,6 +1,6 @@
 # Dedicated table for Exceptions, Findings and Recommendations — plan
 
-Status: step 1 built (see "What was built" at the end); steps 2-4 not started.
+Status: steps 1 and 2 built (see "What was built" at the end); steps 3-4 not started.
 
 ## Why
 
@@ -159,3 +159,39 @@ Still to do: per-item write endpoints (the concurrent-overwrite fix),
 `GET /api/exceptions?audit=` and switching Audit Results to it, copying
 rows in `duplicate-from`, a production verification period, then dropping the
 JSONB column.
+
+## What was built (step 2: per-item saves)
+
+Server (`server.js`), all tenant-scoped; items are addressed by ref (E1/F1/R1):
+- `PUT /api/workpapers/:ref/exceptions/:itemRef` — body `{ fields: {...} }`;
+  merges only the fields sent into that item, so two people editing different
+  fields of one item no longer overwrite each other. Also used for reclassify
+  (sending the new `type`, `typeNum`, `ref`).
+- `POST /api/workpapers/:ref/exceptions` — body `{ item: {...} }`; the server
+  assigns `num`, `typeNum` and `ref`, so simultaneous adds cannot collide.
+- `DELETE /api/workpapers/:ref/exceptions/:itemRef`.
+- Each operation runs in a transaction that locks the workpaper row first,
+  and rebuilds the old `workpapers.exceptions` JSONB column from the table at
+  the end (still dual-written).
+
+Client (`public/index.html`):
+- Cell edits in the workpaper grid, Retested, add, delete, reclassify, and
+  every edit on the Audit Results page now go through these endpoints.
+  Typing is debounced (~0.5s per item, fields merged into one request) and
+  flushed when the tab is hidden or closed.
+- If a per-item call fails, the whole workpaper is saved instead, so an edit
+  is never silently lost; adding without a backend numbers the item locally.
+
+Known limitation: ordinary workpaper saves (`POST /api/workpapers`) still
+send and replace the whole items list, and the Analyze auto-populate, link-files
+dialog and Audit Results import still rely on that path. A stale whole-list
+save (for example someone saving a header change from an old page) can
+therefore still overwrite another person's newer item edits. Closing this
+needs the generic save to stop sending `exceptions` once every item-mutating
+path is on the per-item endpoints (an audit of all the places that change
+`wpExceptions`), plus optional optimistic concurrency.
+
+Not verified against a real database: the row lock that serialises concurrent
+adds/edits (the in-memory test database has no real locking). The logic was
+verified sequentially: numbering, field merge, reclassify, delete, and that the
+JSONB mirror matches the table.
