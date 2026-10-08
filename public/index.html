@@ -37727,7 +37727,7 @@ function renderSampleDataGrid(ref) {
     var numTd = document.createElement('td');
     numTd.textContent = i + 1; // auto-generated, next number — never user-editable
     numTd.style.cssText = 'width:30px;min-width:30px;text-align:center;font-size:12px;padding:6px 8px;border-right:0.5px solid var(--border-light);background:var(--bg-secondary);vertical-align:top;cursor:pointer;' +
-      (isSelected ? 'color:var(--wf-navy);font-weight:700' : 'color:var(--text-tertiary)');
+      (isSelected ? 'color:var(--wf-navy);font-weight:400' : 'color:var(--text-tertiary)');
     numTd.onclick = function(e){
       e.stopPropagation();
       _sdSelectRow(ref, i);
