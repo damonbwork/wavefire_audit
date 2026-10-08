@@ -2392,7 +2392,7 @@
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2400px"></div>
+            <div id="aud-results-table" style="min-width:2500px"></div>
           </div>
         </div>
       </div>
@@ -4251,7 +4251,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
           </div>
           <div class="sect-body" style="padding:0;overflow-x:auto">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
+            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
@@ -4259,11 +4259,12 @@ Testwork Grid" to build a blank grid and record each result yourself.
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Results template.">Master item</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Unassigned, Assigned, In Progress or Completed">Status</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Owner</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="The test attribute this item was raised against, if any">Attribute</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Name</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Description</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Linked files</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Owner</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Management response</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Expected resolution</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Retested</div>
@@ -12014,6 +12015,7 @@ const wpExceptions = {}; // { ref: [{num, name, desc, owner, mgmtResponse, resol
 // sequence's own next-number lookup, reused by both the post-analyze
 // auto-populate block and the manual add flow below, so the two can
 // never drift into different numbering logic.
+const _EXC_STATUSES = ['Unassigned', 'Assigned', 'In Progress', 'Completed'];
 const _GRID_ITEM_PREFIX = { exception: 'E', finding: 'F', recommendation: 'R' };
 function _getNextTypeNum(ref, type) {
   const existing = (wpExceptions[ref] || []).filter(e => (e.type || 'exception') === type);
@@ -12075,7 +12077,7 @@ async function addGridItem() {
   // out don't). This also makes a manually-added item a genuine,
   // real member of the same single numbering sequence Analyze-created
   // items use, so its own `num` can never collide with theirs either.
-  const blank = { type, origin: 'entered', name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' };
+  const blank = { type, origin: 'entered', status: 'Unassigned', name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' };
   // The server assigns #, type number and ref (so two people adding at once
   // can't collide); without a backend, or if the call fails, number it
   // locally as before and save the whole workpaper.
@@ -12188,7 +12190,7 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Master Item', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked Files', 'Owner',
+    ['#', 'Master Item', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
@@ -12199,11 +12201,12 @@ async function exportExceptions() {
       ex.masterItem != null ? String(ex.masterItem) + (ex.origin === 'uploaded' ? '*' : '') : '',
       ex.ref           || '',
       ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase()),
+      ex.status        || 'Unassigned',
+      ex.owner         || '',
       ex.attrRef       || '',
       ex.name          || '',
       ex.desc          || '',
       (ex.linkedFiles  || []).join('; '),
-      ex.owner         || '',
       ex.mgmtResponse  || '',
       ex.resolutionDate|| '',
       ex.retested ? 'Yes' : 'No',
@@ -12218,7 +12221,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -12356,6 +12359,7 @@ function saveException(ref, idx, field, value) {
     owner:          'Exception owner',
     mgmtResponse:   'Management response',
     resolutionDate: 'Expected resolution date',
+    status:         'Status',
   };
   const label = FIELD_LABELS[field] || field;
   logChange(ref, `Exception #${ex.num} — ${label}`, String(old), String(value));
@@ -12402,7 +12406,7 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
@@ -12419,6 +12423,18 @@ function renderExceptions(ref) {
           <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
         </select>
       </div>
+      <div style="${cellStyle}padding-top:6px">
+        <select style="${dropStyle}" title="Status of this item"
+          onchange="saveException('${ref}',${i},'status',this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          ${_EXC_STATUSES.map(st => `<option value="${st}" ${(ex.status || 'Unassigned') === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+      </div>
+      <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
+        value="${escHtml(ex.owner)}"
+        oninput="saveException('${ref}',${i},'owner',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      ></div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="The test attribute this item was raised against, if any">${ex.attrRef ? escHtml(ex.attrRef) : '—'}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
@@ -12447,11 +12463,6 @@ function renderExceptions(ref) {
           }).join('')}
         </div>
       </div>
-      <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
-        value="${escHtml(ex.owner)}"
-        oninput="saveException('${ref}',${i},'owner',this.value)"
-        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
-      ></div>
       <div style="${cellStyle}"><textarea rows="2" placeholder="Management response…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'mgmtResponse',this.value)"
         onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
@@ -18397,10 +18408,10 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked files', 'Owner', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 60px 1.2fr 2fr 1.2fr 1fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18426,11 +18437,12 @@ function renderAuditResults() {
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
+        <div style="${cell}"><select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'status',this.value)" ${focus}>${_EXC_STATUSES.map(st => `<option value="${st}"${(ex.status || 'Unassigned') === st ? ' selected' : ''}>${st}</option>`).join('')}</select></div>
+        <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.attrRef || '—')}</div>
         <div style="${cell}">${ta('name', ex.name, 1)}</div>
         <div style="${cell}">${ta('desc', ex.desc, 2)}</div>
         <div style="${cell};font-size:11px" title="Linked files are changed from the workpaper itself">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
-        <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
         <div style="${cell}">${ta('mgmtResponse', ex.mgmtResponse, 2)}</div>
         <div style="${cell}"><input type="date" value="${escAttr(ex.resolutionDate || '')}" style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'resolutionDate',this.value)"></div>
         <div style="${cell};flex-direction:column;align-items:center"><input type="checkbox" ${ex.retested ? 'checked' : ''} onchange="_audResRetested(${idx},${ei},this)" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">${ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary);text-align:center">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate || '')}</div>` : ''}</div>
@@ -18447,7 +18459,7 @@ function renderAuditResults() {
 // always agree), honour the workpaper edit lock, are written to the change
 // log, and are saved to Postgres a moment after the last edit per workpaper.
 const _AUD_RES_EDIT_LABELS = {
-  name: 'Name', desc: 'Description', owner: 'Owner', mgmtResponse: 'Management response',
+  status: 'Status', name: 'Name', desc: 'Description', owner: 'Owner', mgmtResponse: 'Management response',
   resolutionDate: 'Expected resolution date', disposition: 'Disposition',
   dispositionType: 'Disposition type', dispositionStatus: 'Disposition status',
 };
@@ -18518,11 +18530,12 @@ const _AUD_RES_FIELDS = [
   { key: 'num',    label: '#',                  fmt: 'Number (ignored on import)' },
   { key: 'ref',    label: 'Ref',                fmt: 'Existing ref (E1/F1/R1) to update it; blank to add a new item' },
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
+  { key: 'status', label: 'Status',             fmt: 'Unassigned, Assigned, In Progress or Completed (blank = Unassigned)', validValues: ['Unassigned', 'Assigned', 'In Progress', 'Completed'], optional: true },
+  { key: 'owner',  label: 'Owner',              fmt: 'Text' },
   { key: 'attrRef',label: 'Attribute',          fmt: 'Text (ignored on import)' },
   { key: 'name',   label: 'Name',               fmt: 'Text' },
   { key: 'desc',   label: 'Description',        fmt: 'Text' },
   { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;' },
-  { key: 'owner',  label: 'Owner',              fmt: 'Text' },
   { key: 'mgmtResponse', label: 'Management response', fmt: 'Text' },
   { key: 'resolutionDate', label: 'Resolution date', fmt: 'YYYY-MM-DD', pattern: /^\d{4}-\d{2}-\d{2}$/ },
   { key: 'retested', label: 'Retested',        fmt: 'Yes or No', validValues: ['Yes', 'No'] },
@@ -18551,6 +18564,7 @@ function _audResFieldValue(r, key) {
     case 'ref': return ex.ref || '';
     case 'type': return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
     case 'attrRef': return ex.attrRef || '';
+    case 'status': return ex.status || 'Unassigned';
     case 'linkedFiles': return (ex.linkedFiles || []).join('; ');
     case 'retested': return ex.retested ? 'Yes' : 'No';
     default: return ex[key] ?? '';
@@ -18711,6 +18725,7 @@ function _audResProcessImportRows(rows) {
       w, existing, standaloneExisting, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
       data: {
         name: get('name'), desc: get('desc'), owner: get('owner'), mgmtResponse: get('mgmtResponse'),
+        status: get('status') || 'Unassigned',
         resolutionDate: get('resolutionDate'), disposition: get('disposition'),
         dispositionType: get('dispositionType'), dispositionStatus: get('dispositionStatus'),
         retested: get('retested') === 'Yes',

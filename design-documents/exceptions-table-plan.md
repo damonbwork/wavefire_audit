@@ -258,3 +258,15 @@ workpaper save, and the unique index.
   workpaper; a Ref that depended on a stripped Workpaper is stripped too);
   **Cancel** applies nothing. Other problems (missing Type, unknown Ref, bad
   dropdown values) still block the whole import.
+
+## Follow-up: Status field
+
+Each item now has a `status`: Unassigned, Assigned, In Progress or Completed
+(`workpaper_exceptions.status`, default Unassigned; anything else is stored as
+Unassigned). When the column was first added, existing items that already had an
+owner were set to Assigned, once; the migration will not redo that. It is
+editable in both grids, sits between Type and Owner/Attribute (Owner now
+immediately follows Status), is in both Excel exports and in the Audit Results
+import template (optional column; blank means Unassigned). A whole-workpaper
+save from a browser that omits status keeps the row's stored status. Status is
+independent of Owner: setting or clearing an owner does not change it.
