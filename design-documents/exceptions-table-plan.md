@@ -1,6 +1,6 @@
 # Dedicated table for Exceptions, Findings and Recommendations — plan
 
-Status: proposed, not built.
+Status: step 1 built (see "What was built" at the end); steps 2-4 not started.
 
 ## Why
 
@@ -131,3 +131,31 @@ references keep working. Changes are confined to the load and save edges:
 2. Per-item write endpoints; switch the client save paths; stop writing JSONB.
 3. Audit Results reads by audit from the new endpoint.
 4. Verification period, then drop the JSONB column.
+
+## What was built (step 1)
+
+- `workpaper_exceptions` table created at startup (after `workpapers.id` is
+  guaranteed), with the one-time re-runnable backfill from the old JSONB.
+- `POST /api/workpapers` still writes the old `exceptions` JSONB column
+  **and** replaces that workpaper's rows in the new table in one transaction.
+  A failed sync fails the save (the read path would otherwise keep serving
+  the previous rows over the newer JSONB).
+- `GET /api/workpapers` fills each workpaper's `exceptions` from the table;
+  a workpaper with no rows there falls back to its JSONB value.
+- The client is unchanged: it still reads and writes `exceptions` on the
+  workpaper, so nothing in the browser needed to move.
+
+Deviations from the design above, and why:
+- `ref` and `num` are indexed, **not unique**. Until saves are per-item the
+  client can still send a duplicate, and a unique constraint would turn that
+  into a failed workpaper save. Revisit with step 2.
+- `resolution_date` is TEXT, not DATE, so values round-trip exactly.
+- `source_file`, `page`, `paragraph` (and any other field not given its own
+  column) are stored in a JSONB `extra` column, so nothing a client put on
+  an item is lost. Promote them to columns if they need querying.
+- A `position` column preserves the array order.
+
+Still to do: per-item write endpoints (the concurrent-overwrite fix),
+`GET /api/exceptions?audit=` and switching Audit Results to it, copying
+rows in `duplicate-from`, a production verification period, then dropping the
+JSONB column.
