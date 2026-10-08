@@ -773,6 +773,7 @@ async function initDB() {
         status      TEXT DEFAULT 'planned',
         description TEXT DEFAULT '',
         year        INTEGER,
+        cycle       TEXT DEFAULT '',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (tenant_id, name)
@@ -1187,6 +1188,7 @@ async function initDB() {
       }
       // company_settings uses tenant_id as PK — handle separately
       await pool.query(`ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`).catch(()=>{});
+      await pool.query(`ALTER TABLE audits ADD COLUMN IF NOT EXISTS cycle TEXT DEFAULT ''`).catch(()=>{});
       console.log('DB: tenant_id columns added to all tables');
 
       // tenant_id columns were added to these tables via the migration loop
@@ -5062,16 +5064,17 @@ app.get('/api/audits', async (req, res) => {
 
 app.post('/api/audits', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
-  const { name, period, owner, type, status, description, desc, year } = req.body;
+  const { name, period, owner, type, status, description, desc, year, cycle } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
+  const cyc = ['Prelim', 'Rollforward', 'Final'].includes(cycle) ? cycle : '';
   const descVal = description != null ? description : (desc || '');
   console.log('[API] POST /api/audits name=', name, 'desc length=', descVal.length);
   try {
-    await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-      VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+    await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+      VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
       ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
-        type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, updated_at=NOW()`,
-      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, req.currentTenantId]);
+        type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description, year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+      [name, period||'', owner||'', type||'', status||'planned', descVal, year||null, req.currentTenantId, cyc]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, '[API] audit save error:'); }
 });
@@ -5079,8 +5082,9 @@ app.post('/api/audits', async (req, res) => {
 app.patch('/api/audits/:oldName', async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'No database' });
   const oldName = req.params.oldName;
-  const { name, period, owner, type, status, description, year } = req.body;
+  const { name, period, owner, type, status, description, year, cycle } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
+  const cyc = ['Prelim', 'Rollforward', 'Final'].includes(cycle) ? cycle : '';
   try {
     // Rename = insert new row + reassign workpapers + delete old (if name
     // changed), else just update. Wrapped in a real transaction — without
@@ -5092,12 +5096,12 @@ app.patch('/api/audits/:oldName', async (req, res) => {
     // UI even though its own row is still sitting in Postgres untouched.
     await pool.query('BEGIN');
     if (name !== oldName) {
-      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
-          year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
+          year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId, cyc]);
       // Update workpapers that referenced the old audit name
       await pool.query(`UPDATE workpapers SET audit_name=$1 WHERE tenant_id=$2 AND audit_name=$3`,
         [name, req.currentTenantId, oldName]);
@@ -5110,12 +5114,12 @@ app.patch('/api/audits/:oldName', async (req, res) => {
         [name, req.currentTenantId, oldName]);
       await pool.query(`DELETE FROM audits WHERE tenant_id=$1 AND name=$2`, [req.currentTenantId, oldName]);
     } else {
-      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,updated_at)
-        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,NOW())
+      await pool.query(`INSERT INTO audits (tenant_id,name,period,owner,type,status,description,year,cycle,updated_at)
+        VALUES ($8,$1,$2,$3,$4,$5,$6,$7,$9,NOW())
         ON CONFLICT (tenant_id,name) DO UPDATE SET period=EXCLUDED.period, owner=EXCLUDED.owner,
           type=EXCLUDED.type, status=EXCLUDED.status, description=EXCLUDED.description,
-          year=EXCLUDED.year, updated_at=NOW()`,
-        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId]);
+          year=EXCLUDED.year, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+        [name, period||'', owner||'', type||'', status||'planned', description||'', year||null, req.currentTenantId, cyc]);
     }
     await pool.query('COMMIT');
     res.json({ ok:true });
@@ -8342,24 +8346,62 @@ app.post('/api/company-settings', async (req, res) => {
     return res.status(400).json({ error: 'Azure deployment name may contain only letters, numbers, dot, dash and underscore' });
 
   try {
+    // The AI provider, model, endpoint and keys are managed per tenant by a
+    // superadmin (Admin > Tenants > AI Provider & Model), not through this form,
+    // so they are neither read from the body nor changed here.
     const q = `INSERT INTO company_settings
-      (tenant_id,name,industry,fiscal_year_end,address,city,state,zip,website,ein,ai_provider,ai_model,azure_endpoint,azure_deployment,updated_at)
-      VALUES ($14,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+      (tenant_id,name,industry,fiscal_year_end,address,city,state,zip,website,ein,updated_at)
+      VALUES ($10,$1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
       ON CONFLICT (tenant_id) DO UPDATE SET
         name=EXCLUDED.name, industry=EXCLUDED.industry, fiscal_year_end=EXCLUDED.fiscal_year_end,
         address=EXCLUDED.address, city=EXCLUDED.city, state=EXCLUDED.state, zip=EXCLUDED.zip,
-        website=EXCLUDED.website, ein=EXCLUDED.ein, ai_provider=EXCLUDED.ai_provider,
-        ai_model=EXCLUDED.ai_model, azure_endpoint=EXCLUDED.azure_endpoint,
-        azure_deployment=EXCLUDED.azure_deployment, updated_at=NOW()`;
+        website=EXCLUDED.website, ein=EXCLUDED.ein, updated_at=NOW()`;
     await pool.query(q, [name||'', industry||'', fiscal_year_end||'', address||'',
-      city||'', state||'', zip||'', website||'', ein||'',
-      ai_provider||'anthropic', ai_model||'claude-sonnet-4-6',
-      azure_endpoint||'', azure_deployment||'', req.currentTenantId]);
-    // Update API keys separately if provided
-    if (azure_api_key)  await pool.query('UPDATE company_settings SET azure_api_key=$1  WHERE tenant_id=$2', [azure_api_key,  req.currentTenantId]);
-    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE tenant_id=$2', [openai_api_key, req.currentTenantId]);
+      city||'', state||'', zip||'', website||'', ein||'', req.currentTenantId]);
     res.json({ ok:true });
   } catch(err) { return fail(res, err, 'company-settings'); }
+});
+
+// ── Per-tenant AI provider & model (superadmin, Admin > Tenants) ─────────────
+// Keys are write-only: the response says whether one is stored, never what it is.
+const _AI_PROVIDERS = ['anthropic', 'azure', 'openai'];
+app.get('/api/admin/tenants/:id/ai-settings', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.json({});
+  try {
+    const { rows } = await pool.query(
+      `SELECT ai_provider, ai_model, azure_endpoint, azure_deployment,
+              (COALESCE(azure_api_key,'') <> '') AS has_azure_key,
+              (COALESCE(openai_api_key,'') <> '') AS has_openai_key
+       FROM company_settings WHERE tenant_id=$1`, [req.params.id]);
+    const r = rows[0] || {};
+    res.json({
+      ai_provider: r.ai_provider || 'anthropic', ai_model: r.ai_model || 'claude-sonnet-4-6',
+      azure_endpoint: r.azure_endpoint || '', azure_deployment: r.azure_deployment || '',
+      has_azure_key: !!r.has_azure_key, has_openai_key: !!r.has_openai_key,
+    });
+  } catch(err) { return fail(res, err, 'GET /api/admin/tenants/:id/ai-settings:'); }
+});
+app.put('/api/admin/tenants/:id/ai-settings', requireSuperAdmin, async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { ai_provider, ai_model, azure_endpoint, azure_deployment, azure_api_key, openai_api_key } = req.body || {};
+  if (!_AI_PROVIDERS.includes(ai_provider)) return res.status(400).json({ error: 'Unknown AI provider' });
+  if (azure_endpoint && !isSafeAzureEndpoint(azure_endpoint))
+    return res.status(400).json({ error: 'Azure endpoint must be an https URL on *.openai.azure.com or *.cognitiveservices.azure.com' });
+  if (azure_deployment && !isSafeDeploymentName(azure_deployment))
+    return res.status(400).json({ error: 'Azure deployment name may contain only letters, numbers, dot, dash and underscore' });
+  const model = String(ai_model || '').slice(0, 120);
+  try {
+    const { rows: t } = await pool.query('SELECT 1 FROM tenants WHERE id=$1', [req.params.id]);
+    if (!t.length) return res.status(404).json({ error: 'Tenant not found' });
+    await pool.query(`INSERT INTO company_settings (tenant_id, ai_provider, ai_model, azure_endpoint, azure_deployment, updated_at)
+      VALUES ($1,$2,$3,$4,$5,NOW())
+      ON CONFLICT (tenant_id) DO UPDATE SET ai_provider=EXCLUDED.ai_provider, ai_model=EXCLUDED.ai_model,
+        azure_endpoint=EXCLUDED.azure_endpoint, azure_deployment=EXCLUDED.azure_deployment, updated_at=NOW()`,
+      [req.params.id, ai_provider, model || (ai_provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6'), azure_endpoint || '', azure_deployment || '']);
+    if (azure_api_key)  await pool.query('UPDATE company_settings SET azure_api_key=$1 WHERE tenant_id=$2', [azure_api_key, req.params.id]);
+    if (openai_api_key) await pool.query('UPDATE company_settings SET openai_api_key=$1 WHERE tenant_id=$2', [openai_api_key, req.params.id]);
+    res.json({ ok: true });
+  } catch(err) { return fail(res, err, 'PUT /api/admin/tenants/:id/ai-settings:'); }
 });
 
 // ── Tenant AI Config API ──────────────────────────────────────────────────────
