@@ -2379,14 +2379,20 @@
             <div class="ps" id="aud-results-sub"></div>
           </div>
           <div class="filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <select id="aud-res-filter-audit" onchange="renderAuditResults()"><option value="">All audits</option></select>
+            <select id="aud-res-filter-audit" onchange="_audResAuditChanged()" title="Audit"></select>
+            <select id="aud-res-filter-wp" onchange="renderAuditResults()" onmousedown="_audResGuardWpSelect(event)" onkeydown="_audResGuardWpSelect(event)" title="Workpaper"></select>
             <select id="aud-res-filter-type" onchange="renderAuditResults()">
               <option value="">All types</option><option value="exception">Exception</option><option value="finding">Finding</option><option value="recommendation">Recommendation</option>
             </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
+            <div style="flex:1"></div>
+            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Controls</button>
+            <input type="file" id="aud-res-import-input" accept=".xlsx" style="display:none" onchange="audResHandleImport(this)">
+            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Controls</button>
+            <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
           <div style="overflow-x:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2200px"></div>
+            <div id="aud-results-table" style="min-width:2400px"></div>
           </div>
         </div>
       </div>
@@ -18165,39 +18171,74 @@ function showAuditsSection(section) {
 // as the grid at the bottom of the workpaper page, with Audit and Workpaper
 // added at the far left. Read-only: edits still happen on the workpaper
 // itself, reachable by clicking the Workpaper cell.
+let _audResShown = [];
+
+function _audResAuditChanged() {
+  document.getElementById('aud-res-filter-wp').value = '';
+  renderAuditResults();
+}
+
+// The Workpaper dropdown is only usable once an audit is chosen. A native
+// <select> can't be "click-through disabled", so the open gesture (mouse
+// or keyboard) is intercepted here and answered with a message instead.
+function _audResGuardWpSelect(e) {
+  if (document.getElementById('aud-res-filter-audit').value) return;
+  if (e.type === 'keydown' && !['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  alert('Select an audit before selecting a workpaper');
+}
+
 function renderAuditResults() {
   const host = document.getElementById('aud-results-table');
   if (!host) return;
   const auditSel = document.getElementById('aud-res-filter-audit');
+  const wpSel    = document.getElementById('aud-res-filter-wp');
   const fAudit = auditSel.value;
+  const fWp    = fAudit ? wpSel.value : '';
   const fType  = document.getElementById('aud-res-filter-type').value;
   const fText  = (document.getElementById('aud-res-filter-text').value || '').trim().toLowerCase();
 
+  // Audit list excludes archived audits (status 'archive').
+  const auditNames = AUDITS.filter(a => a.status !== 'archive').map(a => a.name).sort((a, b) => a.localeCompare(b));
+  auditSel.innerHTML = '<option value="">Select an audit…</option>' + auditNames.map(n => `<option value="${escAttr(n)}"${n === fAudit ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+
+  const auditWps = fAudit ? WORKPAPERS.filter(w => w.auditName === fAudit && !w.archived) : [];
+  wpSel.innerHTML = '<option value="">' + (fAudit ? 'All workpapers' : 'Select a workpaper…') + '</option>' +
+    auditWps.map(w => `<option value="${escAttr(w.ref)}"${w.ref === fWp ? ' selected' : ''}>${escHtml(w.ref + (w.name ? ' — ' + w.name : ''))}</option>`).join('');
+
+  const subEl = document.getElementById('aud-results-sub');
+  if (!fAudit) {
+    subEl.textContent = '';
+    _audResShown = [];
+    host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.</div>';
+    return;
+  }
+
   const rows = [];
-  WORKPAPERS.forEach((w, idx) => {
+  auditWps.forEach(w => {
+    if (fWp && w.ref !== fWp) return;
+    const idx = WORKPAPERS.indexOf(w);
     (wpExceptions[w.ref] || []).forEach(ex => rows.push({ w, idx, ex, type: ex.type || 'exception' }));
   });
 
-  const audits = [...new Set(rows.map(r => r.w.auditName).filter(Boolean))].sort();
-  auditSel.innerHTML = '<option value="">All audits</option>' + audits.map(a => `<option value="${escAttr(a)}"${a === fAudit ? ' selected' : ''}>${escHtml(a)}</option>`).join('');
-
   const shown = rows.filter(r => {
-    if (fAudit && r.w.auditName !== fAudit) return false;
     if (fType && r.type !== fType) return false;
     if (fText) {
       const hay = [r.w.auditName, r.w.ref, r.w.name, r.ex.ref, r.ex.name, r.ex.desc, r.ex.owner, r.ex.mgmtResponse, r.ex.disposition].join(' ').toLowerCase();
       if (!hay.includes(fText)) return false;
     }
     return true;
-  }).sort((a, b) => (a.w.auditName || '').localeCompare(b.w.auditName || '') || (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0));
+  }).sort((a, b) => (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0));
 
-  document.getElementById('aud-results-sub').textContent = `${shown.length} item${shown.length !== 1 ? 's' : ''} across ${new Set(shown.map(r => r.w.ref)).size} workpaper${new Set(shown.map(r => r.w.ref)).size !== 1 ? 's' : ''}`;
+  _audResShown = shown;
+  const wpCount = new Set(shown.map(r => r.w.ref)).size;
+  subEl.textContent = `${shown.length} item${shown.length !== 1 ? 's' : ''} across ${wpCount} workpaper${wpCount !== 1 ? 's' : ''}`;
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper', '#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked files', 'Owner', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['Audit', 'Workpaper name', 'Workpaper', '#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked files', 'Owner', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 190px 44px 60px 110px 60px 1.2fr 2fr 1.2fr 1fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '160px 200px 150px 44px 60px 110px 60px 1.2fr 2fr 1.2fr 1fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18211,7 +18252,8 @@ function renderAuditResults() {
     shown.map(({ w, idx, ex, type }) => `
       <div style="display:grid;grid-template-columns:${colsFixed}">
         <div style="${cell}">${escHtml(w.auditName || '')}</div>
-        <div style="${cell}"><a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a><div style="color:var(--text-tertiary);font-size:11px">${escHtml(w.name || '')}</div></div>
+        <div style="${cell}">${escHtml(w.name || '')}</div>
+        <div style="${cell}"><a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a></div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}">${typeLabel[type]}</div>
@@ -18227,6 +18269,219 @@ function renderAuditResults() {
         <div style="${cell}">${escHtml(ex.dispositionType || '')}</div>
         <div style="${cell}">${escHtml(ex.dispositionStatus || '')}</div>
       </div>`).join('');
+}
+
+// ── Audit Results: import / export ─────────────────────────────────────────
+// Same three actions as the RCM page. Export writes the rows currently shown
+// (the selected audit/workpaper/filters); the template is just the format and
+// header rows. Import matches each row to an existing workpaper by its
+// Workpaper ref: a row whose Ref (E1/F1/R1…) already exists on that workpaper
+// updates it, a row with a blank Ref adds a new item (Type required).
+const _AUD_RES_FIELDS = [
+  { key: 'audit',  label: 'Audit',              fmt: "Text (must match the workpaper's audit)" },
+  { key: 'wpName', label: 'Workpaper name',     fmt: 'Text (informational, ignored on import)' },
+  { key: 'wpRef',  label: 'Workpaper',          fmt: 'Required. Existing workpaper ref, e.g. WP-2026-FIN-002' },
+  { key: 'num',    label: '#',                  fmt: 'Number (ignored on import)' },
+  { key: 'ref',    label: 'Ref',                fmt: 'Existing ref (E1/F1/R1) to update it; blank to add a new item' },
+  { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
+  { key: 'attrRef',label: 'Attribute',          fmt: 'Text (ignored on import)' },
+  { key: 'name',   label: 'Name',               fmt: 'Text' },
+  { key: 'desc',   label: 'Description',        fmt: 'Text' },
+  { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;' },
+  { key: 'owner',  label: 'Owner',              fmt: 'Text' },
+  { key: 'mgmtResponse', label: 'Management response', fmt: 'Text' },
+  { key: 'resolutionDate', label: 'Resolution date', fmt: 'YYYY-MM-DD', pattern: /^\d{4}-\d{2}-\d{2}$/ },
+  { key: 'retested', label: 'Retested',        fmt: 'Yes or No', validValues: ['Yes', 'No'] },
+  { key: 'disposition', label: 'Disposition',  fmt: 'Text' },
+  { key: 'dispositionType', label: 'Disposition type', fmt: 'Exception, Deficiency, Significant Deficiency or Material Weakness', validValues: ['Exception', 'Deficiency', 'Significant Deficiency', 'Material Weakness'] },
+  { key: 'dispositionStatus', label: 'Disposition status', fmt: 'Open, Closed, Final or Remediated', validValues: ['Open', 'Closed', 'Final', 'Remediated'] },
+];
+
+function _audResWithXLSX(cb) {
+  if (window.XLSX) { cb(window.XLSX); return; }
+  const sc = document.createElement('script');
+  sc.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+  sc.onload = () => cb(window.XLSX);
+  sc.onerror = () => alert('Could not load xlsx library. Check your internet connection.');
+  document.head.appendChild(sc);
+}
+
+function _audResFieldValue(r, key) {
+  const { w, ex, type } = r;
+  switch (key) {
+    case 'audit': return w.auditName || '';
+    case 'wpName': return w.name || '';
+    case 'wpRef': return w.ref;
+    case 'num': return ex.num ?? '';
+    case 'ref': return ex.ref || '';
+    case 'type': return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
+    case 'attrRef': return ex.attrRef || '';
+    case 'linkedFiles': return (ex.linkedFiles || []).join('; ');
+    case 'retested': return ex.retested ? 'Yes' : 'No';
+    default: return ex[key] ?? '';
+  }
+}
+
+function audResExportXLSX(templateOnly) {
+  if (!templateOnly && !_audResShown.length) {
+    alert(document.getElementById('aud-res-filter-audit').value
+      ? 'There are no results to export for the current selection.'
+      : 'Select an audit before exporting.');
+    return;
+  }
+  _audResWithXLSX(XLSX => {
+    const wsData = [_AUD_RES_FIELDS.map(f => f.fmt), _AUD_RES_FIELDS.map(f => f.label)];
+    if (!templateOnly) _audResShown.forEach(r => wsData.push(_AUD_RES_FIELDS.map(f => _audResFieldValue(r, f.key))));
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = _AUD_RES_FIELDS.map(f => ({ wch: Math.min(Math.max(f.label.length + 4, 16), 45) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Results');
+    XLSX.writeFile(wb, templateOnly ? 'AuditResults_Import_Template.xlsx' : 'AuditResults_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  });
+}
+
+function audResImportTrigger() {
+  const el = document.getElementById('aud-res-import-input');
+  if (el) { el.value = ''; el.click(); }
+}
+
+function _audResShowDialog(success, html, onApply, applyLabel) {
+  const oid = 'aud-res-import-overlay';
+  document.getElementById(oid)?.remove();
+  window._audResPendingApply = onApply || null;
+  const footer = onApply
+    ? `<button class="btn-s" onclick="document.getElementById('${oid}')?.remove()">Cancel</button>
+       <button class="btn-p" style="background:#ea580c;border-color:#ea580c" onclick="const f=window._audResPendingApply;window._audResPendingApply=null;document.getElementById('${oid}')?.remove();f&&f()"><i class="ti ti-upload"></i>${applyLabel}</button>`
+    : `<button class="btn-s" onclick="document.getElementById('${oid}')?.remove()">Close</button>`;
+  document.body.insertAdjacentHTML('beforeend',
+    `<div id="${oid}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(660px,96vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="background:${success ? 'var(--wf-navy)' : '#dc2626'};color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <i class="ti ${success ? 'ti-circle-check' : 'ti-alert-triangle'}" style="font-size:18px"></i>
+          <span style="font-size:15px;font-weight:700">${success ? 'Import' : 'Import Validation Errors'}</span>
+        </div>
+        <div style="padding:20px;overflow-y:auto;flex:1;font-size:13px;color:var(--text-secondary);line-height:1.8">${html}</div>
+        <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">${footer}</div>
+      </div></div>`);
+}
+
+function audResHandleImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.xlsx')) {
+    _audResShowDialog(false, 'Invalid file type. Please select a <strong>.xlsx</strong> file.');
+    return;
+  }
+  _audResWithXLSX(XLSX => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+        _audResProcessImportRows(rows);
+      } catch (err) {
+        _audResShowDialog(false, 'Could not read this file: ' + escHtml(err.message));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Validates parsed sheet rows (row 0 = format row, row 1 = headers) and, if
+// everything is valid, offers to apply them. All-or-nothing: any problem row
+// blocks the whole import, same as the RCM importer.
+function _audResProcessImportRows(rows) {
+  if (rows.length < 2) { _audResShowDialog(false, 'File is empty or missing the required rows (format row + header row).'); return; }
+  const headers = rows[1].map(h => String(h || '').trim());
+  const missing = _AUD_RES_FIELDS.map(f => f.label).filter(l => headers.indexOf(l) < 0);
+  if (missing.length) {
+    _audResShowDialog(false, 'Column headers do not match. Missing columns:<br><strong>' + missing.map(escHtml).join(', ') + '</strong><br><br>Use <em>Export Template</em> to get the correct format.');
+    return;
+  }
+  const idx = {};
+  _AUD_RES_FIELDS.forEach(f => { idx[f.key] = headers.indexOf(f.label); });
+
+  const errors = [], valid = [];
+  rows.slice(2).forEach((row, ri) => {
+    if (row.every(v => !String(v || '').trim())) return;
+    const get = k => String(row[idx[k]] ?? '').trim();
+    const issues = [];
+    const w = WORKPAPERS.find(x => x.ref === get('wpRef'));
+    if (!get('wpRef')) issues.push('<em>Workpaper</em>: required');
+    else if (!w) issues.push(`<em>Workpaper</em>: "${escHtml(get('wpRef'))}" not found`);
+    else if (w.archived) issues.push('<em>Workpaper</em>: workpaper is archived');
+    else if (get('audit') && get('audit') !== w.auditName) issues.push(`<em>Audit</em>: "${escHtml(get('audit'))}" does not match this workpaper's audit "${escHtml(w.auditName || '')}"`);
+    _AUD_RES_FIELDS.forEach(f => {
+      const v = get(f.key);
+      if (f.pattern && v && !f.pattern.test(v)) issues.push(`<em>${f.label}</em>: invalid format`);
+      if (f.validValues && v && f.validValues.indexOf(v) < 0) issues.push(`<em>${f.label}</em>: invalid value "${escHtml(v)}"`);
+    });
+    let existing = null;
+    if (w && get('ref')) {
+      existing = (wpExceptions[w.ref] || []).find(x => x.ref === get('ref'));
+      if (!existing) issues.push(`<em>Ref</em>: "${escHtml(get('ref'))}" not found on ${escHtml(w.ref)} (leave blank to add a new item)`);
+    } else if (w && !get('type')) {
+      issues.push('<em>Type</em>: required when adding a new item');
+    }
+    if (issues.length) { if (errors.length < 20) errors.push({ row: ri + 3, issues }); return; }
+    valid.push({
+      w, existing, type: get('type').toLowerCase(),
+      data: {
+        name: get('name'), desc: get('desc'), owner: get('owner'), mgmtResponse: get('mgmtResponse'),
+        resolutionDate: get('resolutionDate'), disposition: get('disposition'),
+        dispositionType: get('dispositionType'), dispositionStatus: get('dispositionStatus'),
+        retested: get('retested') === 'Yes',
+        linkedFiles: get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [],
+      },
+    });
+  });
+
+  if (errors.length) {
+    _audResShowDialog(false,
+      `<div style="margin-bottom:10px">${errors.length >= 20 ? 'First 20 problem rows shown. ' : ''}Fix these and re-import — nothing was changed.</div>` +
+      errors.map(er => `<div style="margin-bottom:6px"><strong>Row ${er.row}</strong>: ${er.issues.join('; ')}</div>`).join(''));
+    return;
+  }
+  if (!valid.length) { _audResShowDialog(false, 'No data rows found in the file.'); return; }
+  const upd = valid.filter(v => v.existing).length, add = valid.length - upd;
+  _audResShowDialog(true,
+    (upd ? `<div><i class="ti ti-refresh" style="color:#2563eb;margin-right:8px"></i><strong>${upd}</strong> existing item${upd !== 1 ? 's' : ''} will be updated</div>` : '') +
+    (add ? `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added</div>` : ''),
+    () => _audResApplyImport(valid), `Import ${valid.length} record${valid.length !== 1 ? 's' : ''}`);
+}
+
+async function _audResApplyImport(valid) {
+  const unlocked = {}; // per-workpaper edit-lock check, asked once each
+  const touched = new Set();
+  const stats = {};
+  let skipped = 0;
+  for (const v of valid) {
+    const ref = v.w.ref;
+    if (!(ref in unlocked)) unlocked[ref] = !!_guardWpEdit(ref);
+    if (!unlocked[ref]) { skipped++; continue; }
+    stats[ref] = stats[ref] || { upd: 0, add: 0 };
+    if (v.existing) {
+      Object.assign(v.existing, v.data);
+      stats[ref].upd++;
+    } else {
+      const list = wpExceptions[ref] || (wpExceptions[ref] = []);
+      const num = list.length ? Math.max(...list.map(e => e.num || 0)) + 1 : 1;
+      const typeNum = _getNextTypeNum(ref, v.type);
+      list.push(Object.assign({ num, type: v.type, typeNum, ref: `${_GRID_ITEM_PREFIX[v.type]}${typeNum}` }, v.data));
+      stats[ref].add++;
+    }
+    touched.add(ref);
+  }
+  for (const ref of touched) {
+    const w = WORKPAPERS.find(x => x.ref === ref);
+    logEvent(ref, `Audit Results import: ${stats[ref].upd} updated, ${stats[ref].add} added`);
+    if (w) await _saveWorkpaperToDB(w);
+  }
+  renderAuditResults();
+  const upd = Object.values(stats).reduce((n, x) => n + x.upd, 0), add = Object.values(stats).reduce((n, x) => n + x.add, 0);
+  _audResShowDialog(true,
+    `<div><strong>${upd}</strong> updated, <strong>${add}</strong> added across ${touched.size} workpaper${touched.size !== 1 ? 's' : ''}.</div>` +
+    (skipped ? `<div style="color:#b45309">${skipped} row${skipped !== 1 ? 's were' : ' was'} skipped because the workpaper is locked for editing.</div>` : ''));
 }
 
 function showAdminSection(section) {
