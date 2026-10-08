@@ -2384,6 +2384,13 @@
             <select id="aud-res-filter-type" onchange="renderAuditResults()">
               <option value="">All types</option><option value="exception">Exception</option><option value="finding">Finding</option><option value="recommendation">Recommendation</option>
             </select>
+            <select id="aud-res-filter-status" onchange="renderAuditResults()" title="Status"></select>
+            <select id="aud-res-filter-disptype" onchange="renderAuditResults()" title="Disposition type">
+              <option value="">All disposition types</option><option>Exception</option><option>Deficiency</option><option>Significant Deficiency</option><option>Material Weakness</option>
+            </select>
+            <select id="aud-res-filter-dispstatus" onchange="renderAuditResults()" title="Disposition status">
+              <option value="">All disposition statuses</option><option>Open</option><option>Closed</option><option>Final</option><option>Remediated</option>
+            </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
             <div style="flex:1"></div>
             <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
@@ -18364,6 +18371,11 @@ function renderAuditResults() {
   const fWp    = fAudit ? wpSel.value : '';
   const fType  = document.getElementById('aud-res-filter-type').value;
   const fText  = (document.getElementById('aud-res-filter-text').value || '').trim().toLowerCase();
+  const statusSel = document.getElementById('aud-res-filter-status');
+  if (!statusSel.options.length) statusSel.innerHTML = '<option value="">All statuses</option>' + _EXC_STATUSES.map(st => `<option>${st}</option>`).join('');
+  const fStatus = statusSel.value;
+  const fDispType = document.getElementById('aud-res-filter-disptype').value;
+  const fDispStatus = document.getElementById('aud-res-filter-dispstatus').value;
 
   // Audit list excludes archived audits (status 'archive').
   const auditNames = AUDITS.filter(a => a.status !== 'archive').map(a => a.name).sort((a, b) => a.localeCompare(b));
@@ -18404,6 +18416,9 @@ function renderAuditResults() {
 
   const shown = rows.filter(r => {
     if (fType && r.type !== fType) return false;
+    if (fStatus && (r.ex.status || 'Unassigned') !== fStatus) return false;
+    if (fDispType && r.ex.dispositionType !== fDispType) return false;
+    if (fDispStatus && r.ex.dispositionStatus !== fDispStatus) return false;
     if (fText) {
       const hay = [r.w ? r.w.auditName : r.ex.auditName, r.w ? r.w.ref : r.ex.wpRef, r.w ? r.w.name : r.ex.wpName, r.ex.masterItem, r.ex.ref, r.ex.name, r.ex.desc, r.ex.owner, r.ex.mgmtResponse, r.ex.disposition].join(' ').toLowerCase();
       if (!hay.includes(fText)) return false;
@@ -18824,6 +18839,9 @@ function audResExportPrompt() {
   if (f('aud-res-filter-audit').value) parts.push('Audit: ' + f('aud-res-filter-audit').value);
   if (f('aud-res-filter-wp').value) parts.push('Workpaper: ' + f('aud-res-filter-wp').value);
   if (f('aud-res-filter-type').value) parts.push('Type: ' + f('aud-res-filter-type').value);
+  if (f('aud-res-filter-status').value) parts.push('Status: ' + f('aud-res-filter-status').value);
+  if (f('aud-res-filter-disptype').value) parts.push('Disposition type: ' + f('aud-res-filter-disptype').value);
+  if (f('aud-res-filter-dispstatus').value) parts.push('Disposition status: ' + f('aud-res-filter-dispstatus').value);
   if ((f('aud-res-filter-text').value || '').trim()) parts.push('Search: "' + f('aud-res-filter-text').value.trim() + '"');
   const shownNote = !f('aud-res-filter-audit').value
     ? 'Nothing is shown yet: select an audit first'
