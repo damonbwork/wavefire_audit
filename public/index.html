@@ -2056,14 +2056,19 @@
              request. "Audit Results" is the only option for now. -->
         <div style="width:220px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);display:flex;flex-direction:column;overflow-y:auto">
           <div style="padding:18px 16px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary)">Audits</div>
-          <button class="aud-nav-btn" id="aud-btn-results" onclick="showAuditsSection('results')"
+          <button class="aud-nav-btn" id="aud-btn-audits" onclick="showAuditsSection('audits')"
             style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:var(--wf-navy);color:#fff;cursor:pointer;font-size:13px;font-weight:600;text-align:left;width:100%;border-radius:0">
+            <i class="ti ti-list-details" style="font-size:15px;flex-shrink:0"></i>
+            <span>Audits</span>
+          </button>
+          <button class="aud-nav-btn" id="aud-btn-results" onclick="showAuditsSection('results')"
+            style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
             <i class="ti ti-clipboard-check" style="font-size:15px;flex-shrink:0"></i>
             <span>Audit Results</span>
           </button>
         </div>
 
-        <div id="aud-section-results" class="aud-section" style="flex:1;min-width:0;padding:22px 26px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
+        <div id="aud-section-audits" class="aud-section" style="flex:1;min-width:0;padding:22px 26px;display:flex;flex-direction:column;gap:16px;overflow-y:auto">
 
         <!-- ── Company & AI Settings ──────────────────────────────────────────── -->
         <div id="company-settings-panel" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
@@ -2363,7 +2368,27 @@
     </tbody>
           </table></div>
         </div>
-        </div><!-- /aud-section-results -->
+        </div><!-- /aud-section-audits -->
+
+        <!-- Audit Results — a cross-audit, cross-workpaper view of every
+             Exception, Finding and Recommendation, mirroring the grid at
+             the bottom of the workpaper page. -->
+        <div id="aud-section-results" class="aud-section" style="display:none;flex:1;min-width:0;padding:22px 26px;flex-direction:column;gap:14px;overflow-y:auto">
+          <div>
+            <div class="pt">Audit Results</div>
+            <div class="ps" id="aud-results-sub"></div>
+          </div>
+          <div class="filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="aud-res-filter-audit" onchange="renderAuditResults()"><option value="">All audits</option></select>
+            <select id="aud-res-filter-type" onchange="renderAuditResults()">
+              <option value="">All types</option><option value="exception">Exception</option><option value="finding">Finding</option><option value="recommendation">Recommendation</option>
+            </select>
+            <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
+          </div>
+          <div style="overflow-x:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+            <div id="aud-results-table" style="min-width:2200px"></div>
+          </div>
+        </div>
       </div>
 
       <!-- ══════════════════════════
@@ -18131,6 +18156,77 @@ function showAuditsSection(section) {
   document.querySelectorAll('.aud-section').forEach(s => s.style.display = 'none');
   const target = document.getElementById('aud-section-' + section);
   if (target) target.style.display = 'flex';
+  if (section === 'results') renderAuditResults();
+}
+
+// Audit Results — one row per Exception/Finding/Recommendation across every
+// audit and workpaper loaded for this tenant (wpExceptions is keyed by
+// workpaper ref and populated at bootstrap). Same fields, in the same order,
+// as the grid at the bottom of the workpaper page, with Audit and Workpaper
+// added at the far left. Read-only: edits still happen on the workpaper
+// itself, reachable by clicking the Workpaper cell.
+function renderAuditResults() {
+  const host = document.getElementById('aud-results-table');
+  if (!host) return;
+  const auditSel = document.getElementById('aud-res-filter-audit');
+  const fAudit = auditSel.value;
+  const fType  = document.getElementById('aud-res-filter-type').value;
+  const fText  = (document.getElementById('aud-res-filter-text').value || '').trim().toLowerCase();
+
+  const rows = [];
+  WORKPAPERS.forEach((w, idx) => {
+    (wpExceptions[w.ref] || []).forEach(ex => rows.push({ w, idx, ex, type: ex.type || 'exception' }));
+  });
+
+  const audits = [...new Set(rows.map(r => r.w.auditName).filter(Boolean))].sort();
+  auditSel.innerHTML = '<option value="">All audits</option>' + audits.map(a => `<option value="${escAttr(a)}"${a === fAudit ? ' selected' : ''}>${escHtml(a)}</option>`).join('');
+
+  const shown = rows.filter(r => {
+    if (fAudit && r.w.auditName !== fAudit) return false;
+    if (fType && r.type !== fType) return false;
+    if (fText) {
+      const hay = [r.w.auditName, r.w.ref, r.w.name, r.ex.ref, r.ex.name, r.ex.desc, r.ex.owner, r.ex.mgmtResponse, r.ex.disposition].join(' ').toLowerCase();
+      if (!hay.includes(fText)) return false;
+    }
+    return true;
+  }).sort((a, b) => (a.w.auditName || '').localeCompare(b.w.auditName || '') || (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0));
+
+  document.getElementById('aud-results-sub').textContent = `${shown.length} item${shown.length !== 1 ? 's' : ''} across ${new Set(shown.map(r => r.w.ref)).size} workpaper${new Set(shown.map(r => r.w.ref)).size !== 1 ? 's' : ''}`;
+
+  const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
+  const heads = ['Audit', 'Workpaper', '#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked files', 'Owner', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
+  // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
+  const colsFixed = '160px 190px 44px 60px 110px 60px 1.2fr 2fr 1.2fr 1fr 2fr 110px 80px 1.2fr 140px 120px';
+  const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
+  const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
+  const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
+
+  if (!shown.length) {
+    host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No exceptions, findings or recommendations to show.</div>';
+    return;
+  }
+  host.innerHTML =
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
+    shown.map(({ w, idx, ex, type }) => `
+      <div style="display:grid;grid-template-columns:${colsFixed}">
+        <div style="${cell}">${escHtml(w.auditName || '')}</div>
+        <div style="${cell}"><a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a><div style="color:var(--text-tertiary);font-size:11px">${escHtml(w.name || '')}</div></div>
+        <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
+        <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
+        <div style="${cell};font-weight:600;color:${typeColor[type]}">${typeLabel[type]}</div>
+        <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.attrRef || '—')}</div>
+        <div style="${cell}">${escHtml(ex.name || '')}</div>
+        <div style="${cell};white-space:pre-wrap">${escHtml(ex.desc || '')}</div>
+        <div style="${cell};font-size:11px">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
+        <div style="${cell}">${escHtml(ex.owner || '')}</div>
+        <div style="${cell};white-space:pre-wrap">${escHtml(ex.mgmtResponse || '')}</div>
+        <div style="${cell}">${escHtml(ex.resolutionDate || '')}</div>
+        <div style="${cell};text-align:center">${ex.retested ? '&#10003;' + (ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary)">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate || '')}</div>` : '') : ''}</div>
+        <div style="${cell}">${escHtml(ex.disposition || '')}</div>
+        <div style="${cell}">${escHtml(ex.dispositionType || '')}</div>
+        <div style="${cell}">${escHtml(ex.dispositionStatus || '')}</div>
+      </div>`).join('');
 }
 
 function showAdminSection(section) {
