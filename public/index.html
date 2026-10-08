@@ -18423,7 +18423,7 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['', 'Master #', 'Audit', 'Workpaper name', 'Workpaper', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['', 'Master #', 'Audit', 'Workpaper name', 'Workpaper Ref', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
   const colsFixed = '36px 80px 160px 200px 150px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
@@ -18703,7 +18703,7 @@ const _AUD_RES_FIELDS = [
   { key: 'master', label: 'Master #',           fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
   { key: 'audit',  label: 'Audit',              fmt: "Text. Must be an existing audit (and the workpaper's audit); a value that isn't is removed. Blank shows as <blank>" },
   { key: 'wpName', label: 'Workpaper name',     fmt: 'Text. Must be an existing workpaper name (and the workpaper\'s name); a value that isn\'t is removed. Blank shows as <blank>' },
-  { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
+  { key: 'wpRef',  label: 'Workpaper Ref',      fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
   { key: 'num',    label: '#',                  fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored' },
   { key: 'ref',    label: 'Ref',                fmt: 'Assigned by Wavefire (E1, F1, R1 ...). Leave blank: anything entered here is ignored' },
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
@@ -18842,6 +18842,8 @@ async function _audResSampleFileNames(wpRef) {
 async function _audResProcessImportRows(rows) {
   if (rows.length < 2) { _audResShowDialog(false, 'File is empty or missing the required rows (format row + header row).'); return; }
   const headers = rows[1].map(h => String(h || '').trim());
+  // Templates exported before this column was renamed call it "Workpaper".
+  if (headers.indexOf('Workpaper Ref') < 0 && headers.indexOf('Workpaper') >= 0) headers[headers.indexOf('Workpaper')] = 'Workpaper Ref';
   const missing = _AUD_RES_FIELDS.filter(f => !f.optional).map(f => f.label).filter(l => headers.indexOf(l) < 0);
   if (missing.length) {
     _audResShowDialog(false, 'Column headers do not match. Missing columns:<br><strong>' + missing.map(escHtml).join(', ') + '</strong><br><br>Use <em>Export Template</em> to get the correct format.');
@@ -18893,7 +18895,7 @@ async function _audResProcessImportRows(rows) {
     if (wpRef) {
       w = liveWps.find(x => x.ref === wpRef) || null;
       if (!w) {
-        addSoft('Workpaper', wpRef, WORKPAPERS.some(x => x.ref === wpRef) ? 'this workpaper is archived' : 'no workpaper with this ref exists', rowNo, label);
+        addSoft('Workpaper Ref', wpRef, WORKPAPERS.some(x => x.ref === wpRef) ? 'this workpaper is archived' : 'no workpaper with this ref exists', rowNo, label);
         wpRef = '';
       }
     }
@@ -18978,7 +18980,7 @@ async function _audResProcessImportRows(rows) {
   const counts =
     `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added, numbered by Wavefire (marked * after the master item number)</div>` +
     (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master #, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
-    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : '');
+    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper name / Workpaper Ref fields will show as &lt;blank&gt;.</div>` : '');
 
   if (!soft.size) {
     _audResShowDialog(true, counts, () => _audResApplyImport(valid), `Import ${valid.length} record${valid.length !== 1 ? 's' : ''}`);
@@ -18999,8 +19001,8 @@ async function _audResProcessImportRows(rows) {
       </tr>`).join('')}</tbody></table>`;
   _audResShowDialog(true,
     `<div style="padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;line-height:1.5">
-       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} values that don't match anything that exists in Wavefire</strong> (Audit, Workpaper name, Workpaper, Attribute, Attribute name or Linked files).<br>
-       If you select <strong>Ok</strong>, Wavefire will simply <strong>not upload</strong> the values that don't validate — the items are still imported, but without them (an Audit or Workpaper that doesn't validate shows as &lt;blank&gt;). Select <strong>Cancel</strong> to stop and correct the file instead.
+       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} values that don't match anything that exists in Wavefire</strong> (Audit, Workpaper name, Workpaper Ref, Attribute, Attribute name or Linked files).<br>
+       If you select <strong>Ok</strong>, Wavefire will simply <strong>not upload</strong> the values that don't validate — the items are still imported, but without them (an Audit, Workpaper name or Workpaper Ref that doesn't validate shows as &lt;blank&gt;). Select <strong>Cancel</strong> to stop and correct the file instead.
      </div>` + table + counts,
     () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will not be uploaded' });
 }
@@ -29082,7 +29084,7 @@ const HELP_TOPICS = {
           the system, so leave them blank: anything you enter in them is ignored. Every row is added as
           a <em>new</em> item; an import never changes an item that already exists.</li>
         <li><strong>Other fields must match what already exists.</strong> Audit, Workpaper name,
-          Workpaper, Attribute, Attribute name and Linked files must be valid values in Wavefire, and
+          Workpaper Ref, Attribute, Attribute name and Linked files must be valid values in Wavefire, and
           fields with a fixed list (Type, Status, Retested, Disposition type, Disposition status) or a
           format (Resolution date, YYYY-MM-DD) must follow it. A value that does not validate is
           <strong>not loaded</strong>.</li>
@@ -29090,8 +29092,8 @@ const HELP_TOPICS = {
           not validate, with sample items, and you can choose <em>Cancel</em> to fix the file, or
           <em>Ok</em> to upload the items without those values. Problems that cannot be skipped, such
           as a missing Type, must be fixed first and are listed too.</li>
-        <li><strong>Blank Audit, Workpaper name or Workpaper.</strong> If an Audit, Workpaper name or
-          Workpaper (reference) is not provided, or cannot be validated, it is loaded as
+        <li><strong>Blank Audit, Workpaper name or Workpaper Ref.</strong> If an Audit, Workpaper name or
+          Workpaper Ref is not provided, or cannot be validated, it is loaded as
           <code>&lt;blank&gt;</code>. An item with no valid Workpaper is not attached to any workpaper;
           it appears on this page under its Audit, or under <code>&lt;blank&gt;</code>.</li>
         <li>Items that come in through an import are marked with an asterisk (*) after the Master #.</li>
