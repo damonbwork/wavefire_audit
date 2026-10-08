@@ -2393,7 +2393,7 @@
           </div>
           <div id="aud-res-bulkbar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:#eef2ff;border:0.5px solid #c7d2fe;border-radius:var(--radius-md);font-size:12px"></div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2740px"></div>
+            <div id="aud-results-table" style="min-width:2760px"></div>
           </div>
           <div style="padding:0 2px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px" id="aud-results-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
         </div>
@@ -18426,7 +18426,7 @@ function renderAuditResults() {
   const heads = ['', 'Master #', 'Audit', 'Workpaper name', 'Workpaper Ref', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '36px 80px 160px 200px 150px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '56px 80px 160px 200px 150px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18435,11 +18435,11 @@ function renderAuditResults() {
     host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">No exceptions, findings or recommendations to show.</div>';
     return;
   }
-  host.style.minWidth = '2740px';
+  host.style.minWidth = '2760px';
   // Browsers with overlay scroll bars draw them on top of the content; this empty margin is what they sit over.
   host.style.padding = '0 16px 18px 0';
   host.innerHTML =
-    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map((h, hi) => hi === 0 ? `<div style="${th};display:flex;align-items:center;justify-content:center;padding:7px 0"><input type="checkbox" id="aud-res-selectall" onchange="_audResSelectAll(this.checked)" title="Select all items shown" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"></div>` : `<div style="${th}">${h}</div>`).join('')}</div>` +
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map((h, hi) => hi === 0 ? `<div style="${th};display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 0"><input type="checkbox" id="aud-res-selectall" onchange="_audResSelectAll(this.checked)" title="Select all items shown" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsBulkUpdate" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How to select findings and update them in bulk" style="cursor:pointer;color:var(--text-tertiary);font-size:14px"></i></div>` : `<div style="${th}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }, rowNo) => {
       const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
       const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
@@ -18579,7 +18579,8 @@ function _audResUpdateBulkBar() {
       <span style="color:var(--text-tertiary)">to</span><span id="aud-bulk-valuewrap"></span>
       <label id="aud-bulk-blankwrap" style="display:none;align-items:center;gap:4px;color:var(--text-secondary)"><input type="checkbox" id="aud-bulk-onlyblank">only where it is blank</label>
       <button class="btn-p" style="font-size:12px;padding:5px 12px" onclick="audResBulkApply()">Apply</button>
-      <button class="btn-s" style="font-size:12px;padding:5px 12px" onclick="_audResClearSelection()">Clear selection</button>`;
+      <button class="btn-s" style="font-size:12px;padding:5px 12px" onclick="_audResClearSelection()">Clear selection</button>
+      <i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsBulkUpdate" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How to select findings and update them in bulk" style="cursor:pointer;color:var(--text-tertiary);font-size:14px"></i>`;
     bar.dataset.built = '1';
     _audResBulkFieldChanged();
   }
@@ -29102,6 +29103,41 @@ const HELP_TOPICS = {
           </tr>
         </tbody>
       </table>
+    `,
+  },
+  auditFindingsBulkUpdate: {
+    title: 'Selecting findings and updating them in bulk',
+    width: '620px',
+    html: `
+      <p>You can change the same field on many exceptions, findings and recommendations at once.</p>
+      <p style="margin:0 0 6px"><strong>1. Select the items</strong></p>
+      <ul style="margin:0 0 12px 18px;padding:0;line-height:1.7">
+        <li><strong>One:</strong> tick the checkbox at the start of its row.</li>
+        <li><strong>Many:</strong> tick the checkbox on each row you want. Untick a row to take it out again.</li>
+        <li><strong>All:</strong> tick the checkbox in the column heading (next to this ? icon). It selects
+          every item currently shown, meaning the audit, workpaper, type and search you have chosen. Untick it to
+          clear everything.</li>
+        <li>Only items you can see can be selected: if you change the audit, workpaper, type or search, any
+          ticked item that is no longer shown is unselected.</li>
+      </ul>
+      <p style="margin:0 0 6px"><strong>2. Choose what to update</strong></p>
+      <p style="margin:0 0 12px">As soon as one item is ticked, a bar appears above the grid showing how many are
+        selected. Choose the <strong>field</strong> to update and the <strong>value</strong> to give it, then
+        choose <em>Apply</em>. A blank value clears the field. For the text, date and disposition fields you can
+        also tick <em>only where it is blank</em> so items that already have a value are left alone.</p>
+      <p style="margin:0 0 6px"><strong>3. Confirm in the window that pops up</strong></p>
+      <p style="margin:0 0 12px">A window then appears stating which field will be updated, the value it will be set
+        to, and how many items and workpapers are affected. It also lists anything that will be skipped, such as
+        items on a workpaper that is locked for editing, or items that already have that value. Choose
+        <em>Apply</em> to make the change, or <em>Cancel</em> to leave everything as it is. When it finishes,
+        a second window reports what was updated and the selection is cleared.</p>
+      <p style="margin:0 0 6px"><strong>Fields you can update in bulk</strong></p>
+      <ul style="margin:0 0 4px 18px;padding:0;line-height:1.7">
+        <li>Status, Owner, Resolution date, Disposition, Disposition type, Disposition status, Retested and Type.</li>
+        <li>Name, Description, Management response and the numbers are not bulk-editable; change those on the item itself.</li>
+        <li>Setting Retested to Yes records your name and today's date. Changing Type renumbers each item's Ref, and
+          an item that is not tied to a test attribute and sample cannot become an Exception, so it is skipped.</li>
+      </ul>
     `,
   },
   auditFindingsUpload: {
