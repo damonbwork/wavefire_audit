@@ -1569,11 +1569,15 @@ async function initDB() {
       // ref/num are indexed but deliberately NOT unique yet: until saves
       // are per-item, a client can still send a duplicate, and a unique
       // constraint would turn that into a failed workpaper save.
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS workpaper_exceptions (
+      // The column list lives in one place so a fresh install and the
+      // reorder rebuild below can never disagree. master_item is the first
+      // column, then id; Postgres can't move a column in an existing table,
+      // so a table created before this was the case is rebuilt further down.
+      const WPEXC_COLUMNS = `
+          master_item        INTEGER NOT NULL,
           id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id          TEXT NOT NULL,
-          workpaper_id       UUID NOT NULL REFERENCES workpapers(id) ON DELETE CASCADE,
+          workpaper_id       UUID REFERENCES workpapers(id) ON DELETE CASCADE,
           position           INTEGER NOT NULL DEFAULT 0,
           num                INTEGER,
           type               TEXT NOT NULL DEFAULT 'exception',
@@ -1595,12 +1599,38 @@ async function initDB() {
           disposition_type   TEXT NOT NULL DEFAULT '',
           disposition_status TEXT NOT NULL DEFAULT '',
           extra              JSONB NOT NULL DEFAULT '{}',
+          origin             TEXT,
+          audit_name         TEXT NOT NULL DEFAULT '',
+          wp_name            TEXT NOT NULL DEFAULT '',
+          wp_ref             TEXT NOT NULL DEFAULT '',
           created_at         TIMESTAMPTZ DEFAULT NOW(),
-          updated_at         TIMESTAMPTZ DEFAULT NOW()
+          updated_at         TIMESTAMPTZ DEFAULT NOW()`;
+      const WPEXC_COLUMN_NAMES = 'master_item, id, tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index, name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date, disposition, disposition_type, disposition_status, extra, origin, audit_name, wp_name, wp_ref, created_at, updated_at';
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS workpaper_exceptions (${WPEXC_COLUMNS});
+        -- Last master item handed out per tenant. Numbers only ever go up and
+        -- are never reused, even after the highest item is deleted.
+        CREATE TABLE IF NOT EXISTS exception_master_counter (
+          tenant_id  TEXT PRIMARY KEY,
+          last_value INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_wpexc_wp     ON workpaper_exceptions(tenant_id, workpaper_id, position);
-        CREATE INDEX IF NOT EXISTS idx_wpexc_filter ON workpaper_exceptions(tenant_id, type, disposition_status);
-        CREATE INDEX IF NOT EXISTS idx_wpexc_ref    ON workpaper_exceptions(workpaper_id, ref);
+      `);
+      // Columns added after the first release of this table (existing
+      // deployments already have the table without them).
+      // master_item: a per-tenant running number, 1, 2, 3..., across every
+      //   item regardless of workpaper.
+      // origin: 'uploaded' (Audit Results template), 'analyze' (created by
+      //   Analyze) or 'entered' (added by a person on a workpaper).
+      // audit_name / wp_name / wp_ref: only used by an uploaded item that is
+      //   not attached to any workpaper (workpaper_id NULL), holding what the
+      //   template said, or "<blank>" where it was empty.
+      await pool.query(`
+        ALTER TABLE workpaper_exceptions ALTER COLUMN workpaper_id DROP NOT NULL;
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS master_item INTEGER;
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS origin TEXT;
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS audit_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS wp_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS wp_ref TEXT NOT NULL DEFAULT '';
       `);
       // One-time, re-runnable backfill: only workpapers that have items in
       // the old JSONB column and no rows yet in the new table.
@@ -1613,6 +1643,63 @@ async function initDB() {
         await _replaceWorkpaperExceptions(w.tenant_id, w.id, w.exceptions);
         bfItems += w.exceptions.length;
       }
+      // Rows that pre-date origin/master_item. Origin can't be known for
+      // them, so it is inferred: an item tied to a test attribute/sample or
+      // an evidence file was created by Analyze, anything else was entered.
+      await pool.query(`
+        UPDATE workpaper_exceptions
+           SET origin = CASE WHEN attribute_index IS NOT NULL OR (extra ->> 'sourceFile') IS NOT NULL THEN 'analyze' ELSE 'entered' END
+         WHERE origin IS NULL`);
+      // Number the rows that have no master item yet, continuing each
+      // tenant's sequence from its current highest value.
+      await pool.query(`
+        UPDATE workpaper_exceptions e SET master_item = n.rn + COALESCE(b.m, 0)
+          FROM (SELECT x.id, x.tenant_id,
+                       ROW_NUMBER() OVER (PARTITION BY x.tenant_id ORDER BY x.created_at, w.audit_name, w.ref, x.position, x.id) AS rn
+                  FROM workpaper_exceptions x LEFT JOIN workpapers w ON w.id = x.workpaper_id
+                 WHERE x.master_item IS NULL) n
+          LEFT JOIN (SELECT tenant_id, MAX(master_item) AS m FROM workpaper_exceptions GROUP BY tenant_id) b ON b.tenant_id = n.tenant_id
+         WHERE e.id = n.id`);
+      // Move master_item to be the first column of a table created before it
+      // was. Runs in one transaction under an exclusive lock: a new table with
+      // the right column order is built, every row copied across, the old table
+      // dropped and the new one renamed into its place. It only runs when
+      // master_item is not already column 1, so it is a no-op afterwards, and a
+      // failure rolls back to the untouched original table.
+      try {
+        const colPos = await pool.query(`SELECT ordinal_position FROM information_schema.columns
+           WHERE table_schema = current_schema() AND table_name = 'workpaper_exceptions' AND column_name = 'master_item'`);
+        if (colPos.rows.length && Number(colPos.rows[0].ordinal_position) !== 1) {
+          const rb = await pool.connect();
+          try {
+            await rb.query('BEGIN');
+            await rb.query('LOCK TABLE workpaper_exceptions IN ACCESS EXCLUSIVE MODE');
+            await rb.query('DROP TABLE IF EXISTS workpaper_exceptions_new');
+            await rb.query(`CREATE TABLE workpaper_exceptions_new (${WPEXC_COLUMNS})`);
+            await rb.query(`INSERT INTO workpaper_exceptions_new (${WPEXC_COLUMN_NAMES}) SELECT ${WPEXC_COLUMN_NAMES} FROM workpaper_exceptions`);
+            await rb.query('DROP TABLE workpaper_exceptions');
+            await rb.query('ALTER TABLE workpaper_exceptions_new RENAME TO workpaper_exceptions');
+            await rb.query('ALTER INDEX workpaper_exceptions_new_pkey RENAME TO workpaper_exceptions_pkey');
+            await rb.query('ALTER TABLE workpaper_exceptions RENAME CONSTRAINT workpaper_exceptions_new_workpaper_id_fkey TO workpaper_exceptions_workpaper_id_fkey');
+            await rb.query('COMMIT');
+            console.log('DB: workpaper_exceptions rebuilt with master_item as the first column');
+          } catch (rbErr) {
+            await rb.query('ROLLBACK').catch(() => {});
+            throw rbErr;
+          } finally {
+            rb.release();
+          }
+        }
+      } catch (reorderErr) {
+        console.error('DB: workpaper_exceptions column reorder FAILED (table left as it was):', reorderErr.message);
+      }
+      // Indexes are created after the rebuild (dropping the old table drops them).
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_wpexc_wp     ON workpaper_exceptions(tenant_id, workpaper_id, position);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_filter ON workpaper_exceptions(tenant_id, type, disposition_status);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_ref    ON workpaper_exceptions(workpaper_id, ref);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_wpexc_master ON workpaper_exceptions(tenant_id, master_item) WHERE master_item IS NOT NULL;
+      `);
       console.log('DB: workpaper_exceptions ready; backfilled ' + bfItems + ' item(s) from ' + bf.rows.length + ' workpaper(s)');
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
@@ -3321,6 +3408,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 // ── workpaper_exceptions helpers ───────────────────────────────────────────
 // Item fields with their own column; everything else rides in `extra`.
+// Fields that live in their own columns but are managed by the server, not
+// stored in `extra`.
+const _EXC_META_KEYS = ['id', 'masterItem', 'origin', 'auditName', 'wpName', 'wpRef'];
 const _EXC_MAPPED_KEYS = ['num','type','typeNum','ref','attrRef','attributeIndex','sampleRowIndex','name','desc',
   'linkedFiles','owner','mgmtResponse','resolutionDate','retested','retestedBy','retestedDate',
   'disposition','dispositionType','dispositionStatus'];
@@ -3332,7 +3422,7 @@ function _excText(v) { return (v === null || v === undefined) ? '' : String(v); 
 
 function _exceptionToRow(ex, position) {
   const extra = {};
-  Object.keys(ex).forEach(k => { if (!_EXC_MAPPED_KEYS.includes(k)) extra[k] = ex[k]; });
+  Object.keys(ex).forEach(k => { if (!_EXC_MAPPED_KEYS.includes(k) && !_EXC_META_KEYS.includes(k)) extra[k] = ex[k]; });
   // An integer field holding something that isn't an integer can't live in
   // its INTEGER column; keep the original value in `extra` rather than lose it.
   ['num','typeNum','attributeIndex','sampleRowIndex'].forEach(k => {
@@ -3345,7 +3435,15 @@ function _exceptionToRow(ex, position) {
     _excText(ex.owner), _excText(ex.mgmtResponse), _excText(ex.resolutionDate), !!ex.retested,
     _excText(ex.retestedBy), _excText(ex.retestedDate), _excText(ex.disposition),
     _excText(ex.dispositionType), _excText(ex.dispositionStatus), JSON.stringify(extra),
+    _excIntOrNull(ex.masterItem), _excText(ex.origin) || _excInferOrigin(ex),
+    _excText(ex.auditName), _excText(ex.wpName), _excText(ex.wpRef),
   ];
+}
+
+// An item tied to a test attribute/sample or an evidence file came from
+// Analyze; anything else was typed in by a person.
+function _excInferOrigin(ex) {
+  return (ex.attributeIndex !== null && ex.attributeIndex !== undefined) || ex.sourceFile ? 'analyze' : 'entered';
 }
 
 function _rowToException(r) {
@@ -3357,7 +3455,175 @@ function _rowToException(r) {
   o.owner = r.owner; o.mgmtResponse = r.mgmt_response; o.resolutionDate = r.resolution_date;
   o.retested = r.retested; o.retestedBy = r.retested_by; o.retestedDate = r.retested_date;
   o.disposition = r.disposition; o.dispositionType = r.disposition_type; o.dispositionStatus = r.disposition_status;
+  o.id = r.id; set('masterItem', r.master_item); o.origin = r.origin || 'entered';
+  if (r.workpaper_id === null) { o.auditName = r.audit_name; o.wpName = r.wp_name; o.wpRef = r.wp_ref; }
   return o;
+}
+
+const _EXC_INSERT_SQL = `INSERT INTO workpaper_exceptions
+   (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
+    name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
+    disposition, disposition_type, disposition_status, extra, master_item, origin, audit_name, wp_name, wp_ref)
+ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`;
+
+// Hands out `n` consecutive master items for a tenant and returns the first.
+// The counter row is locked by the upsert for the rest of the transaction, so
+// two transactions can never be given the same number, and a rolled-back
+// transaction gives its numbers back. GREATEST() with the table's current
+// maximum keeps the counter correct for rows numbered by the startup backfill.
+async function _excAllocMasterItems(client, tenantId, n) {
+  if (!n) return 0;
+  const r = await client.query(
+    `INSERT INTO exception_master_counter (tenant_id, last_value)
+       VALUES ($1, (SELECT COALESCE(MAX(master_item),0) FROM workpaper_exceptions WHERE tenant_id=$1) + $2)
+     ON CONFLICT (tenant_id) DO UPDATE
+       SET last_value = GREATEST(exception_master_counter.last_value,
+                                 (SELECT COALESCE(MAX(master_item),0) FROM workpaper_exceptions WHERE tenant_id=$1)) + $2
+     RETURNING last_value`, [tenantId, n]);
+  return Number(r.rows[0].last_value) - n + 1;
+}
+
+// ── Per-item operations ────────────────────────────────────────────────────
+// Each runs in a transaction that first locks the workpaper row, so two
+// people adding items at once get distinct numbers and two people editing
+// different fields of one item merge instead of overwriting each other.
+// The old workpapers.exceptions JSONB column is rebuilt from the table at the
+// end of every operation (it is still dual-written until the table has been
+// verified in production).
+const _EXC_PREFIX = { exception: 'E', finding: 'F', recommendation: 'R' };
+
+async function _withWorkpaperItemsLock(tenantId, refOrId, fn) {
+  const wpId = await _resolveWorkpaperId(tenantId, refOrId);
+  if (!wpId) { const e = new Error('Workpaper not found: ' + refOrId); e.status = 404; throw e; }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM workpapers WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [tenantId, wpId]);
+    const result = await fn(client, wpId);
+    const { rows } = await client.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 ORDER BY position', [tenantId, wpId]);
+    await client.query('UPDATE workpapers SET exceptions=$1, updated_at=NOW() WHERE tenant_id=$2 AND id=$3', [JSON.stringify(rows.map(_rowToException)), tenantId, wpId]);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Drops the server-managed identifiers from a client-supplied field set.
+function _excEditableFields(fields) {
+  const f = Object.assign({}, fields);
+  ['id', 'masterItem', 'origin', 'auditName', 'wpName', 'wpRef'].forEach(k => delete f[k]);
+  return f;
+}
+
+// Merges `fields` into one item (addressed by its ref, e.g. "E1"); only the
+// fields sent change. Returns the full updated item, or null if not found.
+async function _excUpdateItem(tenantId, wpRef, itemRef, fields) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const { rows } = await client.query(
+      'SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3 ORDER BY position LIMIT 1',
+      [tenantId, wpId, itemRef]);
+    if (!rows.length) return null;
+    const merged = Object.assign(_rowToException(rows[0]), _excEditableFields(fields));
+    await client.query(
+      `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
+         sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
+         retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
+         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, updated_at=NOW() WHERE id=$27`,
+      [..._exceptionToRow(merged, rows[0].position), rows[0].id]);
+    return merged;
+  });
+}
+
+// Adds an item; the server assigns num, typeNum and ref so concurrent adds
+// can never collide. Returns the full saved item.
+async function _excAddItem(tenantId, wpRef, item) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const type = _EXC_PREFIX[item.type] ? item.type : 'exception';
+    const { rows } = await client.query(
+      `SELECT COALESCE(MAX(num),0) AS n, COALESCE(MAX(position),-1) AS p,
+              COALESCE(MAX(type_num) FILTER (WHERE type=$3),0) AS tn
+         FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2`, [tenantId, wpId, type]);
+    const typeNum = Number(rows[0].tn) + 1;
+    const masterItem = await _excAllocMasterItems(client, tenantId, 1);
+    const saved = Object.assign({}, _excEditableFields(item), {
+      type, num: Number(rows[0].n) + 1, typeNum, ref: _EXC_PREFIX[type] + typeNum,
+      masterItem, origin: ['uploaded', 'analyze', 'entered'].includes(item.origin) ? item.origin : _excInferOrigin(item),
+    });
+    await client.query(_EXC_INSERT_SQL, [tenantId, wpId, ..._exceptionToRow(saved, Number(rows[0].p) + 1)]);
+    return saved;
+  });
+}
+
+async function _excDeleteItem(tenantId, wpRef, itemRef) {
+  return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+    const r = await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3', [tenantId, wpId, itemRef]);
+    return r.rowCount;
+  });
+}
+
+// ── Uploaded items that belong to no workpaper ──────────────────────────────
+// An Audit Results template row with no Workpaper is kept as its own item,
+// numbered from the same master sequence. Its Audit / Workpaper name /
+// Workpaper values are stored as text, "<blank>" where the template had none.
+async function _excListUnassigned(tenantId) {
+  const { rows } = await pool.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id IS NULL ORDER BY master_item', [tenantId]);
+  return rows.map(_rowToException);
+}
+
+async function _excAddUnassigned(tenantId, items) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let m = (await _excAllocMasterItems(client, tenantId, items.length)) - 1;
+    const saved = [];
+    for (const it of items) {
+      const type = _EXC_PREFIX[it.type] ? it.type : 'exception';
+      const obj = Object.assign({}, _excEditableFields(it), {
+        type, masterItem: ++m, origin: 'uploaded',
+        auditName: _excText(it.auditName).trim() || '<blank>',
+        wpName: _excText(it.wpName).trim() || '<blank>',
+        wpRef: '<blank>',
+      });
+      delete obj.num; delete obj.typeNum; obj.ref = '';
+      const r = await client.query(_EXC_INSERT_SQL + ' RETURNING id', [tenantId, null, ..._exceptionToRow(obj, 0)]);
+      obj.id = r.rows[0].id;
+      saved.push(obj);
+    }
+    await client.query('COMMIT');
+    return saved;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function _excUpdateUnassigned(tenantId, id, fields) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND id=$2 AND workpaper_id IS NULL FOR UPDATE', [tenantId, id]);
+    if (!rows.length) { await client.query('ROLLBACK'); return null; }
+    const merged = Object.assign(_rowToException(rows[0]), _excEditableFields(fields));
+    await client.query(
+      `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
+         sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
+         retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
+         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, updated_at=NOW() WHERE id=$27`,
+      [..._exceptionToRow(merged, rows[0].position), id]);
+    await client.query('COMMIT');
+    return merged;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Replaces one workpaper's items with exactly `exceptions`, atomically — a
@@ -3367,18 +3633,40 @@ async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // An item the client sends without a master item/origin (anything created
+    // in the browser since it last loaded) keeps the ones its existing row
+    // has, matched one-to-one by ref then by #; only a genuinely new item is
+    // numbered. A master item is only honoured if no other workpaper's item
+    // holds it and it isn't already used in this payload (a stale browser
+    // could otherwise resurrect a number that has since been reassigned).
+    const prior = await client.query('SELECT ref, num, master_item, origin FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
+    const others = await client.query('SELECT master_item FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id IS DISTINCT FROM $2 AND master_item IS NOT NULL', [tenantId, workpaperId]);
+    const taken = new Set(others.rows.map(r => Number(r.master_item)));
+    const claim = n => { if (n === null || taken.has(n)) return false; taken.add(n); return true; };
+    const byRef = new Map(), byNum = new Map(), used = new Set();
+    prior.rows.forEach(r => {
+      if (r.ref) { if (!byRef.has(r.ref)) byRef.set(r.ref, []); byRef.get(r.ref).push(r); }
+      if (r.num !== null) { if (!byNum.has(Number(r.num))) byNum.set(Number(r.num), []); byNum.get(Number(r.num)).push(r); }
+    });
+    const pick = arr => { while (arr && arr.length) { const r = arr.shift(); if (!used.has(r)) { used.add(r); return r; } } return undefined; };
+    const prepared = items.map(it => {
+      const found = pick(byRef.get(it.ref)) || (it.num !== undefined && it.num !== null ? pick(byNum.get(Number(it.num))) : undefined);
+      const out = Object.assign({}, it);
+      let m = _excIntOrNull(it.masterItem);
+      if (!claim(m)) m = (found && found.master_item !== null && claim(Number(found.master_item))) ? Number(found.master_item) : null;
+      out.masterItem = m;
+      out.origin = ['uploaded', 'analyze', 'entered'].includes(it.origin) ? it.origin : ((found && found.origin) || _excInferOrigin(it));
+      return out;
+    });
+    const unnumbered = prepared.filter(x => x.masterItem === null);
+    let nextMaster = await _excAllocMasterItems(client, tenantId, unnumbered.length);
+    unnumbered.forEach(x => { x.masterItem = nextMaster++; });
     await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
-    for (let i = 0; i < items.length; i++) {
-      await client.query(
-        `INSERT INTO workpaper_exceptions
-           (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
-            name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
-            disposition, disposition_type, disposition_status, extra)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
-        [tenantId, workpaperId, ..._exceptionToRow(items[i], i)]
-      );
+    for (let i = 0; i < prepared.length; i++) {
+      await client.query(_EXC_INSERT_SQL, [tenantId, workpaperId, ..._exceptionToRow(prepared[i], i)]);
     }
     await client.query('COMMIT');
+    return prepared.map(x => ({ ref: x.ref, num: x.num, masterItem: x.masterItem, origin: x.origin }));
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
@@ -6442,7 +6730,7 @@ app.post('/api/workpapers', async (req, res) => {
     // would otherwise keep serving the previous rows over the newer JSONB.
     try {
       const wpId = _currentWorkpaperId || await _resolveWorkpaperId(req.currentTenantId, ref);
-      if (wpId) await _replaceWorkpaperExceptions(req.currentTenantId, wpId, exceptions);
+      if (wpId) req._excSync = await _replaceWorkpaperExceptions(req.currentTenantId, wpId, exceptions);
     } catch (excErr) {
       console.error('[POST /api/workpapers] Could not sync workpaper_exceptions for', ref, ':', excErr.message);
       return fail(res, excErr, 'POST /api/workpapers (exceptions):');
@@ -6478,8 +6766,74 @@ app.post('/api/workpapers', async (req, res) => {
       if (_currentCategory) _maybeRegenerateStyleGuide(req.currentTenantId, _currentCategory);
       _maybeRegenerateStyleGuide(req.currentTenantId, GLOBAL_STYLE_GUIDE_KEY);
     }
-    res.json({ ok:true });
+    res.json({ ok:true, exceptions: req._excSync || [] });
   } catch(err) { return fail(res, err, 'api'); }
+});
+
+// Uploaded items that are not attached to any workpaper.
+app.get('/api/exceptions/unassigned', async (req, res) => {
+  if (!pool) return res.json([]);
+  try { res.json(await _excListUnassigned(req.currentTenantId)); }
+  catch (err) { return fail(res, err, 'GET /api/exceptions/unassigned:'); }
+});
+
+app.post('/api/exceptions/unassigned/bulk', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const items = req.body && req.body.items;
+  if (!Array.isArray(items) || !items.length || items.some(i => !i || typeof i !== 'object')) return res.status(400).json({ error: 'items array required' });
+  try { res.json(await _excAddUnassigned(req.currentTenantId, items)); }
+  catch (err) { return fail(res, err, 'POST /api/exceptions/unassigned/bulk:'); }
+});
+
+app.put('/api/exceptions/unassigned/:id', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const fields = req.body && req.body.fields;
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return res.status(400).json({ error: 'fields object required' });
+  if (!UUID_PATTERN.test(req.params.id)) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const item = await _excUpdateUnassigned(req.currentTenantId, req.params.id, fields);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    res.json(item);
+  } catch (err) { return fail(res, err, 'PUT /api/exceptions/unassigned/:id:'); }
+});
+
+// Per-item exception/finding/recommendation endpoints. Items are addressed by
+// their ref (E1/F1/R1), which is how every other part of the app finds them.
+app.put('/api/workpapers/:ref/exceptions/:itemRef', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const fields = req.body && req.body.fields;
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return res.status(400).json({ error: 'fields object required' });
+  try {
+    const item = await _excUpdateItem(req.currentTenantId, req.params.ref, req.params.itemRef, fields);
+    if (!item) return res.status(404).json({ error: 'Item not found: ' + req.params.itemRef });
+    res.json(item);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'PUT /api/workpapers/:ref/exceptions/:itemRef:');
+  }
+});
+
+app.post('/api/workpapers/:ref/exceptions', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const item = req.body && req.body.item;
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return res.status(400).json({ error: 'item object required' });
+  try {
+    res.json(await _excAddItem(req.currentTenantId, req.params.ref, item));
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'POST /api/workpapers/:ref/exceptions:');
+  }
+});
+
+app.delete('/api/workpapers/:ref/exceptions/:itemRef', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  try {
+    const deleted = await _excDeleteItem(req.currentTenantId, req.params.ref, req.params.itemRef);
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    return fail(res, err, 'DELETE /api/workpapers/:ref/exceptions/:itemRef:');
+  }
 });
 
 app.delete('/api/workpapers/:ref', async (req, res) => {

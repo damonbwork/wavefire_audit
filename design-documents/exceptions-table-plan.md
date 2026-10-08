@@ -1,6 +1,6 @@
 # Dedicated table for Exceptions, Findings and Recommendations — plan
 
-Status: step 1 built (see "What was built" at the end); steps 2-4 not started.
+Status: steps 1 and 2 built (see "What was built" at the end); steps 3-4 not started.
 
 ## Why
 
@@ -159,3 +159,102 @@ Still to do: per-item write endpoints (the concurrent-overwrite fix),
 `GET /api/exceptions?audit=` and switching Audit Results to it, copying
 rows in `duplicate-from`, a production verification period, then dropping the
 JSONB column.
+
+## What was built (step 2: per-item saves)
+
+Server (`server.js`), all tenant-scoped; items are addressed by ref (E1/F1/R1):
+- `PUT /api/workpapers/:ref/exceptions/:itemRef` — body `{ fields: {...} }`;
+  merges only the fields sent into that item, so two people editing different
+  fields of one item no longer overwrite each other. Also used for reclassify
+  (sending the new `type`, `typeNum`, `ref`).
+- `POST /api/workpapers/:ref/exceptions` — body `{ item: {...} }`; the server
+  assigns `num`, `typeNum` and `ref`, so simultaneous adds cannot collide.
+- `DELETE /api/workpapers/:ref/exceptions/:itemRef`.
+- Each operation runs in a transaction that locks the workpaper row first,
+  and rebuilds the old `workpapers.exceptions` JSONB column from the table at
+  the end (still dual-written).
+
+Client (`public/index.html`):
+- Cell edits in the workpaper grid, Retested, add, delete, reclassify, and
+  every edit on the Audit Results page now go through these endpoints.
+  Typing is debounced (~0.5s per item, fields merged into one request) and
+  flushed when the tab is hidden or closed.
+- If a per-item call fails, the whole workpaper is saved instead, so an edit
+  is never silently lost; adding without a backend numbers the item locally.
+
+Known limitation: ordinary workpaper saves (`POST /api/workpapers`) still
+send and replace the whole items list, and the Analyze auto-populate, link-files
+dialog and Audit Results import still rely on that path. A stale whole-list
+save (for example someone saving a header change from an old page) can
+therefore still overwrite another person's newer item edits. Closing this
+needs the generic save to stop sending `exceptions` once every item-mutating
+path is on the per-item endpoints (an audit of all the places that change
+`wpExceptions`), plus optional optimistic concurrency.
+
+Not verified against a real database: the row lock that serialises concurrent
+adds/edits (the in-memory test database has no real locking). The logic was
+verified sequentially: numbering, field merge, reclassify, delete, and that the
+JSONB mirror matches the table.
+
+## What was built (master item, origin, uploaded items with no workpaper)
+
+New columns on `workpaper_exceptions` (added by a re-runnable startup migration):
+
+- `master_item` — a per-tenant running number, 1, 2, 3 ..., across every
+  exception, finding and recommendation regardless of workpaper. Numbers come
+  from a counter table (`exception_master_counter`), so they only go up and are
+  never reused, even after the highest item is deleted. Existing rows were
+  numbered by the migration in creation order. A unique index on
+  `(tenant_id, master_item)` enforces it.
+- `origin` — `uploaded` (Audit Results template), `analyze` (created by
+  Analyze) or `entered` (added by a person). Existing rows could not be known
+  exactly, so the migration **infers** it: an item tied to a test attribute or
+  an evidence file is `analyze`, anything else `entered`. Treat that inference
+  as approximate for pre-existing data.
+- `workpaper_id` is now nullable, plus `audit_name`, `wp_name`, `wp_ref` — used
+  only by an uploaded item that belongs to no workpaper, holding what the
+  template said or `<blank>` where it was empty.
+
+Behaviour:
+- Items created in the browser are numbered by the server (per-item add) or on
+  the next whole-workpaper save, which now returns each item's master item and
+  origin so the browser can show them. A whole-workpaper save matches existing
+  rows one-to-one by ref then by `#`, so items keep their master item and
+  origin; a master item is only honoured if no other workpaper holds it.
+- The master item shows in the workpaper grid and Audit Results, followed by
+  `*` for uploaded items. It is also in both Excel exports.
+- Audit Results import: blank Audit / Workpaper name / Workpaper cells (or the
+  text `<blank>`) are accepted. A row with a Workpaper attaches to it as
+  before; a row without one is stored as its own item. Such items appear under
+  their audit, or under `<blank>` in the audit and workpaper dropdowns, and can
+  be updated on re-import by entering their Master item number.
+- New endpoints: `GET /api/exceptions/unassigned`,
+  `POST /api/exceptions/unassigned/bulk`, `PUT /api/exceptions/unassigned/:id`.
+
+Verified against a real Postgres: the migration over pre-existing rows
+(numbering, origin inference, idempotent re-run), six concurrent adds getting
+distinct master items, whole-workpaper saves preserving master item and origin
+(including duplicate refs), uploaded items with no workpaper surviving a
+workpaper save, and the unique index.
+
+## Follow-up: master_item first, and import validation
+
+- `master_item` is now the **first column** of `workpaper_exceptions` (then
+  `id`), and is `NOT NULL`. Postgres cannot move a column in an existing table,
+  so a table created earlier is rebuilt at startup: a new table with the right
+  column order is created under an exclusive lock, every row copied across, the
+  old table dropped and the new one renamed in its place, in one transaction
+  (rolled back untouched on any failure, and skipped once master_item is column
+  1). Verified on a real Postgres over pre-existing rows: data copied exactly,
+  numbering, indexes, cascade delete and concurrent adds all still work, and a
+  second startup changes nothing. Cosmetic: the table's NOT NULL constraints keep
+  `workpaper_exceptions_new_...` names after the rename.
+- Audit Results import now checks any Audit, Workpaper name and Workpaper value
+  against the application (non-archived audits and workpapers; a given
+  workpaper's own audit and name must match). Values that don't exist do not
+  block the import: a dialog lists each field, the value in the file, why it
+  failed, how many rows, and sample items. **Ok** strips those values and
+  imports the items without them (shown as `<blank>` / not linked to a
+  workpaper; a Ref that depended on a stripped Workpaper is stripped too);
+  **Cancel** applies nothing. Other problems (missing Type, unknown Ref, bad
+  dropdown values) still block the whole import.
