@@ -1559,6 +1559,61 @@ async function initDB() {
         CREATE INDEX IF NOT EXISTS idx_extrecords_wp ON extracted_data_records(workpaper_id);
       `);
       console.log('DB: sample_data_columns, sample_data_rows, extracted_data, extracted_data_records ready');
+
+      // ── Exceptions / Findings / Recommendations — one row per item,
+      // replacing the workpapers.exceptions JSONB array as the source of
+      // truth (see design-documents/exceptions-table-plan.md). Keyed by
+      // workpaper_id, not ref, so a workpaper rename can't orphan its rows.
+      // `extra` holds any item field this schema doesn't have its own
+      // column for, so nothing a client ever put on an item is lost.
+      // ref/num are indexed but deliberately NOT unique yet: until saves
+      // are per-item, a client can still send a duplicate, and a unique
+      // constraint would turn that into a failed workpaper save.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS workpaper_exceptions (
+          id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          tenant_id          TEXT NOT NULL,
+          workpaper_id       UUID NOT NULL REFERENCES workpapers(id) ON DELETE CASCADE,
+          position           INTEGER NOT NULL DEFAULT 0,
+          num                INTEGER,
+          type               TEXT NOT NULL DEFAULT 'exception',
+          type_num           INTEGER,
+          ref                TEXT NOT NULL DEFAULT '',
+          attr_ref           TEXT NOT NULL DEFAULT '',
+          attribute_index    INTEGER,
+          sample_row_index   INTEGER,
+          name               TEXT NOT NULL DEFAULT '',
+          description        TEXT NOT NULL DEFAULT '',
+          linked_files       JSONB NOT NULL DEFAULT '[]',
+          owner              TEXT NOT NULL DEFAULT '',
+          mgmt_response      TEXT NOT NULL DEFAULT '',
+          resolution_date    TEXT NOT NULL DEFAULT '',
+          retested           BOOLEAN NOT NULL DEFAULT false,
+          retested_by        TEXT NOT NULL DEFAULT '',
+          retested_date      TEXT NOT NULL DEFAULT '',
+          disposition        TEXT NOT NULL DEFAULT '',
+          disposition_type   TEXT NOT NULL DEFAULT '',
+          disposition_status TEXT NOT NULL DEFAULT '',
+          extra              JSONB NOT NULL DEFAULT '{}',
+          created_at         TIMESTAMPTZ DEFAULT NOW(),
+          updated_at         TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_wpexc_wp     ON workpaper_exceptions(tenant_id, workpaper_id, position);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_filter ON workpaper_exceptions(tenant_id, type, disposition_status);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_ref    ON workpaper_exceptions(workpaper_id, ref);
+      `);
+      // One-time, re-runnable backfill: only workpapers that have items in
+      // the old JSONB column and no rows yet in the new table.
+      const bf = await pool.query(`
+        SELECT id, tenant_id, exceptions FROM workpapers w
+        WHERE jsonb_typeof(exceptions) = 'array' AND jsonb_array_length(exceptions) > 0
+          AND NOT EXISTS (SELECT 1 FROM workpaper_exceptions e WHERE e.workpaper_id = w.id)`);
+      let bfItems = 0;
+      for (const w of bf.rows) {
+        await _replaceWorkpaperExceptions(w.tenant_id, w.id, w.exceptions);
+        bfItems += w.exceptions.length;
+      }
+      console.log('DB: workpaper_exceptions ready; backfilled ' + bfItems + ' item(s) from ' + bf.rows.length + ' workpaper(s)');
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`
         SELECT column_name FROM information_schema.columns
@@ -3263,6 +3318,86 @@ app.post('/api/workpaper-categories', async (req, res) => {
 // real ref-based caller — while new callers can correctly start using
 // the real, internal id instead.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ── workpaper_exceptions helpers ───────────────────────────────────────────
+// Item fields with their own column; everything else rides in `extra`.
+const _EXC_MAPPED_KEYS = ['num','type','typeNum','ref','attrRef','attributeIndex','sampleRowIndex','name','desc',
+  'linkedFiles','owner','mgmtResponse','resolutionDate','retested','retestedBy','retestedDate',
+  'disposition','dispositionType','dispositionStatus'];
+
+function _excIntOrNull(v) {
+  return (v !== null && v !== undefined && v !== '' && Number.isInteger(Number(v))) ? Number(v) : null;
+}
+function _excText(v) { return (v === null || v === undefined) ? '' : String(v); }
+
+function _exceptionToRow(ex, position) {
+  const extra = {};
+  Object.keys(ex).forEach(k => { if (!_EXC_MAPPED_KEYS.includes(k)) extra[k] = ex[k]; });
+  // An integer field holding something that isn't an integer can't live in
+  // its INTEGER column; keep the original value in `extra` rather than lose it.
+  ['num','typeNum','attributeIndex','sampleRowIndex'].forEach(k => {
+    if (ex[k] !== undefined && ex[k] !== null && _excIntOrNull(ex[k]) === null) extra[k] = ex[k];
+  });
+  return [
+    position, _excIntOrNull(ex.num), _excText(ex.type) || 'exception', _excIntOrNull(ex.typeNum), _excText(ex.ref),
+    _excText(ex.attrRef), _excIntOrNull(ex.attributeIndex), _excIntOrNull(ex.sampleRowIndex),
+    _excText(ex.name), _excText(ex.desc), JSON.stringify(Array.isArray(ex.linkedFiles) ? ex.linkedFiles : []),
+    _excText(ex.owner), _excText(ex.mgmtResponse), _excText(ex.resolutionDate), !!ex.retested,
+    _excText(ex.retestedBy), _excText(ex.retestedDate), _excText(ex.disposition),
+    _excText(ex.dispositionType), _excText(ex.dispositionStatus), JSON.stringify(extra),
+  ];
+}
+
+function _rowToException(r) {
+  const o = Object.assign({}, r.extra || {});
+  const set = (k, v) => { if (v !== null && v !== undefined) o[k] = v; };
+  set('num', r.num); o.type = r.type; set('typeNum', r.type_num); o.ref = r.ref; o.attrRef = r.attr_ref;
+  set('attributeIndex', r.attribute_index); set('sampleRowIndex', r.sample_row_index);
+  o.name = r.name; o.desc = r.description; o.linkedFiles = Array.isArray(r.linked_files) ? r.linked_files : [];
+  o.owner = r.owner; o.mgmtResponse = r.mgmt_response; o.resolutionDate = r.resolution_date;
+  o.retested = r.retested; o.retestedBy = r.retested_by; o.retestedDate = r.retested_date;
+  o.disposition = r.disposition; o.dispositionType = r.disposition_type; o.dispositionStatus = r.disposition_status;
+  return o;
+}
+
+// Replaces one workpaper's items with exactly `exceptions`, atomically — a
+// failure leaves the previous rows untouched rather than half-written.
+async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
+  const items = (Array.isArray(exceptions) ? exceptions : []).filter(e => e && typeof e === 'object');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
+    for (let i = 0; i < items.length; i++) {
+      await client.query(
+        `INSERT INTO workpaper_exceptions
+           (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
+            name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
+            disposition, disposition_type, disposition_status, extra)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+        [tenantId, workpaperId, ..._exceptionToRow(items[i], i)]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Overwrites each workpaper row's `exceptions` with what the table holds.
+// A workpaper with no rows in the table keeps its JSONB value (covers the
+// window before the backfill has run, and a workpaper that genuinely has
+// none — both arrays are then empty or identical).
+async function _attachExceptionsFromTable(tenantId, wpRows) {
+  const { rows } = await pool.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 ORDER BY workpaper_id, position', [tenantId]);
+  const byWp = new Map();
+  rows.forEach(r => { if (!byWp.has(r.workpaper_id)) byWp.set(r.workpaper_id, []); byWp.get(r.workpaper_id).push(_rowToException(r)); });
+  wpRows.forEach(w => { if (byWp.has(w.id)) w.exceptions = byWp.get(w.id); });
+  return wpRows;
+}
 
 async function _resolveWorkpaper(tenantId, refOrId) {
   if (!pool || !refOrId) return null;
@@ -6058,7 +6193,11 @@ app.get('/api/workpapers/:ref/attribute/:attributeIndex/override-rationales', as
 
 app.get('/api/workpapers', async (req, res) => {
   if (!pool) return res.json([]);
-  try { const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [req.currentTenantId]); res.json(rows); }
+  try {
+    const { rows } = await pool.query('SELECT * FROM workpapers WHERE tenant_id=$1 ORDER BY audit_name, ref', [req.currentTenantId]);
+    await _attachExceptionsFromTable(req.currentTenantId, rows);
+    res.json(rows);
+  }
   catch(err) { return fail(res, err, 'api'); }
 });
 
@@ -6296,6 +6435,18 @@ app.post('/api/workpapers', async (req, res) => {
        toc_sample_size||'', sample_selection_method||'', mt_entity_name||'', mt_itgc_ref||'', wp_style||'full', template_used||null,
        user_selected_category||''
       ]);
+    // Keep workpaper_exceptions (the source of truth the read path prefers)
+    // in step with what was just saved. The JSONB column above is still
+    // written too until the table has been verified in production. A failure
+    // here is surfaced to the caller rather than swallowed: the read path
+    // would otherwise keep serving the previous rows over the newer JSONB.
+    try {
+      const wpId = _currentWorkpaperId || await _resolveWorkpaperId(req.currentTenantId, ref);
+      if (wpId) await _replaceWorkpaperExceptions(req.currentTenantId, wpId, exceptions);
+    } catch (excErr) {
+      console.error('[POST /api/workpapers] Could not sync workpaper_exceptions for', ref, ':', excErr.message);
+      return fail(res, excErr, 'POST /api/workpapers (exceptions):');
+    }
     // Real, new, per explicit request — diffs the prior state fetched
     // above against the incoming test_attributes and logs whatever
     // genuinely changed. Entirely non-blocking to the real, actual
