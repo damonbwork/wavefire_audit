@@ -303,3 +303,27 @@ Workpaper name and Workpaper:
 - The prompt lists each field, the value in the file, the reason, how many rows
   and sample items. **Ok** uploads the items without the values that did not
   validate (they are simply not uploaded); **Cancel** applies nothing.
+
+## Follow-up: bulk update on the Audit Findings page
+
+A checkbox column (with select-all for the rows shown) and an action bar let a
+person apply one value to many items: **Status, Owner, Resolution date,
+Disposition, Disposition type, Disposition status, Retested and Type**. Name,
+Description, Management response and the numbers are deliberately not bulk
+editable. A confirmation states how many items and workpapers are affected.
+
+- Selection always stays within the rows currently shown (changing the audit,
+  workpaper, type or search drops anything no longer visible).
+- Items on a workpaper that is locked for editing are skipped and listed.
+- "Only where it is blank" (text, date and disposition fields) skips items that
+  already have a value. Items that already hold the value are skipped.
+- Retested = Yes stamps the person and date; No clears them.
+- Server: `POST /api/exceptions/bulk-update` applies the same fields to many
+  items, one transaction per workpaper (processed in a fixed order so two bulk
+  updates cannot deadlock) plus one for items with no workpaper; it refuses any
+  field outside the allowed list and works only inside the caller's tenant.
+  If it fails, the browser falls back to saving each affected item.
+- Type is changed item by item through the same reclassify code as the single
+  dropdown (renumbering refs, re-marking annotated files), with no per-item
+  prompts; an item not tied to an attribute and sample cannot become an
+  Exception and is reported as not changed.

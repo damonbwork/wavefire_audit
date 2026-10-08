@@ -3573,6 +3573,66 @@ async function _excAddItem(tenantId, wpRef, item) {
   });
 }
 
+// ── Bulk update ─────────────────────────────────────────────────────────────
+// Applies the SAME field values to many items at once. Each workpaper's items
+// are updated in one transaction (workpapers are processed in a fixed order so
+// two bulk updates can't deadlock); a workpaper that fails leaves its own items
+// untouched. Type is deliberately not bulk-editable here: changing it renumbers
+// refs and re-marks annotated files, which is done item by item.
+const _EXC_BULK_FIELDS = ['owner', 'resolutionDate', 'disposition', 'dispositionType',
+  'dispositionStatus', 'status', 'retested', 'retestedBy', 'retestedDate'];
+const _EXC_UPDATE_SQL = `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
+   sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
+   retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
+   extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, status=$27, updated_at=NOW() WHERE id=$28`;
+
+async function _excBulkUpdate(tenantId, targets, unassignedIds, fields) {
+  const byWp = new Map();
+  (targets || []).forEach(t => { if (!byWp.has(t.wpRef)) byWp.set(t.wpRef, []); byWp.get(t.wpRef).push(t.itemRef); });
+  let updated = 0;
+  const missing = [];
+  for (const wpRef of [...byWp.keys()].sort()) {
+    try {
+      await _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
+        for (const itemRef of byWp.get(wpRef)) {
+          const { rows } = await client.query(
+            'SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3 ORDER BY position LIMIT 1',
+            [tenantId, wpId, itemRef]);
+          if (!rows.length) { missing.push(wpRef + '/' + itemRef); continue; }
+          const merged = Object.assign(_rowToException(rows[0]), fields);
+          merged.status = _excStatus(merged.status);
+          await client.query(_EXC_UPDATE_SQL, [..._exceptionToRow(merged, rows[0].position), rows[0].id]);
+          updated++;
+        }
+      });
+    } catch (err) {
+      if (err.status !== 404) throw err;
+      byWp.get(wpRef).forEach(r => missing.push(wpRef + '/' + r));
+    }
+  }
+  if (unassignedIds && unassignedIds.length) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const id of unassignedIds) {
+        const { rows } = await client.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND id=$2 AND workpaper_id IS NULL FOR UPDATE', [tenantId, id]);
+        if (!rows.length) { missing.push(id); continue; }
+        const merged = Object.assign(_rowToException(rows[0]), fields);
+        merged.status = _excStatus(merged.status);
+        await client.query(_EXC_UPDATE_SQL, [..._exceptionToRow(merged, rows[0].position), rows[0].id]);
+        updated++;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+  return { updated, missing };
+}
+
 async function _excDeleteItem(tenantId, wpRef, itemRef) {
   return _withWorkpaperItemsLock(tenantId, wpRef, async (client, wpId) => {
     const r = await client.query('DELETE FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2 AND ref=$3', [tenantId, wpId, itemRef]);
@@ -6792,6 +6852,24 @@ app.get('/api/exceptions/unassigned', async (req, res) => {
   if (!pool) return res.json([]);
   try { res.json(await _excListUnassigned(req.currentTenantId)); }
   catch (err) { return fail(res, err, 'GET /api/exceptions/unassigned:'); }
+});
+
+// Apply the same field values to many items (see _excBulkUpdate).
+app.post('/api/exceptions/bulk-update', async (req, res) => {
+  if (!pool) return res.status(503).json({ error: 'No database' });
+  const { fields, targets, unassignedIds } = req.body || {};
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields) || !Object.keys(fields).length) return res.status(400).json({ error: 'fields object required' });
+  const badKey = Object.keys(fields).find(k => !_EXC_BULK_FIELDS.includes(k));
+  if (badKey) return res.status(400).json({ error: 'field not allowed in a bulk update: ' + badKey });
+  const t = Array.isArray(targets) ? targets : [];
+  const u = Array.isArray(unassignedIds) ? unassignedIds : [];
+  if (!t.length && !u.length) return res.status(400).json({ error: 'no items given' });
+  if (t.length + u.length > 5000) return res.status(400).json({ error: 'too many items in one update' });
+  if (t.some(x => !x || typeof x.wpRef !== 'string' || typeof x.itemRef !== 'string') || u.some(id => typeof id !== 'string' || !UUID_PATTERN.test(id))) {
+    return res.status(400).json({ error: 'invalid targets' });
+  }
+  try { res.json(await _excBulkUpdate(req.currentTenantId, t, u, fields)); }
+  catch (err) { return fail(res, err, 'POST /api/exceptions/bulk-update:'); }
 });
 
 app.post('/api/exceptions/unassigned/bulk', async (req, res) => {
