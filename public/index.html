@@ -2053,7 +2053,7 @@
       <div class="page active" id="page-audits" style="flex-direction:row;gap:0;margin:-22px -26px;min-height:calc(100% + 44px)">
 
         <!-- Left sidebar — same look as the Admin page's, per explicit
-             request. "Audit Results" is the only option for now. -->
+             request. "Audit Findings" is the only option for now. -->
         <div style="width:220px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);display:flex;flex-direction:column;overflow-y:auto">
           <div style="padding:18px 16px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary)">Audits</div>
           <button class="aud-nav-btn" id="aud-btn-audits" onclick="showAuditsSection('audits')"
@@ -2064,7 +2064,7 @@
           <button class="aud-nav-btn" id="aud-btn-results" onclick="showAuditsSection('results')"
             style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
             <i class="ti ti-clipboard-check" style="font-size:15px;flex-shrink:0"></i>
-            <span>Audit Results</span>
+            <span>Audit Findings</span>
           </button>
         </div>
 
@@ -2370,12 +2370,12 @@
         </div>
         </div><!-- /aud-section-audits -->
 
-        <!-- Audit Results — a cross-audit, cross-workpaper view of every
+        <!-- Audit Findings — a cross-audit, cross-workpaper view of every
              Exception, Finding and Recommendation, mirroring the grid at
              the bottom of the workpaper page. -->
         <div id="aud-section-results" class="aud-section" style="display:none;flex:1;min-width:0;padding:22px 26px;flex-direction:column;gap:14px;overflow-y:auto">
           <div>
-            <div class="pt">Audit Results</div>
+            <div class="pt">Audit Findings</div>
             <div class="ps" id="aud-results-sub"></div>
           </div>
           <div class="filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2386,9 +2386,9 @@
             </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
             <div style="flex:1"></div>
-            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Results</button>
+            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button>
             <input type="file" id="aud-res-import-input" accept=".xlsx" style="display:none" onchange="audResHandleImport(this)">
-            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Results</button>
+            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button>
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
@@ -4256,7 +4256,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Results template.">Master item</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master item</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Unassigned, Assigned, In Progress or Completed">Status</div>
@@ -12411,7 +12411,7 @@ function renderExceptions(ref) {
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Results template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
         <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
@@ -18288,7 +18288,7 @@ function showAuditsSection(section) {
   if (section === 'results') { renderAuditResults(); _loadUnassignedExceptions().then(() => renderAuditResults()); }
 }
 
-// Audit Results — one row per Exception/Finding/Recommendation across every
+// Audit Findings — one row per Exception/Finding/Recommendation across every
 // audit and workpaper loaded for this tenant (wpExceptions is keyed by
 // workpaper ref and populated at bootstrap). Same fields, in the same order,
 // as the grid at the bottom of the workpaper page, with Audit and Workpaper
@@ -18433,7 +18433,7 @@ function renderAuditResults() {
         <div style="${cell}">${escHtml(standalone ? (ex.auditName || '<blank>') : (w.auditName || ''))}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.wpName || '<blank>') : (w.name || ''))}</div>
         <div style="${cell}">${standalone ? `<span style="color:var(--text-tertiary)">${escHtml(ex.wpRef || '<blank>')}</span>` : `<a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a>`}</div>
-        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Results template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
+        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
@@ -18454,7 +18454,7 @@ function renderAuditResults() {
   setTimeout(() => host.querySelectorAll('textarea').forEach(t => autoResizeTA(t)), 0);
 }
 
-// Inline editing for the Audit Results table. Edits go straight to the same
+// Inline editing for the Audit Findings table. Edits go straight to the same
 // wpExceptions[ref] objects the workpaper page's grid uses (so both views
 // always agree), honour the workpaper edit lock, are written to the change
 // log, and are saved to Postgres a moment after the last edit per workpaper.
@@ -18516,7 +18516,7 @@ async function _audResReclassify(wi, ei, newType) {
   renderAuditResults();
 }
 
-// ── Audit Results: import / export ─────────────────────────────────────────
+// ── Audit Findings: import / export ─────────────────────────────────────────
 // Same three actions as the RCM page. Export writes the rows currently shown
 // (the selected audit/workpaper/filters); the template is just the format and
 // header rows. Import matches each row to an existing workpaper by its
@@ -18584,8 +18584,8 @@ function audResExportXLSX(templateOnly) {
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws['!cols'] = _AUD_RES_FIELDS.map(f => ({ wch: Math.min(Math.max(f.label.length + 4, 16), 45) }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Audit Results');
-    XLSX.writeFile(wb, templateOnly ? 'AuditResults_Import_Template.xlsx' : 'AuditResults_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Findings');
+    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   });
 }
 
@@ -18832,7 +18832,7 @@ async function _audResApplyImport(valid) {
     }
     if (saved) { _unassignedExceptions.push(...saved); stats.add += saved.length; }
   }
-  for (const ref of touched) logEvent(ref, `Audit Results import: items updated or added from a template`);
+  for (const ref of touched) logEvent(ref, `Audit Findings import: items updated or added from a template`);
   renderAuditResults();
   const noteSkipped = skipped ? `<div style="color:#b45309">${skipped} row${skipped !== 1 ? 's were' : ' was'} skipped because the workpaper is locked for editing.</div>` : '';
   _audResShowDialog(true, `<div><strong>${stats.upd}</strong> updated, <strong>${stats.add}</strong> added.</div>` + noteSkipped);

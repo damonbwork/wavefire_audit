@@ -1620,7 +1620,7 @@ async function initDB() {
       // deployments already have the table without them).
       // master_item: a per-tenant running number, 1, 2, 3..., across every
       //   item regardless of workpaper.
-      // origin: 'uploaded' (Audit Results template), 'analyze' (created by
+      // origin: 'uploaded' (Audit Findings template), 'analyze' (created by
       //   Analyze) or 'entered' (added by a person on a workpaper).
       // audit_name / wp_name / wp_ref: only used by an uploaded item that is
       //   not attached to any workpaper (workpaper_id NULL), holding what the
@@ -3581,7 +3581,7 @@ async function _excDeleteItem(tenantId, wpRef, itemRef) {
 }
 
 // ── Uploaded items that belong to no workpaper ──────────────────────────────
-// An Audit Results template row with no Workpaper is kept as its own item,
+// An Audit Findings template row with no Workpaper is kept as its own item,
 // numbered from the same master sequence. Its Audit / Workpaper name /
 // Workpaper values are stored as text, "<blank>" where the template had none.
 async function _excListUnassigned(tenantId) {

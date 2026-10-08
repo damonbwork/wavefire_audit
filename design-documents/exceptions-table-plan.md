@@ -8,14 +8,14 @@ Today every Exception, Finding and Recommendation for a workpaper lives in one
 JSONB array, `workpapers.exceptions` (`server.js`, workpapers table). Each item
 carries its own `type` field. Consequences:
 
-- **No cross-audit querying.** The Audit Results page has to load every
+- **No cross-audit querying.** The Audit Findings page has to load every
   workpaper into the browser and unpack each one's JSON. Filtering, counting
   and reporting cannot be done in SQL.
 - **Last-writer-wins.** The whole list is saved as a single value
   (`POST /api/workpapers`), so two people editing different items on the same
   workpaper can silently overwrite each other.
 - **Every edit rewrites the whole workpaper row**, including large unrelated
-  columns, and the Audit Results table now edits items from many workpapers.
+  columns, and the Audit Findings table now edits items from many workpapers.
 - **No per-item history, constraints or indexes.**
 
 Precedent already exists: sample data and extracted data were moved out of
@@ -50,7 +50,7 @@ Constraints and indexes:
 - `UNIQUE (workpaper_id, ref)` and `UNIQUE (workpaper_id, num)` — makes the
   numbering rules enforceable instead of conventional.
 - Index on `(tenant_id, workpaper_id)`; index on `(tenant_id, type,
-  disposition_status)` for Audit Results filtering and reporting.
+  disposition_status)` for Audit Findings filtering and reporting.
 
 ## API
 
@@ -58,14 +58,14 @@ New routes, tenant-scoped like the rest:
 
 - `GET /api/workpapers/:ref/exceptions` — list for one workpaper.
 - `GET /api/exceptions?audit=<name>` — list for every non-archived workpaper
-  in an audit (this is what Audit Results should call instead of loading all
+  in an audit (this is what Audit Findings should call instead of loading all
   workpapers).
 - `PUT /api/workpapers/:ref/exceptions/:id` — update one item (partial fields).
 - `POST /api/workpapers/:ref/exceptions` — add; server assigns `num`,
   `type_num` and `ref` inside a transaction so concurrent adds cannot collide.
 - `DELETE /api/workpapers/:ref/exceptions/:id`.
 - `POST /api/workpapers/:ref/exceptions/bulk` — used by Analyze auto-populate
-  and Audit Results import.
+  and Audit Findings import.
 - Reclassify (type change) becomes one server operation that re-numbers
   `type_num`/`ref` atomically.
 
@@ -81,10 +81,10 @@ references keep working. Changes are confined to the load and save edges:
 2. **Save:** replace the whole-array save with per-item calls. Candidate
    hooks: `saveException`, `addGridItem`, `_reclassifyGridItem`,
    `onExceptionRetested`, the delete-selected path, the Analyze
-   auto-populate block, and the Audit Results edit/import handlers
+   auto-populate block, and the Audit Findings edit/import handlers
    (`_audResEdit`, `_audResApplyImport`), which currently call
    `_saveWorkpaperToDB` for the whole workpaper.
-3. **Audit Results:** call `GET /api/exceptions?audit=` for the selected
+3. **Audit Findings:** call `GET /api/exceptions?audit=` for the selected
    audit rather than depending on all workpapers being loaded.
 4. **Duplicate workpaper:** `duplicate-from` currently copies the JSONB
    implicitly with the row; it needs an explicit copy of the new table's rows.
@@ -129,7 +129,7 @@ references keep working. Changes are confined to the load and save edges:
 1. Table + backfill + read endpoints; switch the client load; leave saves
    as-is writing the JSONB (dual-write) to keep the change small and safe.
 2. Per-item write endpoints; switch the client save paths; stop writing JSONB.
-3. Audit Results reads by audit from the new endpoint.
+3. Audit Findings reads by audit from the new endpoint.
 4. Verification period, then drop the JSONB column.
 
 ## What was built (step 1)
@@ -156,7 +156,7 @@ Deviations from the design above, and why:
 - A `position` column preserves the array order.
 
 Still to do: per-item write endpoints (the concurrent-overwrite fix),
-`GET /api/exceptions?audit=` and switching Audit Results to it, copying
+`GET /api/exceptions?audit=` and switching Audit Findings to it, copying
 rows in `duplicate-from`, a production verification period, then dropping the
 JSONB column.
 
@@ -176,7 +176,7 @@ Server (`server.js`), all tenant-scoped; items are addressed by ref (E1/F1/R1):
 
 Client (`public/index.html`):
 - Cell edits in the workpaper grid, Retested, add, delete, reclassify, and
-  every edit on the Audit Results page now go through these endpoints.
+  every edit on the Audit Findings page now go through these endpoints.
   Typing is debounced (~0.5s per item, fields merged into one request) and
   flushed when the tab is hidden or closed.
 - If a per-item call fails, the whole workpaper is saved instead, so an edit
@@ -184,7 +184,7 @@ Client (`public/index.html`):
 
 Known limitation: ordinary workpaper saves (`POST /api/workpapers`) still
 send and replace the whole items list, and the Analyze auto-populate, link-files
-dialog and Audit Results import still rely on that path. A stale whole-list
+dialog and Audit Findings import still rely on that path. A stale whole-list
 save (for example someone saving a header change from an old page) can
 therefore still overwrite another person's newer item edits. Closing this
 needs the generic save to stop sending `exceptions` once every item-mutating
@@ -206,7 +206,7 @@ New columns on `workpaper_exceptions` (added by a re-runnable startup migration)
   never reused, even after the highest item is deleted. Existing rows were
   numbered by the migration in creation order. A unique index on
   `(tenant_id, master_item)` enforces it.
-- `origin` — `uploaded` (Audit Results template), `analyze` (created by
+- `origin` — `uploaded` (Audit Findings template), `analyze` (created by
   Analyze) or `entered` (added by a person). Existing rows could not be known
   exactly, so the migration **infers** it: an item tied to a test attribute or
   an evidence file is `analyze`, anything else `entered`. Treat that inference
@@ -221,9 +221,9 @@ Behaviour:
   origin so the browser can show them. A whole-workpaper save matches existing
   rows one-to-one by ref then by `#`, so items keep their master item and
   origin; a master item is only honoured if no other workpaper holds it.
-- The master item shows in the workpaper grid and Audit Results, followed by
+- The master item shows in the workpaper grid and Audit Findings, followed by
   `*` for uploaded items. It is also in both Excel exports.
-- Audit Results import: blank Audit / Workpaper name / Workpaper cells (or the
+- Audit Findings import: blank Audit / Workpaper name / Workpaper cells (or the
   text `<blank>`) are accepted. A row with a Workpaper attaches to it as
   before; a row without one is stored as its own item. Such items appear under
   their audit, or under `<blank>` in the audit and workpaper dropdowns, and can
@@ -249,7 +249,7 @@ workpaper save, and the unique index.
   numbering, indexes, cascade delete and concurrent adds all still work, and a
   second startup changes nothing. Cosmetic: the table's NOT NULL constraints keep
   `workpaper_exceptions_new_...` names after the rename.
-- Audit Results import now checks any Audit, Workpaper name and Workpaper value
+- Audit Findings import now checks any Audit, Workpaper name and Workpaper value
   against the application (non-archived audits and workpapers; a given
   workpaper's own audit and name must match). Values that don't exist do not
   block the import: a dialog lists each field, the value in the file, why it
@@ -266,7 +266,7 @@ Each item now has a `status`: Unassigned, Assigned, In Progress or Completed
 Unassigned). When the column was first added, existing items that already had an
 owner were set to Assigned, once; the migration will not redo that. It is
 editable in both grids, sits between Type and Owner/Attribute (Owner now
-immediately follows Status), is in both Excel exports and in the Audit Results
+immediately follows Status), is in both Excel exports and in the Audit Findings
 import template (optional column; blank means Unassigned). A whole-workpaper
 save from a browser that omits status keeps the row's stored status. Status is
 independent of Owner: setting or clearing an owner does not change it.
