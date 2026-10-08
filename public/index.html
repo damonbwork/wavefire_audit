@@ -2391,8 +2391,9 @@
             <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button>
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
+          <div id="aud-res-bulkbar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:#eef2ff;border:0.5px solid #c7d2fe;border-radius:var(--radius-md);font-size:12px"></div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2700px"></div>
+            <div id="aud-results-table" style="min-width:2740px"></div>
           </div>
           <div style="padding:0 2px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px" id="aud-results-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
         </div>
@@ -4253,12 +4254,12 @@ Testwork Grid" to build a blank grid and record each result yourself.
           <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
           <div class="sect-body" style="padding:0 16px 18px 0;overflow-x:auto">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
+            <div style="display:grid;grid-template-columns:36px 80px 44px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master #</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master item</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Unassigned, Assigned, In Progress or Completed">Status</div>
@@ -12192,15 +12193,15 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Master Item', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
+    ['Master #', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
   // Data rows
   list.forEach(ex => {
     wsData.push([
-      ex.num,
       ex.masterItem != null ? String(ex.masterItem) + (ex.origin === 'uploaded' ? '*' : '') : '',
+      ex.num,
       ex.ref           || '',
       ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase()),
       ex.status        || 'Unassigned',
@@ -12223,7 +12224,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 12 }, { wch: 5 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -12410,12 +12411,12 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 80px 44px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
         <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
@@ -18378,6 +18379,8 @@ function renderAuditResults() {
   if (!fAudit) {
     subEl.textContent = '';
     _audResShown = [];
+    _audResSelected.clear();
+    _audResUpdateBulkBar();
     host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.</div>';
     return;
   }
@@ -18410,6 +18413,9 @@ function renderAuditResults() {
     (a.standalone ? (a.ex.masterItem || 0) - (b.ex.masterItem || 0) : (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0)));
 
   _audResShown = shown;
+  const shownItems = new Set(shown.map(r => r.ex));
+  [..._audResSelected].forEach(ex => { if (!shownItems.has(ex)) _audResSelected.delete(ex); });
+  _audResUpdateBulkBar();
   if (uploadedLegend) uploadedLegend.style.display = shown.some(r => r.ex.origin === 'uploaded') ? 'flex' : 'none';
   const wpCount = new Set(shown.filter(r => r.w).map(r => r.w.ref)).size;
   const standaloneCount = shown.filter(r => r.standalone).length;
@@ -18417,10 +18423,10 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['', 'Master #', 'Audit', 'Workpaper name', 'Workpaper', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '36px 80px 160px 200px 150px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18429,12 +18435,12 @@ function renderAuditResults() {
     host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">No exceptions, findings or recommendations to show.</div>';
     return;
   }
-  host.style.minWidth = '2700px';
+  host.style.minWidth = '2740px';
   // Browsers with overlay scroll bars draw them on top of the content; this empty margin is what they sit over.
   host.style.padding = '0 16px 18px 0';
   host.innerHTML =
-    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
-    shown.map(({ w, idx, ex, ei, type, standalone }) => {
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map((h, hi) => hi === 0 ? `<div style="${th};display:flex;align-items:center;justify-content:center;padding:7px 0"><input type="checkbox" id="aud-res-selectall" onchange="_audResSelectAll(this.checked)" title="Select all items shown" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"></div>` : `<div style="${th}">${h}</div>`).join('')}</div>` +
+    shown.map(({ w, idx, ex, ei, type, standalone }, rowNo) => {
       const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
       const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
       const edit = f => `oninput="_audResEdit(${idx},${ei},'${f}',this.value)"`;
@@ -18442,10 +18448,11 @@ function renderAuditResults() {
       const sel = (f, v, opts) => `<select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'${f}',this.value)" ${focus}><option value="">— Select —</option>${opts.map(o => `<option value="${o}"${v === o ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
       return `
       <div style="display:grid;grid-template-columns:${colsFixed}">
+        <div style="${cell};display:flex;justify-content:center;align-items:flex-start;padding-top:8px"><input type="checkbox" class="aud-res-rowcb" ${_audResSelected.has(ex) ? 'checked' : ''} onchange="_audResToggle(${rowNo}, this.checked)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"></div>
+        <div style="${cell};font-weight:600;text-align:center" title="Master #: a running number counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.auditName || '<blank>') : (w.auditName || ''))}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.wpName || '<blank>') : (w.name || ''))}</div>
         <div style="${cell}">${standalone ? `<span style="color:var(--text-tertiary)">${escHtml(ex.wpRef || '<blank>')}</span>` : `<a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a>`}</div>
-        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
@@ -18529,18 +18536,174 @@ async function _audResReclassify(wi, ei, newType) {
   renderAuditResults();
 }
 
+// ── Audit Findings: bulk update ─────────────────────────────────────────────
+// Tick items in the grid, pick a field and a value, and apply it to all of them.
+// Only the fields below can be bulk-edited; names, descriptions, management
+// responses and the numbers stay single-item.
+const _audResSelected = new Set(); // item objects ticked in the grid (always a subset of what is shown)
+const _AUD_RES_BULK_FIELDS = [
+  { key: 'status', label: 'Status', type: 'select', options: _EXC_STATUSES },
+  { key: 'owner', label: 'Owner', type: 'text', blankable: true },
+  { key: 'resolutionDate', label: 'Resolution date', type: 'date', blankable: true },
+  { key: 'disposition', label: 'Disposition', type: 'text', blankable: true },
+  { key: 'dispositionType', label: 'Disposition type', type: 'select', options: ['Exception', 'Deficiency', 'Significant Deficiency', 'Material Weakness'], blankOption: true, blankable: true },
+  { key: 'dispositionStatus', label: 'Disposition status', type: 'select', options: ['Open', 'Closed', 'Final', 'Remediated'], blankOption: true, blankable: true },
+  { key: 'retested', label: 'Retested', type: 'select', options: ['Yes', 'No'] },
+  { key: 'type', label: 'Type', type: 'select', options: ['Exception', 'Finding', 'Recommendation'] },
+];
+
+function _audResBulkValueHtml(cfg) {
+  const st = 'font-size:12px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:6px;background:var(--bg-primary)';
+  if (cfg.type === 'select') return `<select id="aud-bulk-value" style="${st}">${cfg.blankOption ? '<option value="">— Clear —</option>' : ''}${cfg.options.map(o => `<option value="${escAttr(o)}">${escHtml(o)}</option>`).join('')}</select>`;
+  if (cfg.type === 'date') return `<input id="aud-bulk-value" type="date" style="${st}" title="Leave empty to clear the date">`;
+  return `<input id="aud-bulk-value" type="text" placeholder="(leave empty to clear)" style="${st};min-width:220px">`;
+}
+
+function _audResBulkFieldChanged() {
+  const cfg = _AUD_RES_BULK_FIELDS.find(f => f.key === document.getElementById('aud-bulk-field').value);
+  document.getElementById('aud-bulk-valuewrap').innerHTML = _audResBulkValueHtml(cfg);
+  document.getElementById('aud-bulk-blankwrap').style.display = cfg.blankable ? 'inline-flex' : 'none';
+}
+
+function _audResUpdateBulkBar() {
+  const bar = document.getElementById('aud-res-bulkbar');
+  if (!bar) return;
+  const n = _audResSelected.size;
+  const all = document.getElementById('aud-res-selectall');
+  if (all) { all.checked = n > 0 && n === _audResShown.length; all.indeterminate = n > 0 && n < _audResShown.length; }
+  if (!n) { bar.style.display = 'none'; return; }
+  if (!bar.dataset.built) {
+    const st = 'font-size:12px;padding:5px 8px;border:0.5px solid var(--border-light);border-radius:6px;background:var(--bg-primary)';
+    bar.innerHTML = `<strong id="aud-bulk-count"></strong><span style="color:var(--text-tertiary)">Set</span>
+      <select id="aud-bulk-field" onchange="_audResBulkFieldChanged()" style="${st}">${_AUD_RES_BULK_FIELDS.map(f => `<option value="${f.key}">${escHtml(f.label)}</option>`).join('')}</select>
+      <span style="color:var(--text-tertiary)">to</span><span id="aud-bulk-valuewrap"></span>
+      <label id="aud-bulk-blankwrap" style="display:none;align-items:center;gap:4px;color:var(--text-secondary)"><input type="checkbox" id="aud-bulk-onlyblank">only where it is blank</label>
+      <button class="btn-p" style="font-size:12px;padding:5px 12px" onclick="audResBulkApply()">Apply</button>
+      <button class="btn-s" style="font-size:12px;padding:5px 12px" onclick="_audResClearSelection()">Clear selection</button>`;
+    bar.dataset.built = '1';
+    _audResBulkFieldChanged();
+  }
+  bar.style.display = 'flex';
+  document.getElementById('aud-bulk-count').textContent = n + ' selected';
+}
+
+function _audResToggle(i, on) {
+  const r = _audResShown[i];
+  if (!r) return;
+  if (on) _audResSelected.add(r.ex); else _audResSelected.delete(r.ex);
+  _audResUpdateBulkBar();
+}
+function _audResSelectAll(on) {
+  _audResSelected.clear();
+  if (on) _audResShown.forEach(r => _audResSelected.add(r.ex));
+  document.querySelectorAll('.aud-res-rowcb').forEach(cb => { cb.checked = on; });
+  _audResUpdateBulkBar();
+}
+function _audResClearSelection() { _audResSelectAll(false); }
+
+// Does the item already hold exactly this value? (so it can be skipped)
+function _audResBulkAlready(ex, key, value) {
+  if (key === 'retested') return !!ex.retested === (value === 'Yes');
+  if (key === 'status') return (ex.status || 'Unassigned') === value;
+  if (key === 'type') return (ex.type || 'exception') === value.toLowerCase();
+  return String(ex[key] || '') === value;
+}
+
+function audResBulkApply() {
+  const key = document.getElementById('aud-bulk-field').value;
+  const cfg = _AUD_RES_BULK_FIELDS.find(f => f.key === key);
+  const value = String(document.getElementById('aud-bulk-value').value || '').trim();
+  const onlyBlank = !!(cfg.blankable && value !== '' && document.getElementById('aud-bulk-onlyblank').checked);
+  const rows = _audResShown.filter(r => _audResSelected.has(r.ex));
+  const plan = { key, cfg, value, rows: [], locked: new Set(), filled: 0, same: 0 };
+  rows.forEach(r => {
+    if (r.w && !_canEditLockedWp(r.w.ref)) { plan.locked.add(r.w.ref); return; }
+    if (onlyBlank && String(r.ex[key] || '').trim()) { plan.filled++; return; }
+    if (_audResBulkAlready(r.ex, key, value)) { plan.same++; return; }
+    plan.rows.push(r);
+  });
+  const what = value === '' ? `clear <strong>${escHtml(cfg.label)}</strong>` : `set <strong>${escHtml(cfg.label)}</strong> to <strong>${escHtml(value)}</strong>`;
+  const wps = new Set(plan.rows.filter(r => r.w).map(r => r.w.ref)).size;
+  const skipNotes =
+    (plan.locked.size ? `<div style="color:#b45309">${[...plan.locked].length} workpaper${plan.locked.size !== 1 ? 's are' : ' is'} locked for editing, so their items are skipped (${[...plan.locked].map(escHtml).join(', ')}).</div>` : '') +
+    (plan.filled ? `<div style="color:var(--text-tertiary)">${plan.filled} item${plan.filled !== 1 ? 's' : ''} skipped because ${escHtml(cfg.label)} already has a value.</div>` : '') +
+    (plan.same ? `<div style="color:var(--text-tertiary)">${plan.same} item${plan.same !== 1 ? 's' : ''} already ${value === '' ? 'blank' : (plan.same !== 1 ? 'have' : 'has') + ' this value'}.</div>` : '');
+  if (!plan.rows.length) { _audResShowDialog(false, '<div>Nothing to update.</div>' + skipNotes, null, null, { title: 'Nothing to update' }); return; }
+  _audResShowDialog(true,
+    `<div>This will ${what} on <strong>${plan.rows.length}</strong> item${plan.rows.length !== 1 ? 's' : ''}${wps ? ` across <strong>${wps}</strong> workpaper${wps !== 1 ? 's' : ''}` : ''}.</div>` +
+    (key === 'type' ? '<div style="color:var(--text-tertiary)">Changing Type renumbers each item\'s Ref (E / F / R). An item that is not tied to a test attribute and sample cannot become an Exception and is skipped.</div>' : '') +
+    skipNotes,
+    () => _audResBulkRun(plan), 'Apply', { title: `Update ${plan.rows.length} item${plan.rows.length !== 1 ? 's' : ''}` });
+}
+
+async function _audResBulkRun(plan) {
+  const { key, cfg, value, rows } = plan;
+  let changed = 0, refused = 0, failed = false;
+  if (key === 'type') {
+    const newType = value.toLowerCase();
+    for (const r of rows) {
+      if (r.w) {
+        const res = await _reclassifyGridItem(r.w.ref, r.ei, newType, { quiet: true });
+        if (res === 'changed') changed++; else if (res === 'refused') refused++;
+      } else {
+        r.ex.type = newType;
+        _excQueueUnassignedSave(r.ex.id, { type: newType });
+        changed++;
+      }
+    }
+  } else {
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const fields = key === 'retested'
+      ? { retested: value === 'Yes', retestedBy: value === 'Yes' ? _admCurrentUserName() : '', retestedDate: value === 'Yes' ? today : '' }
+      : { [key]: value };
+    const perWp = {};
+    rows.forEach(r => { Object.assign(r.ex, fields); changed++; if (r.w) perWp[r.w.ref] = (perWp[r.w.ref] || 0) + 1; });
+    Object.keys(perWp).forEach(ref => logEvent(ref, `Bulk update: ${cfg.label} ${value === '' ? 'cleared' : 'set to "' + value + '"'} on ${perWp[ref]} item${perWp[ref] !== 1 ? 's' : ''}`));
+    if (window._hasBackend) {
+      await Promise.all(rows.filter(r => r.w).map(r => _excFlushItem(r.w.ref, r.ex.ref))); // an edit still waiting to save goes first
+      try {
+        const res = await fetch('/api/exceptions/bulk-update', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields,
+            targets: rows.filter(r => r.w).map(r => ({ wpRef: r.w.ref, itemRef: r.ex.ref })),
+            unassignedIds: rows.filter(r => !r.w).map(r => r.ex.id),
+          }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const out = await res.json();
+        if (out.missing && out.missing.length) console.error('[AuditFindings] Bulk update could not find:', out.missing);
+      } catch (e) {
+        // Same safety net as every other save here: fall back to saving what changed.
+        failed = true;
+        console.error('[AuditFindings] Bulk update failed — saving item by item instead:', e.message);
+        Object.keys(perWp).forEach(ref => _excFallbackSave(ref));
+        rows.filter(r => !r.w).forEach(r => _excQueueUnassignedSave(r.ex.id, fields));
+      }
+    }
+  }
+  _audResSelected.clear();
+  renderAuditResults();
+  const word = cfg.label;
+  _audResShowDialog(true,
+    `<div><strong>${changed}</strong> item${changed !== 1 ? 's' : ''} updated (${escHtml(word)}${value === '' ? ' cleared' : ' → ' + escHtml(value)}).</div>` +
+    (refused ? `<div style="color:#b45309">${refused} item${refused !== 1 ? 's were' : ' was'} not changed to Exception: not tied to a test attribute and sample.</div>` : '') +
+    (failed ? '<div style="color:var(--text-tertiary)">The bulk save did not go through, so each affected item was saved individually instead.</div>' : ''),
+    null, null, { title: 'Bulk update done' });
+}
+
 // ── Audit Findings: import / export ─────────────────────────────────────────
 // Same three actions as the RCM page. Export writes the rows currently shown
 // (the selected audit/workpaper/filters); the template is just the format and
 // header rows. Import adds every row as a NEW item (Type required), attached
 // to the workpaper named in its Workpaper column or, if that is blank, to no
-// workpaper. Master item, # and Ref are numbers Wavefire assigns itself, so
+// workpaper. Master #, # and Ref are numbers Wavefire assigns itself, so
 // whatever the file has in those columns is ignored.
 const _AUD_RES_FIELDS = [
+  { key: 'master', label: 'Master #',           fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
   { key: 'audit',  label: 'Audit',              fmt: "Text. Must be an existing audit (and the workpaper's audit); a value that isn't is removed. Blank shows as <blank>" },
   { key: 'wpName', label: 'Workpaper name',     fmt: 'Text. Must be an existing workpaper name (and the workpaper\'s name); a value that isn\'t is removed. Blank shows as <blank>' },
   { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
-  { key: 'master', label: 'Master item',        fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
   { key: 'num',    label: '#',                  fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored' },
   { key: 'ref',    label: 'Ref',                fmt: 'Assigned by Wavefire (E1, F1, R1 ...). Leave blank: anything entered here is ignored' },
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
@@ -18690,7 +18853,7 @@ async function _audResProcessImportRows(rows) {
   const noBlank = v => { const t = String(v || '').trim(); return t.toLowerCase() === '<blank>' ? '' : t; };
 
   const errors = [], valid = [];
-  const ignoredNumberRows = []; // rows that had a Master item, # or Ref filled in
+  const ignoredNumberRows = []; // rows that had a Master #, # or Ref filled in
   // Audit / Workpaper name / Workpaper values that don't exist in the
   // application. These do not block the import: if the person goes ahead, the
   // offending value is stripped out and the item is imported without it.
@@ -18776,7 +18939,7 @@ async function _audResProcessImportRows(rows) {
       }
     }
 
-    // Master item, # and Ref are numbers Wavefire assigns itself; whatever the
+    // Master #, # and Ref are numbers Wavefire assigns itself; whatever the
     // file has in them is ignored, and every row is added as a new item.
     if (get('master') || get('num') || get('ref')) ignoredNumberRows.push(rowNo);
 
@@ -18814,7 +18977,7 @@ async function _audResProcessImportRows(rows) {
   const noWp = valid.filter(v => !v.w).length;
   const counts =
     `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added, numbered by Wavefire (marked * after the master item number)</div>` +
-    (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master item, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
+    (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master #, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
     (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : '');
 
   if (!soft.size) {
@@ -26866,16 +27029,20 @@ function _typeLabel(type) {
 //      _reburnCandidatesForFile so it reflects the new classification
 //      and the attribute's current language) — no pass/fail consequence,
 //      ever, so no override-style confirmation prompt.
-async function _reclassifyGridItem(ref, idx, newType) {
-  if (!_guardWpEdit(ref)) return;
+// opts.quiet (used by the Audit Findings bulk update): no alerts and no guidance
+// prompt per item. Returns 'changed', 'same', 'refused', 'locked' or 'missing'.
+async function _reclassifyGridItem(ref, idx, newType, opts) {
+  const quiet = !!(opts && opts.quiet);
+  if (!_guardWpEdit(ref)) return 'locked';
   const item = wpExceptions[ref]?.[idx];
-  if (!item) return;
+  if (!item) return 'missing';
   const oldType = item.type || 'exception';
-  if (newType === oldType) return; // dropdown re-selected its own current value
+  if (newType === oldType) return 'same'; // dropdown re-selected its own current value
 
   const hasAttrLink = item.attributeIndex != null && item.sampleRowIndex != null;
 
   if (newType === 'exception' && !hasAttrLink) {
+    if (quiet) return 'refused';
     alert(`"${item.name || item.ref}" can't be reclassified as an Exception — it isn't tied to a specific test attribute and sample, and an Exception must drive that attribute's own pass/fail result for this sample. Link it to an attribute first (or leave it as a ${_typeLabel(oldType)}).`);
     renderExceptions(ref); // resets the <select> back to its actual current value
     return;
@@ -26933,7 +27100,7 @@ async function _reclassifyGridItem(ref, idx, newType) {
   const candidates = originalName ? bucketArr.filter(f => f._annotatedFrom === originalName && f._autoGenerated !== false) : [];
   if (candidates.length) {
     const failures = await _reburnCandidatesForFile(ref, candidates);
-    if (failures.length) {
+    if (failures.length && !quiet) {
       alert(`${item.ref} was reclassified, but the following file(s) could not be updated to match:\n\n` + failures.map(n => `  • ${n}`).join('\n'));
     }
   }
@@ -26942,9 +27109,10 @@ async function _reclassifyGridItem(ref, idx, newType) {
   renderExceptions(ref);
   renderAnalysisResultsGrid(ref);
 
-  if (hasAttrLink) {
+  if (hasAttrLink && !quiet) {
     await _offerClassificationGuidanceAppend(ref, item, oldType, newType, today);
   }
+  return 'changed';
 }
 
 // Real, new, per Part 7 — closes the loop from a one-off correction back
