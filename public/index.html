@@ -2135,103 +2135,6 @@
             </div>
           </div>
 
-          <!-- AI Provider Card -->
-          <div style="background:var(--bg-primary);border:0.5px solid var(--border-light);border-radius:12px;overflow:hidden">
-            <div style="background:#1e293b;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="_toggleSettingsSection('ai')">
-              <div style="display:flex;align-items:center;gap:8px">
-                <i class="ti ti-robot" style="font-size:14px"></i>
-                <span style="font-size:13px;font-weight:700">AI Provider &amp; Model</span>
-                <span id="ai-provider-badge" style="font-size:10px;font-weight:600;background:rgba(255,255,255,0.15);border-radius:4px;padding:1px 7px;margin-left:4px">Anthropic · Claude</span>
-              </div>
-              <i id="ai-chevron" class="ti ti-chevron-down" style="font-size:13px;transition:transform 0.2s"></i>
-            </div>
-            <div id="ai-settings-body" style="display:none;padding:16px">
-              <div style="display:flex;flex-direction:column;gap:14px">
-
-                <!-- Provider selector -->
-                <div>
-                  <label class="fl" style="margin-bottom:8px">AI Provider</label>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap" id="ai-provider-btns">
-                    <button class="ai-prov-btn active" data-provider="anthropic" onclick="_csSelectProvider('anthropic')"
-                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--wf-navy);background:#eff6ff;color:var(--wf-navy);cursor:pointer;font-size:13px;font-weight:600">
-                      <i class="ti ti-brand-anthropic" style="font-size:15px"></i>Anthropic (Claude)
-                    </button>
-                    <button class="ai-prov-btn" data-provider="azure"
-                      onclick="_csSelectProvider('azure')"
-                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--border-medium);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:600">
-                      <i class="ti ti-brand-azure" style="font-size:15px"></i>Azure OpenAI
-                    </button>
-                    <button class="ai-prov-btn" data-provider="openai"
-                      onclick="_csSelectProvider('openai')"
-                      style="display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;border:1.5px solid var(--border-medium);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:600">
-                      <i class="ti ti-sparkles" style="font-size:15px"></i>OpenAI
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Anthropic config -->
-                <div id="ai-config-anthropic">
-                  <label class="fl" style="margin-bottom:6px">Claude Model</label>
-                  <select id="cs-claude-model" onchange="_csAutosave()"
-                    style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);width:100%;max-width:340px">
-                    <option value="claude-sonnet-4-6">claude-sonnet-4-6 (Sonnet 4.6 — default)</option>
-                    <option value="claude-opus-4-6">claude-opus-4-6 (Opus 4.6)</option>
-                    <option value="claude-opus-4-7">claude-opus-4-7 (Opus 4.7)</option>
-                    <option value="claude-opus-4-8">claude-opus-4-8 (Opus 4.8 — most capable)</option>
-                    <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (fastest / lowest cost)</option>
-                  </select>
-                  <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">API key is set via the <code>ANTHROPIC_API_KEY</code> environment variable on the server.</div>
-                </div>
-
-                <!-- Azure OpenAI config -->
-                <div id="ai-config-azure" style="display:none;display:flex;flex-direction:column;gap:10px">
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Azure OpenAI Endpoint</label>
-                    <input id="cs-azure-endpoint" type="text" placeholder="https://your-resource.openai.azure.com"
-                      style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
-                  </div>
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">Deployment Name</label>
-                    <input id="cs-azure-deployment" type="text" placeholder="e.g. gpt-4o"
-                      style="width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
-                  </div>
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">API Key <span style="font-size:10px;font-weight:400;color:var(--text-tertiary)">(stored securely on server, never sent to browser after save)</span></label>
-                    <div style="display:flex;gap:8px">
-                      <input id="cs-azure-key" type="password" placeholder="Enter key to update…"
-                        style="flex:1;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
-                      <button class="btn-p" onclick="_csSaveAIConfig()" style="flex-shrink:0"><i class="ti ti-device-floppy"></i>Save</button>
-                    </div>
-                  </div>
-                  <div style="font-size:11px;color:var(--text-tertiary)">API keys are saved to the database and never returned to the browser after initial save.</div>
-                </div>
-
-                <!-- OpenAI config -->
-                <div id="ai-config-openai" style="display:none;display:flex;flex-direction:column;gap:10px">
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">OpenAI Model</label>
-                    <select id="cs-openai-model" onchange="_csAutosave()"
-                      style="font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);width:100%;max-width:340px">
-                      <option value="gpt-4o">GPT-4o (recommended)</option>
-                      <option value="gpt-4o-mini">GPT-4o mini (faster / lower cost)</option>
-                      <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                      <option value="o1-preview">o1-preview (reasoning)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="fl" style="margin-bottom:4px">API Key <span style="font-size:10px;font-weight:400;color:var(--text-tertiary)">(stored securely on server)</span></label>
-                    <div style="display:flex;gap:8px">
-                      <input id="cs-openai-key" type="password" placeholder="sk-…"
-                        style="flex:1;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary)">
-                      <button class="btn-p" onclick="_csSaveAIConfig()" style="flex-shrink:0"><i class="ti ti-device-floppy"></i>Save</button>
-                    </div>
-                  </div>
-                </div>
-
-                <div id="ai-save-status" style="font-size:11px;color:var(--text-tertiary)"></div>
-              </div>
-            </div>
-          </div>
         </div>
         <!-- ── End Settings ────────────────────────────────────────────────────── -->
         <div class="ph">
@@ -15852,18 +15755,6 @@ function _csApplyToUI() {
   // Update company name badge in header
   var badge = document.getElementById('company-name-badge');
   if (badge) badge.textContent = s.name ? '— ' + s.name : '';
-  // AI provider
-  _csSelectProvider(s.ai_provider || 'anthropic', true);
-  // Claude model select
-  var msel = document.getElementById('cs-claude-model');
-  if (msel && s.ai_model) msel.value = s.ai_model;
-  // Azure config
-  var azEp = document.getElementById('cs-azure-endpoint');
-  if (azEp && s.azure_endpoint) azEp.value = s.azure_endpoint;
-  var azDep = document.getElementById('cs-azure-deployment');
-  if (azDep && s.azure_deployment) azDep.value = s.azure_deployment;
-  // AI badge
-  _csUpdateAIBadge();
 }
 
 function _csAutosave() {
@@ -15882,13 +15773,9 @@ function _csSaveAll() {
   s.city          = document.getElementById('cs-city')?.value || '';
   s.state         = document.getElementById('cs-state')?.value || '';
   s.zip           = document.getElementById('cs-zip')?.value || '';
-  // AI model from active provider
-  if (s.ai_provider === 'anthropic') s.ai_model = document.getElementById('cs-claude-model')?.value || 'claude-sonnet-4-6';
-  if (s.ai_provider === 'openai')    s.ai_model = document.getElementById('cs-openai-model')?.value || 'gpt-4o';
   // Update company badge
   var badge = document.getElementById('company-name-badge');
   if (badge) badge.textContent = s.name ? '— ' + s.name : '';
-  _csUpdateAIBadge();
   fetch('/api/company-settings', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(s)
@@ -15899,68 +15786,101 @@ function _csSaveAll() {
   }).catch(function(e) { console.warn('[Settings] save failed:', e.message); });
 }
 
-function _csSaveAIConfig() {
-  var s = _companySettings;
-  var payload = Object.assign({}, s);
-  if (s.ai_provider === 'azure') {
-    payload.azure_endpoint   = document.getElementById('cs-azure-endpoint')?.value || '';
-    payload.azure_deployment = document.getElementById('cs-azure-deployment')?.value || '';
-    payload.azure_api_key    = document.getElementById('cs-azure-key')?.value || '';
-    s.azure_endpoint   = payload.azure_endpoint;
-    s.azure_deployment = payload.azure_deployment;
-  } else if (s.ai_provider === 'openai') {
-    payload.openai_api_key = document.getElementById('cs-openai-key')?.value || '';
-    s.ai_model = document.getElementById('cs-openai-model')?.value || 'gpt-4o';
-    payload.ai_model = s.ai_model;
+// ── AI provider & model: set per tenant by a superadmin (Admin > Tenants) ──
+var _admAi = { tenantId: '', cfg: null };
+
+async function _admAiLoad(tenantId) {
+  const host = document.getElementById('adm-tenant-ai');
+  if (!host) return;
+  host.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary)">Loading AI settings…</div>';
+  try {
+    const res = await fetch('/api/admin/tenants/' + encodeURIComponent(tenantId) + '/ai-settings');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _admAi = { tenantId: tenantId, cfg: await res.json() };
+    _admAiRender();
+  } catch (e) {
+    host.innerHTML = '<div style="font-size:12px;color:#dc2626">Could not load AI settings: ' + escHtml(e.message) + '</div>';
   }
-  fetch('/api/company-settings', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
-  }).then(function(r) {
-    var el = document.getElementById('ai-save-status');
-    if (el) el.textContent = r.ok ? '✓ Saved ' + new Date().toLocaleTimeString() : 'Save failed';
-    // Clear key field after save for security
-    var keyEl = document.getElementById('cs-azure-key') || document.getElementById('cs-openai-key');
-    if (keyEl) keyEl.value = '';
-    _csUpdateAIBadge();
-  }).catch(function(e) { console.warn('[AI] save failed:', e.message); });
 }
 
-function _csSelectProvider(provider, silent) {
-  _companySettings.ai_provider = provider;
-  // Update button styles
-  document.querySelectorAll('.ai-prov-btn').forEach(function(btn) {
-    var isActive = btn.dataset.provider === provider;
-    btn.style.borderColor  = isActive ? 'var(--wf-navy)' : 'var(--border-medium)';
-    btn.style.background   = isActive ? '#eff6ff' : 'var(--bg-secondary)';
-    btn.style.color        = isActive ? 'var(--wf-navy)' : 'var(--text-secondary)';
-  });
-  // Show/hide config panels
-  var panels = { anthropic:'ai-config-anthropic', azure:'ai-config-azure', openai:'ai-config-openai' };
-  Object.keys(panels).forEach(function(p) {
-    var el = document.getElementById(panels[p]);
-    if (el) el.style.display = p === provider ? 'flex' : 'none';
-    if (el && p === provider) el.style.flexDirection = 'column';
-  });
-  _csUpdateAIBadge();
-  if (!silent) _csSaveAll();
+function _admAiRender() {
+  const host = document.getElementById('adm-tenant-ai');
+  const c = _admAi.cfg;
+  if (!host || !c) return;
+  const inp = 'width:100%;font-size:13px;border:0.5px solid var(--border-medium);border-radius:6px;padding:7px 10px;background:var(--bg-secondary);outline:none;color:var(--text-primary);box-sizing:border-box';
+  const lbl = 'display:block;font-size:11px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;margin:12px 0 4px';
+  const prov = (id, icon, label) => `<button type="button" data-provider="${id}" onclick="_admAiPick('${id}')"
+    style="display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid ${c.ai_provider === id ? 'var(--wf-navy)' : 'var(--border-medium)'};background:${c.ai_provider === id ? '#eff6ff' : 'var(--bg-secondary)'};color:${c.ai_provider === id ? 'var(--wf-navy)' : 'var(--text-secondary)'}"><i class="ti ${icon}" style="font-size:15px"></i>${label}</button>`;
+  const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${t}</option>`).join('');
+  const claude = [['claude-sonnet-4-6', 'claude-sonnet-4-6 (Sonnet 4.6 — default)'], ['claude-opus-4-6', 'claude-opus-4-6 (Opus 4.6)'], ['claude-opus-4-7', 'claude-opus-4-7 (Opus 4.7)'], ['claude-opus-4-8', 'claude-opus-4-8 (Opus 4.8 — most capable)'], ['claude-haiku-4-5-20251001', 'claude-haiku-4-5 (fastest / lowest cost)']];
+  const gpt = [['gpt-4o', 'GPT-4o (recommended)'], ['gpt-4o-mini', 'GPT-4o mini (faster / lower cost)'], ['gpt-4-turbo', 'GPT-4 Turbo'], ['o1-preview', 'o1-preview (reasoning)']];
+  let body = '';
+  if (c.ai_provider === 'anthropic') {
+    body = `<label style="${lbl}">Claude model</label>
+      <select id="adm-ai-model" style="${inp};max-width:380px">${opts(claude, c.ai_model)}</select>
+      <div style="font-size:11px;color:var(--text-tertiary);margin-top:6px">The API key is set with the <code>ANTHROPIC_API_KEY</code> environment variable on the server.</div>`;
+  } else if (c.ai_provider === 'openai') {
+    body = `<label style="${lbl}">OpenAI model</label>
+      <select id="adm-ai-model" style="${inp};max-width:380px">${opts(gpt, c.ai_model)}</select>
+      <label style="${lbl}">API key <span style="font-weight:400;text-transform:none">${c.has_openai_key ? '(one is saved; enter a new one to replace it)' : '(none saved yet)'}</span></label>
+      <input id="adm-ai-openai-key" type="password" autocomplete="new-password" placeholder="sk-…" style="${inp}">`;
+  } else {
+    body = `<label style="${lbl}">Azure OpenAI endpoint</label>
+      <input id="adm-ai-endpoint" type="text" value="${escAttr(c.azure_endpoint)}" placeholder="https://your-resource.openai.azure.com" style="${inp}">
+      <label style="${lbl}">Deployment name</label>
+      <input id="adm-ai-deployment" type="text" value="${escAttr(c.azure_deployment)}" placeholder="e.g. gpt-4o" style="${inp}">
+      <label style="${lbl}">API key <span style="font-weight:400;text-transform:none">${c.has_azure_key ? '(one is saved; enter a new one to replace it)' : '(none saved yet)'}</span></label>
+      <input id="adm-ai-azure-key" type="password" autocomplete="new-password" placeholder="Enter key…" style="${inp}">`;
+  }
+  host.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:8px">${prov('anthropic', 'ti-brand-anthropic', 'Anthropic (Claude)')}${prov('azure', 'ti-brand-azure', 'Azure OpenAI')}${prov('openai', 'ti-sparkles', 'OpenAI')}</div>
+    ${body}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+      <button class="btn-p" onclick="_admAiSave()"><i class="ti ti-device-floppy"></i>Save AI settings</button>
+      <span id="adm-ai-status" style="font-size:11px;color:var(--text-tertiary)">Keys are stored on the server and are never shown again after saving.</span>
+    </div>`;
 }
 
-function _csUpdateAIBadge() {
-  var s = _companySettings;
-  var label = '';
-  if (s.ai_provider === 'anthropic') label = 'Anthropic · ' + (s.ai_model || 'Claude');
-  else if (s.ai_provider === 'azure') label = 'Azure OpenAI · ' + (s.azure_deployment || 'GPT-4o');
-  else if (s.ai_provider === 'openai') label = 'OpenAI · ' + (s.ai_model || 'GPT-4o');
-  var badge = document.getElementById('ai-provider-badge');
-  if (badge) badge.textContent = label;
+function _admAiPick(provider) {
+  const c = _admAi.cfg;
+  if (!c || c.ai_provider === provider) return;
+  c.ai_provider = provider;
+  c.ai_model = provider === 'openai' ? 'gpt-4o' : (provider === 'anthropic' ? 'claude-sonnet-4-6' : c.ai_model);
+  _admAiRender();
+}
+
+async function _admAiSave() {
+  const c = _admAi.cfg;
+  if (!c) return;
+  const v = id => document.getElementById(id)?.value || '';
+  const payload = { ai_provider: c.ai_provider, ai_model: c.ai_model, azure_endpoint: c.azure_endpoint, azure_deployment: c.azure_deployment };
+  if (c.ai_provider === 'anthropic' || c.ai_provider === 'openai') payload.ai_model = v('adm-ai-model') || c.ai_model;
+  if (c.ai_provider === 'azure') {
+    payload.azure_endpoint = v('adm-ai-endpoint').trim();
+    payload.azure_deployment = v('adm-ai-deployment').trim();
+    payload.azure_api_key = v('adm-ai-azure-key');
+  }
+  if (c.ai_provider === 'openai') payload.openai_api_key = v('adm-ai-openai-key');
+  const st = document.getElementById('adm-ai-status');
+  try {
+    const res = await fetch('/api/admin/tenants/' + encodeURIComponent(_admAi.tenantId) + '/ai-settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    await _admAiLoad(_admAi.tenantId);
+    const st2 = document.getElementById('adm-ai-status');
+    if (st2) { st2.textContent = '✓ Saved ' + new Date().toLocaleTimeString(); st2.style.color = '#166534'; }
+  } catch (e) {
+    if (st) { st.textContent = 'Could not save: ' + e.message; st.style.color = '#dc2626'; }
+  }
 }
 
 var _settingsSectionOpen = {};
 function _toggleSettingsSection(section) {
   _settingsSectionOpen[section] = !_settingsSectionOpen[section];
-  var bodyId  = section === 'company' ? 'company-settings-body' : 'ai-settings-body';
-  var chevId  = section === 'company' ? 'company-chevron' : 'ai-chevron';
+  var bodyId  = 'company-settings-body';
+  var chevId  = 'company-chevron';
   var body = document.getElementById(bodyId);
   var chev = document.getElementById(chevId);
   if (body) body.style.display = _settingsSectionOpen[section] ? 'block' : 'none';
@@ -20495,7 +20415,13 @@ function selectAdminTenant(tenantId) {
       <select id="adm-tenant-field-plan" onchange="saveAdminTenantField('${escAttr(tenant.id)}','plan',this.value)"
         style="width:100%;padding:7px 10px;border:0.5px solid var(--border-light);border-radius:6px;font-size:13px">
         ${['trial','standard','enterprise'].map(function(p){ return '<option value="'+p+'"'+(tenant.plan===p?' selected':'')+'>'+p+'</option>'; }).join('')}
-      </select>`;
+      </select>
+      <div style="margin-top:22px;padding-top:16px;border-top:0.5px solid var(--border-light)">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px"><i class="ti ti-robot" style="margin-right:6px"></i>AI Provider &amp; Model</div>
+        <div style="font-size:11px;color:var(--text-tertiary)">Used for this tenant only.</div>
+        <div id="adm-tenant-ai" style="margin-top:6px"></div>
+      </div>`;
+    _admAiLoad(tenant.id);
   } else if (detailEl && tenantId === ADMIN_UNASSIGNED_TENANT_ID) {
     // Per explicit request: this is a real, virtual view, not an
     // actual tenant record — no genuine fields to edit here, so the
