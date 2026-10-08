@@ -2384,6 +2384,13 @@
             <select id="aud-res-filter-type" onchange="renderAuditResults()">
               <option value="">All types</option><option value="exception">Exception</option><option value="finding">Finding</option><option value="recommendation">Recommendation</option>
             </select>
+            <select id="aud-res-filter-status" onchange="renderAuditResults()" title="Status"></select>
+            <select id="aud-res-filter-disptype" onchange="renderAuditResults()" title="Disposition type">
+              <option value="">All disposition types</option><option>Exception</option><option>Deficiency</option><option>Significant Deficiency</option><option>Material Weakness</option>
+            </select>
+            <select id="aud-res-filter-dispstatus" onchange="renderAuditResults()" title="Disposition status">
+              <option value="">All disposition statuses</option><option>Open</option><option>Closed</option><option>Final</option><option>Remediated</option>
+            </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
             <div style="flex:1"></div>
             <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
@@ -18364,6 +18371,11 @@ function renderAuditResults() {
   const fWp    = fAudit ? wpSel.value : '';
   const fType  = document.getElementById('aud-res-filter-type').value;
   const fText  = (document.getElementById('aud-res-filter-text').value || '').trim().toLowerCase();
+  const statusSel = document.getElementById('aud-res-filter-status');
+  if (!statusSel.options.length) statusSel.innerHTML = '<option value="">All statuses</option>' + _EXC_STATUSES.map(st => `<option>${st}</option>`).join('');
+  const fStatus = statusSel.value;
+  const fDispType = document.getElementById('aud-res-filter-disptype').value;
+  const fDispStatus = document.getElementById('aud-res-filter-dispstatus').value;
 
   // Audit list excludes archived audits (status 'archive').
   const auditNames = AUDITS.filter(a => a.status !== 'archive').map(a => a.name).sort((a, b) => a.localeCompare(b));
@@ -18381,7 +18393,7 @@ function renderAuditResults() {
     _audResShown = [];
     _audResSelected.clear();
     _audResUpdateBulkBar();
-    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.&nbsp; Note that uploaded exceptions, findings and recommendations without a referenced audit can be found by selecting &lt;blank&gt; as the audit.</div>';
+    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.&nbsp; Note that imported exceptions, findings and recommendations without a referenced audit can be found by selecting &lt;blank&gt; as the audit.</div>';
     return;
   }
 
@@ -18404,6 +18416,9 @@ function renderAuditResults() {
 
   const shown = rows.filter(r => {
     if (fType && r.type !== fType) return false;
+    if (fStatus && (r.ex.status || 'Unassigned') !== fStatus) return false;
+    if (fDispType && r.ex.dispositionType !== fDispType) return false;
+    if (fDispStatus && r.ex.dispositionStatus !== fDispStatus) return false;
     if (fText) {
       const hay = [r.w ? r.w.auditName : r.ex.auditName, r.w ? r.w.ref : r.ex.wpRef, r.w ? r.w.name : r.ex.wpName, r.ex.masterItem, r.ex.ref, r.ex.name, r.ex.desc, r.ex.owner, r.ex.mgmtResponse, r.ex.disposition].join(' ').toLowerCase();
       if (!hay.includes(fText)) return false;
@@ -18439,7 +18454,7 @@ function renderAuditResults() {
   // Browsers with overlay scroll bars draw them on top of the content; this empty margin is what they sit over.
   host.style.padding = '0 16px 18px 0';
   host.innerHTML =
-    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map((h, hi) => hi === 0 ? `<div style="${th};display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 0"><input type="checkbox" id="aud-res-selectall" onchange="_audResSelectAll(this.checked)" title="Select all items shown" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsBulkUpdate" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How to select findings and update them in bulk" style="cursor:pointer;color:var(--text-tertiary);font-size:14px"></i></div>` : `<div style="${th}">${h}</div>`).join('')}</div>` +
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map((h, hi) => hi === 0 ? `<div style="${th};display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 0"><input type="checkbox" id="aud-res-selectall" onchange="_audResSelectAll(this.checked)" title="Select all items shown" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer"><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsBulkUpdate" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How to select findings and update them in bulk" style="cursor:pointer;color:var(--text-tertiary);font-size:14px"></i></div>` : `<div style="${th};text-align:${[1, 5, 6, 10, 17].includes(hi) ? 'center' : 'left'}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }, rowNo) => {
       const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
       const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
@@ -18472,6 +18487,54 @@ function renderAuditResults() {
       </div>`;
     }).join('');
   setTimeout(() => host.querySelectorAll('textarea').forEach(t => autoResizeTA(t)), 0);
+  _audResInitCellPopup(host);
+}
+
+// Hovering a cell whose text is cut off pops up the whole value. The grid is
+// rebuilt on every render, so the listeners sit on the (persistent) host.
+let _audResTipTimer = null;
+function _audResHideCellPopup() {
+  clearTimeout(_audResTipTimer);
+  document.getElementById('aud-res-cell-popup')?.remove();
+}
+function _audResCellFullText(cell) {
+  const ctl = cell.querySelector('textarea, input[type="text"], select');
+  if (ctl) {
+    const v = ctl.tagName === 'SELECT' ? (ctl.selectedOptions[0]?.textContent || '') : ctl.value;
+    const cut = ctl.tagName === 'TEXTAREA' ? ctl.scrollHeight > ctl.clientHeight + 1 : ctl.scrollWidth > ctl.clientWidth + 1;
+    return cut ? v : '';
+  }
+  if (cell.querySelector('input')) return '';
+  const cut = cell.scrollWidth > cell.clientWidth + 1 || cell.scrollHeight > cell.clientHeight + 1;
+  return cut ? cell.innerText : '';
+}
+function _audResInitCellPopup(host) {
+  if (host.dataset.cellPopup) return;
+  host.dataset.cellPopup = '1';
+  host.addEventListener('mouseover', e => {
+    const cell = e.target.closest('#aud-results-table > div > div');
+    if (!cell || cell.parentElement === host.firstElementChild) { host._tipCell = null; _audResHideCellPopup(); return; }
+    if (host._tipCell === cell) return;
+    host._tipCell = cell;
+    _audResHideCellPopup();
+    const x = e.clientX, y = e.clientY;
+    _audResTipTimer = setTimeout(() => {
+      const text = _audResCellFullText(cell).trim();
+      if (!text) return;
+      const pop = document.createElement('div');
+      pop.id = 'aud-res-cell-popup';
+      pop.textContent = text;
+      pop.style.cssText = 'position:fixed;z-index:22000;max-width:420px;max-height:60vh;overflow:auto;padding:10px 12px;background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border-light);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.25);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;pointer-events:none';
+      document.body.appendChild(pop);
+      const r = pop.getBoundingClientRect();
+      pop.style.left = Math.max(8, Math.min(x + 14, window.innerWidth - r.width - 8)) + 'px';
+      pop.style.top = Math.max(8, Math.min(y + 18, window.innerHeight - r.height - 8)) + 'px';
+    }, 350);
+  });
+  host.addEventListener('mouseleave', () => { host._tipCell = null; _audResHideCellPopup(); });
+  host.addEventListener('mousedown', _audResHideCellPopup);
+  host.addEventListener('input', _audResHideCellPopup);
+  host.parentElement?.addEventListener('scroll', _audResHideCellPopup);
 }
 
 // Inline editing for the Audit Findings table. Edits go straight to the same
@@ -18757,42 +18820,57 @@ function _audResFieldValue(r, key) {
   }
 }
 
-// Asks whether to export just the ticked items or everything shown in the grid.
+// Every exception, finding and recommendation in the company, whatever the
+// grid's filters: items on workpapers first (by Workpaper Ref), then items with no workpaper.
+function _audResAllCompanyRows() {
+  const rows = [];
+  WORKPAPERS.forEach((w, idx) => (wpExceptions[w.ref] || []).forEach((ex, ei) => rows.push({ w, idx, ex, ei, type: ex.type || 'exception' })));
+  rows.sort((a, b) => (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0));
+  _unassignedExceptions.forEach((ex, ei) => rows.push({ w: null, idx: -1, ex, ei, type: ex.type || 'exception', standalone: true }));
+  return rows;
+}
+
+// Asks whether to export what is on screen (with the audit / workpaper / type / search filters) or the whole company.
 function audResExportPrompt() {
-  if (!_audResShown.length) {
-    alert(document.getElementById('aud-res-filter-audit').value
-      ? 'There are no findings to export for the current selection.'
-      : 'Select an audit before exporting.');
-    return;
-  }
-  const nAll = _audResShown.length;
-  const nSel = _audResShown.filter(r => _audResSelected.has(r.ex)).length;
+  const nShown = _audResShown.length;
+  const nAll = _audResAllCompanyRows().length;
+  const f = id => document.getElementById(id);
+  const parts = [];
+  if (f('aud-res-filter-audit').value) parts.push('Audit: ' + f('aud-res-filter-audit').value);
+  if (f('aud-res-filter-wp').value) parts.push('Workpaper: ' + f('aud-res-filter-wp').value);
+  if (f('aud-res-filter-type').value) parts.push('Type: ' + f('aud-res-filter-type').value);
+  if (f('aud-res-filter-status').value) parts.push('Status: ' + f('aud-res-filter-status').value);
+  if (f('aud-res-filter-disptype').value) parts.push('Disposition type: ' + f('aud-res-filter-disptype').value);
+  if (f('aud-res-filter-dispstatus').value) parts.push('Disposition status: ' + f('aud-res-filter-dispstatus').value);
+  if ((f('aud-res-filter-text').value || '').trim()) parts.push('Search: "' + f('aud-res-filter-text').value.trim() + '"');
+  const shownNote = !f('aud-res-filter-audit').value
+    ? 'Nothing is shown yet: select an audit first'
+    : `${nShown} item${nShown !== 1 ? 's' : ''}` + (parts.length ? ' · ' + escHtml(parts.join(' · ')) : '');
   const oid = 'aud-res-export-overlay';
   document.getElementById(oid)?.remove();
   const btn = 'width:100%;text-align:left;padding:12px 14px;border-radius:8px;cursor:pointer;margin-bottom:8px;font-size:13px;display:block';
+  const on = nShown > 0;
   document.body.insertAdjacentHTML('beforeend',
     `<div id="${oid}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)this.remove()">
-      <div style="background:var(--bg-primary);border-radius:12px;width:min(420px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(460px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
         <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;font-size:15px;font-weight:700">Export Findings</div>
         <div style="padding:16px 18px 6px">
-          <button ${nSel ? '' : 'disabled'} onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'selected')"
-            style="${btn};border:1px solid ${nSel ? 'var(--wf-navy)' : 'var(--border-light)'};background:${nSel ? '#fff' : 'var(--bg-secondary)'};color:${nSel ? 'var(--wf-navy)' : 'var(--text-tertiary)'};${nSel ? '' : 'cursor:not-allowed'}">
-            <strong>Export Selected Findings</strong><br><span style="font-size:11px;font-weight:400">${nSel ? `${nSel} item${nSel !== 1 ? 's' : ''} ticked in the grid` : 'None ticked: tick items in the grid first'}</span></button>
-          <button onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'all')"
-            style="${btn};border:1px solid var(--wf-navy);background:#fff;color:var(--wf-navy)">
-            <strong>Export all Findings</strong><br><span style="font-size:11px;font-weight:400">All ${nAll} item${nAll !== 1 ? 's' : ''} shown in the grid</span></button>
+          <button ${on ? '' : 'disabled'} onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'shown')"
+            style="${btn};border:1px solid ${on ? 'var(--wf-navy)' : 'var(--border-light)'};background:${on ? '#fff' : 'var(--bg-secondary)'};color:${on ? 'var(--wf-navy)' : 'var(--text-tertiary)'};${on ? '' : 'cursor:not-allowed'}">
+            <strong>Export what is shown on screen</strong><br><span style="font-size:11px;font-weight:400">${shownNote}</span></button>
+          <button ${nAll ? '' : 'disabled'} onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'all')"
+            style="${btn};border:1px solid ${nAll ? 'var(--wf-navy)' : 'var(--border-light)'};background:${nAll ? '#fff' : 'var(--bg-secondary)'};color:${nAll ? 'var(--wf-navy)' : 'var(--text-tertiary)'};${nAll ? '' : 'cursor:not-allowed'}">
+            <strong>Export all exceptions, findings and recommendations for the company</strong><br><span style="font-size:11px;font-weight:400">${nAll} item${nAll !== 1 ? 's' : ''} across every audit and workpaper, ignoring the filters</span></button>
         </div>
         <div style="padding:6px 18px 16px;text-align:right"><button class="btn-s" onclick="document.getElementById('${oid}').remove()">Cancel</button></div>
       </div></div>`);
 }
 
-// which: 'selected' = only the ticked items, anything else = everything shown.
+// which: 'shown' = the rows on screen (filters applied), 'all' = the whole company.
 function audResExportXLSX(templateOnly, which) {
-  const rows = which === 'selected' ? _audResShown.filter(r => _audResSelected.has(r.ex)) : _audResShown;
+  const rows = which === 'all' ? _audResAllCompanyRows() : _audResShown;
   if (!templateOnly && !rows.length) {
-    alert(document.getElementById('aud-res-filter-audit').value
-      ? 'There are no results to export for the current selection.'
-      : 'Select an audit before exporting.');
+    alert('There are no findings to export.');
     return;
   }
   _audResWithXLSX(XLSX => {
@@ -18802,7 +18880,7 @@ function audResExportXLSX(templateOnly, which) {
     ws['!cols'] = _AUD_RES_FIELDS.map(f => ({ wch: Math.min(Math.max(f.label.length + 4, 16), 45) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Audit Findings');
-    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export' + (which === 'selected' ? 'Selected' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export' + (which === 'all' ? 'AllCompany' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   });
 }
 
@@ -29179,7 +29257,7 @@ const HELP_TOPICS = {
           <code>&lt;blank&gt;</code>. In the Audit Findings grid, such an item appears under its Audit,
           or under <code>&lt;blank&gt;</code>.</li>
         <li>Items that come in through an import are marked with an asterisk (*) after the Master #.</li>
-        <li><em>Export Findings</em> asks whether to export the <em>selected</em> items (those you have ticked in the grid) or <em>all</em> the findings shown in the grid, and saves them to a spreadsheet.</li>
+        <li><em>Export Findings</em> asks whether to export <em>what is shown on screen</em> (including any audit, workpaper, type or search filter you have chosen) or <em>all exceptions, findings and recommendations for the company</em>, and saves them to a spreadsheet.</li>
       </ul>
     `,
   },
