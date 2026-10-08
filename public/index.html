@@ -2380,6 +2380,8 @@
           </div>
           <div class="filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <select id="aud-res-filter-audit" onchange="_audResAuditChanged()" title="Audit"></select>
+            <select id="aud-res-filter-year" onchange="_audResAuditChanged()" title="Audit year"></select>
+            <select id="aud-res-filter-period" onchange="_audResAuditChanged()" title="Audit period"></select>
             <select id="aud-res-filter-wp" onchange="renderAuditResults()" onmousedown="_audResGuardWpSelect(event)" onkeydown="_audResGuardWpSelect(event)" title="Workpaper"></select>
             <select id="aud-res-filter-type" onchange="renderAuditResults()">
               <option value="">All types</option><option value="exception">Exception</option><option value="finding">Finding</option><option value="recommendation">Recommendation</option>
@@ -18346,6 +18348,13 @@ async function _excFlushUnassigned(id) {
 }
 window.addEventListener('pagehide', () => Object.keys(_excUnassignedPending).forEach(id => _excFlushUnassigned(id)));
 
+// Results show once the user has chosen an audit, an audit year or an audit period (any one is enough).
+function _audResScopeChosen() {
+  return !!(document.getElementById('aud-res-filter-audit').value ||
+    document.getElementById('aud-res-filter-year').value ||
+    document.getElementById('aud-res-filter-period').value);
+}
+
 function _audResAuditChanged() {
   document.getElementById('aud-res-filter-wp').value = '';
   renderAuditResults();
@@ -18355,10 +18364,10 @@ function _audResAuditChanged() {
 // <select> can't be "click-through disabled", so the open gesture (mouse
 // or keyboard) is intercepted here and answered with a message instead.
 function _audResGuardWpSelect(e) {
-  if (document.getElementById('aud-res-filter-audit').value) return;
+  if (_audResScopeChosen()) return;
   if (e.type === 'keydown' && !['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
   e.preventDefault();
-  alert('Select an audit before selecting a workpaper');
+  alert('Select an audit, an audit year or an audit period before selecting a workpaper');
 }
 
 function renderAuditResults() {
@@ -18370,8 +18379,13 @@ function renderAuditResults() {
   if (uploadedLegend) uploadedLegend.style.display = 'none'; // shown below only if an uploaded item is in the grid
   const auditSel = document.getElementById('aud-res-filter-audit');
   const wpSel    = document.getElementById('aud-res-filter-wp');
+  const yearSel = document.getElementById('aud-res-filter-year');
+  const periodSel = document.getElementById('aud-res-filter-period');
   const fAudit = auditSel.value;
-  const fWp    = fAudit ? wpSel.value : '';
+  const fYear = yearSel.value;
+  const fPeriod = periodSel.value;
+  const fScope = !!(fAudit || fYear || fPeriod);
+  const fWp    = fScope ? wpSel.value : '';
   const fType  = document.getElementById('aud-res-filter-type').value;
   const fText  = (document.getElementById('aud-res-filter-text').value || '').trim().toLowerCase();
   const statusSel = document.getElementById('aud-res-filter-status');
@@ -18385,18 +18399,30 @@ function renderAuditResults() {
   auditSel.innerHTML = '<option value="">Select an audit…</option>' + auditNames.map(n => `<option value="${escAttr(n)}"${n === fAudit ? ' selected' : ''}>${escHtml(n)}</option>`).join('') +
     `<option value="&lt;blank&gt;"${fAudit === '<blank>' ? ' selected' : ''}>&lt;blank&gt;</option>`;
 
-  const auditWps = fAudit ? WORKPAPERS.filter(w => w.auditName === fAudit && !w.archived) : [];
-  wpSel.innerHTML = '<option value="">' + (fAudit ? 'All workpapers' : 'Select a workpaper…') + '</option>' +
-    (fAudit ? `<option value="&lt;blank&gt;"${fWp === '<blank>' ? ' selected' : ''}>&lt;blank&gt;</option>` : '') +
+  // Audit year is the 20xx in an audit's period text (as on the Audits page).
+  const yearOf = a => (String(a.period || '').match(/\b(20\d{2})\b/) || [])[1] || '';
+  const liveAudits = AUDITS.filter(a => a.status !== 'archive');
+  const years = [...new Set(liveAudits.map(yearOf).filter(Boolean))].sort().reverse();
+  const periods = [...new Set(liveAudits.map(a => a.period).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  yearSel.innerHTML = '<option value="">Audit year…</option>' + years.map(y => `<option value="${y}"${y === fYear ? ' selected' : ''}>${y}</option>`).join('');
+  periodSel.innerHTML = '<option value="">Audit period…</option>' + periods.map(pd => `<option value="${escAttr(pd)}"${pd === fPeriod ? ' selected' : ''}>${escHtml(pd)}</option>`).join('');
+  // The audits in scope: the chosen audit (if any) that also fits the chosen year and period.
+  const matchedNames = new Set(liveAudits.filter(a =>
+    (!fAudit || fAudit === '<blank>' || a.name === fAudit) && (!fYear || yearOf(a) === fYear) && (!fPeriod || a.period === fPeriod)
+  ).map(a => a.name));
+  const auditWps = fAudit === '<blank>' ? WORKPAPERS.filter(w => w.auditName === fAudit && !w.archived)
+    : (fScope ? WORKPAPERS.filter(w => matchedNames.has(w.auditName) && !w.archived) : []);
+  wpSel.innerHTML = '<option value="">' + (fScope ? 'All workpapers' : 'Select a workpaper…') + '</option>' +
+    (fScope ? `<option value="&lt;blank&gt;"${fWp === '<blank>' ? ' selected' : ''}>&lt;blank&gt;</option>` : '') +
     auditWps.map(w => `<option value="${escAttr(w.ref)}"${w.ref === fWp ? ' selected' : ''}>${escHtml(w.ref + (w.name ? ' — ' + w.name : ''))}</option>`).join('');
 
   const subEl = document.getElementById('aud-results-sub');
-  if (!fAudit) {
+  if (!fScope) {
     subEl.textContent = '';
     _audResShown = [];
     _audResSelected.clear();
     _audResUpdateBulkBar();
-    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.&nbsp; Note that imported exceptions, findings and recommendations without a referenced audit can be found by selecting &lt;blank&gt; as the audit.</div>';
+    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit, an audit year or an audit period to see its exceptions, findings and recommendations.&nbsp; Note that imported exceptions, findings and recommendations without a referenced audit can be found by selecting &lt;blank&gt; as the audit.</div>';
     return;
   }
 
@@ -18413,7 +18439,7 @@ function renderAuditResults() {
   const attachedCount = rows.length;
   if (!fWp || fWp === '<blank>') {
     _unassignedExceptions.forEach((ex, ei) => {
-      if ((ex.auditName || '<blank>') === fAudit) rows.push({ w: null, idx: -1, ex, ei, type: ex.type || 'exception', standalone: true });
+      if (fAudit === '<blank>' ? (ex.auditName || '<blank>') === '<blank>' : matchedNames.has(ex.auditName)) rows.push({ w: null, idx: -1, ex, ei, type: ex.type || 'exception', standalone: true });
     });
   }
 
@@ -18840,14 +18866,16 @@ function audResExportPrompt() {
   const f = id => document.getElementById(id);
   const parts = [];
   if (f('aud-res-filter-audit').value) parts.push('Audit: ' + f('aud-res-filter-audit').value);
+  if (f('aud-res-filter-year').value) parts.push('Audit year: ' + f('aud-res-filter-year').value);
+  if (f('aud-res-filter-period').value) parts.push('Audit period: ' + f('aud-res-filter-period').value);
   if (f('aud-res-filter-wp').value) parts.push('Workpaper: ' + f('aud-res-filter-wp').value);
   if (f('aud-res-filter-type').value) parts.push('Type: ' + f('aud-res-filter-type').value);
   if (f('aud-res-filter-status').value) parts.push('Status: ' + f('aud-res-filter-status').value);
   if (f('aud-res-filter-disptype').value) parts.push('Disposition type: ' + f('aud-res-filter-disptype').value);
   if (f('aud-res-filter-dispstatus').value) parts.push('Disposition status: ' + f('aud-res-filter-dispstatus').value);
   if ((f('aud-res-filter-text').value || '').trim()) parts.push('Search: "' + f('aud-res-filter-text').value.trim() + '"');
-  const shownNote = !f('aud-res-filter-audit').value
-    ? 'Nothing is shown yet: select an audit first'
+  const shownNote = !_audResScopeChosen()
+    ? 'Nothing is shown yet: select an audit, an audit year or an audit period first'
     : `${nShown} item${nShown !== 1 ? 's' : ''}` + (parts.length ? ' · ' + escHtml(parts.join(' · ')) : '');
   const oid = 'aud-res-export-overlay';
   document.getElementById(oid)?.remove();
