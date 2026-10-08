@@ -1569,8 +1569,12 @@ async function initDB() {
       // ref/num are indexed but deliberately NOT unique yet: until saves
       // are per-item, a client can still send a duplicate, and a unique
       // constraint would turn that into a failed workpaper save.
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS workpaper_exceptions (
+      // The column list lives in one place so a fresh install and the
+      // reorder rebuild below can never disagree. master_item is the first
+      // column, then id; Postgres can't move a column in an existing table,
+      // so a table created before this was the case is rebuilt further down.
+      const WPEXC_COLUMNS = `
+          master_item        INTEGER NOT NULL,
           id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id          TEXT NOT NULL,
           workpaper_id       UUID REFERENCES workpapers(id) ON DELETE CASCADE,
@@ -1595,17 +1599,15 @@ async function initDB() {
           disposition_type   TEXT NOT NULL DEFAULT '',
           disposition_status TEXT NOT NULL DEFAULT '',
           extra              JSONB NOT NULL DEFAULT '{}',
-          master_item        INTEGER,
           origin             TEXT,
           audit_name         TEXT NOT NULL DEFAULT '',
           wp_name            TEXT NOT NULL DEFAULT '',
           wp_ref             TEXT NOT NULL DEFAULT '',
           created_at         TIMESTAMPTZ DEFAULT NOW(),
-          updated_at         TIMESTAMPTZ DEFAULT NOW()
-        );
-        CREATE INDEX IF NOT EXISTS idx_wpexc_wp     ON workpaper_exceptions(tenant_id, workpaper_id, position);
-        CREATE INDEX IF NOT EXISTS idx_wpexc_filter ON workpaper_exceptions(tenant_id, type, disposition_status);
-        CREATE INDEX IF NOT EXISTS idx_wpexc_ref    ON workpaper_exceptions(workpaper_id, ref);
+          updated_at         TIMESTAMPTZ DEFAULT NOW()`;
+      const WPEXC_COLUMN_NAMES = 'master_item, id, tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index, name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date, disposition, disposition_type, disposition_status, extra, origin, audit_name, wp_name, wp_ref, created_at, updated_at';
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS workpaper_exceptions (${WPEXC_COLUMNS});
         -- Last master item handed out per tenant. Numbers only ever go up and
         -- are never reused, even after the highest item is deleted.
         CREATE TABLE IF NOT EXISTS exception_master_counter (
@@ -1658,7 +1660,46 @@ async function initDB() {
                  WHERE x.master_item IS NULL) n
           LEFT JOIN (SELECT tenant_id, MAX(master_item) AS m FROM workpaper_exceptions GROUP BY tenant_id) b ON b.tenant_id = n.tenant_id
          WHERE e.id = n.id`);
-      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_wpexc_master ON workpaper_exceptions(tenant_id, master_item) WHERE master_item IS NOT NULL`);
+      // Move master_item to be the first column of a table created before it
+      // was. Runs in one transaction under an exclusive lock: a new table with
+      // the right column order is built, every row copied across, the old table
+      // dropped and the new one renamed into its place. It only runs when
+      // master_item is not already column 1, so it is a no-op afterwards, and a
+      // failure rolls back to the untouched original table.
+      try {
+        const colPos = await pool.query(`SELECT ordinal_position FROM information_schema.columns
+           WHERE table_schema = current_schema() AND table_name = 'workpaper_exceptions' AND column_name = 'master_item'`);
+        if (colPos.rows.length && Number(colPos.rows[0].ordinal_position) !== 1) {
+          const rb = await pool.connect();
+          try {
+            await rb.query('BEGIN');
+            await rb.query('LOCK TABLE workpaper_exceptions IN ACCESS EXCLUSIVE MODE');
+            await rb.query('DROP TABLE IF EXISTS workpaper_exceptions_new');
+            await rb.query(`CREATE TABLE workpaper_exceptions_new (${WPEXC_COLUMNS})`);
+            await rb.query(`INSERT INTO workpaper_exceptions_new (${WPEXC_COLUMN_NAMES}) SELECT ${WPEXC_COLUMN_NAMES} FROM workpaper_exceptions`);
+            await rb.query('DROP TABLE workpaper_exceptions');
+            await rb.query('ALTER TABLE workpaper_exceptions_new RENAME TO workpaper_exceptions');
+            await rb.query('ALTER INDEX workpaper_exceptions_new_pkey RENAME TO workpaper_exceptions_pkey');
+            await rb.query('ALTER TABLE workpaper_exceptions RENAME CONSTRAINT workpaper_exceptions_new_workpaper_id_fkey TO workpaper_exceptions_workpaper_id_fkey');
+            await rb.query('COMMIT');
+            console.log('DB: workpaper_exceptions rebuilt with master_item as the first column');
+          } catch (rbErr) {
+            await rb.query('ROLLBACK').catch(() => {});
+            throw rbErr;
+          } finally {
+            rb.release();
+          }
+        }
+      } catch (reorderErr) {
+        console.error('DB: workpaper_exceptions column reorder FAILED (table left as it was):', reorderErr.message);
+      }
+      // Indexes are created after the rebuild (dropping the old table drops them).
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_wpexc_wp     ON workpaper_exceptions(tenant_id, workpaper_id, position);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_filter ON workpaper_exceptions(tenant_id, type, disposition_status);
+        CREATE INDEX IF NOT EXISTS idx_wpexc_ref    ON workpaper_exceptions(workpaper_id, ref);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_wpexc_master ON workpaper_exceptions(tenant_id, master_item) WHERE master_item IS NOT NULL;
+      `);
       console.log('DB: workpaper_exceptions ready; backfilled ' + bfItems + ' item(s) from ' + bf.rows.length + ' workpaper(s)');
       // Copy any data from a legacy "desc" column if it still exists
       const col = await pool.query(`

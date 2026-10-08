@@ -18511,9 +18511,9 @@ async function _audResReclassify(wi, ei, newType) {
 // Workpaper ref: a row whose Ref (E1/F1/R1…) already exists on that workpaper
 // updates it, a row with a blank Ref adds a new item (Type required).
 const _AUD_RES_FIELDS = [
-  { key: 'audit',  label: 'Audit',              fmt: "Text. Must match the workpaper's audit; leave blank if unknown (it will show as <blank>)" },
-  { key: 'wpName', label: 'Workpaper name',     fmt: 'Text (ignored when a Workpaper is given; leave blank if unknown, it will show as <blank>)' },
-  { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002. Leave blank for an item that belongs to no workpaper (it will show as <blank>)' },
+  { key: 'audit',  label: 'Audit',              fmt: "Text. Must be an existing audit (and the workpaper's audit); a value that isn't is removed. Blank shows as <blank>" },
+  { key: 'wpName', label: 'Workpaper name',     fmt: 'Text. Must be an existing workpaper name (and the workpaper\'s name); a value that isn\'t is removed. Blank shows as <blank>' },
+  { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
   { key: 'master', label: 'Master item',        fmt: 'Number, set by Wavefire. Leave blank for new items. For an uploaded item with no workpaper, enter its number to update it', optional: true },
   { key: 'num',    label: '#',                  fmt: 'Number (ignored on import)' },
   { key: 'ref',    label: 'Ref',                fmt: 'Existing ref (E1/F1/R1) to update it; blank to add a new item' },
@@ -18580,7 +18580,8 @@ function audResImportTrigger() {
   if (el) { el.value = ''; el.click(); }
 }
 
-function _audResShowDialog(success, html, onApply, applyLabel) {
+function _audResShowDialog(success, html, onApply, applyLabel, opts) {
+  opts = opts || {};
   const oid = 'aud-res-import-overlay';
   document.getElementById(oid)?.remove();
   window._audResPendingApply = onApply || null;
@@ -18591,9 +18592,9 @@ function _audResShowDialog(success, html, onApply, applyLabel) {
   document.body.insertAdjacentHTML('beforeend',
     `<div id="${oid}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
       <div style="background:var(--bg-primary);border-radius:12px;width:min(660px,96vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
-        <div style="background:${success ? 'var(--wf-navy)' : '#dc2626'};color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0">
-          <i class="ti ${success ? 'ti-circle-check' : 'ti-alert-triangle'}" style="font-size:18px"></i>
-          <span style="font-size:15px;font-weight:700">${success ? 'Import' : 'Import Validation Errors'}</span>
+        <div style="background:${opts.warn ? '#d97706' : (success ? 'var(--wf-navy)' : '#dc2626')};color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <i class="ti ${success && !opts.warn ? 'ti-circle-check' : 'ti-alert-triangle'}" style="font-size:18px"></i>
+          <span style="font-size:15px;font-weight:700">${opts.title || (success ? 'Import' : 'Import Validation Errors')}</span>
         </div>
         <div style="padding:20px;overflow-y:auto;flex:1;font-size:13px;color:var(--text-secondary);line-height:1.8">${html}</div>
         <div style="padding:12px 20px;border-top:0.5px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;background:var(--bg-secondary);flex-shrink:0">${footer}</div>
@@ -18639,24 +18640,51 @@ function _audResProcessImportRows(rows) {
   const noBlank = v => { const t = String(v || '').trim(); return t.toLowerCase() === '<blank>' ? '' : t; };
 
   const errors = [], valid = [];
+  // Audit / Workpaper name / Workpaper values that don't exist in the
+  // application. These do not block the import: if the person goes ahead, the
+  // offending value is stripped out and the item is imported without it.
+  const soft = new Map(); // "field|value|reason" -> { field, value, reason, rows: [{ row, label }] }
+  const addSoft = (field, value, reason, row, label) => {
+    const key = field + '|' + value + '|' + reason;
+    if (!soft.has(key)) soft.set(key, { field, value, reason, rows: [] });
+    soft.get(key).rows.push({ row, label });
+  };
+  const normName = v => String(v || '').trim().toLowerCase();
+  const liveAudits = AUDITS.filter(a => a.status !== 'archive');
+  const liveWps = WORKPAPERS.filter(x => !x.archived);
+
   rows.slice(2).forEach((row, ri) => {
     if (row.every(v => !String(v || '').trim())) return;
+    const rowNo = ri + 3;
     const get = k => idx[k] < 0 ? '' : String(row[idx[k]] ?? '').trim();
-    const auditTxt = noBlank(get('audit')), wpNameTxt = noBlank(get('wpName')), wpRef = noBlank(get('wpRef'));
+    let auditTxt = noBlank(get('audit')), wpNameTxt = noBlank(get('wpName')), wpRef = noBlank(get('wpRef'));
+    const label = get('name') || get('desc').slice(0, 40) || '(no name)';
     const masterNum = parseInt(get('master').replace('*', ''), 10);
     const issues = [];
     let w = null, existing = null, standaloneExisting = null;
 
+    // ── Soft checks against what exists in the application ──
+    let refStripped = false;
     if (wpRef) {
-      w = WORKPAPERS.find(x => x.ref === wpRef);
-      if (!w) issues.push(`<em>Workpaper</em>: "${escHtml(wpRef)}" not found`);
-      else if (w.archived) issues.push('<em>Workpaper</em>: workpaper is archived');
-      else if (auditTxt && auditTxt !== w.auditName) issues.push(`<em>Audit</em>: "${escHtml(auditTxt)}" does not match this workpaper's audit "${escHtml(w.auditName || '')}"`);
+      w = liveWps.find(x => x.ref === wpRef) || null;
+      if (!w) {
+        addSoft('Workpaper', wpRef, WORKPAPERS.some(x => x.ref === wpRef) ? 'this workpaper is archived' : 'no workpaper with this ref exists', rowNo, label);
+        wpRef = ''; refStripped = true;
+      }
+    }
+    if (w) {
+      if (auditTxt && auditTxt !== w.auditName) { addSoft('Audit', auditTxt, `does not match the audit of ${w.ref} ("${w.auditName || ''}")`, rowNo, label); auditTxt = ''; }
+      if (wpNameTxt && normName(wpNameTxt) !== normName(w.name)) { addSoft('Workpaper name', wpNameTxt, `does not match the name of ${w.ref} ("${w.name || ''}")`, rowNo, label); wpNameTxt = ''; }
     } else {
-      // No workpaper: kept as its own uploaded item; Audit / Workpaper name /
-      // Workpaper are stored as given, or as <blank> where the cell was empty.
-      if (auditTxt && !AUDITS.some(a => a.name === auditTxt && a.status !== 'archive')) issues.push(`<em>Audit</em>: "${escHtml(auditTxt)}" is not an existing audit`);
-      if (get('ref')) issues.push('<em>Ref</em>: a Ref identifies an item on a workpaper — enter that Workpaper, or clear the Ref');
+      if (auditTxt && !liveAudits.some(a => a.name === auditTxt)) { addSoft('Audit', auditTxt, 'no audit with this name exists', rowNo, label); auditTxt = ''; }
+      if (wpNameTxt && !liveWps.some(x => normName(x.name) === normName(wpNameTxt))) { addSoft('Workpaper name', wpNameTxt, 'no workpaper with this name exists', rowNo, label); wpNameTxt = ''; }
+    }
+    let itemRef = get('ref');
+    if (refStripped && itemRef) { addSoft('Ref', itemRef, 'cannot be applied because the Workpaper above was removed', rowNo, label); itemRef = ''; }
+
+    // ── Hard rules (these still block the import) ──
+    if (!w) {
+      if (itemRef) issues.push('<em>Ref</em>: a Ref identifies an item on a workpaper — enter that Workpaper, or clear the Ref');
       if (!Number.isNaN(masterNum)) {
         standaloneExisting = _unassignedExceptions.find(x => x.masterItem === masterNum);
         if (!standaloneExisting) issues.push(`<em>Master item</em>: ${masterNum} is not an uploaded item without a workpaper`);
@@ -18668,17 +18696,17 @@ function _audResProcessImportRows(rows) {
       if (f.pattern && v && !f.pattern.test(v)) issues.push(`<em>${f.label}</em>: invalid format`);
       if (f.validValues && v && f.validValues.indexOf(v) < 0) issues.push(`<em>${f.label}</em>: invalid value "${escHtml(v)}"`);
     });
-    if (w && !w.archived) {
-      if (get('ref')) {
-        existing = (wpExceptions[w.ref] || []).find(x => x.ref === get('ref'));
-        if (!existing) issues.push(`<em>Ref</em>: "${escHtml(get('ref'))}" not found on ${escHtml(w.ref)} (leave blank to add a new item)`);
+    if (w) {
+      if (itemRef) {
+        existing = (wpExceptions[w.ref] || []).find(x => x.ref === itemRef);
+        if (!existing) issues.push(`<em>Ref</em>: "${escHtml(itemRef)}" not found on ${escHtml(w.ref)} (leave blank to add a new item)`);
       } else if (!get('type')) {
         issues.push('<em>Type</em>: required when adding a new item');
       }
-    } else if (!w && !wpRef && !standaloneExisting && !get('type') && Number.isNaN(masterNum)) {
+    } else if (!standaloneExisting && !get('type')) {
       issues.push('<em>Type</em>: required when adding a new item');
     }
-    if (issues.length) { if (errors.length < 20) errors.push({ row: ri + 3, issues }); return; }
+    if (issues.length) { if (errors.length < 20) errors.push({ row: rowNo, issues }); return; }
     valid.push({
       w, existing, standaloneExisting, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
       data: {
@@ -18700,11 +18728,34 @@ function _audResProcessImportRows(rows) {
   if (!valid.length) { _audResShowDialog(false, 'No data rows found in the file.'); return; }
   const upd = valid.filter(v => v.existing || v.standaloneExisting).length, add = valid.length - upd;
   const noWp = valid.filter(v => !v.w).length;
-  _audResShowDialog(true,
+  const counts =
     (upd ? `<div><i class="ti ti-refresh" style="color:#2563eb;margin-right:8px"></i><strong>${upd}</strong> existing item${upd !== 1 ? 's' : ''} will be updated</div>` : '') +
     (add ? `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added (marked * after the master item number)</div>` : '') +
-    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : ''),
-    () => _audResApplyImport(valid), `Import ${valid.length} record${valid.length !== 1 ? 's' : ''}`);
+    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : '');
+
+  if (!soft.size) {
+    _audResShowDialog(true, counts, () => _audResApplyImport(valid), `Import ${valid.length} record${valid.length !== 1 ? 's' : ''}`);
+    return;
+  }
+  const affectedRows = new Set();
+  soft.forEach(g => g.rows.forEach(r => affectedRows.add(r.row)));
+  const th = 'text-align:left;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-light)';
+  const td = 'padding:6px 8px;vertical-align:top;font-size:12px;border-bottom:0.5px solid var(--border-light)';
+  const table = `<table style="width:100%;border-collapse:collapse;margin:10px 0">
+      <thead><tr><th style="${th}">Field</th><th style="${th}">Value in file</th><th style="${th}">Problem</th><th style="${th}">Rows</th><th style="${th}">Sample items</th></tr></thead>
+      <tbody>${[...soft.values()].map(g => `<tr>
+        <td style="${td};font-weight:600">${escHtml(g.field)}</td>
+        <td style="${td};font-family:monospace">${escHtml(g.value)}</td>
+        <td style="${td}">${escHtml(g.reason)}</td>
+        <td style="${td};text-align:center">${g.rows.length}</td>
+        <td style="${td}">${g.rows.slice(0, 3).map(r => `Row ${r.row}: ${escHtml(r.label)}`).join('<br>')}${g.rows.length > 3 ? `<br><span style="color:var(--text-tertiary)">+${g.rows.length - 3} more</span>` : ''}</td>
+      </tr>`).join('')}</tbody></table>`;
+  _audResShowDialog(true,
+    `<div style="padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;line-height:1.5">
+       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} Audit, Workpaper name or Workpaper values that don't match anything in the application.</strong><br>
+       If you select <strong>Ok</strong>, these values will be <strong>stripped out</strong> — the items are still imported, but without them (shown as &lt;blank&gt; / not linked to a workpaper). Select <strong>Cancel</strong> to stop and correct the file instead.
+     </div>` + table + counts,
+    () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will be stripped out' });
 }
 
 async function _audResApplyImport(valid) {

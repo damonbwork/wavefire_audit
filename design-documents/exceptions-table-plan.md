@@ -236,3 +236,25 @@ Verified against a real Postgres: the migration over pre-existing rows
 distinct master items, whole-workpaper saves preserving master item and origin
 (including duplicate refs), uploaded items with no workpaper surviving a
 workpaper save, and the unique index.
+
+## Follow-up: master_item first, and import validation
+
+- `master_item` is now the **first column** of `workpaper_exceptions` (then
+  `id`), and is `NOT NULL`. Postgres cannot move a column in an existing table,
+  so a table created earlier is rebuilt at startup: a new table with the right
+  column order is created under an exclusive lock, every row copied across, the
+  old table dropped and the new one renamed in its place, in one transaction
+  (rolled back untouched on any failure, and skipped once master_item is column
+  1). Verified on a real Postgres over pre-existing rows: data copied exactly,
+  numbering, indexes, cascade delete and concurrent adds all still work, and a
+  second startup changes nothing. Cosmetic: the table's NOT NULL constraints keep
+  `workpaper_exceptions_new_...` names after the rename.
+- Audit Results import now checks any Audit, Workpaper name and Workpaper value
+  against the application (non-archived audits and workpapers; a given
+  workpaper's own audit and name must match). Values that don't exist do not
+  block the import: a dialog lists each field, the value in the file, why it
+  failed, how many rows, and sample items. **Ok** strips those values and
+  imports the items without them (shown as `<blank>` / not linked to a
+  workpaper; a Ref that depended on a stripped Workpaper is stripped too);
+  **Cancel** applies nothing. Other problems (missing Type, unknown Ref, bad
+  dropdown values) still block the whole import.
