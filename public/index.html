@@ -2392,7 +2392,7 @@
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2500px"></div>
+            <div id="aud-results-table" style="min-width:2700px"></div>
           </div>
         </div>
       </div>
@@ -18408,10 +18408,10 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18440,6 +18440,7 @@ function renderAuditResults() {
         <div style="${cell}"><select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'status',this.value)" ${focus}>${_EXC_STATUSES.map(st => `<option value="${st}"${(ex.status || 'Unassigned') === st ? ' selected' : ''}>${st}</option>`).join('')}</select></div>
         <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.attrRef || '—')}</div>
+        <div style="${cell};color:var(--text-secondary)" title="The test attribute this item was raised against">${escHtml(_audResAttrName(w, ex) || '—')}</div>
         <div style="${cell}">${ta('name', ex.name, 1)}</div>
         <div style="${cell}">${ta('desc', ex.desc, 2)}</div>
         <div style="${cell};font-size:11px" title="Linked files are changed from the workpaper itself">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
@@ -18533,10 +18534,11 @@ const _AUD_RES_FIELDS = [
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
   { key: 'status', label: 'Status',             fmt: 'Unassigned, Assigned, In Progress or Completed (blank = Unassigned)', validValues: ['Unassigned', 'Assigned', 'In Progress', 'Completed'], optional: true },
   { key: 'owner',  label: 'Owner',              fmt: 'Text' },
-  { key: 'attrRef',label: 'Attribute',          fmt: 'Text (ignored on import)' },
+  { key: 'attrRef',label: 'Attribute',          fmt: "Attribute reference as on the workpaper (e.g. A). Must exist on that workpaper; if not, it is not uploaded" },
+  { key: 'attrName', label: 'Attribute name',   fmt: 'Attribute name as on the workpaper. Must exist on that workpaper (and match the Attribute); if not, it is not uploaded', optional: true },
   { key: 'name',   label: 'Name',               fmt: 'Text' },
   { key: 'desc',   label: 'Description',        fmt: 'Text' },
-  { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;' },
+  { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;. Each must be a sample file on that workpaper; any that is not is not uploaded' },
   { key: 'mgmtResponse', label: 'Management response', fmt: 'Text' },
   { key: 'resolutionDate', label: 'Resolution date', fmt: 'YYYY-MM-DD', pattern: /^\d{4}-\d{2}-\d{2}$/ },
   { key: 'retested', label: 'Retested',        fmt: 'Yes or No', validValues: ['Yes', 'No'] },
@@ -18554,6 +18556,12 @@ function _audResWithXLSX(cb) {
   document.head.appendChild(sc);
 }
 
+// The attribute an item is tied to (by index into the workpaper's test attributes).
+function _audResAttrName(w, ex) {
+  if (!w || ex.attributeIndex === null || ex.attributeIndex === undefined) return '';
+  return ((wpTestAttributes[w.ref] || []).filter(a => a.title)[ex.attributeIndex] || {}).title || '';
+}
+
 function _audResFieldValue(r, key) {
   const { w, ex, type } = r;
   switch (key) {
@@ -18565,6 +18573,7 @@ function _audResFieldValue(r, key) {
     case 'ref': return ex.ref || '';
     case 'type': return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
     case 'attrRef': return ex.attrRef || '';
+    case 'attrName': return _audResAttrName(w, ex);
     case 'status': return ex.status || 'Unassigned';
     case 'linkedFiles': return (ex.linkedFiles || []).join('; ');
     case 'retested': return ex.retested ? 'Yes' : 'No';
@@ -18629,7 +18638,7 @@ function audResHandleImport(input) {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
-        _audResProcessImportRows(rows);
+        _audResProcessImportRows(rows).catch(err => _audResShowDialog(false, 'Could not check this file: ' + escHtml(err.message)));
       } catch (err) {
         _audResShowDialog(false, 'Could not read this file: ' + escHtml(err.message));
       }
@@ -18641,7 +18650,21 @@ function audResHandleImport(input) {
 // Validates parsed sheet rows (row 0 = format row, row 1 = headers) and, if
 // everything is valid, offers to apply them. All-or-nothing: any problem row
 // blocks the whole import, same as the RCM importer.
-function _audResProcessImportRows(rows) {
+// Names of a workpaper's current sample files (lower-cased): what the server
+// has for it, plus anything attached in this session but not yet saved.
+async function _audResSampleFileNames(wpRef) {
+  const names = new Set();
+  (inMemoryFiles[wpRef]?.sample || []).forEach(f => names.add(String(f.name || '').trim().toLowerCase()));
+  if (window._hasBackend) {
+    try {
+      const r = await fetch('/api/sample-files/' + encodeURIComponent(wpRef));
+      if (r.ok) (await r.json()).forEach(f => { if (String(f.file_category || 'sample').toLowerCase() !== 'workpaper') names.add(String(f.filename || '').trim().toLowerCase()); });
+    } catch (e) { console.error('[AuditFindings] Could not list sample files for', wpRef, e.message); }
+  }
+  return names;
+}
+
+async function _audResProcessImportRows(rows) {
   if (rows.length < 2) { _audResShowDialog(false, 'File is empty or missing the required rows (format row + header row).'); return; }
   const headers = rows[1].map(h => String(h || '').trim());
   const missing = _AUD_RES_FIELDS.filter(f => !f.optional).map(f => f.label).filter(l => headers.indexOf(l) < 0);
@@ -18669,6 +18692,19 @@ function _audResProcessImportRows(rows) {
   const liveAudits = AUDITS.filter(a => a.status !== 'archive');
   const liveWps = WORKPAPERS.filter(x => !x.archived);
 
+  // Linked files are checked against each referenced workpaper's real sample
+  // files, which may not be loaded in this session, so fetch them up front.
+  const fileNamesByWp = {};
+  const idxLinked = idx['linkedFiles'];
+  const wpsNeedingFiles = new Set();
+  rows.slice(2).forEach(row => {
+    const ref = noBlank(idx['wpRef'] < 0 ? '' : row[idx['wpRef']]);
+    const files = idxLinked < 0 ? '' : String(row[idxLinked] ?? '').trim();
+    if (ref && files && liveWps.some(x => x.ref === ref)) wpsNeedingFiles.add(ref);
+  });
+  await Promise.all([...wpsNeedingFiles].map(async ref => { fileNamesByWp[ref] = await _audResSampleFileNames(ref); }));
+  const NO_WP = 'cannot be checked: this item has no valid Workpaper to check it against';
+
   rows.slice(2).forEach((row, ri) => {
     if (row.every(v => !String(v || '').trim())) return;
     const rowNo = ri + 3;
@@ -18693,6 +18729,41 @@ function _audResProcessImportRows(rows) {
       if (auditTxt && !liveAudits.some(a => a.name === auditTxt)) { addSoft('Audit', auditTxt, 'no audit with this name exists', rowNo, label); auditTxt = ''; }
       if (wpNameTxt && !liveWps.some(x => normName(x.name) === normName(wpNameTxt))) { addSoft('Workpaper name', wpNameTxt, 'no workpaper with this name exists', rowNo, label); wpNameTxt = ''; }
     }
+    // ── Attribute / Attribute name: must exist on the item's workpaper ──
+    let attrRefTxt = get('attrRef'), attrNameTxt = get('attrName'), attributeIndex = null, attrLabel = '';
+    if (attrRefTxt || attrNameTxt) {
+      if (!w) {
+        if (attrRefTxt) addSoft('Attribute', attrRefTxt, NO_WP, rowNo, label);
+        if (attrNameTxt) addSoft('Attribute name', attrNameTxt, NO_WP, rowNo, label);
+      } else {
+        const attrs = (wpTestAttributes[w.ref] || []).filter(a => a.title);
+        const labelOf = (a, i) => String(a.attrRef || a.num || (i + 1));
+        const byRef = attrRefTxt ? attrs.findIndex((a, i) => normName(labelOf(a, i)) === normName(attrRefTxt)) : -1;
+        const byName = attrNameTxt ? attrs.findIndex(a => normName(a.title) === normName(attrNameTxt)) : -1;
+        let okRef = !!attrRefTxt, okName = !!attrNameTxt;
+        if (attrRefTxt && byRef < 0) { addSoft('Attribute', attrRefTxt, `no attribute with this reference on ${w.ref}`, rowNo, label); okRef = false; }
+        if (attrNameTxt && byName < 0) { addSoft('Attribute name', attrNameTxt, `no attribute with this name on ${w.ref}`, rowNo, label); okName = false; }
+        if (okRef && okName && byRef !== byName) { addSoft('Attribute name', attrNameTxt, `belongs to a different attribute than "${attrRefTxt}" on ${w.ref}`, rowNo, label); okName = false; }
+        attributeIndex = okRef ? byRef : (okName ? byName : null);
+        if (attributeIndex !== null) attrLabel = labelOf(attrs[attributeIndex], attributeIndex);
+      }
+    }
+    // ── Linked files: each must be a sample file on the item's workpaper ──
+    let linkedFiles = get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [];
+    if (linkedFiles.length) {
+      if (!w) {
+        linkedFiles.forEach(f => addSoft('Linked files', f, NO_WP, rowNo, label));
+        linkedFiles = [];
+      } else {
+        const known = fileNamesByWp[w.ref] || new Set();
+        linkedFiles = linkedFiles.filter(f => {
+          if (known.has(f.toLowerCase())) return true;
+          addSoft('Linked files', f, `no sample file with this name on ${w.ref}`, rowNo, label);
+          return false;
+        });
+      }
+    }
+
     // Master item, # and Ref are numbers Wavefire assigns itself; whatever the
     // file has in them is ignored, and every row is added as a new item.
     if (get('master') || get('num') || get('ref')) ignoredNumberRows.push(rowNo);
@@ -18714,7 +18785,8 @@ function _audResProcessImportRows(rows) {
         resolutionDate: get('resolutionDate'), disposition: get('disposition'),
         dispositionType: get('dispositionType'), dispositionStatus: get('dispositionStatus'),
         retested: get('retested') === 'Yes',
-        linkedFiles: get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [],
+        linkedFiles,
+        ...(attributeIndex !== null ? { attrRef: attrLabel, attributeIndex } : {}),
       },
     });
   });
@@ -18752,10 +18824,10 @@ function _audResProcessImportRows(rows) {
       </tr>`).join('')}</tbody></table>`;
   _audResShowDialog(true,
     `<div style="padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;line-height:1.5">
-       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} Audit, Workpaper name or Workpaper values that don't match anything in the application.</strong><br>
-       If you select <strong>Ok</strong>, these values will be <strong>stripped out</strong> — the items are still imported, but without them (shown as &lt;blank&gt; / not linked to a workpaper). Select <strong>Cancel</strong> to stop and correct the file instead.
+       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} values that don't match anything that exists in Wavefire</strong> (Audit, Workpaper name, Workpaper, Attribute, Attribute name or Linked files).<br>
+       If you select <strong>Ok</strong>, Wavefire will simply <strong>not upload</strong> the values that don't validate — the items are still imported, but without them (an Audit or Workpaper that doesn't validate shows as &lt;blank&gt;). Select <strong>Cancel</strong> to stop and correct the file instead.
      </div>` + table + counts,
-    () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will be stripped out' });
+    () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will not be uploaded' });
 }
 
 async function _audResApplyImport(valid) {

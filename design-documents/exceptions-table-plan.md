@@ -283,3 +283,23 @@ was exported and re-imported), the confirmation dialog says they are ignored
 and that the rows will be added as new items, so duplicates are not a surprise.
 Existing items are edited in the grid. Earlier sections of this document that
 describe updating by Ref or master item on import no longer apply.
+
+## Follow-up: Attribute, Attribute name and Linked files are validated on import
+
+The Audit Findings import now checks these three fields against what exists in
+Wavefire and reports problems in the same Cancel / Ok prompt as Audit,
+Workpaper name and Workpaper:
+
+- **Attribute** (reference, e.g. A) and **Attribute name** (new template and
+  grid column, after Attribute) must exist among the test attributes of the
+  item's workpaper, and must refer to the same attribute if both are given. A
+  valid one of the two links the item to that attribute (`attrRef` and
+  `attributeIndex`, not a sample row, so it does not affect any pass/fail).
+- **Linked files**: each file name must be a current sample file of the
+  item's workpaper (checked against the server's list for that workpaper, plus
+  anything attached in the session; workpaper-category files do not count).
+- An item with no valid Workpaper cannot have any of these checked, so they
+  are not uploaded and the prompt says so.
+- The prompt lists each field, the value in the file, the reason, how many rows
+  and sample items. **Ok** uploads the items without the values that did not
+  validate (they are simply not uploaded); **Cancel** applies nothing.
