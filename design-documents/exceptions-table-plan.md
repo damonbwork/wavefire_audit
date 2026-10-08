@@ -195,3 +195,44 @@ Not verified against a real database: the row lock that serialises concurrent
 adds/edits (the in-memory test database has no real locking). The logic was
 verified sequentially: numbering, field merge, reclassify, delete, and that the
 JSONB mirror matches the table.
+
+## What was built (master item, origin, uploaded items with no workpaper)
+
+New columns on `workpaper_exceptions` (added by a re-runnable startup migration):
+
+- `master_item` — a per-tenant running number, 1, 2, 3 ..., across every
+  exception, finding and recommendation regardless of workpaper. Numbers come
+  from a counter table (`exception_master_counter`), so they only go up and are
+  never reused, even after the highest item is deleted. Existing rows were
+  numbered by the migration in creation order. A unique index on
+  `(tenant_id, master_item)` enforces it.
+- `origin` — `uploaded` (Audit Results template), `analyze` (created by
+  Analyze) or `entered` (added by a person). Existing rows could not be known
+  exactly, so the migration **infers** it: an item tied to a test attribute or
+  an evidence file is `analyze`, anything else `entered`. Treat that inference
+  as approximate for pre-existing data.
+- `workpaper_id` is now nullable, plus `audit_name`, `wp_name`, `wp_ref` — used
+  only by an uploaded item that belongs to no workpaper, holding what the
+  template said or `<blank>` where it was empty.
+
+Behaviour:
+- Items created in the browser are numbered by the server (per-item add) or on
+  the next whole-workpaper save, which now returns each item's master item and
+  origin so the browser can show them. A whole-workpaper save matches existing
+  rows one-to-one by ref then by `#`, so items keep their master item and
+  origin; a master item is only honoured if no other workpaper holds it.
+- The master item shows in the workpaper grid and Audit Results, followed by
+  `*` for uploaded items. It is also in both Excel exports.
+- Audit Results import: blank Audit / Workpaper name / Workpaper cells (or the
+  text `<blank>`) are accepted. A row with a Workpaper attaches to it as
+  before; a row without one is stored as its own item. Such items appear under
+  their audit, or under `<blank>` in the audit and workpaper dropdowns, and can
+  be updated on re-import by entering their Master item number.
+- New endpoints: `GET /api/exceptions/unassigned`,
+  `POST /api/exceptions/unassigned/bulk`, `PUT /api/exceptions/unassigned/:id`.
+
+Verified against a real Postgres: the migration over pre-existing rows
+(numbering, origin inference, idempotent re-run), six concurrent adds getting
+distinct master items, whole-workpaper saves preserving master item and origin
+(including duplicate refs), uploaded items with no workpaper surviving a
+workpaper save, and the unique index.
