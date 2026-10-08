@@ -2391,7 +2391,7 @@
             <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Results</button>
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
-          <div style="overflow-x:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+          <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
             <div id="aud-results-table" style="min-width:2400px"></div>
           </div>
         </div>
@@ -4249,9 +4249,9 @@ Testwork Grid" to build a blank grid and record each result yourself.
               </button>
             </div>
           </div>
-          <div class="sect-body" style="padding:0">
+          <div class="sect-body" style="padding:0;overflow-x:auto">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
@@ -4272,7 +4272,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Status</div>
             </div>
             <!-- Exception rows -->
-            <div id="exceptions-rows">
+            <div id="exceptions-rows" style="min-width:2000px">
     <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E1 - 1a: Contract</textarea></div>
@@ -18410,7 +18410,7 @@ function renderAuditResults() {
     return;
   }
   host.innerHTML =
-    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }) => {
       const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
       const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
