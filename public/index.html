@@ -206,11 +206,11 @@
   .wf-ctl-divider { width: 1px; height: 28px; background: var(--border-light); flex-shrink: 0; margin: 0 4px; }
 
   /* ── LAYOUT (no sidebar) ── */
-  .body { display: flex; flex: 1; }
-  .content { flex: 1; padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .body { display: flex; flex: 1; min-width: 0; }
+  .content { flex: 1; min-width: 0; padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 
   /* PAGES */
-  .page { display: none; flex-direction: column; gap: 16px; }
+  .page { display: none; flex-direction: column; gap: 16px; min-width: 0; }
   .page.active { display: flex; }
 
   /* PAGE HEADER */
