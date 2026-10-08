@@ -18381,7 +18381,7 @@ function renderAuditResults() {
     _audResShown = [];
     _audResSelected.clear();
     _audResUpdateBulkBar();
-    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.</div>';
+    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.&nbsp; Note that uploaded exceptions, findings and recommendations without a referenced audit can be found by selecting &lt;blank&gt; as the audit.</div>';
     return;
   }
 
