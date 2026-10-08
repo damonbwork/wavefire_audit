@@ -4251,7 +4251,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
             </div>
           </div>
           <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
-          <div class="sect-body" style="padding:0;overflow-x:auto">
+          <div class="sect-body" style="padding:0 16px 18px 0;overflow-x:auto">
             <!-- Table header -->
             <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
@@ -18354,6 +18354,7 @@ function renderAuditResults() {
   const host = document.getElementById('aud-results-table');
   if (!host) return;
   host.style.minWidth = '0'; // only the table itself needs the wide minimum; a message must sit at the left, in view
+  host.style.padding = '0';
   const uploadedLegend = document.getElementById('aud-results-uploaded-legend');
   if (uploadedLegend) uploadedLegend.style.display = 'none'; // shown below only if an uploaded item is in the grid
   const auditSel = document.getElementById('aud-res-filter-audit');
@@ -18429,6 +18430,8 @@ function renderAuditResults() {
     return;
   }
   host.style.minWidth = '2700px';
+  // Browsers with overlay scroll bars draw them on top of the content; this empty margin is what they sit over.
+  host.style.padding = '0 16px 18px 0';
   host.innerHTML =
     `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }) => {
