@@ -3661,7 +3661,7 @@ async function _excAddUnassigned(tenantId, items) {
         type, masterItem: ++m, origin: 'uploaded', status: _excStatus(it.status),
         auditName: _excText(it.auditName).trim() || '<blank>',
         wpName: _excText(it.wpName).trim() || '<blank>',
-        wpRef: '<blank>',
+        wpRef: _excText(it.wpRef).trim() || '<blank>',
       });
       delete obj.num; delete obj.typeNum; obj.ref = '';
       const r = await client.query(_EXC_INSERT_SQL + ' RETURNING id', [tenantId, null, ..._exceptionToRow(obj, 0)]);

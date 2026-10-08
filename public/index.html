@@ -2388,7 +2388,7 @@
             <div style="flex:1"></div>
             <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
             <input type="file" id="aud-res-import-input" accept=".xlsx" style="display:none" onchange="audResHandleImport(this)">
-            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
+            <button class="btn-s" onclick="audResExportPrompt()" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
           </div>
           <div id="aud-res-bulkbar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:#eef2ff;border:0.5px solid #c7d2fe;border-radius:var(--radius-md);font-size:12px"></div>
@@ -18756,8 +18756,39 @@ function _audResFieldValue(r, key) {
   }
 }
 
-function audResExportXLSX(templateOnly) {
-  if (!templateOnly && !_audResShown.length) {
+// Asks whether to export just the ticked items or everything shown in the grid.
+function audResExportPrompt() {
+  if (!_audResShown.length) {
+    alert(document.getElementById('aud-res-filter-audit').value
+      ? 'There are no findings to export for the current selection.'
+      : 'Select an audit before exporting.');
+    return;
+  }
+  const nAll = _audResShown.length;
+  const nSel = _audResShown.filter(r => _audResSelected.has(r.ex)).length;
+  const oid = 'aud-res-export-overlay';
+  document.getElementById(oid)?.remove();
+  const btn = 'width:100%;text-align:left;padding:12px 14px;border-radius:8px;cursor:pointer;margin-bottom:8px;font-size:13px;display:block';
+  document.body.insertAdjacentHTML('beforeend',
+    `<div id="${oid}" style="position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:21000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)" onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--bg-primary);border-radius:12px;width:min(420px,94vw);box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden">
+        <div style="background:var(--wf-navy);color:#fff;padding:14px 18px;font-size:15px;font-weight:700">Export Findings</div>
+        <div style="padding:16px 18px 6px">
+          <button ${nSel ? '' : 'disabled'} onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'selected')"
+            style="${btn};border:1px solid ${nSel ? 'var(--wf-navy)' : 'var(--border-light)'};background:${nSel ? '#fff' : 'var(--bg-secondary)'};color:${nSel ? 'var(--wf-navy)' : 'var(--text-tertiary)'};${nSel ? '' : 'cursor:not-allowed'}">
+            <strong>Export Selected Findings</strong><br><span style="font-size:11px;font-weight:400">${nSel ? `${nSel} item${nSel !== 1 ? 's' : ''} ticked in the grid` : 'None ticked: tick items in the grid first'}</span></button>
+          <button onclick="document.getElementById('${oid}').remove();audResExportXLSX(false, 'all')"
+            style="${btn};border:1px solid var(--wf-navy);background:#fff;color:var(--wf-navy)">
+            <strong>Export all Findings</strong><br><span style="font-size:11px;font-weight:400">All ${nAll} item${nAll !== 1 ? 's' : ''} shown in the grid</span></button>
+        </div>
+        <div style="padding:6px 18px 16px;text-align:right"><button class="btn-s" onclick="document.getElementById('${oid}').remove()">Cancel</button></div>
+      </div></div>`);
+}
+
+// which: 'selected' = only the ticked items, anything else = everything shown.
+function audResExportXLSX(templateOnly, which) {
+  const rows = which === 'selected' ? _audResShown.filter(r => _audResSelected.has(r.ex)) : _audResShown;
+  if (!templateOnly && !rows.length) {
     alert(document.getElementById('aud-res-filter-audit').value
       ? 'There are no results to export for the current selection.'
       : 'Select an audit before exporting.');
@@ -18765,12 +18796,12 @@ function audResExportXLSX(templateOnly) {
   }
   _audResWithXLSX(XLSX => {
     const wsData = [_AUD_RES_FIELDS.map(f => f.fmt), _AUD_RES_FIELDS.map(f => f.label)];
-    if (!templateOnly) _audResShown.forEach(r => wsData.push(_AUD_RES_FIELDS.map(f => _audResFieldValue(r, f.key))));
+    if (!templateOnly) rows.forEach(r => wsData.push(_AUD_RES_FIELDS.map(f => _audResFieldValue(r, f.key))));
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws['!cols'] = _AUD_RES_FIELDS.map(f => ({ wch: Math.min(Math.max(f.label.length + 4, 16), 45) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Audit Findings');
-    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export' + (which === 'selected' ? 'Selected' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   });
 }
 
@@ -18906,12 +18937,23 @@ async function _audResProcessImportRows(rows) {
       if (auditTxt && !liveAudits.some(a => a.name === auditTxt)) { addSoft('Audit', auditTxt, 'no audit with this name exists', rowNo, label); auditTxt = ''; }
       if (wpNameTxt && !liveWps.some(x => normName(x.name) === normName(wpNameTxt))) { addSoft('Workpaper name', wpNameTxt, 'no workpaper with this name exists', rowNo, label); wpNameTxt = ''; }
     }
+    // An item is attached to a workpaper (and so shows up under it) only when
+    // Audit, Workpaper name and Workpaper Ref are all given and all validate.
+    // Anything else is kept without a workpaper, visible only in this grid; a
+    // Workpaper Ref that did validate is still recorded as text.
+    let keptRef = '';
+    let noWpReason = NO_WP;
+    if (w && !(auditTxt && wpNameTxt)) {
+      keptRef = w.ref;
+      noWpReason = `not attached to ${w.ref}: Audit, Workpaper name and Workpaper Ref did not all validate`;
+      w = null;
+    }
     // ── Attribute / Attribute name: must exist on the item's workpaper ──
     let attrRefTxt = get('attrRef'), attrNameTxt = get('attrName'), attributeIndex = null, attrLabel = '';
     if (attrRefTxt || attrNameTxt) {
       if (!w) {
-        if (attrRefTxt) addSoft('Attribute', attrRefTxt, NO_WP, rowNo, label);
-        if (attrNameTxt) addSoft('Attribute name', attrNameTxt, NO_WP, rowNo, label);
+        if (attrRefTxt) addSoft('Attribute', attrRefTxt, noWpReason, rowNo, label);
+        if (attrNameTxt) addSoft('Attribute name', attrNameTxt, noWpReason, rowNo, label);
       } else {
         const attrs = (wpTestAttributes[w.ref] || []).filter(a => a.title);
         const labelOf = (a, i) => String(a.attrRef || a.num || (i + 1));
@@ -18929,7 +18971,7 @@ async function _audResProcessImportRows(rows) {
     let linkedFiles = get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [];
     if (linkedFiles.length) {
       if (!w) {
-        linkedFiles.forEach(f => addSoft('Linked files', f, NO_WP, rowNo, label));
+        linkedFiles.forEach(f => addSoft('Linked files', f, noWpReason, rowNo, label));
         linkedFiles = [];
       } else {
         const known = fileNamesByWp[w.ref] || new Set();
@@ -18955,7 +18997,7 @@ async function _audResProcessImportRows(rows) {
     if (!get('type')) issues.push('<em>Type</em>: required');
     if (issues.length) { if (errors.length < 20) errors.push({ row: rowNo, issues }); return; }
     valid.push({
-      w, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
+      w, keptRef, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
       data: {
         name: get('name'), desc: get('desc'), owner: get('owner'), mgmtResponse: get('mgmtResponse'),
         status: get('status') || 'Unassigned',
@@ -18980,7 +19022,7 @@ async function _audResProcessImportRows(rows) {
   const counts =
     `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added, numbered by Wavefire (marked * after the master item number)</div>` +
     (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master #, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
-    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper name / Workpaper Ref fields will show as &lt;blank&gt;.</div>` : '');
+    (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these will not appear under a workpaper (Audit, Workpaper name and Workpaper Ref did not all validate) and will only be visible in this Audit Findings grid. Empty or invalid Audit / Workpaper name / Workpaper Ref values show as &lt;blank&gt;.</div>` : '');
 
   if (!soft.size) {
     _audResShowDialog(true, counts, () => _audResApplyImport(valid), `Import ${valid.length} record${valid.length !== 1 ? 's' : ''}`);
@@ -19033,7 +19075,7 @@ async function _audResApplyImport(valid) {
       added++;
       touched.add(ref);
     } else {
-      standaloneNew.push(Object.assign({ type: v.type, auditName: v.auditTxt, wpName: v.wpNameTxt }, v.data));
+      standaloneNew.push(Object.assign({ type: v.type, auditName: v.auditTxt, wpName: v.wpNameTxt, wpRef: v.keptRef }, v.data));
     }
   }
   if (standaloneNew.length) {
@@ -19049,7 +19091,7 @@ async function _audResApplyImport(valid) {
       }
     } else {
       let m = Math.max(0, ..._unassignedExceptions.map(x => x.masterItem || 0));
-      saved = standaloneNew.map(it => Object.assign({}, it, { id: 'local-' + Math.random().toString(36).slice(2), masterItem: ++m, origin: 'uploaded', auditName: it.auditName || '<blank>', wpName: it.wpName || '<blank>', wpRef: '<blank>', ref: '' }));
+      saved = standaloneNew.map(it => Object.assign({}, it, { id: 'local-' + Math.random().toString(36).slice(2), masterItem: ++m, origin: 'uploaded', auditName: it.auditName || '<blank>', wpName: it.wpName || '<blank>', wpRef: it.wpRef || '<blank>', ref: '' }));
     }
     if (saved) { _unassignedExceptions.push(...saved); added += saved.length; }
   }
@@ -29092,12 +29134,16 @@ const HELP_TOPICS = {
           not validate, with sample items, and you can choose <em>Cancel</em> to fix the file, or
           <em>Ok</em> to upload the items without those values. Problems that cannot be skipped, such
           as a missing Type, must be fixed first and are listed too.</li>
+        <li><strong>Where uploaded items appear.</strong> Uploaded exceptions, findings and
+          recommendations that validate on Audit, Workpaper Name and Workpaper Ref (all three validate)
+          will appear within Wavefire under the related workpaper. All other exceptions, findings and
+          recommendations will only be visible in the Audit Findings grid.</li>
         <li><strong>Blank Audit, Workpaper name or Workpaper Ref.</strong> If an Audit, Workpaper name or
           Workpaper Ref is not provided, or cannot be validated, it is loaded as
-          <code>&lt;blank&gt;</code>. An item with no valid Workpaper is not attached to any workpaper;
-          it appears on this page under its Audit, or under <code>&lt;blank&gt;</code>.</li>
+          <code>&lt;blank&gt;</code>. In the Audit Findings grid, such an item appears under its Audit,
+          or under <code>&lt;blank&gt;</code>.</li>
         <li>Items that come in through an import are marked with an asterisk (*) after the Master #.</li>
-        <li><em>Export Findings</em> saves the items currently shown in the grid to a spreadsheet.</li>
+        <li><em>Export Findings</em> asks whether to export the <em>selected</em> items (those you have ticked in the grid) or <em>all</em> the findings shown in the grid, and saves them to a spreadsheet.</li>
       </ul>
     `,
   },
