@@ -18472,6 +18472,54 @@ function renderAuditResults() {
       </div>`;
     }).join('');
   setTimeout(() => host.querySelectorAll('textarea').forEach(t => autoResizeTA(t)), 0);
+  _audResInitCellPopup(host);
+}
+
+// Hovering a cell whose text is cut off pops up the whole value. The grid is
+// rebuilt on every render, so the listeners sit on the (persistent) host.
+let _audResTipTimer = null;
+function _audResHideCellPopup() {
+  clearTimeout(_audResTipTimer);
+  document.getElementById('aud-res-cell-popup')?.remove();
+}
+function _audResCellFullText(cell) {
+  const ctl = cell.querySelector('textarea, input[type="text"], select');
+  if (ctl) {
+    const v = ctl.tagName === 'SELECT' ? (ctl.selectedOptions[0]?.textContent || '') : ctl.value;
+    const cut = ctl.tagName === 'TEXTAREA' ? ctl.scrollHeight > ctl.clientHeight + 1 : ctl.scrollWidth > ctl.clientWidth + 1;
+    return cut ? v : '';
+  }
+  if (cell.querySelector('input')) return '';
+  const cut = cell.scrollWidth > cell.clientWidth + 1 || cell.scrollHeight > cell.clientHeight + 1;
+  return cut ? cell.innerText : '';
+}
+function _audResInitCellPopup(host) {
+  if (host.dataset.cellPopup) return;
+  host.dataset.cellPopup = '1';
+  host.addEventListener('mouseover', e => {
+    const cell = e.target.closest('#aud-results-table > div > div');
+    if (!cell || cell.parentElement === host.firstElementChild) { host._tipCell = null; _audResHideCellPopup(); return; }
+    if (host._tipCell === cell) return;
+    host._tipCell = cell;
+    _audResHideCellPopup();
+    const x = e.clientX, y = e.clientY;
+    _audResTipTimer = setTimeout(() => {
+      const text = _audResCellFullText(cell).trim();
+      if (!text) return;
+      const pop = document.createElement('div');
+      pop.id = 'aud-res-cell-popup';
+      pop.textContent = text;
+      pop.style.cssText = 'position:fixed;z-index:22000;max-width:420px;max-height:60vh;overflow:auto;padding:10px 12px;background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border-light);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.25);font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;pointer-events:none';
+      document.body.appendChild(pop);
+      const r = pop.getBoundingClientRect();
+      pop.style.left = Math.max(8, Math.min(x + 14, window.innerWidth - r.width - 8)) + 'px';
+      pop.style.top = Math.max(8, Math.min(y + 18, window.innerHeight - r.height - 8)) + 'px';
+    }, 350);
+  });
+  host.addEventListener('mouseleave', () => { host._tipCell = null; _audResHideCellPopup(); });
+  host.addEventListener('mousedown', _audResHideCellPopup);
+  host.addEventListener('input', _audResHideCellPopup);
+  host.parentElement?.addEventListener('scroll', _audResHideCellPopup);
 }
 
 // Inline editing for the Audit Findings table. Edits go straight to the same
