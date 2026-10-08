@@ -2386,10 +2386,10 @@
             </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
             <div style="flex:1"></div>
-            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button>
+            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
             <input type="file" id="aud-res-import-input" accept=".xlsx" style="display:none" onchange="audResHandleImport(this)">
-            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button>
-            <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
+            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
+            <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button><i class="ti ti-help-circle wf-help-icon" data-help-topic="auditFindingsUpload" onclick="event.stopPropagation();_toggleHelpPopup(this)" title="How importing and exporting Audit Findings works" style="cursor:pointer;color:var(--text-tertiary);font-size:16px"></i>
           </div>
           <div id="aud-res-bulkbar" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;background:#eef2ff;border:0.5px solid #c7d2fe;border-radius:var(--radius-md);font-size:12px"></div>
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
@@ -29058,6 +29058,41 @@ const HELP_TOPICS = {
           </tr>
         </tbody>
       </table>
+    `,
+  },
+  auditFindingsUpload: {
+    title: 'Importing and exporting Audit Findings',
+    width: '620px',
+    html: `
+      <p>Use a spreadsheet to add many exceptions, findings and recommendations at once.</p>
+      <ol style="margin:0 0 12px 18px;padding:0;line-height:1.7">
+        <li><strong>Export Template.</strong> Choose <em>Export Template</em>. The file
+          (<code>AuditFindings_Import_Template.xlsx</code>) is saved by your browser; look for it in
+          your browser's Downloads.</li>
+        <li><strong>Add your items to the file.</strong> Enter one row per exception, finding or
+          recommendation. <strong>Row 1</strong> gives instructions for each field, and
+          <strong>row 2</strong> lists the fields that can be uploaded (the column headings). Start your
+          data in row 3, and leave rows 1 and 2 as they are.</li>
+        <li><strong>Import Findings.</strong> Choose <em>Import Findings</em> and browse to the file
+          that has the data to upload.</li>
+      </ol>
+      <p style="margin:0 0 8px"><strong>Things to know</strong></p>
+      <ul style="margin:0 0 12px 18px;padding:0;line-height:1.7">
+        <li><strong>Some fields are assigned by Wavefire.</strong> Master #, # and Ref are numbered by
+          the system, so leave them blank: anything you enter in them is ignored. Every row is added as
+          a <em>new</em> item; an import never changes an item that already exists.</li>
+        <li><strong>Other fields must match what already exists.</strong> Audit, Workpaper name,
+          Workpaper, Attribute, Attribute name and Linked files must be valid values in Wavefire, and
+          fields with a fixed list (Type, Status, Retested, Disposition type, Disposition status) or a
+          format (Resolution date, YYYY-MM-DD) must follow it. A value that does not validate is
+          <strong>not loaded</strong>.</li>
+        <li><strong>Wavefire warns you before anything is uploaded.</strong> It lists the values that do
+          not validate, with sample items, and you can choose <em>Cancel</em> to fix the file, or
+          <em>Ok</em> to upload the items without those values. Problems that cannot be skipped, such
+          as a missing Type, must be fixed first and are listed too.</li>
+        <li>Items that come in through an import are marked with an asterisk (*) after the Master #.</li>
+        <li><em>Export Findings</em> saves the items currently shown in the grid to a spreadsheet.</li>
+      </ul>
     `,
   },
   sampleFileTypeDetails: {
