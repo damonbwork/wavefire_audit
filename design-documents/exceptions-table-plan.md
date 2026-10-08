@@ -327,3 +327,19 @@ editable. A confirmation states how many items and workpapers are affected.
   dropdown (renumbering refs, re-marking annotated files), with no per-item
   prompts; an item not tied to an attribute and sample cannot become an
   Exception and is reported as not changed.
+
+## Follow-up: when an uploaded item attaches to a workpaper; export prompt
+
+- **Attach rule (supersedes the earlier rule that a valid Workpaper Ref alone
+  was enough).** An uploaded item is attached to a workpaper, and so appears
+  under it, only when Audit, Workpaper name and Workpaper Ref are all given and
+  all validate. Every other uploaded item is kept without a workpaper and is
+  visible only in the Audit Findings grid, filed under its Audit (or `<blank>`).
+  A Workpaper Ref that did validate is still recorded as text on such an item
+  (`wp_ref`). Attribute, Attribute name and Linked files cannot be checked
+  without an attached workpaper, so on those items they are listed in the
+  prompt (reason: not attached) and not uploaded.
+- **Export Findings** asks whether to export the *selected* items (ticked in
+  the grid; disabled when none are) or *all* findings shown in the grid. "All"
+  means all rows currently shown, so it follows the audit / workpaper / type /
+  search selection. Export Template is unchanged.
