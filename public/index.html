@@ -18351,6 +18351,7 @@ function _audResGuardWpSelect(e) {
 function renderAuditResults() {
   const host = document.getElementById('aud-results-table');
   if (!host) return;
+  host.style.minWidth = '0'; // only the table itself needs the wide minimum; a message must sit at the left, in view
   const auditSel = document.getElementById('aud-res-filter-audit');
   const wpSel    = document.getElementById('aud-res-filter-wp');
   const fAudit = auditSel.value;
@@ -18372,7 +18373,7 @@ function renderAuditResults() {
   if (!fAudit) {
     subEl.textContent = '';
     _audResShown = [];
-    host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.</div>';
+    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">Select an audit to see its exceptions, findings and recommendations.</div>';
     return;
   }
 
@@ -18419,9 +18420,10 @@ function renderAuditResults() {
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
 
   if (!shown.length) {
-    host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-tertiary);font-size:13px;font-style:italic">No exceptions, findings or recommendations to show.</div>';
+    host.innerHTML = '<div style="padding:24px;text-align:left;color:var(--text-tertiary);font-size:13px;font-style:italic">No exceptions, findings or recommendations to show.</div>';
     return;
   }
+  host.style.minWidth = '2700px';
   host.innerHTML =
     `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }) => {
