@@ -2053,7 +2053,7 @@
       <div class="page active" id="page-audits" style="flex-direction:row;gap:0;margin:-22px -26px;min-height:calc(100% + 44px)">
 
         <!-- Left sidebar — same look as the Admin page's, per explicit
-             request. "Audit Results" is the only option for now. -->
+             request. "Audit Findings" is the only option for now. -->
         <div style="width:220px;flex-shrink:0;background:var(--bg-secondary);border-right:0.5px solid var(--border-light);display:flex;flex-direction:column;overflow-y:auto">
           <div style="padding:18px 16px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:var(--text-tertiary)">Audits</div>
           <button class="aud-nav-btn" id="aud-btn-audits" onclick="showAuditsSection('audits')"
@@ -2064,7 +2064,7 @@
           <button class="aud-nav-btn" id="aud-btn-results" onclick="showAuditsSection('results')"
             style="display:flex;align-items:center;gap:10px;padding:10px 16px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;border-radius:0;border-top:0.5px solid var(--border-light)">
             <i class="ti ti-clipboard-check" style="font-size:15px;flex-shrink:0"></i>
-            <span>Audit Results</span>
+            <span>Audit Findings</span>
           </button>
         </div>
 
@@ -2370,12 +2370,12 @@
         </div>
         </div><!-- /aud-section-audits -->
 
-        <!-- Audit Results — a cross-audit, cross-workpaper view of every
+        <!-- Audit Findings — a cross-audit, cross-workpaper view of every
              Exception, Finding and Recommendation, mirroring the grid at
              the bottom of the workpaper page. -->
         <div id="aud-section-results" class="aud-section" style="display:none;flex:1;min-width:0;padding:22px 26px;flex-direction:column;gap:14px;overflow-y:auto">
           <div>
-            <div class="pt">Audit Results</div>
+            <div class="pt">Audit Findings</div>
             <div class="ps" id="aud-results-sub"></div>
           </div>
           <div class="filters" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -2386,14 +2386,15 @@
             </select>
             <input id="aud-res-filter-text" type="text" placeholder="Search…" oninput="renderAuditResults()" style="font-size:12px;padding:5px 9px;border:0.5px solid var(--border-light);border-radius:6px">
             <div style="flex:1"></div>
-            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Results</button>
+            <button class="btn-s" onclick="audResImportTrigger()" style="font-size:11px"><i class="ti ti-upload"></i>Import Findings</button>
             <input type="file" id="aud-res-import-input" accept=".xlsx" style="display:none" onchange="audResHandleImport(this)">
-            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Results</button>
+            <button class="btn-s" onclick="audResExportXLSX(false)" style="font-size:11px"><i class="ti ti-download"></i>Export Findings</button>
             <button class="btn-s" onclick="audResExportXLSX(true)" style="font-size:11px"><i class="ti ti-file-spreadsheet"></i>Export Template</button>
           </div>
-          <div style="overflow-x:auto;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
-            <div id="aud-results-table" style="min-width:2400px"></div>
+          <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
+            <div id="aud-results-table" style="min-width:2700px"></div>
           </div>
+          <div style="padding:0 2px;font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:6px" id="aud-results-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> After a master item number: this item was uploaded from an Audit Findings template (not entered on a workpaper or created by Analyze).</div>
         </div>
       </div>
 
@@ -4249,21 +4250,23 @@ Testwork Grid" to build a blank grid and record each result yourself.
               </button>
             </div>
           </div>
-          <div class="sect-body" style="padding:0">
+          <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> After a master item number: this item was uploaded from an Audit Findings template (not entered on a workpaper or created by Analyze).</div>
+          <div class="sect-body" style="padding:0;overflow-x:auto">
             <!-- Table header -->
-            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)">
+            <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
               <div style="display:flex;align-items:center;justify-content:center;padding:7px 0">
                 <input type="checkbox" id="exceptions-select-all" onchange="toggleExceptionsSelectAll(this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer" title="Select all">
               </div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">#</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Results template.">Master item</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Master item number, counted across every audit and workpaper. An asterisk (*) means the item was uploaded from an Audit Findings template.">Master item</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">Ref</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Type</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="Unassigned, Assigned, In Progress or Completed">Status</div>
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Owner</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px" title="The test attribute this item was raised against, if any">Attribute</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Name</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Description</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Linked files</div>
-              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Owner</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Management response</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Expected resolution</div>
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px;text-align:center">Retested</div>
@@ -4272,7 +4275,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
               <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px">Disposition Status</div>
             </div>
             <!-- Exception rows -->
-            <div id="exceptions-rows">
+            <div id="exceptions-rows" style="min-width:2000px">
     <div style="display:grid;grid-template-columns:44px 60px 80px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px 60px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">1</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div><div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)">—</div>
       <div style="padding:6px 8px;border-bottom:0.5px solid var(--border-light);display:flex;align-items:flex-start;"><textarea rows="1" placeholder="Name…" style="width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;resize:none;line-height:1.5;" oninput="autoResizeTA(this);saveException('WP-2026-FIN-002',0,'name',this.value)" onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">E1 - 1a: Contract</textarea></div>
@@ -12014,6 +12017,7 @@ const wpExceptions = {}; // { ref: [{num, name, desc, owner, mgmtResponse, resol
 // sequence's own next-number lookup, reused by both the post-analyze
 // auto-populate block and the manual add flow below, so the two can
 // never drift into different numbering logic.
+const _EXC_STATUSES = ['Unassigned', 'Assigned', 'In Progress', 'Completed'];
 const _GRID_ITEM_PREFIX = { exception: 'E', finding: 'F', recommendation: 'R' };
 function _getNextTypeNum(ref, type) {
   const existing = (wpExceptions[ref] || []).filter(e => (e.type || 'exception') === type);
@@ -12075,7 +12079,7 @@ async function addGridItem() {
   // out don't). This also makes a manually-added item a genuine,
   // real member of the same single numbering sequence Analyze-created
   // items use, so its own `num` can never collide with theirs either.
-  const blank = { type, origin: 'entered', name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' };
+  const blank = { type, origin: 'entered', status: 'Unassigned', name: '', desc: '', owner: '', mgmtResponse: '', resolutionDate: '', retested: false, linkedFiles: [], disposition: '', dispositionType: '', dispositionStatus: '' };
   // The server assigns #, type number and ref (so two people adding at once
   // can't collide); without a backend, or if the call fails, number it
   // locally as before and save the whole workpaper.
@@ -12188,7 +12192,7 @@ async function exportExceptions() {
     [exportDate],                                       // A4: Date
     [],                                                 // A5: blank
     // A6: column headers
-    ['#', 'Master Item', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked Files', 'Owner',
+    ['#', 'Master Item', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Name', 'Description', 'Linked Files',
      'Management Response', 'Expected Resolution Date', 'Retested', 'Retested By', 'Retested Date', 'Disposition', 'Disposition Type', 'Disposition Status'],
   ];
 
@@ -12199,11 +12203,12 @@ async function exportExceptions() {
       ex.masterItem != null ? String(ex.masterItem) + (ex.origin === 'uploaded' ? '*' : '') : '',
       ex.ref           || '',
       ((ex.type || 'exception')).replace(/^./, c => c.toUpperCase()),
+      ex.status        || 'Unassigned',
+      ex.owner         || '',
       ex.attrRef       || '',
       ex.name          || '',
       ex.desc          || '',
       (ex.linkedFiles  || []).join('; '),
-      ex.owner         || '',
       ex.mgmtResponse  || '',
       ex.resolutionDate|| '',
       ex.retested ? 'Yes' : 'No',
@@ -12218,7 +12223,7 @@ async function exportExceptions() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [
-    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
+    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 22 }, { wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 22 },
     { wch: 40 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Exceptions');
@@ -12356,6 +12361,7 @@ function saveException(ref, idx, field, value) {
     owner:          'Exception owner',
     mgmtResponse:   'Management response',
     resolutionDate: 'Expected resolution date',
+    status:         'Status',
   };
   const label = FIELD_LABELS[field] || field;
   logChange(ref, `Exception #${ex.num} — ${label}`, String(old), String(value));
@@ -12402,12 +12408,12 @@ function renderExceptions(ref) {
   const dropStyle = `width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;cursor:pointer;`;
 
   container.innerHTML = list.map((ex, i) => `
-    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 60px 1fr 2fr 1fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
+    <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light)" class="exception-row">
       <div style="${cellStyle}align-items:center;justify-content:center">
         <input type="checkbox" ${_excSelected.has(i) ? 'checked' : ''} onchange="toggleExceptionSelected(${i},this)" style="width:14px;height:14px;accent-color:var(--wf-navy);cursor:pointer">
       </div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-tertiary)">${ex.num}</div>
-      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Results template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
+      <div style="${cellStyle}align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--text-secondary)" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="Reference — assigned automatically, a separate sequence per type (E/F/R)">${ex.ref ? escHtml(ex.ref) : '—'}</div>
       <div style="${cellStyle}align-items:center;justify-content:center;padding-top:6px">
         <select style="${dropStyle}text-align:center;font-weight:600;color:${{exception:'#dc2626',finding:'#d97706',recommendation:'#1e40af'}[ex.type || 'exception']}"
@@ -12419,6 +12425,18 @@ function renderExceptions(ref) {
           <option value="recommendation" ${ex.type==='recommendation'?'selected':''}>Recommendation</option>
         </select>
       </div>
+      <div style="${cellStyle}padding-top:6px">
+        <select style="${dropStyle}" title="Status of this item"
+          onchange="saveException('${ref}',${i},'status',this.value)"
+          onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'">
+          ${_EXC_STATUSES.map(st => `<option value="${st}" ${(ex.status || 'Unassigned') === st ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+      </div>
+      <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
+        value="${escHtml(ex.owner)}"
+        oninput="saveException('${ref}',${i},'owner',this.value)"
+        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
+      ></div>
       <div style="${cellStyle}align-items:center;justify-content:center;font-size:11px;color:var(--text-tertiary)" title="The test attribute this item was raised against, if any">${ex.attrRef ? escHtml(ex.attrRef) : '—'}</div>
       <div style="${cellStyle}"><textarea rows="1" placeholder="Name…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'name',this.value)"
@@ -12447,11 +12465,6 @@ function renderExceptions(ref) {
           }).join('')}
         </div>
       </div>
-      <div style="${cellStyle}"><input type="text" placeholder="Owner…" style="${inputStyle};border:none;"
-        value="${escHtml(ex.owner)}"
-        oninput="saveException('${ref}',${i},'owner',this.value)"
-        onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
-      ></div>
       <div style="${cellStyle}"><textarea rows="2" placeholder="Management response…" style="${inputStyle}"
         oninput="autoResizeTA(this);saveException('${ref}',${i},'mgmtResponse',this.value)"
         onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"
@@ -18277,7 +18290,7 @@ function showAuditsSection(section) {
   if (section === 'results') { renderAuditResults(); _loadUnassignedExceptions().then(() => renderAuditResults()); }
 }
 
-// Audit Results — one row per Exception/Finding/Recommendation across every
+// Audit Findings — one row per Exception/Finding/Recommendation across every
 // audit and workpaper loaded for this tenant (wpExceptions is keyed by
 // workpaper ref and populated at bootstrap). Same fields, in the same order,
 // as the grid at the bottom of the workpaper page, with Audit and Workpaper
@@ -18397,10 +18410,10 @@ function renderAuditResults() {
     (standaloneCount ? ` (+${standaloneCount} with no workpaper)` : '');
 
   const th = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);padding:7px 10px';
-  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Attribute', 'Name', 'Description', 'Linked files', 'Owner', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
+  const heads = ['Audit', 'Workpaper name', 'Workpaper', 'Master item', '#', 'Ref', 'Type', 'Status', 'Owner', 'Attribute', 'Attribute name', 'Name', 'Description', 'Linked files', 'Management response', 'Resolution date', 'Retested', 'Disposition', 'Disposition type', 'Disposition status'];
   // Column set mirrors renderExceptions: Name/Description/Linked files/Owner/
   // Mgmt response/Resolution date/Retested/Disposition/Type/Status.
-  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 60px 1.2fr 2fr 1.2fr 1fr 2fr 110px 80px 1.2fr 140px 120px';
+  const colsFixed = '160px 200px 150px 80px 44px 60px 110px 120px 1fr 60px 1.2fr 1.2fr 2fr 1.2fr 2fr 110px 80px 1.2fr 140px 120px';
   const typeColor = { exception: '#dc2626', finding: '#d97706', recommendation: '#1e40af' };
   const typeLabel = { exception: 'Exception', finding: 'Finding', recommendation: 'Recommendation' };
   const cell = 'padding:6px 10px;border-bottom:0.5px solid var(--border-light);font-size:12px;color:var(--text-primary);line-height:1.5;word-break:break-word';
@@ -18410,7 +18423,7 @@ function renderAuditResults() {
     return;
   }
   host.innerHTML =
-    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light)">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
+    `<div style="display:grid;grid-template-columns:${colsFixed};background:var(--bg-secondary);border-bottom:0.5px solid var(--border-light);position:sticky;top:0;z-index:2">${heads.map(h => `<div style="${th}">${h}</div>`).join('')}</div>` +
     shown.map(({ w, idx, ex, ei, type, standalone }) => {
       const inp = 'width:100%;font-size:12px;font-family:inherit;color:var(--text-primary);background:transparent;border:none;outline:none;line-height:1.5;';
       const focus = `onfocus="this.style.background='var(--bg-secondary)'" onblur="this.style.background='transparent'"`;
@@ -18422,15 +18435,17 @@ function renderAuditResults() {
         <div style="${cell}">${escHtml(standalone ? (ex.auditName || '<blank>') : (w.auditName || ''))}</div>
         <div style="${cell}">${escHtml(standalone ? (ex.wpName || '<blank>') : (w.name || ''))}</div>
         <div style="${cell}">${standalone ? `<span style="color:var(--text-tertiary)">${escHtml(ex.wpRef || '<blank>')}</span>` : `<a href="#" onclick="event.preventDefault();openWP(${idx})" style="color:#1e40af;text-decoration:underline" title="Open this workpaper">${escHtml(w.ref)}</a>`}</div>
-        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Results template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
+        <div style="${cell};font-weight:600;text-align:center" title="Master item number, counted across every audit and workpaper. An asterisk (*) means this item was uploaded from an Audit Findings template.">${ex.masterItem != null ? ex.masterItem : '—'}${ex.origin === 'uploaded' ? '*' : ''}</div>
         <div style="${cell};color:var(--text-tertiary);font-weight:600;text-align:center">${escHtml(String(ex.num ?? ''))}</div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.ref || '—')}</div>
         <div style="${cell};font-weight:600;color:${typeColor[type]}"><select style="${inp}cursor:pointer;font-weight:600;color:${typeColor[type]}" onchange="_audResReclassify(${idx},${ei},this.value)" title="Change this item's classification">${['exception', 'finding', 'recommendation'].map(t => `<option value="${t}"${t === type ? ' selected' : ''}>${typeLabel[t]}</option>`).join('')}</select></div>
+        <div style="${cell}"><select style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'status',this.value)" ${focus}>${_EXC_STATUSES.map(st => `<option value="${st}"${(ex.status || 'Unassigned') === st ? ' selected' : ''}>${st}</option>`).join('')}</select></div>
+        <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
         <div style="${cell};color:var(--text-tertiary);text-align:center">${escHtml(ex.attrRef || '—')}</div>
+        <div style="${cell};color:var(--text-secondary)" title="The test attribute this item was raised against">${escHtml(_audResAttrName(w, ex) || '—')}</div>
         <div style="${cell}">${ta('name', ex.name, 1)}</div>
         <div style="${cell}">${ta('desc', ex.desc, 2)}</div>
         <div style="${cell};font-size:11px" title="Linked files are changed from the workpaper itself">${(ex.linkedFiles || []).map(f => escHtml(f)).join('<br>')}</div>
-        <div style="${cell}"><input type="text" value="${escAttr(ex.owner || '')}" style="${inp}" ${edit('owner')} ${focus}></div>
         <div style="${cell}">${ta('mgmtResponse', ex.mgmtResponse, 2)}</div>
         <div style="${cell}"><input type="date" value="${escAttr(ex.resolutionDate || '')}" style="${inp}cursor:pointer" onchange="_audResEdit(${idx},${ei},'resolutionDate',this.value)"></div>
         <div style="${cell};flex-direction:column;align-items:center"><input type="checkbox" ${ex.retested ? 'checked' : ''} onchange="_audResRetested(${idx},${ei},this)" style="width:15px;height:15px;accent-color:var(--wf-navy);cursor:pointer">${ex.retestedBy ? `<div style="font-size:9px;color:var(--text-tertiary);text-align:center">${escHtml(ex.retestedBy)}<br>${escHtml(ex.retestedDate || '')}</div>` : ''}</div>
@@ -18442,12 +18457,12 @@ function renderAuditResults() {
   setTimeout(() => host.querySelectorAll('textarea').forEach(t => autoResizeTA(t)), 0);
 }
 
-// Inline editing for the Audit Results table. Edits go straight to the same
+// Inline editing for the Audit Findings table. Edits go straight to the same
 // wpExceptions[ref] objects the workpaper page's grid uses (so both views
 // always agree), honour the workpaper edit lock, are written to the change
 // log, and are saved to Postgres a moment after the last edit per workpaper.
 const _AUD_RES_EDIT_LABELS = {
-  name: 'Name', desc: 'Description', owner: 'Owner', mgmtResponse: 'Management response',
+  status: 'Status', name: 'Name', desc: 'Description', owner: 'Owner', mgmtResponse: 'Management response',
   resolutionDate: 'Expected resolution date', disposition: 'Disposition',
   dispositionType: 'Disposition type', dispositionStatus: 'Disposition status',
 };
@@ -18504,25 +18519,28 @@ async function _audResReclassify(wi, ei, newType) {
   renderAuditResults();
 }
 
-// ── Audit Results: import / export ─────────────────────────────────────────
+// ── Audit Findings: import / export ─────────────────────────────────────────
 // Same three actions as the RCM page. Export writes the rows currently shown
 // (the selected audit/workpaper/filters); the template is just the format and
-// header rows. Import matches each row to an existing workpaper by its
-// Workpaper ref: a row whose Ref (E1/F1/R1…) already exists on that workpaper
-// updates it, a row with a blank Ref adds a new item (Type required).
+// header rows. Import adds every row as a NEW item (Type required), attached
+// to the workpaper named in its Workpaper column or, if that is blank, to no
+// workpaper. Master item, # and Ref are numbers Wavefire assigns itself, so
+// whatever the file has in those columns is ignored.
 const _AUD_RES_FIELDS = [
   { key: 'audit',  label: 'Audit',              fmt: "Text. Must be an existing audit (and the workpaper's audit); a value that isn't is removed. Blank shows as <blank>" },
   { key: 'wpName', label: 'Workpaper name',     fmt: 'Text. Must be an existing workpaper name (and the workpaper\'s name); a value that isn\'t is removed. Blank shows as <blank>' },
   { key: 'wpRef',  label: 'Workpaper',          fmt: 'Existing workpaper ref, e.g. WP-2026-FIN-002; a ref that does not exist is removed. Blank = an item with no workpaper (shows as <blank>)' },
-  { key: 'master', label: 'Master item',        fmt: 'Number, set by Wavefire. Leave blank for new items. For an uploaded item with no workpaper, enter its number to update it', optional: true },
-  { key: 'num',    label: '#',                  fmt: 'Number (ignored on import)' },
-  { key: 'ref',    label: 'Ref',                fmt: 'Existing ref (E1/F1/R1) to update it; blank to add a new item' },
+  { key: 'master', label: 'Master item',        fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored', optional: true },
+  { key: 'num',    label: '#',                  fmt: 'Assigned by Wavefire. Leave blank: anything entered here is ignored' },
+  { key: 'ref',    label: 'Ref',                fmt: 'Assigned by Wavefire (E1, F1, R1 ...). Leave blank: anything entered here is ignored' },
   { key: 'type',   label: 'Type',               fmt: 'Exception, Finding or Recommendation (required for new items)', validValues: ['Exception', 'Finding', 'Recommendation'] },
-  { key: 'attrRef',label: 'Attribute',          fmt: 'Text (ignored on import)' },
+  { key: 'status', label: 'Status',             fmt: 'Unassigned, Assigned, In Progress or Completed (blank = Unassigned)', validValues: ['Unassigned', 'Assigned', 'In Progress', 'Completed'], optional: true },
+  { key: 'owner',  label: 'Owner',              fmt: 'Text' },
+  { key: 'attrRef',label: 'Attribute',          fmt: "Attribute reference as on the workpaper (e.g. A). Must exist on that workpaper; if not, it is not uploaded" },
+  { key: 'attrName', label: 'Attribute name',   fmt: 'Attribute name as on the workpaper. Must exist on that workpaper (and match the Attribute); if not, it is not uploaded', optional: true },
   { key: 'name',   label: 'Name',               fmt: 'Text' },
   { key: 'desc',   label: 'Description',        fmt: 'Text' },
-  { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;' },
-  { key: 'owner',  label: 'Owner',              fmt: 'Text' },
+  { key: 'linkedFiles', label: 'Linked files',  fmt: 'File names separated by ;. Each must be a sample file on that workpaper; any that is not is not uploaded' },
   { key: 'mgmtResponse', label: 'Management response', fmt: 'Text' },
   { key: 'resolutionDate', label: 'Resolution date', fmt: 'YYYY-MM-DD', pattern: /^\d{4}-\d{2}-\d{2}$/ },
   { key: 'retested', label: 'Retested',        fmt: 'Yes or No', validValues: ['Yes', 'No'] },
@@ -18540,6 +18558,12 @@ function _audResWithXLSX(cb) {
   document.head.appendChild(sc);
 }
 
+// The attribute an item is tied to (by index into the workpaper's test attributes).
+function _audResAttrName(w, ex) {
+  if (!w || ex.attributeIndex === null || ex.attributeIndex === undefined) return '';
+  return ((wpTestAttributes[w.ref] || []).filter(a => a.title)[ex.attributeIndex] || {}).title || '';
+}
+
 function _audResFieldValue(r, key) {
   const { w, ex, type } = r;
   switch (key) {
@@ -18551,6 +18575,8 @@ function _audResFieldValue(r, key) {
     case 'ref': return ex.ref || '';
     case 'type': return type ? type.charAt(0).toUpperCase() + type.slice(1) : '';
     case 'attrRef': return ex.attrRef || '';
+    case 'attrName': return _audResAttrName(w, ex);
+    case 'status': return ex.status || 'Unassigned';
     case 'linkedFiles': return (ex.linkedFiles || []).join('; ');
     case 'retested': return ex.retested ? 'Yes' : 'No';
     default: return ex[key] ?? '';
@@ -18570,8 +18596,8 @@ function audResExportXLSX(templateOnly) {
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws['!cols'] = _AUD_RES_FIELDS.map(f => ({ wch: Math.min(Math.max(f.label.length + 4, 16), 45) }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Audit Results');
-    XLSX.writeFile(wb, templateOnly ? 'AuditResults_Import_Template.xlsx' : 'AuditResults_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Findings');
+    XLSX.writeFile(wb, templateOnly ? 'AuditFindings_Import_Template.xlsx' : 'AuditFindings_Export_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   });
 }
 
@@ -18614,7 +18640,7 @@ function audResHandleImport(input) {
       try {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
-        _audResProcessImportRows(rows);
+        _audResProcessImportRows(rows).catch(err => _audResShowDialog(false, 'Could not check this file: ' + escHtml(err.message)));
       } catch (err) {
         _audResShowDialog(false, 'Could not read this file: ' + escHtml(err.message));
       }
@@ -18626,7 +18652,21 @@ function audResHandleImport(input) {
 // Validates parsed sheet rows (row 0 = format row, row 1 = headers) and, if
 // everything is valid, offers to apply them. All-or-nothing: any problem row
 // blocks the whole import, same as the RCM importer.
-function _audResProcessImportRows(rows) {
+// Names of a workpaper's current sample files (lower-cased): what the server
+// has for it, plus anything attached in this session but not yet saved.
+async function _audResSampleFileNames(wpRef) {
+  const names = new Set();
+  (inMemoryFiles[wpRef]?.sample || []).forEach(f => names.add(String(f.name || '').trim().toLowerCase()));
+  if (window._hasBackend) {
+    try {
+      const r = await fetch('/api/sample-files/' + encodeURIComponent(wpRef));
+      if (r.ok) (await r.json()).forEach(f => { if (String(f.file_category || 'sample').toLowerCase() !== 'workpaper') names.add(String(f.filename || '').trim().toLowerCase()); });
+    } catch (e) { console.error('[AuditFindings] Could not list sample files for', wpRef, e.message); }
+  }
+  return names;
+}
+
+async function _audResProcessImportRows(rows) {
   if (rows.length < 2) { _audResShowDialog(false, 'File is empty or missing the required rows (format row + header row).'); return; }
   const headers = rows[1].map(h => String(h || '').trim());
   const missing = _AUD_RES_FIELDS.filter(f => !f.optional).map(f => f.label).filter(l => headers.indexOf(l) < 0);
@@ -18640,6 +18680,7 @@ function _audResProcessImportRows(rows) {
   const noBlank = v => { const t = String(v || '').trim(); return t.toLowerCase() === '<blank>' ? '' : t; };
 
   const errors = [], valid = [];
+  const ignoredNumberRows = []; // rows that had a Master item, # or Ref filled in
   // Audit / Workpaper name / Workpaper values that don't exist in the
   // application. These do not block the import: if the person goes ahead, the
   // offending value is stripped out and the item is imported without it.
@@ -18653,23 +18694,34 @@ function _audResProcessImportRows(rows) {
   const liveAudits = AUDITS.filter(a => a.status !== 'archive');
   const liveWps = WORKPAPERS.filter(x => !x.archived);
 
+  // Linked files are checked against each referenced workpaper's real sample
+  // files, which may not be loaded in this session, so fetch them up front.
+  const fileNamesByWp = {};
+  const idxLinked = idx['linkedFiles'];
+  const wpsNeedingFiles = new Set();
+  rows.slice(2).forEach(row => {
+    const ref = noBlank(idx['wpRef'] < 0 ? '' : row[idx['wpRef']]);
+    const files = idxLinked < 0 ? '' : String(row[idxLinked] ?? '').trim();
+    if (ref && files && liveWps.some(x => x.ref === ref)) wpsNeedingFiles.add(ref);
+  });
+  await Promise.all([...wpsNeedingFiles].map(async ref => { fileNamesByWp[ref] = await _audResSampleFileNames(ref); }));
+  const NO_WP = 'cannot be checked: this item has no valid Workpaper to check it against';
+
   rows.slice(2).forEach((row, ri) => {
     if (row.every(v => !String(v || '').trim())) return;
     const rowNo = ri + 3;
     const get = k => idx[k] < 0 ? '' : String(row[idx[k]] ?? '').trim();
     let auditTxt = noBlank(get('audit')), wpNameTxt = noBlank(get('wpName')), wpRef = noBlank(get('wpRef'));
     const label = get('name') || get('desc').slice(0, 40) || '(no name)';
-    const masterNum = parseInt(get('master').replace('*', ''), 10);
     const issues = [];
-    let w = null, existing = null, standaloneExisting = null;
+    let w = null;
 
     // ── Soft checks against what exists in the application ──
-    let refStripped = false;
     if (wpRef) {
       w = liveWps.find(x => x.ref === wpRef) || null;
       if (!w) {
         addSoft('Workpaper', wpRef, WORKPAPERS.some(x => x.ref === wpRef) ? 'this workpaper is archived' : 'no workpaper with this ref exists', rowNo, label);
-        wpRef = ''; refStripped = true;
+        wpRef = '';
       }
     }
     if (w) {
@@ -18679,42 +18731,64 @@ function _audResProcessImportRows(rows) {
       if (auditTxt && !liveAudits.some(a => a.name === auditTxt)) { addSoft('Audit', auditTxt, 'no audit with this name exists', rowNo, label); auditTxt = ''; }
       if (wpNameTxt && !liveWps.some(x => normName(x.name) === normName(wpNameTxt))) { addSoft('Workpaper name', wpNameTxt, 'no workpaper with this name exists', rowNo, label); wpNameTxt = ''; }
     }
-    let itemRef = get('ref');
-    if (refStripped && itemRef) { addSoft('Ref', itemRef, 'cannot be applied because the Workpaper above was removed', rowNo, label); itemRef = ''; }
-
-    // ── Hard rules (these still block the import) ──
-    if (!w) {
-      if (itemRef) issues.push('<em>Ref</em>: a Ref identifies an item on a workpaper — enter that Workpaper, or clear the Ref');
-      if (!Number.isNaN(masterNum)) {
-        standaloneExisting = _unassignedExceptions.find(x => x.masterItem === masterNum);
-        if (!standaloneExisting) issues.push(`<em>Master item</em>: ${masterNum} is not an uploaded item without a workpaper`);
+    // ── Attribute / Attribute name: must exist on the item's workpaper ──
+    let attrRefTxt = get('attrRef'), attrNameTxt = get('attrName'), attributeIndex = null, attrLabel = '';
+    if (attrRefTxt || attrNameTxt) {
+      if (!w) {
+        if (attrRefTxt) addSoft('Attribute', attrRefTxt, NO_WP, rowNo, label);
+        if (attrNameTxt) addSoft('Attribute name', attrNameTxt, NO_WP, rowNo, label);
+      } else {
+        const attrs = (wpTestAttributes[w.ref] || []).filter(a => a.title);
+        const labelOf = (a, i) => String(a.attrRef || a.num || (i + 1));
+        const byRef = attrRefTxt ? attrs.findIndex((a, i) => normName(labelOf(a, i)) === normName(attrRefTxt)) : -1;
+        const byName = attrNameTxt ? attrs.findIndex(a => normName(a.title) === normName(attrNameTxt)) : -1;
+        let okRef = !!attrRefTxt, okName = !!attrNameTxt;
+        if (attrRefTxt && byRef < 0) { addSoft('Attribute', attrRefTxt, `no attribute with this reference on ${w.ref}`, rowNo, label); okRef = false; }
+        if (attrNameTxt && byName < 0) { addSoft('Attribute name', attrNameTxt, `no attribute with this name on ${w.ref}`, rowNo, label); okName = false; }
+        if (okRef && okName && byRef !== byName) { addSoft('Attribute name', attrNameTxt, `belongs to a different attribute than "${attrRefTxt}" on ${w.ref}`, rowNo, label); okName = false; }
+        attributeIndex = okRef ? byRef : (okName ? byName : null);
+        if (attributeIndex !== null) attrLabel = labelOf(attrs[attributeIndex], attributeIndex);
       }
     }
+    // ── Linked files: each must be a sample file on the item's workpaper ──
+    let linkedFiles = get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [];
+    if (linkedFiles.length) {
+      if (!w) {
+        linkedFiles.forEach(f => addSoft('Linked files', f, NO_WP, rowNo, label));
+        linkedFiles = [];
+      } else {
+        const known = fileNamesByWp[w.ref] || new Set();
+        linkedFiles = linkedFiles.filter(f => {
+          if (known.has(f.toLowerCase())) return true;
+          addSoft('Linked files', f, `no sample file with this name on ${w.ref}`, rowNo, label);
+          return false;
+        });
+      }
+    }
+
+    // Master item, # and Ref are numbers Wavefire assigns itself; whatever the
+    // file has in them is ignored, and every row is added as a new item.
+    if (get('master') || get('num') || get('ref')) ignoredNumberRows.push(rowNo);
+
+    // ── Hard rules (these still block the import) ──
     _AUD_RES_FIELDS.forEach(f => {
-      if (['audit', 'wpName', 'wpRef', 'master'].includes(f.key)) return;
+      if (['audit', 'wpName', 'wpRef', 'master', 'num', 'ref'].includes(f.key)) return;
       const v = get(f.key);
       if (f.pattern && v && !f.pattern.test(v)) issues.push(`<em>${f.label}</em>: invalid format`);
       if (f.validValues && v && f.validValues.indexOf(v) < 0) issues.push(`<em>${f.label}</em>: invalid value "${escHtml(v)}"`);
     });
-    if (w) {
-      if (itemRef) {
-        existing = (wpExceptions[w.ref] || []).find(x => x.ref === itemRef);
-        if (!existing) issues.push(`<em>Ref</em>: "${escHtml(itemRef)}" not found on ${escHtml(w.ref)} (leave blank to add a new item)`);
-      } else if (!get('type')) {
-        issues.push('<em>Type</em>: required when adding a new item');
-      }
-    } else if (!standaloneExisting && !get('type')) {
-      issues.push('<em>Type</em>: required when adding a new item');
-    }
+    if (!get('type')) issues.push('<em>Type</em>: required');
     if (issues.length) { if (errors.length < 20) errors.push({ row: rowNo, issues }); return; }
     valid.push({
-      w, existing, standaloneExisting, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
+      w, type: get('type').toLowerCase(), auditTxt, wpNameTxt,
       data: {
         name: get('name'), desc: get('desc'), owner: get('owner'), mgmtResponse: get('mgmtResponse'),
+        status: get('status') || 'Unassigned',
         resolutionDate: get('resolutionDate'), disposition: get('disposition'),
         dispositionType: get('dispositionType'), dispositionStatus: get('dispositionStatus'),
         retested: get('retested') === 'Yes',
-        linkedFiles: get('linkedFiles') ? get('linkedFiles').split(';').map(x => x.trim()).filter(Boolean) : [],
+        linkedFiles,
+        ...(attributeIndex !== null ? { attrRef: attrLabel, attributeIndex } : {}),
       },
     });
   });
@@ -18726,11 +18800,11 @@ function _audResProcessImportRows(rows) {
     return;
   }
   if (!valid.length) { _audResShowDialog(false, 'No data rows found in the file.'); return; }
-  const upd = valid.filter(v => v.existing || v.standaloneExisting).length, add = valid.length - upd;
+  const add = valid.length;
   const noWp = valid.filter(v => !v.w).length;
   const counts =
-    (upd ? `<div><i class="ti ti-refresh" style="color:#2563eb;margin-right:8px"></i><strong>${upd}</strong> existing item${upd !== 1 ? 's' : ''} will be updated</div>` : '') +
-    (add ? `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added (marked * after the master item number)</div>` : '') +
+    `<div><i class="ti ti-circle-plus" style="color:#16a34a;margin-right:8px"></i><strong>${add}</strong> new item${add !== 1 ? 's' : ''} will be added, numbered by Wavefire (marked * after the master item number)</div>` +
+    (ignoredNumberRows.length ? `<div style="color:var(--text-tertiary)">${ignoredNumberRows.length} row${ignoredNumberRows.length !== 1 ? 's have' : ' has'} a Master item, # or Ref filled in. Wavefire assigns these itself, so they are ignored and each row is added as a new item.</div>` : '') +
     (noWp ? `<div style="color:var(--text-tertiary)">${noWp} of these ${noWp !== 1 ? 'have' : 'has'} no workpaper; empty Audit / Workpaper fields will show as &lt;blank&gt;.</div>` : '');
 
   if (!soft.size) {
@@ -18752,50 +18826,37 @@ function _audResProcessImportRows(rows) {
       </tr>`).join('')}</tbody></table>`;
   _audResShowDialog(true,
     `<div style="padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;line-height:1.5">
-       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} Audit, Workpaper name or Workpaper values that don't match anything in the application.</strong><br>
-       If you select <strong>Ok</strong>, these values will be <strong>stripped out</strong> — the items are still imported, but without them (shown as &lt;blank&gt; / not linked to a workpaper). Select <strong>Cancel</strong> to stop and correct the file instead.
+       <strong>${affectedRows.size} row${affectedRows.size !== 1 ? 's have' : ' has'} values that don't match anything that exists in Wavefire</strong> (Audit, Workpaper name, Workpaper, Attribute, Attribute name or Linked files).<br>
+       If you select <strong>Ok</strong>, Wavefire will simply <strong>not upload</strong> the values that don't validate — the items are still imported, but without them (an Audit or Workpaper that doesn't validate shows as &lt;blank&gt;). Select <strong>Cancel</strong> to stop and correct the file instead.
      </div>` + table + counts,
-    () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will be stripped out' });
+    () => _audResApplyImport(valid), 'Ok', { warn: true, title: 'Some values will not be uploaded' });
 }
 
 async function _audResApplyImport(valid) {
   const unlocked = {}; // per-workpaper edit-lock check, asked once each
   const touched = new Set();
-  const stats = { upd: 0, add: 0 };
   const standaloneNew = [];
-  let skipped = 0;
+  let added = 0, skipped = 0;
   for (const v of valid) {
     if (v.w) {
       const ref = v.w.ref;
       if (!(ref in unlocked)) unlocked[ref] = !!_guardWpEdit(ref);
       if (!unlocked[ref]) { skipped++; continue; }
-      if (v.existing) {
-        Object.assign(v.existing, v.data);
-        _excQueueFieldSave(ref, v.existing.ref, v.data);
-        await _excFlushItem(ref, v.existing.ref);
-        stats.upd++;
+      // The server numbers the new item (and gives it its master item);
+      // without a backend, or if that fails, number it here as addGridItem does.
+      let item = await _excPersistAdd(ref, Object.assign({ type: v.type, origin: 'uploaded' }, v.data));
+      const list = wpExceptions[ref] || (wpExceptions[ref] = []);
+      if (!item) {
+        const num = list.length ? Math.max(...list.map(e => e.num || 0)) + 1 : 1;
+        const typeNum = _getNextTypeNum(ref, v.type);
+        item = Object.assign({ num, type: v.type, typeNum, ref: `${_GRID_ITEM_PREFIX[v.type]}${typeNum}`, origin: 'uploaded' }, v.data);
+        list.push(item);
+        if (window._hasBackend) _excFallbackSave(ref);
       } else {
-        // The server numbers the new item (and gives it its master item);
-        // without a backend, or if that fails, number it here as addGridItem does.
-        let item = await _excPersistAdd(ref, Object.assign({ type: v.type, origin: 'uploaded' }, v.data));
-        const list = wpExceptions[ref] || (wpExceptions[ref] = []);
-        if (!item) {
-          const num = list.length ? Math.max(...list.map(e => e.num || 0)) + 1 : 1;
-          const typeNum = _getNextTypeNum(ref, v.type);
-          item = Object.assign({ num, type: v.type, typeNum, ref: `${_GRID_ITEM_PREFIX[v.type]}${typeNum}`, origin: 'uploaded' }, v.data);
-          list.push(item);
-          if (window._hasBackend) _excFallbackSave(ref);
-        } else {
-          list.push(item);
-        }
-        stats.add++;
+        list.push(item);
       }
+      added++;
       touched.add(ref);
-    } else if (v.standaloneExisting) {
-      Object.assign(v.standaloneExisting, v.data);
-      _excQueueUnassignedSave(v.standaloneExisting.id, v.data);
-      await _excFlushUnassigned(v.standaloneExisting.id);
-      stats.upd++;
     } else {
       standaloneNew.push(Object.assign({ type: v.type, auditName: v.auditTxt, wpName: v.wpNameTxt }, v.data));
     }
@@ -18815,12 +18876,12 @@ async function _audResApplyImport(valid) {
       let m = Math.max(0, ..._unassignedExceptions.map(x => x.masterItem || 0));
       saved = standaloneNew.map(it => Object.assign({}, it, { id: 'local-' + Math.random().toString(36).slice(2), masterItem: ++m, origin: 'uploaded', auditName: it.auditName || '<blank>', wpName: it.wpName || '<blank>', wpRef: '<blank>', ref: '' }));
     }
-    if (saved) { _unassignedExceptions.push(...saved); stats.add += saved.length; }
+    if (saved) { _unassignedExceptions.push(...saved); added += saved.length; }
   }
-  for (const ref of touched) logEvent(ref, `Audit Results import: items updated or added from a template`);
+  for (const ref of touched) logEvent(ref, `Audit Findings import: items added from a template`);
   renderAuditResults();
   const noteSkipped = skipped ? `<div style="color:#b45309">${skipped} row${skipped !== 1 ? 's were' : ' was'} skipped because the workpaper is locked for editing.</div>` : '';
-  _audResShowDialog(true, `<div><strong>${stats.upd}</strong> updated, <strong>${stats.add}</strong> added.</div>` + noteSkipped);
+  _audResShowDialog(true, `<div><strong>${added}</strong> item${added !== 1 ? 's' : ''} added.</div>` + noteSkipped);
 }
 
 function showAdminSection(section) {

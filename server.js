@@ -1603,9 +1603,10 @@ async function initDB() {
           audit_name         TEXT NOT NULL DEFAULT '',
           wp_name            TEXT NOT NULL DEFAULT '',
           wp_ref             TEXT NOT NULL DEFAULT '',
+          status             TEXT NOT NULL DEFAULT 'Unassigned',
           created_at         TIMESTAMPTZ DEFAULT NOW(),
           updated_at         TIMESTAMPTZ DEFAULT NOW()`;
-      const WPEXC_COLUMN_NAMES = 'master_item, id, tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index, name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date, disposition, disposition_type, disposition_status, extra, origin, audit_name, wp_name, wp_ref, created_at, updated_at';
+      const WPEXC_COLUMN_NAMES = 'master_item, id, tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index, name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date, disposition, disposition_type, disposition_status, extra, origin, audit_name, wp_name, wp_ref, status, created_at, updated_at';
       await pool.query(`
         CREATE TABLE IF NOT EXISTS workpaper_exceptions (${WPEXC_COLUMNS});
         -- Last master item handed out per tenant. Numbers only ever go up and
@@ -1619,11 +1620,17 @@ async function initDB() {
       // deployments already have the table without them).
       // master_item: a per-tenant running number, 1, 2, 3..., across every
       //   item regardless of workpaper.
-      // origin: 'uploaded' (Audit Results template), 'analyze' (created by
+      // origin: 'uploaded' (Audit Findings template), 'analyze' (created by
       //   Analyze) or 'entered' (added by a person on a workpaper).
       // audit_name / wp_name / wp_ref: only used by an uploaded item that is
       //   not attached to any workpaper (workpaper_id NULL), holding what the
       //   template said, or "<blank>" where it was empty.
+      // status: Unassigned / Assigned / In Progress / Completed. Rows that
+      // existed before the column did start as Unassigned, except that an item
+      // that already had an owner starts as Assigned (done once, when the
+      // column is first added, so it never overrides a later choice).
+      const hadStatusCol = (await pool.query(`SELECT 1 FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'workpaper_exceptions' AND column_name = 'status'`)).rows.length > 0;
       await pool.query(`
         ALTER TABLE workpaper_exceptions ALTER COLUMN workpaper_id DROP NOT NULL;
         ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS master_item INTEGER;
@@ -1631,7 +1638,11 @@ async function initDB() {
         ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS audit_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS wp_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS wp_ref TEXT NOT NULL DEFAULT '';
+        ALTER TABLE workpaper_exceptions ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Unassigned';
       `);
+      if (!hadStatusCol) {
+        await pool.query(`UPDATE workpaper_exceptions SET status = 'Assigned' WHERE owner <> '' AND status = 'Unassigned'`);
+      }
       // One-time, re-runnable backfill: only workpapers that have items in
       // the old JSONB column and no rows yet in the new table.
       const bf = await pool.query(`
@@ -3411,7 +3422,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 // Fields that live in their own columns but are managed by the server, not
 // stored in `extra`.
 const _EXC_META_KEYS = ['id', 'masterItem', 'origin', 'auditName', 'wpName', 'wpRef'];
-const _EXC_MAPPED_KEYS = ['num','type','typeNum','ref','attrRef','attributeIndex','sampleRowIndex','name','desc',
+const _EXC_STATUSES = ['Unassigned', 'Assigned', 'In Progress', 'Completed'];
+function _excStatus(v, fallback) { return _EXC_STATUSES.includes(v) ? v : (fallback || 'Unassigned'); }
+const _EXC_MAPPED_KEYS = ['status', 'num','type','typeNum','ref','attrRef','attributeIndex','sampleRowIndex','name','desc',
   'linkedFiles','owner','mgmtResponse','resolutionDate','retested','retestedBy','retestedDate',
   'disposition','dispositionType','dispositionStatus'];
 
@@ -3436,7 +3449,7 @@ function _exceptionToRow(ex, position) {
     _excText(ex.retestedBy), _excText(ex.retestedDate), _excText(ex.disposition),
     _excText(ex.dispositionType), _excText(ex.dispositionStatus), JSON.stringify(extra),
     _excIntOrNull(ex.masterItem), _excText(ex.origin) || _excInferOrigin(ex),
-    _excText(ex.auditName), _excText(ex.wpName), _excText(ex.wpRef),
+    _excText(ex.auditName), _excText(ex.wpName), _excText(ex.wpRef), _excStatus(ex.status),
   ];
 }
 
@@ -3455,7 +3468,7 @@ function _rowToException(r) {
   o.owner = r.owner; o.mgmtResponse = r.mgmt_response; o.resolutionDate = r.resolution_date;
   o.retested = r.retested; o.retestedBy = r.retested_by; o.retestedDate = r.retested_date;
   o.disposition = r.disposition; o.dispositionType = r.disposition_type; o.dispositionStatus = r.disposition_status;
-  o.id = r.id; set('masterItem', r.master_item); o.origin = r.origin || 'entered';
+  o.status = _excStatus(r.status); o.id = r.id; set('masterItem', r.master_item); o.origin = r.origin || 'entered';
   if (r.workpaper_id === null) { o.auditName = r.audit_name; o.wpName = r.wp_name; o.wpRef = r.wp_ref; }
   return o;
 }
@@ -3463,8 +3476,8 @@ function _rowToException(r) {
 const _EXC_INSERT_SQL = `INSERT INTO workpaper_exceptions
    (tenant_id, workpaper_id, position, num, type, type_num, ref, attr_ref, attribute_index, sample_row_index,
     name, description, linked_files, owner, mgmt_response, resolution_date, retested, retested_by, retested_date,
-    disposition, disposition_type, disposition_status, extra, master_item, origin, audit_name, wp_name, wp_ref)
- VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`;
+    disposition, disposition_type, disposition_status, extra, master_item, origin, audit_name, wp_name, wp_ref, status)
+ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`;
 
 // Hands out `n` consecutive master items for a tenant and returns the first.
 // The counter row is locked by the upsert for the rest of the transaction, so
@@ -3528,11 +3541,12 @@ async function _excUpdateItem(tenantId, wpRef, itemRef, fields) {
       [tenantId, wpId, itemRef]);
     if (!rows.length) return null;
     const merged = Object.assign(_rowToException(rows[0]), _excEditableFields(fields));
+    merged.status = _excStatus(merged.status);
     await client.query(
       `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
          sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
          retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
-         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, updated_at=NOW() WHERE id=$27`,
+         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, status=$27, updated_at=NOW() WHERE id=$28`,
       [..._exceptionToRow(merged, rows[0].position), rows[0].id]);
     return merged;
   });
@@ -3552,6 +3566,7 @@ async function _excAddItem(tenantId, wpRef, item) {
     const saved = Object.assign({}, _excEditableFields(item), {
       type, num: Number(rows[0].n) + 1, typeNum, ref: _EXC_PREFIX[type] + typeNum,
       masterItem, origin: ['uploaded', 'analyze', 'entered'].includes(item.origin) ? item.origin : _excInferOrigin(item),
+      status: _excStatus(item.status),
     });
     await client.query(_EXC_INSERT_SQL, [tenantId, wpId, ..._exceptionToRow(saved, Number(rows[0].p) + 1)]);
     return saved;
@@ -3566,7 +3581,7 @@ async function _excDeleteItem(tenantId, wpRef, itemRef) {
 }
 
 // ── Uploaded items that belong to no workpaper ──────────────────────────────
-// An Audit Results template row with no Workpaper is kept as its own item,
+// An Audit Findings template row with no Workpaper is kept as its own item,
 // numbered from the same master sequence. Its Audit / Workpaper name /
 // Workpaper values are stored as text, "<blank>" where the template had none.
 async function _excListUnassigned(tenantId) {
@@ -3583,7 +3598,7 @@ async function _excAddUnassigned(tenantId, items) {
     for (const it of items) {
       const type = _EXC_PREFIX[it.type] ? it.type : 'exception';
       const obj = Object.assign({}, _excEditableFields(it), {
-        type, masterItem: ++m, origin: 'uploaded',
+        type, masterItem: ++m, origin: 'uploaded', status: _excStatus(it.status),
         auditName: _excText(it.auditName).trim() || '<blank>',
         wpName: _excText(it.wpName).trim() || '<blank>',
         wpRef: '<blank>',
@@ -3610,11 +3625,12 @@ async function _excUpdateUnassigned(tenantId, id, fields) {
     const { rows } = await client.query('SELECT * FROM workpaper_exceptions WHERE tenant_id=$1 AND id=$2 AND workpaper_id IS NULL FOR UPDATE', [tenantId, id]);
     if (!rows.length) { await client.query('ROLLBACK'); return null; }
     const merged = Object.assign(_rowToException(rows[0]), _excEditableFields(fields));
+    merged.status = _excStatus(merged.status);
     await client.query(
       `UPDATE workpaper_exceptions SET position=$1, num=$2, type=$3, type_num=$4, ref=$5, attr_ref=$6, attribute_index=$7,
          sample_row_index=$8, name=$9, description=$10, linked_files=$11, owner=$12, mgmt_response=$13, resolution_date=$14,
          retested=$15, retested_by=$16, retested_date=$17, disposition=$18, disposition_type=$19, disposition_status=$20,
-         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, updated_at=NOW() WHERE id=$27`,
+         extra=$21, master_item=$22, origin=$23, audit_name=$24, wp_name=$25, wp_ref=$26, status=$27, updated_at=NOW() WHERE id=$28`,
       [..._exceptionToRow(merged, rows[0].position), id]);
     await client.query('COMMIT');
     return merged;
@@ -3639,7 +3655,7 @@ async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
     // numbered. A master item is only honoured if no other workpaper's item
     // holds it and it isn't already used in this payload (a stale browser
     // could otherwise resurrect a number that has since been reassigned).
-    const prior = await client.query('SELECT ref, num, master_item, origin FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
+    const prior = await client.query('SELECT ref, num, master_item, origin, status FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id=$2', [tenantId, workpaperId]);
     const others = await client.query('SELECT master_item FROM workpaper_exceptions WHERE tenant_id=$1 AND workpaper_id IS DISTINCT FROM $2 AND master_item IS NOT NULL', [tenantId, workpaperId]);
     const taken = new Set(others.rows.map(r => Number(r.master_item)));
     const claim = n => { if (n === null || taken.has(n)) return false; taken.add(n); return true; };
@@ -3655,6 +3671,7 @@ async function _replaceWorkpaperExceptions(tenantId, workpaperId, exceptions) {
       let m = _excIntOrNull(it.masterItem);
       if (!claim(m)) m = (found && found.master_item !== null && claim(Number(found.master_item))) ? Number(found.master_item) : null;
       out.masterItem = m;
+      out.status = _EXC_STATUSES.includes(it.status) ? it.status : _excStatus(found && found.status);
       out.origin = ['uploaded', 'analyze', 'entered'].includes(it.origin) ? it.origin : ((found && found.origin) || _excInferOrigin(it));
       return out;
     });
