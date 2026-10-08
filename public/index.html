@@ -2394,7 +2394,7 @@
           <div style="overflow:auto;max-height:calc(100vh - 340px);min-height:260px;border:0.5px solid var(--border-light);border-radius:var(--radius-md)">
             <div id="aud-results-table" style="min-width:2700px"></div>
           </div>
-          <div style="padding:0 2px;font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:6px" id="aud-results-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> After a master item number: this item was uploaded from an Audit Findings template (not entered on a workpaper or created by Analyze).</div>
+          <div style="padding:0 2px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px" id="aud-results-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
         </div>
       </div>
 
@@ -4250,7 +4250,7 @@ Testwork Grid" to build a blank grid and record each result yourself.
               </button>
             </div>
           </div>
-          <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> After a master item number: this item was uploaded from an Audit Findings template (not entered on a workpaper or created by Analyze).</div>
+          <div style="padding:6px 14px;font-size:11px;color:var(--text-secondary);display:none;align-items:center;gap:6px;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary)" id="exceptions-uploaded-legend"><strong style="font-size:13px;line-height:1">*</strong> this item was uploaded from template</div>
           <div class="sect-body" style="padding:0;overflow-x:auto">
             <!-- Table header -->
             <div style="display:grid;grid-template-columns:36px 44px 80px 60px 130px 120px 1fr 60px 1fr 2fr 1fr 2fr 130px 80px 130px 140px 130px;gap:0;border-bottom:0.5px solid var(--border-light);background:var(--bg-secondary);min-width:2000px">
@@ -12377,6 +12377,8 @@ function renderExceptions(ref) {
   const emptyEl    = document.getElementById('exceptions-empty');
   if (!container) return;
   const list = wpExceptions[ref] || [];
+  const uploadedLegend = document.getElementById('exceptions-uploaded-legend');
+  if (uploadedLegend) uploadedLegend.style.display = list.some(e => e.origin === 'uploaded') ? 'flex' : 'none';
 
   // Selection is scoped per-workpaper — switching to a different ref
   // starts with a clean slate rather than carrying over indices that
@@ -18352,6 +18354,8 @@ function renderAuditResults() {
   const host = document.getElementById('aud-results-table');
   if (!host) return;
   host.style.minWidth = '0'; // only the table itself needs the wide minimum; a message must sit at the left, in view
+  const uploadedLegend = document.getElementById('aud-results-uploaded-legend');
+  if (uploadedLegend) uploadedLegend.style.display = 'none'; // shown below only if an uploaded item is in the grid
   const auditSel = document.getElementById('aud-res-filter-audit');
   const wpSel    = document.getElementById('aud-res-filter-wp');
   const fAudit = auditSel.value;
@@ -18405,6 +18409,7 @@ function renderAuditResults() {
     (a.standalone ? (a.ex.masterItem || 0) - (b.ex.masterItem || 0) : (a.w.ref || '').localeCompare(b.w.ref || '') || (a.ex.num || 0) - (b.ex.num || 0)));
 
   _audResShown = shown;
+  if (uploadedLegend) uploadedLegend.style.display = shown.some(r => r.ex.origin === 'uploaded') ? 'flex' : 'none';
   const wpCount = new Set(shown.filter(r => r.w).map(r => r.w.ref)).size;
   const standaloneCount = shown.filter(r => r.standalone).length;
   subEl.textContent = `${shown.length} item${shown.length !== 1 ? 's' : ''} across ${wpCount} workpaper${wpCount !== 1 ? 's' : ''}` +
