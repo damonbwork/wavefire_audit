@@ -538,17 +538,38 @@ async function initDB() {
         const alreadyCorrect = Array.isArray(existing) &&
           JSON.stringify([...existing].sort()) === JSON.stringify([...keyCols].sort());
         if (alreadyCorrect) return;
-        if (rows.length) {
-          // A real, different primary key already exists — this
-          // table predates the current schema. Correct it the same
-          // way the workpapers fix above does.
-          const { rows: pkRows } = await pool.query(`SELECT conname FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'p'`, [tableName]);
-          for (const { conname } of pkRows) {
-            await pool.query(`ALTER TABLE ${tableName} DROP CONSTRAINT "${conname}"`);
-          }
+        // Check the data first: ADD PRIMARY KEY fails on duplicate or
+        // NULL key values. Log the exact cause and leave the table
+        // untouched (including any old PK) instead of failing half-way.
+        const colList = keyCols.join(', ');
+        const { rows: dupRows } = await pool.query(
+          `SELECT COUNT(*)::int AS n FROM (SELECT 1 FROM ${tableName} GROUP BY ${colList} HAVING COUNT(*) > 1) d`
+        );
+        const { rows: nullRows } = await pool.query(
+          `SELECT COUNT(*)::int AS n FROM ${tableName} WHERE ${keyCols.map(c => `${c} IS NULL`).join(' OR ')}`
+        );
+        if (dupRows[0].n || nullRows[0].n) {
+          console.error(`DB: cannot add primary key (${colList}) to ${tableName}: ${dupRows[0].n} duplicate key group(s), ${nullRows[0].n} row(s) with NULL key values. Resolve these rows manually, then restart.`);
+          return;
         }
-        await pool.query(`ALTER TABLE ${tableName} ADD PRIMARY KEY (${keyCols.join(', ')})`);
-        console.log(`DB: ${tableName} primary key corrected to (${keyCols.join(', ')})`);
+        // Drop any old, different PK and add the correct one in one
+        // transaction, so a failed ADD never leaves the table with no PK.
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const { rows: pkRows } = await client.query(`SELECT conname FROM pg_constraint WHERE conrelid = $1::regclass AND contype = 'p'`, [tableName]);
+          for (const { conname } of pkRows) {
+            await client.query(`ALTER TABLE ${tableName} DROP CONSTRAINT "${conname}"`);
+          }
+          await client.query(`ALTER TABLE ${tableName} ADD PRIMARY KEY (${colList})`);
+          await client.query('COMMIT');
+        } catch (txErr) {
+          await client.query('ROLLBACK').catch(() => {});
+          throw txErr;
+        } finally {
+          client.release();
+        }
+        console.log(`DB: ${tableName} primary key corrected to (${colList})`);
       } catch (pkErr) {
         console.error(`DB: could not verify/fix ${tableName} primary key:`, pkErr.message);
       }
@@ -1243,6 +1264,16 @@ async function initDB() {
         }
       } catch (constraintErr) {
         console.error('DB: could not verify/fix audits unique constraint:', constraintErr.message);
+      }
+
+      // POST /api/seed/bulk upserts these four with ON CONFLICT (tenant_id,id).
+      // Their CREATE TABLE statements declare that PK, but on a table created
+      // before the PK (or before tenant_id) existed, CREATE TABLE IF NOT EXISTS
+      // never adds it, giving "no unique or exclusion constraint matching the
+      // ON CONFLICT specification". Run here, after the tables are created and
+      // tenant_id is guaranteed by the scaffolding loop above.
+      for (const tbl of ['risks', 'assessment_entities', 'fs_accounts', 'control_objectives']) {
+        await _ensurePrimaryKey(tbl, ['tenant_id', 'id']);
       }
 
       await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT false`);
